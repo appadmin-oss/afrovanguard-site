@@ -80,4 +80,16 @@ ck('GatePass: the fingerprint matches the gate’s', GatePass::fingerprint('test
 ck('GatePass: the fingerprint ignores stray spaces', GatePass::fingerprint("test-secret-123\n") === 'fa1c2a13');
 ck('GatePass: Studio shows the gate secret’s fingerprint', str_contains((string) file_get_contents(AV_ROOT . '/admin/app.js'), 'f.fingerprint'));
 
+/* A refused signature says why, so CACENTRE's Desks page can say which side to fix. */
+putenv('GATE_PASS_SECRET=test-secret-123');
+$now = (string) time();
+$good = 'sha256=' . hash_hmac('sha256', $now . '.{}', GatePass::key('resolve'));
+ck('GatePass why: no headers arrived', GatePass::why('resolve', '', '{}', '', '')['reason'] === 'headers');
+ck('GatePass why: the clocks differ, by how much', ($w = GatePass::why('resolve', (string) (time() - 900), '{}', 'sha256=x', 'fa1c2a13'))['reason'] === 'clock' && $w['skew'] >= 900);
+ck('GatePass why: the gate holds another secret', ($w = GatePass::why('resolve', $now, '{}', 'sha256=x', 'deadbeef'))['reason'] === 'secret' && $w['site_key'] === 'fa1c2a13' && $w['gate_key'] === 'deadbeef');
+ck('GatePass why: same secret, yet the request changed on its way', GatePass::why('resolve', $now, '{"changed":1}', $good, 'fa1c2a13')['reason'] === 'altered');
+ck('GatePass why: an older gate sends no fingerprint — unknown', GatePass::why('resolve', $now, '{}', 'sha256=x', '')['reason'] === 'unknown');
+$ep = (string) file_get_contents(AV_ROOT . '/integrations/cacentre-gate.php');
+ck('GatePass why: the endpoint answers a refusal with it', str_contains($ep, "GatePass::why(\$purpose, \$ts, \$raw, \$sig, (string) (\$_SERVER['HTTP_X_GATE_KEY'] ?? ''))") && str_contains($ep, "['ok' => false, 'code' => 'bad_signature'] + \$why"));
+
 foreach (['GATE_PASS_SECRET', 'GATE_URL', 'GATE_PASS_TTL', 'GATE_PASS_ROLES'] as $k) putenv($k);
