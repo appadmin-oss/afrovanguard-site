@@ -33,9 +33,10 @@ final class CacGoals
     /* Bumped when what a sync does changes, so a new version reads CACENTRE at
        once rather than an hour after the old one last did (and dropped what
        the new one would keep). */
-    public const VERSION = 3;
+    public const VERSION = 4;
     private const RETRY = 600;
-    private const OPEN = ['active', 'at_risk', 'behind'];
+    /* What CACENTRE's console calls open: a goal starts there as a draft. */
+    private const OPEN = ['draft', 'active', 'at_risk', 'behind'];
     private const PLAN_PER_TICK = 3;
     private const ATTACH_PER_TICK = 25;
 

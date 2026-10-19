@@ -34,7 +34,7 @@ $state = tempnam(sys_get_temp_dir(), 'avcg');
 $goal = ['id' => 41, 'code' => 'G-41', 'title' => 'Twelve sessions', 'unit' => 'count', 'target' => 12, 'baseline' => 0, 'direction' => 'increase', 'progress' => 4, 'started_on' => '2026-10-01', 'due_on' => '2026-10-31', 'status' => 'active', 'entity' => 'MAM Academy', 'owner_av' => 9911, 'owner_name' => 'Ola', 'commitment_id' => 7];
 $orphan = ['id' => 42, 'code' => 'G-42', 'title' => 'Nobody here owns this', 'status' => 'active', 'owner_av' => 0, 'owner_emails' => ['stranger@cacentre.test'], 'owner_name' => 'Tunde Stranger', 'commitment_id' => 9];
 /* Not linked at CACENTRE, but one of the owner's addresses there is a member here. */
-$byMail = ['id' => 43, 'code' => 'G-43', 'title' => 'Owner known by email', 'status' => 'active', 'owner_av' => 0, 'owner_emails' => ['ola@cacentre.test', 'OLA.GOAL@mail.test'], 'commitment_id' => 0];
+$byMail = ['id' => 43, 'code' => 'G-43', 'title' => 'Owner known by email', 'status' => 'draft', 'owner_av' => 0, 'owner_emails' => ['ola@cacentre.test', 'OLA.GOAL@mail.test'], 'commitment_id' => 0];
 file_put_contents($state, json_encode(['goals' => [$goal, $orphan, $byMail]]));
 $secret = str_repeat('s', 48);
 $stub = $port > 0 ? @proc_open([PHP_BINARY, '-S', '127.0.0.1:' . $port, AV_ROOT . '/tests/fixtures/cac-goals-stub.php'],
@@ -57,6 +57,7 @@ if (!is_resource($stub) || !$up) {
     $cs = CacGoals::status();
     ck('cac goals: the Tasks page can say what CACENTRE last answered', $cs['ready'] && $cs['last']['ok'] && $cs['last']['goals'] === 3);
     ck('cac goals: an owner CACENTRE has not linked is found by an address it has for them', ($bm = $mirror(43)) && (int) $bm['author_id'] === 9911);
+    ck('cac goals: a goal still in draft there is open here, as the console lists it', $bm && (int) $bm['closed'] === 0);
     $m = $mirror(41);
     ck('cac goals: mirrored here, owned by the owner’s portal account', $m && (int) $m['author_id'] === 9911 && $m['title'] === 'G-41 · Twelve sessions' && (int) $m['closed'] === 0);
     ck('cac goals: its measure in a line', $m && $m['target'] === '12 count by 31 Oct 2026 · MAM Academy');
