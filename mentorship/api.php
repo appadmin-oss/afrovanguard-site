@@ -162,7 +162,7 @@ try {
            gets "not your mentee", not somebody else's. */
         case 'goals': case 'goal-add': case 'goal-edit': case 'goal-status': case 'goal-remove':
         case 'close-step': case 'close': case 'plan':
-        case 'session-create': case 'session-log': case 'session-missed': case 'session-unlog':
+        case 'session-create': case 'session-edit': case 'session-log': case 'session-missed': case 'session-unlog':
         case 'message': case 'values': case 'checkin': case 'reflect-reply': case 'reflect-unreply':
         case 'request-accept': case 'request-decline': case 'request-undecline':
         case 'profile': case 'concern': case 'ack': case 'support':
@@ -243,6 +243,9 @@ try {
                     $out($portal->logSession((int) ($body['session_id'] ?? 0), (int) ($body['minutes'] ?? 60),
                                                  (array) ($body['topics'] ?? []), (string) ($body['mood'] ?? ''),
                                                  (string) ($body['outcome'] ?? '')));
+
+                case 'session-edit':
+                    $out($portal->editSession((int) ($body['session_id'] ?? 0), $body));
 
                 case 'session-missed':
                     $out($portal->markMissed((int) ($body['session_id'] ?? 0)));

@@ -261,6 +261,20 @@
       api('session-missed', { session_id: id }).then(function () { f.hidden = true; b.outerHTML = '<span class="avm-pill avm-st--missed">Missed</span>'; toast('Marked as missed.', function () { api('session-unlog', { session_id: id }).then(function () { location.reload(); }); }); }).catch(fail);
     });
   });
+  /* Edit a session still to come: its time, length, type or agenda. */
+  $$('[data-avm-edit-open]').forEach(function (b) {
+    var f = b.parentElement.querySelector('[data-avm-edit]');
+    b.addEventListener('click', function () { f.hidden = !f.hidden; b.setAttribute('aria-expanded', String(!f.hidden)); if (!f.hidden) f.querySelector('select,input').focus(); });
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var d = Object.fromEntries(new FormData(f)); d.session_id = b.closest('[data-session]').dataset.session;
+      api('session-edit', d).then(function (r) {
+        if (!r.ok) return fail(r);
+        toast(r.warning || (r.changed === false ? 'Nothing changed.' : 'Saved. Your mentee’s invite has the change.'));
+        if (r.changed !== false) setTimeout(function () { location.reload(); }, 1400);
+      }).catch(fail);
+    });
+  });
   var msg = $('[data-avm-msg]');
   if (msg) msg.addEventListener('submit', function (e) {
     e.preventDefault(); var t = msg.body.value.trim(); if (!t) return;

@@ -130,7 +130,7 @@
   function meetingCard(m) {
     var prov = 'Google Meet';
     var freq = m.frequency && m.frequency !== 'once' ? ' · 🔁 ' + esc(m.frequency_label) : '';
-    var isOwner = m.creator_id === ME;
+    var isOwner = m.creator_id === ME || !!m.can_edit;
     var h = '<li class="meet-item" data-id="' + m.id + '">';
     h += '<div class="meet-item-main">';
     h += '<div class="meet-item-top"><span class="meet-when">' + esc(fmtWhen(m.when_iso)) + '</span><span class="meet-dur">' + esc(fmtDur(m.duration_min)) + freq + '</span></div>';
@@ -255,11 +255,24 @@
     watchClocks();
   }
 
+  /* Said on the form before a meeting is made: will it transcribe itself, and if not why. */
+  function capNote(c) {
+    var form = document.getElementById('tlMeetForm') || (document.getElementById('tlMeetRec') || {}).form;
+    if (!form || !c) return;
+    var el = document.getElementById('tlMeetCap');
+    if (!el) { el = document.createElement('p'); el.id = 'tlMeetCap'; el.className = 'meet-capture'; var hint = form.querySelector('.meet-hint'); form.insertBefore(el, hint || null); }
+    el.className = 'meet-capture ' + (c.ready ? 'is-on' : 'is-bad');
+    el.textContent = c.ready
+      ? (c.mode === 'transcript' ? '● Transcripts are automatic: every meeting scheduled here is transcribed by Google, with notes, and the minutes come here.'
+                                 : '● Transcripts are automatic: every meeting scheduled here is recorded and transcribed by Google, with notes, and the minutes come here.')
+      : 'Transcripts are not automatic yet. ' + (c.why || '');
+  }
   function load() {
     get('list').then(function (d) {
       if (!d || !d.ok) { listEl.innerHTML = '<p class="pc-empty">Could not load meetings.</p>'; return; }
       ME = d.me || 0; GEMINI = !!d.gemini; AUDIO = !!d.audio; BOT = !!d.bot; AGENDA_AI = !!d.agenda_ai;
       BOT_ALLOWED = !!d.bot_allowed; BOT_ON_DEMAND = !!d.bot_on_demand;
+      capNote(d.capture);
       // The auto-record box is only offered when something can act on it.
       var rec = document.getElementById('tlMeetRec');
       var recLabel = rec && rec.closest('label');
@@ -352,7 +365,10 @@
     post('schedule', vals).then(function (d) {
       if (!d || !d.ok) { say((d && d.error) || 'Could not schedule.'); return; }
       /* A warning stays until it is read — it is the only place the reason appears. */
-      if (d.warning) { say(d.warning); } else { say('Scheduled ✓ — invite sent', true); setTimeout(function () { say(''); }, 2500); }
+      var cap = d.meeting && d.meeting.capture, capOk = cap === 'all' || cap === 'transcript';
+      if (d.warning) { say(d.warning); }
+      else if (d.meeting && d.meeting.meet_url && !capOk && d.meeting.capture_note) { say('Scheduled and invited — but it will not transcribe itself: ' + d.meeting.capture_note); }
+      else { say('Scheduled ✓ — invite sent' + (capOk ? '; Google will transcribe it' : ''), true); setTimeout(function () { say(''); }, 3500); }
       form.reset();
       document.getElementById('tlMeetDur').value = '30';
       if (REP) REP.reset();

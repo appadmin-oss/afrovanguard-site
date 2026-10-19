@@ -230,6 +230,29 @@ final class Meetings
      * on needs no notetaker: its bot state is 'native'. Best-effort; a failure
      * leaves the meeting as it was, and the sweep tries again.
      */
+    /**
+     * Will a meeting scheduled now transcribe itself? ['ready', 'mode' (all |
+     * transcript | off | ''), 'why']. When the last meeting made could not
+     * have capture switched on, that reason is given: the next will likely
+     * meet the same refusal.
+     */
+    public static function captureReadiness(): array
+    {
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) {
+            return ['ready' => false, 'mode' => '', 'why' => class_exists('GoogleWorkspace') ? GoogleWorkspace::explain() : 'Google Workspace is not set up on this site.'];
+        }
+        $mode = GoogleWorkspace::artifactMode();
+        if ($mode === 'off') return ['ready' => false, 'mode' => 'off', 'why' => 'Automatic recording and transcripts are switched off: Studio → Rules & AI → Setup → Google Meet → capture.'];
+        try {
+            self::ensure();
+            $r = Database::pdo()->query("SELECT meet_capture, capture_note FROM meetings WHERE meet_url <> '' ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            if ($r && (string) $r['meet_capture'] === '' && (string) $r['capture_note'] !== '') {
+                return ['ready' => false, 'mode' => $mode, 'why' => 'Google refused to switch it on for the last meeting: ' . (string) $r['capture_note']];
+            }
+        } catch (Throwable $e) {}
+        return ['ready' => true, 'mode' => $mode, 'why' => ''];
+    }
+
     public static function configureCapture(int $id, string $code): bool
     {
         if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) return false;
@@ -485,7 +508,7 @@ final class Meetings
         return $m;
     }
 
-    public static function cancel(int $uid, int $id): array
+    public static function cancel(int $uid, int $id, bool $mayManage = false): array
     {
         self::ensure();
         $db = Database::pdo();
@@ -493,7 +516,7 @@ final class Meetings
         $st->execute([$id]);
         $r = $st->fetch(PDO::FETCH_ASSOC);
         if (!$r) return ['ok' => false, 'error' => 'Meeting not found.'];
-        if ((int) $r['creator_id'] !== $uid) return ['ok' => false, 'error' => 'Only the organiser can cancel.'];
+        if ((int) $r['creator_id'] !== $uid && !$mayManage) return ['ok' => false, 'error' => 'Only the organiser can cancel.'];
         $db->prepare('UPDATE meetings SET status = \'cancelled\' WHERE id = ?')->execute([$id]);
         if (!empty($r['google_event_id']) && class_exists('GoogleWorkspace')) {
             try { GoogleWorkspace::deleteCalendarEvent((string) $r['google_event_id']); } catch (Throwable $e) {}
@@ -516,6 +539,30 @@ final class Meetings
      * added. A meeting Google never gave a link — Workspace was not working
      * when it was made — is given one now, if Google will.
      */
+    /**
+     * May this person change or cancel the meeting? Its organiser; an
+     * administrator; and for a team's meeting whoever runs teams, or the
+     * team's lead or secretary (MeetingMinutes::mayEdit) — so a meeting is
+     * not stuck as it was made when its organiser is away.
+     */
+    public static function mayManage(int $uid, int $id): bool
+    {
+        if ($uid <= 0 || $id <= 0) return false;
+        try {
+            $st = Database::pdo()->prepare('SELECT * FROM meetings WHERE id = ?');
+            $st->execute([$id]);
+            $m = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$m) return false;
+            if ((int) $m['creator_id'] === $uid) return true;
+            $st = Database::pdo()->prepare('SELECT * FROM lms_users WHERE id = ?');
+            $st->execute([$uid]);
+            $u = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$u || (string) ($u['status'] ?? 'active') !== 'active') return false;
+            if (class_exists('LmsAuth') && LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['admin']) return true;
+            return class_exists('MeetingMinutes') && class_exists('Volunteers') && MeetingMinutes::mayEdit($u, $m);
+        } catch (Throwable $e) { return false; }
+    }
+
     public static function update(int $uid, int $id, array $in, bool $mayManage = false): array
     {
         self::ensure();

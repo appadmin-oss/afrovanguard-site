@@ -1420,6 +1420,16 @@ final class MentorPortal
         return ['ok' => true, 'minutes' => $minutes, 'concern' => in_array($mood, ['Worried', 'Upset'], true)];
     }
 
+    /** Move or change a session still to come (Mentorship::editSession). */
+    public function editSession(int $sessionId, array $in): array
+    {
+        if (!$this->ownsSession($sessionId)) return ['ok' => false, 'error' => 'Not your session.'];
+        $f = ['when' => $in['when'] ?? null, 'duration_min' => $in['minutes'] ?? null, 'notes' => $in['agenda'] ?? null, 'type' => $in['type'] ?? null];
+        /* A session is titled by its type (createSession): a new type, a new title. */
+        if (isset($f['type'])) $f['title'] = Mentorship::typeLabel((string) $f['type']);
+        return Mentorship::editSession($this->mentorId, $sessionId, array_filter($f, static fn($v) => $v !== null));
+    }
+
     public function markMissed(int $sessionId): array
     {
         if (!$this->ownsSession($sessionId)) return ['ok' => false, 'error' => 'Not your session.'];
