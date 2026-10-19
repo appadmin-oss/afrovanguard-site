@@ -76,4 +76,8 @@ ck('GatePass: the page is never cached', str_contains($page, 'no-store'));
 ck('GatePass: the page sends signed-out visitors to sign in', str_contains($page, "av_login_url('/gate-pass')"));
 ck('GatePass: routed at /gate-pass', str_contains((string) file_get_contents(AV_ROOT . '/router.php'), "'/gate-pass.php'"));
 
+ck('GatePass: the fingerprint matches the gate’s', GatePass::fingerprint('test-secret-123') === 'fa1c2a13');
+ck('GatePass: the fingerprint ignores stray spaces', GatePass::fingerprint("test-secret-123\n") === 'fa1c2a13');
+ck('GatePass: Studio shows the gate secret’s fingerprint', str_contains((string) file_get_contents(AV_ROOT . '/admin/app.js'), 'f.fingerprint'));
+
 foreach (['GATE_PASS_SECRET', 'GATE_URL', 'GATE_PASS_TTL', 'GATE_PASS_ROLES'] as $k) putenv($k);

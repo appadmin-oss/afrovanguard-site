@@ -1795,6 +1795,7 @@
       + (f.secret && f.preview ? '<code class="setup-mask">' + escapeHtml(f.preview) + '</code>' : '')
       + '</div>'
       + '<p class="setup-help">' + escapeHtml(f.help) + '</p>'
+      + (f.fingerprint ? '<p class="setup-help">Fingerprint: <code>' + escapeHtml(f.fingerprint) + '</code></p>' : '')
       + (f.shadowing
           ? '<p class="setup-shadow">This is overriding a value from ' + escapeHtml(f.shadowing === 'config' ? 'config.php' : 'the environment') + '. Clear it to go back to that.</p>'
           : '')

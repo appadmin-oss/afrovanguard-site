@@ -77,6 +77,18 @@ final class GatePass
         return $t > 0 ? min($t, self::MAX_TTL) : self::DEFAULT_TTL;
     }
 
+    /**
+     * Eight hex characters that are the same wherever the secret is and say
+     * nothing about it, so the gate (its /healthz and CACENTRE's Desks page)
+     * and this site can be compared when the gate's signature is refused.
+     * Same derivation as gate/src/crypto.ts fingerprint().
+     */
+    public static function fingerprint(?string $secret = null): string
+    {
+        $secret = trim($secret ?? self::secret());
+        return $secret === '' ? '' : substr(hash_hmac('sha256', 'cacentre-gate/fingerprint', $secret), 0, 8);
+    }
+
     public static function key(string $purpose, ?string $secret = null): string
     {
         return hash_hmac('sha256', 'cacentre-gate/v1/' . $purpose, $secret ?? self::secret());
