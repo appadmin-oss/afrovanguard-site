@@ -107,7 +107,9 @@ final class CacGoals
                 continue;
             }
             $title = mb_substr(trim(((string) ($g['code'] ?? '') !== '' ? $g['code'] . ' · ' : '') . (string) ($g['title'] ?? '')), 0, 300);
-            $target = mb_substr(trim(self::targetText($g) . (!$linked && (string) ($g['owner_name'] ?? '') !== '' ? ' · owner at CACENTRE: ' . $g['owner_name'] : ''), ' ·'), 0, 200);
+            /* Held for somebody (or nobody) there: say who, so the steward is not read as the owner. */
+            $held = $linked ? '' : ((string) ($g['owner_name'] ?? '') !== '' ? ' · owner at CACENTRE: ' . $g['owner_name'] : ' · no owner at CACENTRE yet');
+            $target = mb_substr(trim(self::targetText($g) . $held, ' ·'), 0, 200);
             /* A commitment is the real owner's: a goal the steward holds counts toward none. */
             $cid = $linked ? max(0, (int) ($g['commitment_id'] ?? 0)) : 0;
             if ($had) {

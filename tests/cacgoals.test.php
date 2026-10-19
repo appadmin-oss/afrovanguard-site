@@ -35,7 +35,9 @@ $goal = ['id' => 41, 'code' => 'G-41', 'title' => 'Twelve sessions', 'unit' => '
 $orphan = ['id' => 42, 'code' => 'G-42', 'title' => 'Nobody here owns this', 'status' => 'active', 'owner_av' => 0, 'owner_emails' => ['stranger@cacentre.test'], 'owner_name' => 'Tunde Stranger', 'commitment_id' => 9];
 /* Not linked at CACENTRE, but one of the owner's addresses there is a member here. */
 $byMail = ['id' => 43, 'code' => 'G-43', 'title' => 'Owner known by email', 'status' => 'draft', 'owner_av' => 0, 'owner_emails' => ['ola@cacentre.test', 'OLA.GOAL@mail.test'], 'commitment_id' => 0];
-file_put_contents($state, json_encode(['goals' => [$goal, $orphan, $byMail]]));
+/* No owner at all there: still comes across, held by the steward, and says so. */
+$ownerless = ['id' => 44, 'code' => 'G-44', 'title' => 'Nobody owns this yet', 'status' => 'draft', 'owner_av' => 0, 'owner_emails' => [], 'owner_name' => '', 'commitment_id' => 0, 'due_on' => '2026-12-31'];
+file_put_contents($state, json_encode(['goals' => [$goal, $orphan, $byMail, $ownerless]]));
 $secret = str_repeat('s', 48);
 $stub = $port > 0 ? @proc_open([PHP_BINARY, '-S', '127.0.0.1:' . $port, AV_ROOT . '/tests/fixtures/cac-goals-stub.php'],
     [0 => ['pipe', 'r'], 1 => ['file', '/dev/null', 'a'], 2 => ['file', '/dev/null', 'a']], $pipes, null, array_merge(getenv(), ['CAC_STUB_STATE' => $state, 'AV_SSO_SECRET' => $secret])) : null;
@@ -49,13 +51,13 @@ if (!is_resource($stub) || !$up) {
     $mirror = static fn(int $cac) => ($q = $gp->query('SELECT * FROM team_goals WHERE cac_goal_id = ' . $cac)->fetch(PDO::FETCH_ASSOC)) ?: null;
 
     $r = CacGoals::sync();
-    ck('cac goals: read over the bridge', $r['ok'] && $r['goals'] === 3);
+    ck('cac goals: read over the bridge', $r['ok'] && $r['goals'] === 4);
     /* A new version reads at once, not an hour after the old one did. */
     Database::metaSet('cac_goals_synced_at', (string) time()); Database::metaSet('cac_goals_ver', '1');
     ck('cac goals: a new version of the sync reads CACENTRE at once', CacGoals::syncIfDue() !== null && Database::metaGet('cac_goals_ver') === (string) CacGoals::VERSION);
     ck('cac goals: …and then waits its hour', CacGoals::syncIfDue() === null);
     $cs = CacGoals::status();
-    ck('cac goals: the Tasks page can say what CACENTRE last answered', $cs['ready'] && $cs['last']['ok'] && $cs['last']['goals'] === 3);
+    ck('cac goals: the Tasks page can say what CACENTRE last answered', $cs['ready'] && $cs['last']['ok'] && $cs['last']['goals'] === 4);
     ck('cac goals: an owner CACENTRE has not linked is found by an address it has for them', ($bm = $mirror(43)) && (int) $bm['author_id'] === 9911);
     ck('cac goals: a goal still in draft there is open here, as the console lists it', $bm && (int) $bm['closed'] === 0);
     $m = $mirror(41);
@@ -64,14 +66,17 @@ if (!is_resource($stub) || !$up) {
     $stew = (int) $gp->query("SELECT id FROM lms_users WHERE status = 'active' AND role = 'admin' ORDER BY id LIMIT 1")->fetchColumn();
     $om = $mirror(42);
     ck('cac goals: an owner who is not on the portal does not keep the goal off it — the steward holds it',
-       $stew > 0 ? ($om && (int) $om['author_id'] === $stew && $r['stewarded'] === 1) : ($om === null && $r['no_owner'] === 1));
+       $stew > 0 ? ($om && (int) $om['author_id'] === $stew && $r['stewarded'] === 2) : ($om === null && $r['no_owner'] === 1));
+    $no = $mirror(44);
+    ck('cac goals: a goal with no owner at all comes across too, held by the steward, and says it has none',
+       $no && (int) $no['author_id'] === $stew && (int) $no['closed'] === 0 && str_contains((string) $no['target'], 'no owner at CACENTRE yet'));
     ck('cac goals: …with the owner\'s name on it, and no commitment of theirs counted', !$om || (str_contains((string) $om['target'], 'owner at CACENTRE: Tunde Stranger') && (int) $om['cac_commitment_id'] === 0));
     $ms = GoalTrack::shape($m, 9911);
     ck('cac goals: the mirror carries CACENTRE’s measure — 4 of 12 count is a third', $ms['measured'] && $ms['target_value'] === 12.0 && $ms['current_value'] === 4.0 && $ms['pct'] === 33);
     ck('cac goals: and its dates, so its pace is judged as CACENTRE judges it', $ms['due_on'] === '2026-10-31' && $ms['start_on'] === '2026-10-01');
     ck('cac goals: measured there, so nobody is asked to check in on it here', $ms['mirror'] && !$ms['checkin_due']);
     $steps = $m ? $gp->query('SELECT * FROM collab_tasks WHERE goal_id = ' . (int) $m['id'])->fetchAll(PDO::FETCH_ASSOC) : [];
-    ck('cac goals: given steps here (every goal that came across)', $r['planned'] === ($stew > 0 ? 3 : 2) && count($steps) >= 1);
+    ck('cac goals: given steps here (three goals a run; the fourth next time)', $r['planned'] === ($stew > 0 ? 3 : 2) && count($steps) >= 1);
     ck('cac goals: every open step counts toward this week’s commitment', $steps && count(array_filter($steps, static fn($t) => (int) $t['cac_commitment_id'] === 7)) === count($steps) && $r['attached'] === count($steps));
 
     $t = (int) ($steps[0]['id'] ?? 0);
