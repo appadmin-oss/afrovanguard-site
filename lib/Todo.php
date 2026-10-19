@@ -138,7 +138,7 @@ final class Todo
         }
         try {
             /* Only for somebody the gate is for — the same rule as the portal's own warning. */
-            if (class_exists('GatePass') && GatePass::ready() && in_array(strtolower((string) ($u['role'] ?? '')), GatePass::roles(), true)
+            if (class_exists('GatePass') && GatePass::ready() && GatePass::roleAllowed($u)
                 && ($why = (string) (GatePass::whyNot($u) ?? '')) !== '') {
                 $items[] = ['kind' => 'gate', 'title' => 'The CACENTRE gate cannot let you in', 'meta' => $why, 'href' => '#attendance', 'urgent' => true, 'nudge' => true];
             }

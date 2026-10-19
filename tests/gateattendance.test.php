@@ -215,6 +215,20 @@ ck('Gate: a suspended member’s card resolves with the reason, not as active',
 ck('Gate: search finds active members by name, and never a suspended one',
    in_array((string) $ada, array_column(GateAttendance::search('vanguard'), 'ref'), true) && GateAttendance::search('pended') === []);
 
+/* Who the gate counts as a member: the site's own definition, not a fixed list. */
+$gaSec = $gaUser('Gatewho Secretary', 'secretary');
+$gaLrn = $gaUser('Gatewho Learner', 'learner');
+$gaVan = $gaUser('Gatewho Vanguard', 'learner'); $gaEnrol($gaVan, 'Gatewho Vanguard');
+$gaFound = array_column(GateAttendance::search('gatewho'), 'ref');
+ck('Gate: a member with a role beyond the old list (secretary) is found at the desk', in_array((string) $gaSec, $gaFound, true));
+ck('Gate: a NextGen Vanguard whose account began as a learner is found too', in_array((string) $gaVan, $gaFound, true));
+ck('Gate: a learner who is no member is not', !in_array((string) $gaLrn, $gaFound, true));
+ck('Gate: and the pass agrees with the desk', GatePass::roleAllowed(['id' => $gaVan, 'role' => 'learner']) && !GatePass::roleAllowed(['id' => $gaLrn, 'role' => 'learner']));
+ck('Gate: search by email finds them as well', in_array((string) $gaSec, array_column(GateAttendance::search('gatewho.secretary'), 'ref'), true));
+putenv('GATE_PASS_ROLES=admin,member');
+ck('Gate: GATE_PASS_ROLES, when set, still decides', !GatePass::roleAllowed(['id' => $gaSec, 'role' => 'secretary']) && GatePass::roleAllowed(['id' => 1, 'role' => 'member']));
+putenv('GATE_PASS_ROLES');
+
 /* ── Probation ───────────────────────────────────────────────────────────── */
 foreach (['gate_probation', 'gate_points'] as $t) $gaPdo->exec('DELETE FROM ' . $t);
 AvRules::save(['gate.late_fine' => '1000', 'gate.late_fine_probation' => '10000', 'gate.probation_levels' => 'O', 'gate.programme_days' => 'mon,tue,wed,thu,fri'], 'test');

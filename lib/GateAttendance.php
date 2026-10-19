@@ -210,7 +210,7 @@ final class GateAttendance
     {
         if (!$u) return 'Not an Afrovanguard member.';
         if ((string) ($u['status'] ?? 'active') !== 'active') return 'This account is suspended. Ask at the office.';
-        if (class_exists('GatePass') && !in_array(strtolower((string) ($u['role'] ?? 'learner')), GatePass::roles(), true)) {
+        if (class_exists('GatePass') && !GatePass::roleAllowed($u)) {
             return 'Gate passes are for Afrovanguard members.';
         }
         $overdue = self::overdueFine((int) $u['id']);
@@ -286,8 +286,12 @@ final class GateAttendance
         /* Wildcards dropped rather than escaped: LIKE escaping differs between
            SQLite, MySQL and Postgres, and nobody's name needs a % in it. */
         $like = '%' . str_replace(['%', '_', '\\'], '', mb_strtolower($q)) . '%';
-        $st = Database::pdo()->prepare("SELECT id, name, email, role, status FROM lms_users WHERE status = 'active' AND LOWER(name) LIKE ? ORDER BY name LIMIT 25");
-        $st->execute([$like]);
+        /* Members only, in the query — filtering afterwards meant 25 learners
+           called Ade could hide the one member called Ade. With GATE_PASS_ROLES
+           set the roles decide, as they do for a pass (GatePass::roleAllowed). */
+        $members = class_exists('MemberRoster') && !(class_exists('GatePass') && GatePass::rolesSet()) ? ' AND ' . MemberRoster::memberWhere() : '';
+        $st = Database::pdo()->prepare("SELECT u.id, u.name, u.email, u.role, u.status FROM lms_users u WHERE u.status = 'active' AND (LOWER(u.name) LIKE ? OR LOWER(u.email) LIKE ?){$members} ORDER BY u.name LIMIT 25");
+        $st->execute([$like, $like]);
         $out = [];
         foreach ($st->fetchAll() as $u) {
             $p = self::personFor($u);

@@ -188,7 +188,7 @@ if ($isNgv) {
    sits with the programme it is part of; for anybody else, under "You". */
 /* Every member the gate takes — including one it is refusing today, who is
    the person most in need of seeing why. */
-$hasGate = GatePass::ready() && in_array(strtolower((string) ($u['role'] ?? '')), GatePass::roles(), true);
+$hasGate = GatePass::ready() && GatePass::roleAllowed($u);
 $gateWhy = $hasGate ? (GatePass::whyNot($u) ?? '') : '';
 $gateSum = $hasGate || $isNgv ? GateAttendance::summary((int) $u['id'], 30) : null;
 if ($isNgv) $nav['NextGen Vanguard'][] = ['attendance', 'Attendance & pass', 'gray', $gateSum && $gateSum['counted'] ? (int) $gateSum['rate'] . '%' : ''];

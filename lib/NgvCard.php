@@ -56,7 +56,7 @@ final class NgvCard
             return $s('suspended', 'Suspended', 'bad', 'This account is suspended. Ask at the NGV office.', 'Not active');
         }
         if ($pstat === 'withdrawn') return $s('withdrawn', 'Withdrawn', 'bad', 'Withdrawn from the NextGen Vanguard programme.', 'Not active');
-        if (!$p && class_exists('GatePass') && !in_array(strtolower((string) ($u['role'] ?? 'learner')), GatePass::roles(), true)) {
+        if (!$p && class_exists('GatePass') && !GatePass::roleAllowed($u)) {
             return $s('not_member', 'Not a member', 'neutral', 'This account is not an Afrovanguard member.', 'Not a member');
         }
         if ($pstat === 'completed') return $s('completed', 'Programme completed', 'neutral', 'Completed the NextGen Vanguard programme.', 'Alumnus · programme completed');

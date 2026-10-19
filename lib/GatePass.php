@@ -89,6 +89,26 @@ final class GatePass
         return $r !== '' ? array_values(array_filter(array_map('trim', explode(',', strtolower($r))))) : self::DEFAULT_ROLES;
     }
 
+    /**
+     * Is this account one the gate lets in? With GATE_PASS_ROLES set, those
+     * roles. Unset, the site's own definition of a member (MemberRoster): any
+     * role but learner — a secretary, a lead, a superadmin are members too —
+     * and every NextGen Vanguard, whatever their account began as. The fixed
+     * list this used to be left vanguards with learner accounts, and anyone
+     * with a newer role, out of the desk's search and without a pass.
+     */
+    /** Whether GATE_PASS_ROLES names the roles, rather than the site's member definition. */
+    public static function rolesSet(): bool { return self::env('GATE_PASS_ROLES') !== ''; }
+
+    public static function roleAllowed(?array $u): bool
+    {
+        if (!$u) return false;
+        $role = strtolower((string) ($u['role'] ?? 'learner'));
+        if (self::rolesSet()) return in_array($role, self::roles(), true);
+        if ($role !== '' && $role !== 'learner') return true;
+        return class_exists('MemberRoster') && (int) ($u['id'] ?? 0) > 0 && MemberRoster::isMember((int) $u['id']);
+    }
+
     public static function eligible(?array $u): bool { return self::whyNot($u) === null; }
 
     /**
@@ -103,7 +123,7 @@ final class GatePass
         if (!$u) return 'Sign in first.';
         if (class_exists('GateAttendance')) return GateAttendance::whyNot($u);
         if (isset($u['status']) && (string) $u['status'] !== 'active') return 'This account is suspended.';
-        return in_array(strtolower((string) ($u['role'] ?? 'learner')), self::roles(), true) ? null : 'Gate passes are for Afrovanguard members.';
+        return self::roleAllowed($u) ? null : 'Gate passes are for Afrovanguard members.';
     }
 
     /**
