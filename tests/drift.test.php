@@ -207,6 +207,15 @@ $knownMetaKeys = [
     // The daily task report (lib/TaskReport). Reviewed: gates no migration.
     // The day it last went out; lost, that day's report is sent once more.
     'task_report_day',
+    // The resumable SQLite→server migration (lib/DbMigrateJob). Reviewed:
+    // gates no migration of its own — it IS the migration's progress, the
+    // table list and the per-table cursor, so a run survives the request
+    // timeout that a shared host imposes. Holds NO credentials: the target
+    // password is re-sent with each slice and never written down. Lost
+    // mid-run, the copy so far stays in the target and the next attempt
+    // needs "replace what is there", which empties it and starts over —
+    // slower, never wrong.
+    'db_migrate_job',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {

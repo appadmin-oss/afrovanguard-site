@@ -65,6 +65,7 @@ try {
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
         'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save', 'ngv_save', 'ngv_reset', 'ngv_restore',
+        'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify',
         'rules_save', 'rules_reset', 'kb_save', 'kb_delete', 'prompts_save', 'prompts_reset', 'level_recommend',
         'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test',
         'summit_resend', 'summit_resend_failed',
@@ -84,6 +85,7 @@ try {
     $role = function_exists('av_admin_role') ? av_admin_role() : 'superadmin';
     $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'superadmin_reveal', 'auth_policy_save', 'auth_policy_get',
         'db_status', 'db_test', 'db_migrate', 'brand_get', 'brand_save',
+        'db_job_state', 'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify',
         // The rules ARE the organisation's constitution — they decide promotions
         // and escalations movement-wide — and the prompts steer every AI reply.
         // Both stay with the Super Admin. The knowledge base is management-level.
@@ -867,7 +869,11 @@ try {
             require_once AV_ROOT . '/lib/Migrator.php';
             $src = Database::pdo();
             $counts = []; $total = 0;
-            foreach (Migrator::ORDER as $t) {
+            /* allTables(), not ORDER: ORDER is a hand-written list of 25 and
+               this database has 32, so the screen that tells an operator what
+               is about to be migrated was leaving ten tables out of the count
+               — av_settings among them. */
+            foreach (Migrator::allTables($src) as $t) {
                 if (Migrator::tableExists($src, $t)) { $n = Migrator::count($src, $t); $counts[$t] = $n; $total += $n; }
             }
             $driver = Database::driver();
@@ -879,6 +885,76 @@ try {
                 'tables'     => $counts,
                 'total_rows' => $total,
             ]);
+        }
+        /* ── Resumable migration (lib/DbMigrateJob) ────────────────────────
+           db_migrate below copies everything in ONE request. A shared host
+           stops a request at 30s, so for any real dataset it dies part-way,
+           leaves the target half-filled, and every retry is then refused
+           because the target is no longer empty — the loop a migration gets
+           stuck in. These do the same work a slice at a time, and the job
+           remembers where it got to.
+
+           The target password is re-sent with each call and never stored. */
+        case 'db_job_state': {
+            require_once AV_ROOT . '/lib/Migrator.php';
+            require_once AV_ROOT . '/lib/DbMigrateJob.php';
+            json_out(['ok' => true, 'job' => DbMigrateJob::state()]);
+        }
+        case 'db_job_cancel': {
+            require_once AV_ROOT . '/lib/Migrator.php';
+            require_once AV_ROOT . '/lib/DbMigrateJob.php';
+            DbMigrateJob::reset();
+            AdminAudit::log('database', 'db_job_cancel', '', 'migration job discarded');
+            json_out(['ok' => true]);
+        }
+        case 'db_job_plan':
+        case 'db_job_begin':
+        case 'db_job_step':
+        case 'db_job_verify': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/Migrator.php';
+            require_once AV_ROOT . '/lib/DbMigrateJob.php';
+            $conf = ['driver' => strtolower(trim((string) ($body['driver'] ?? 'mysql'))),
+                     'host' => (string) ($body['host'] ?? ''), 'port' => (string) ($body['port'] ?? ''),
+                     'name' => (string) ($body['name'] ?? ''), 'user' => (string) ($body['user'] ?? ''),
+                     'pass' => (string) ($body['pass'] ?? '')];
+            if (!in_array($conf['driver'], ['mysql', 'pgsql'], true)) {
+                json_out(['ok' => false, 'error' => 'Choose a MySQL or PostgreSQL target.'], 422);
+            }
+            if (Database::driver() !== 'sqlite') {
+                json_out(['ok' => false, 'error' => 'This site is already running on '
+                    . strtoupper(Database::driver()) . '. There is nothing to move.'], 422);
+            }
+            try { $dst = DbMigrateJob::connect($conf); }
+            catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Could not connect: ' . $e->getMessage()], 502); }
+            $src = Database::pdo();
+
+            try {
+                if ($action === 'db_job_plan') {
+                    json_out(['ok' => true, 'target' => DbMigrateJob::label($conf), 'plan' => DbMigrateJob::plan($src, $dst)]);
+                }
+                if ($action === 'db_job_begin') {
+                    $applied = !empty($body['apply_schema'])
+                        ? DbMigrateJob::applySchema($dst, $conf['driver']) : 0;
+                    $job = DbMigrateJob::begin($src, $dst, $conf, !empty($body['replace']));
+                    AdminAudit::log('database', 'db_job_begin', DbMigrateJob::label($conf),
+                        count($job['tables']) . ' tables' . ($applied ? ", schema applied ($applied stmts)" : ''));
+                    json_out(['ok' => true, 'applied' => $applied, 'job' => $job]);
+                }
+                if ($action === 'db_job_step') {
+                    $job = DbMigrateJob::step($src, $dst, (float) ($body['budget'] ?? 10), DbMigrateJob::label($conf));
+                    if (($job['phase'] ?? '') === 'done') {
+                        AdminAudit::log('database', 'db_job_done', (string) ($job['target'] ?? ''),
+                            array_sum(array_map(static fn($t) => (int) $t['copied'], $job['tables'])) . ' rows copied');
+                    }
+                    json_out(['ok' => ($job['phase'] ?? '') !== 'error', 'job' => $job]);
+                }
+                $v = DbMigrateJob::verify($src, $dst);
+                AdminAudit::log('database', 'db_job_verify', DbMigrateJob::label($conf), $v['ok'] ? 'counts match' : 'MISMATCH');
+                json_out(['ok' => true, 'verify' => $v]);
+            } catch (Throwable $e) {
+                json_out(['ok' => false, 'error' => $e->getMessage()], 422);
+            }
         }
         case 'db_test':
         case 'db_migrate': {

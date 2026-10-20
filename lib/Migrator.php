@@ -22,7 +22,16 @@ declare(strict_types=1);
 
 final class Migrator
 {
-    /** Dependency-safe table order (parents first). Children truncate in reverse. */
+    /**
+     * Dependency-safe ORDER (parents first); children truncate in reverse.
+     *
+     * This is the order, NOT the membership. It used to be both, and every
+     * table absent from it was silently never copied — on this database that
+     * was ten of them, av_settings (every stored secret), member_passes,
+     * course_access, lesson_notes and the diary's comment tables among them.
+     * A migration reported success and left them behind. allTables() now
+     * takes the source's own list and uses this only to sort it.
+     */
     const ORDER = [
         'categories', 'lms_users', 'courses',
         'articles', 'modules', 'lessons',
@@ -36,6 +45,30 @@ final class Migrator
     public static function driver(PDO $db): string
     {
         return (string) $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+    }
+
+    /**
+     * Every table the source actually has, the ones ORDER names first (so
+     * parents still precede children) and everything else after. Reading the
+     * source rather than a hand-written list is what stops a table added
+     * next year from being dropped by a migration that reports success.
+     */
+    public static function allTables(PDO $src): array
+    {
+        $all = [];
+        if (self::driver($src) === 'sqlite') {
+            foreach ($src->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'") as $r) {
+                $all[] = (string) $r['name'];
+            }
+        } else {
+            $sql = 'SELECT table_name FROM information_schema.tables WHERE '
+                 . (self::driver($src) === 'mysql' ? 'table_schema = DATABASE()' : "table_schema = 'public'");
+            foreach ($src->query($sql) as $r) { $all[] = (string) array_values($r)[0]; }
+        }
+        sort($all);
+        $known = array_values(array_filter(self::ORDER, static fn($t) => in_array($t, $all, true)));
+
+        return array_merge($known, array_values(array_diff($all, $known)));
     }
 
     /** Quote an identifier for the given driver (mysql backticks, else double-quotes). */
@@ -95,9 +128,8 @@ final class Migrator
         $log      = $opts['log'] ?? static function (): void {};
         $dstDrv   = self::driver($dst);
 
-        $tables = array_values(array_filter(self::ORDER, static function ($t) use ($src, $dst, $only) {
-            return Migrator::tableExists($src, $t) && Migrator::tableExists($dst, $t)
-                && (!$only || in_array($t, $only, true));
+        $tables = array_values(array_filter(self::allTables($src), static function ($t) use ($src, $dst, $only) {
+            return Migrator::tableExists($dst, $t) && (!$only || in_array($t, $only, true));
         }));
 
         if ($truncate && !$dryRun) {
