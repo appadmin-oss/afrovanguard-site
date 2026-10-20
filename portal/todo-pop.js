@@ -315,6 +315,13 @@
       }
       var finish = function () {
         hit.s.items = hit.s.items.filter(function (x) { return x !== hit.it; });
+        /* Taken: it is theirs now, so it moves to their list instead of vanishing. */
+        if (kind === 'take' && r.task) {
+          var on = (data.sections || []).filter(function (s) { return s.key === 'open'; })[0];
+          if (!on) { on = { key: 'open', ctx: 'work', nudge: false, title: 'On your list', items: [] }; data.sections.push(on); }
+          on.items.unshift({ id: 'av' + r.task.id, title: r.task.title, kind: 'task', meta: r.task.due ? 'Due ' + r.task.due : 'No date', badge: { text: 'Taken', tone: 'accent' },
+            tick: { action: 'task_toggle', body: { id: r.task.id }, label: 'Done', undo: true } });
+        }
         data.sections = data.sections.filter(function (s) { return s.items.length; });
         if (kind === 'tick') { doneToday(1); lastDone = { it: hit.it, s: hit.s, i: hit.i, spec: spec, undo: !!spec.undo }; }
         draw(); panel.hidden = false;

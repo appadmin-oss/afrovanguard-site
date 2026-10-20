@@ -100,6 +100,7 @@ try {
         // The member desk names every member, their phone and their birthday.
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
         'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
+        'roles_list', 'role_save', 'role_delete',
         'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
         'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
@@ -1186,7 +1187,18 @@ try {
             json_out(['ok' => true] + MemberRoster::overview());
         case 'roster_list':
             json_out(['ok' => true, 'roles' => array_keys(LmsAuth::ROLE_RANK), 'levels' => class_exists('Levels') ? Levels::order() : ['O']]
-                + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'sort', 'dir', 'page', 'page_size']))));
+                + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'work_role', 'sort', 'dir', 'page', 'page_size']))));
+        /* ── Work roles, one list with descriptions (lib/MemberRoles.php) ── */
+        case 'roles_list':
+            json_out(['ok' => true, 'roles' => MemberRoles::all()]);
+        case 'role_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberRoles::save((int) ($body['id'] ?? 0), (string) ($body['name'] ?? ''), (string) ($body['description'] ?? ''), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'role_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberRoles::delete((int) ($body['id'] ?? 0), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 404);
         case 'roster_get':
             $m = MemberRoster::get((int) ($_GET['id'] ?? 0));
             json_out($m ? ['ok' => true, 'member' => $m] : ['ok' => false, 'error' => 'No such member.'], $m ? 200 : 404);
@@ -1294,7 +1306,7 @@ try {
                 'source' => mb_substr((string) ($body['source'] ?? ''), 0, 200), 'actor' => av_admin_actor()]);
             json_out($r, $r['ok'] ? 200 : 422);
         case 'roster_ids':
-            json_out(['ok' => true] + MemberRoster::ids(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment']))));
+            json_out(['ok' => true] + MemberRoster::ids(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'work_role']))));
         case 'roster_bulk':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = MemberRoster::bulk((array) ($body['ids'] ?? []), (string) ($body['action'] ?? ''), (array) ($body['value'] ?? []), av_admin_actor(), $memberCtx());

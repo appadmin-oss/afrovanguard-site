@@ -3080,6 +3080,7 @@
     document.querySelectorAll('.mem-pane').forEach(function (p) { p.hidden = p.getAttribute('data-pane') !== which; });
     if (which === 'dash') loadMemDash();
     if (which === 'roster') loadMemRoster();
+    if (which === 'roles') loadMemRoles();
     if (which === 'import') loadMemFormats();
     if (which === 'dups') loadMemDups();
     if (which === 'volunteers') { loadVolProjects(); vsStatus(); }
@@ -3165,13 +3166,15 @@
       + '<input type="checkbox" class="mem-pick" data-id="' + m.id + '"' + (memSel[m.id] ? ' checked' : '') + ' aria-label="Choose ' + escapeHtml(m.name || 'member') + '">'
       + '<div class="entry-info"><div class="entry-title">' + escapeHtml(m.name || '(no name)') + badges + '</div>'
       + '<div class="entry-meta">' + meta + '</div>'
+      + (m.work_roles || m.about ? '<div class="entry-meta mem-row-roles">' + (m.work_roles ? String(m.work_roles).split(/\s*,\s*/).map(function (r) { return '<span class="mem-role-tag">' + escapeHtml(r) + '</span>'; }).join('') : '<span class="muted">No work role</span>')
+          + (m.about ? ' <span class="mem-row-about">' + escapeHtml(String(m.about).slice(0, 120)) + '</span>' : '') + '</div>' : '')
       + '<div class="entry-meta">' + (m.card ? 'Gate card <code>' + escapeHtml(m.card) + '</code>' : '<b>No gate card</b>') + ' · joined ' + escapeHtml(String(m.joined_on || m.created_at || '').slice(0, 10)) + '</div></div>'
       + '<div class="entry-ops"><button class="btn btn-outline btn-sm mem-open" data-id="' + m.id + '">Open</button></div></div>';
   }
   function loadMemRoster() {
     var box = $('#memList'); if (!box) return;
     var qs = ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
-              'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'sort=' + $('#memSort').value,
+              'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'work_role=' + encodeURIComponent($('#memWorkRole').value), 'sort=' + $('#memSort').value,
               'dir=' + ($('#memSort').value === 'name' ? 'asc' : 'desc'), 'page=' + memPage].join('&');
     box.innerHTML = '<p class="muted">Loading…</p>';
     api('roster_list&' + qs).then(function (r) {
@@ -3188,7 +3191,7 @@
   }
   function memFilterQs() {
     return ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
-            'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value].join('&');
+            'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'work_role=' + encodeURIComponent($('#memWorkRole').value)].join('&');
   }
 
   /* ── Many members at once ──
@@ -3208,6 +3211,8 @@
     var a = $('#memBulkAction').value, v = $('#memBulkValue');
     v.hidden = !(a === 'centre' || a === 'level' || a === 'membership_grant' || a === 'membership_cancel');
     $('#memBulkProject').hidden = $('#memBulkType').hidden = a !== 'volunteer_add';
+    $('#memBulkRole').hidden = a.indexOf('work_role_') !== 0;
+    if (a.indexOf('work_role_') === 0) roleFill('#memBulkRole', 'Choose the role');
     if (a === 'volunteer_add') volFillPickers('#memBulkProject', '#memBulkType');
     v.placeholder = a === 'centre' ? 'Centre name' : a === 'level' ? 'Level (' + memLevels.join(', ') + ')' : a === 'membership_grant' ? 'Months, then a reason: 12 Scholarship' : 'Why these memberships end';
     $('#memBulkGo').disabled = !a || n === 0;
@@ -3219,6 +3224,7 @@
     else if (a === 'level') value.level = raw;
     else if (a === 'membership_grant') { var m = raw.match(/^(\d+)\s*(.*)$/); if (!m) { toast('Start with the number of months, e.g. "12 Scholarship".'); return; } value.months = +m[1]; value.note = m[2]; if (/^waiver$/i.test(m[2])) { value.method = 'waiver'; value.note = ''; } }
     else if (a === 'membership_cancel') value.note = raw;
+    else if (a.indexOf('work_role_') === 0) { value.role = $('#memBulkRole').value; if (!value.role) { toast('Choose the work role.'); return; } }
     else if (a === 'volunteer_add') { value.project_id = +$('#memBulkProject').value; value.type = $('#memBulkType').value; if (!value.project_id) { toast('Choose the project they volunteer on.'); return; } }
     var label = $('#memBulkAction').selectedOptions[0].textContent.replace(/…$/, '');
     if (!confirm(label + ' — ' + n + ' account' + (n === 1 ? '' : 's') + '?' + (action === 'status' && value.status === 'suspended' ? ' They are signed out, and their gate pass stops at the door.' : '') + (action === 'volunteer_add' ? ' Each gets the Volunteer dashboard and a notification.' : action === 'volunteer_remove' ? ' They leave their volunteer teams; their hours stay on record.' : ''))) return;
@@ -3326,6 +3332,45 @@
       return '<div class="mem-card-row"><span class="badge published">' + kind + '</span><code>' + escapeHtml(c.code) + '</code>' + open + '</div>';
     }).join('') || '<p class="muted">No card yet — the gate can only find them by name.</p>';
   }
+  /* ── Work roles: one list, with what each covers (lib/MemberRoles.php) ── */
+  var ROLES = [], rolesAt = 0;
+  function rolesGet(force) {
+    if (!force && ROLES.length && Date.now() - rolesAt < 60000) return Promise.resolve(ROLES);
+    return api('roles_list').then(function (r) { ROLES = (r.data && r.data.roles) || []; rolesAt = Date.now(); roleFilterFill(); return ROLES; });
+  }
+  function roleFill(sel, first) {
+    var el = $(sel); if (!el) return;
+    var keep = el.value;
+    el.innerHTML = '<option value="">' + escapeHtml(first) + '</option>' + ROLES.map(function (r) { return '<option value="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '</option>'; }).join('');
+    el.value = keep;
+  }
+  function roleFilterFill() { roleFill('#memWorkRole', 'Any work role'); }
+  function rolesOf(text) { return String(text || '').split(/[,;\n]+/).map(function (x) { return x.trim(); }).filter(Boolean); }
+  /* The drawer: each role on the list as a button that gives or takes it away; typing still works. */
+  function roleChips() {
+    var box = $('#md_role_chips'); if (!box) return;
+    rolesGet().then(function () {
+      var have = rolesOf($('#md_work_roles').value).map(function (x) { return x.toLowerCase(); });
+      box.innerHTML = ROLES.map(function (r) {
+        var on = have.indexOf(r.name.toLowerCase()) >= 0;
+        return '<button type="button" class="mem-role-chip' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-role="' + escapeHtml(r.name) + '"' + (r.description ? ' title="' + escapeHtml(r.description) + '"' : '') + '>' + escapeHtml(r.name) + '</button>';
+      }).join('') || '<span class="muted tiny">No roles on the list yet — type one above, or add them under Roles.</span>';
+    });
+  }
+  function loadMemRoles() {
+    var box = $('#memRolesList'); if (!box) return;
+    rolesGet(true).then(function (roles) {
+      box.innerHTML = roles.length ? '<div class="mem-roles">' + roles.map(function (r) {
+        return '<form class="mem-role-row" data-id="' + r.id + '">'
+          + '<label class="fld"><span>Role</span><input name="name" maxlength="40" value="' + escapeHtml(r.name) + '" required /></label>'
+          + '<label class="fld mem-role-desc"><span>What it covers</span><input name="description" maxlength="500" value="' + escapeHtml(r.description) + '" placeholder="Say what work this role takes on" /></label>'
+          + '<div class="mem-role-ops"><button type="button" class="btn btn-outline btn-sm" data-role-members="' + escapeHtml(r.name) + '">' + r.members + ' member' + (r.members === 1 ? '' : 's') + '</button>'
+          + '<button type="submit" class="btn btn-primary btn-sm">Save</button>'
+          + '<button type="button" class="btn btn-outline btn-sm" data-role-del="' + r.id + '" data-n="' + r.members + '" data-name="' + escapeHtml(r.name) + '">Remove</button></div></form>';
+      }).join('') + '</div>' : '<p class="muted">No work roles yet. Add the first above — Media, Events, Instructor…</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the roles.</p>'; });
+  }
+
   function openMember(id) {
     memOpen = +id;
     api('roster_get&id=' + memOpen).then(function (r) {
@@ -3333,6 +3378,7 @@
       $('#mdTitle').textContent = m.name + (m.ngv ? ' · NextGen Vanguard' : m.learner ? ' · Academy learner (not a member)' : '');
       memFill('#md_role', memRoles, m.role); memFill('#md_level', memLevels, m.level || 'O', function (x) { return 'Level ' + x; });
       ['name', 'email', 'phone', 'centre', 'notes', 'work_roles', 'about'].forEach(function (k) { $('#md_' + k).value = m[k] || ''; });
+      roleChips();
       $('#md_bday').value = m.birthday || ''; $('#md_joined').value = m.joined_on || '';
       $('#mdCards').innerHTML = memCardsHTML(m.cards);
       /* Printing is the office's job: PDF for a card printer, PNGs, or an A4 run (card/print.php). */
@@ -3534,7 +3580,7 @@
     document.querySelectorAll('.subtab[data-mv]').forEach(function (b) { b.addEventListener('click', function () { memTab(b.getAttribute('data-mv')); }); });
     $('#memQ').addEventListener('input', function () { clearTimeout(memT); memT = setTimeout(function () { memPage = 1; loadMemRoster(); }, 280); });
     $('#memSegment').innerHTML = '<option value="">Any record</option>' + Object.keys(MEM_SEGMENTS).map(function (k) { return '<option value="' + k + '">' + escapeHtml(MEM_SEGMENTS[k]) + '</option>'; }).join('');
-    ['#memRole', '#memStatus', '#memKind', '#memVolunteer', '#memMissing', '#memMembership', '#memSegment', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
+    ['#memRole', '#memStatus', '#memKind', '#memWorkRole', '#memVolunteer', '#memMissing', '#memMembership', '#memSegment', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
     /* A tile opens its list: the roster with exactly that filter and no other. */
     $('#memTiles').addEventListener('click', function (e) {
       if (e.target.closest('#memDashRetry')) { loadMemDash(); return; }
@@ -3665,6 +3711,48 @@
     $('#mdClose').addEventListener('click', closeMember);
     $('#memDrawer').addEventListener('click', function (e) { if (e.target === this) closeMember(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#memDrawer').hidden) closeMember(); });
+    /* Work roles: the chips give and take away; the list is kept under Roles. */
+    $('#md_role_chips').addEventListener('click', function (e) {
+      var b = e.target.closest('.mem-role-chip'); if (!b) return;
+      var name = b.getAttribute('data-role'), have = rolesOf($('#md_work_roles').value);
+      var i = have.map(function (x) { return x.toLowerCase(); }).indexOf(name.toLowerCase());
+      if (i >= 0) have.splice(i, 1); else if (have.length < 8) have.push(name); else { toast('Eight roles is the most a member can hold.'); return; }
+      $('#md_work_roles').value = have.join(', ');
+      roleChips();
+    });
+    var chipT = 0;
+    $('#md_work_roles').addEventListener('input', function () { clearTimeout(chipT); chipT = setTimeout(roleChips, 300); });
+    function roleSaid(t, bad) { var m = $('#roleMsg'); if (m) { m.textContent = t || ''; m.style.color = bad ? 'var(--red, #b91c1c)' : ''; } }
+    $('#roleNew').addEventListener('submit', function (e) {
+      e.preventDefault();
+      post('role_save', { id: 0, name: $('#roleNewName').value.trim(), description: $('#roleNewDesc').value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { roleSaid(d.error || 'Could not add it.', true); return; }
+        roleSaid('Added.'); $('#roleNewName').value = ''; $('#roleNewDesc').value = ''; loadMemRoles();
+      });
+    });
+    $('#memRolesList').addEventListener('submit', function (e) {
+      var f = e.target.closest('.mem-role-row'); if (!f) return;
+      e.preventDefault();
+      post('role_save', { id: +f.getAttribute('data-id'), name: f.elements.name.value.trim(), description: f.elements.description.value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { roleSaid(d.error || 'Could not save it.', true); return; }
+        roleSaid(d.renamed ? 'Saved — renamed on ' + d.renamed + ' member' + (d.renamed === 1 ? '' : 's') + '.' : 'Saved.'); loadMemRoles();
+      });
+    });
+    $('#memRolesList').addEventListener('click', function (e) {
+      var del = e.target.closest('[data-role-del]'), see = e.target.closest('[data-role-members]');
+      if (del) {
+        var n = +del.getAttribute('data-n');
+        if (!confirm('Remove the role ' + del.getAttribute('data-name') + '?' + (n ? ' It is taken off the ' + n + ' member' + (n === 1 ? '' : 's') + ' who hold it.' : ''))) return;
+        post('role_delete', { id: +del.getAttribute('data-role-del') }).then(function (r) { var d = r.data || {}; roleSaid(d.ok ? 'Removed.' : (d.error || 'Could not remove it.'), !d.ok); loadMemRoles(); });
+      } else if (see) {
+        /* Who holds it: the roster, filtered to the role. */
+        rolesGet().then(function () { $('#memWorkRole').value = see.getAttribute('data-role-members'); memPage = 1; memSel = {}; memTab('roster'); });
+      }
+    });
+    rolesGet().catch(function () {});
+
     $('#mdSave').addEventListener('click', function () {
       var p = { id: memOpen, name: $('#md_name').value.trim(), email: $('#md_email').value.trim(), phone: $('#md_phone').value.trim(), centre: $('#md_centre').value.trim(),
                 role: $('#md_role').value, level: $('#md_level').value, birthday: $('#md_bday').value.trim(), joined_on: $('#md_joined').value, notes: $('#md_notes').value,

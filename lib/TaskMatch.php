@@ -130,7 +130,12 @@ final class TaskMatch
             if (class_exists('MemberRoster')) MemberRoster::ensure();
             foreach ($pdo->query("SELECT user_id, work_roles, about FROM member_profiles WHERE user_id IN ($in) AND (work_roles <> '' OR about <> '')")->fetchAll(PDO::FETCH_ASSOC) as $r) {
                 $id = (int) $r['user_id'];
-                foreach (class_exists('MemberRoster') ? MemberRoster::workRoles((string) $r['work_roles']) : [] as $role) $add($id, $role);
+                $desc = class_exists('MemberRoles') ? MemberRoles::descriptions() : [];
+                foreach (class_exists('MemberRoster') ? MemberRoster::workRoles((string) $r['work_roles']) : [] as $role) {
+                    $add($id, $role);
+                    /* What the role covers, as the office describes it (lib/MemberRoles.php). */
+                    if (isset($out[$id]) && isset($desc[mb_strtolower($role)])) $out[$id]['roles_desc'][$role] = $desc[mb_strtolower($role)];
+                }
                 if (isset($out[$id])) $out[$id]['about'] = mb_substr((string) $r['about'], 0, 300);
             }
         } catch (Throwable $e) {}
@@ -276,6 +281,12 @@ final class TaskMatch
             if ($p['centre'] !== '' && mb_strtolower($p['centre']) === $w) { $score += 2.5; $why[] = 'At the ' . $p['centre'] . ' centre'; continue; }
             if (str_contains($labels, $w)) { $score += 2; $why[] = '“' . $w . '” is in ' . self::labelWith($p, $w); }
             elseif (mb_strlen($w) >= 6 && str_contains($labels, self::stem($w))) { $score += 1.5; $why[] = '“' . $w . '” is close to ' . self::labelWith($p, self::stem($w)); }
+        }
+        /* What their roles cover, as the office describes them: "Media — photos, video, posters". */
+        foreach ((array) ($p['roles_desc'] ?? []) as $role => $d) {
+            $dl = mb_strtolower((string) $d); $hit = '';
+            foreach (self::words($title) as $w) if (mb_strlen($w) >= 4 && (str_contains($dl, $w) || (mb_strlen($w) >= 6 && str_contains($dl, self::stem($w))))) { $hit = $w; break; }
+            if ($hit !== '') { $score += 1.5; $why[] = '“' . $hit . '” is part of their ' . $role . ' role'; break; }
         }
         /* What they say they do: a word of the task in it, or a kind of work it names. */
         $about = mb_strtolower((string) ($p['about'] ?? ''));
@@ -450,7 +461,10 @@ final class TaskMatch
         if ($timed >= 3) $rec[] = (int) $h['on_time'] . ' of ' . $timed . ' on time';
         $seen = (string) ($p['last_seen'] ?? '');
         $seenTxt = $seen === '' ? 'never signed in' : 'last seen ' . max(0, (int) floor((time() - (strtotime($seen . ' UTC') ?: time())) / 86400)) . ' days ago';
+        $rd = [];
+        foreach (array_slice((array) ($p['roles_desc'] ?? []), 0, 3, true) as $role => $d) $rd[] = $role . ': ' . mb_substr(str_replace('"', "'", (string) $d), 0, 90);
         return '#' . $s['id'] . ' ' . $s['name'] . ' — ' . ($s['summary'] ?: 'no labels')
+            . ($rd ? ' — roles cover: ' . implode('; ', $rd) : '')
             . ($about !== '' ? ' — says: "' . str_replace(["\n", '"'], [' ', "'"], mb_substr($about, 0, 200)) . '"' : '')
             . ($rec ? ' — RECORD: ' . implode(' · ', $rec) : ' — RECORD: none yet')
             . ' — ' . $s['load'] . ' open tasks (' . (int) ($p['points'] ?? 0) . ' points' . ((int) ($p['overdue'] ?? 0) ? ', ' . (int) $p['overdue'] . ' overdue' : '') . ')'

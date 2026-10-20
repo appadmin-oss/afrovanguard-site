@@ -41,8 +41,9 @@ ck('todo: the pool task that fits them is suggested, with why', ($d['suggested']
 ck('todo: the register is not suggested to the cook', !in_array($pool2, array_column($d['suggested'], 'id'), true));
 $sec = Todo::sections($d);
 $keys = array_column($sec, 'key');
-ck('todo: sections in the order a day reads them', $keys === ['assigned', 'due', 'suggested']);
-$it = $sec[2]['items'][0];
+ck('todo: sections in the order a day reads them', $keys === ['assigned', 'due', 'open', 'suggested']);
+ck('todo: a task due later is not nagged about, but is on their list', in_array($later, array_column($d['open'], 'id'), true));
+$it = array_values(array_filter($sec, fn($x) => $x['key'] === 'suggested'))[0]['items'][0];
 ck('todo: a suggestion carries its own action, so the pop-up knows nothing about the site', $it['take']['action'] === 'todo_take' && $it['take']['body'] === ['id' => $pool1]);
 ck('todo: an overdue task is marked urgent, with an Overdue badge and when it was due', $sec[1]['items'][0]['urgent'] === true && $sec[1]['items'][0]['badge']['text'] === 'Overdue' && str_starts_with($sec[1]['items'][0]['meta'], 'Was due '));
 ck('todo: every item says what kind it is, for its icon', !array_filter(array_merge(...array_column($sec, 'items')), fn($i) => empty($i['kind'])));

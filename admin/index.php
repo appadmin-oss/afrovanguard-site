@@ -436,6 +436,7 @@
     <div class="studio-subtabs" role="tablist" aria-label="Member sections">
       <button class="subtab active" data-mv="dash" role="tab">Dashboard</button>
       <button class="subtab" data-mv="roster" role="tab">Roster</button>
+      <button class="subtab" data-mv="roles" role="tab">Roles</button>
       <button class="subtab" data-mv="import" role="tab">Import</button>
       <button class="subtab" data-mv="volunteers" role="tab">Volunteers</button>
       <button class="subtab" data-mv="dups" role="tab">Duplicates</button>
@@ -483,6 +484,7 @@
         <select id="memRole" aria-label="Filter by access level"><option value="">All access levels</option></select>
         <select id="memStatus" aria-label="Filter by status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
         <select id="memKind" aria-label="Which accounts"><option value="">Afrovanguard members</option><option value="ngv">NextGen Vanguards</option><option value="member">Members who are not NGV</option><option value="learner">Academy learners (not members)</option><option value="all">Every account</option></select>
+        <select id="memWorkRole" aria-label="Filter by work role"><option value="">Any work role</option></select>
         <select id="memVolunteer" aria-label="Volunteers"><option value="">Volunteers or not</option><option value="yes">Volunteers</option><option value="no">Not volunteers</option></select>
         <select id="memMissing" aria-label="Members with something missing"><option value="">Complete or not</option><option value="phone">No phone</option><option value="birthday">No birthday</option><option value="card">No gate card</option></select>
         <select id="memSegment" aria-label="Dashboard list"><option value="">Any record</option></select>
@@ -503,7 +505,10 @@
           <option value="membership_cancel">End dues…</option>
           <option value="volunteer_add">Make volunteers</option>
           <option value="volunteer_remove">Remove from volunteers</option>
+          <option value="work_role_add">Give a work role…</option>
+          <option value="work_role_remove">Take away a work role…</option>
         </select>
+        <select id="memBulkRole" hidden aria-label="Work role"></select>
         <input id="memBulkValue" hidden aria-label="Value for the action" />
         <select id="memBulkProject" hidden aria-label="Project they volunteer on"></select>
         <select id="memBulkType" hidden aria-label="What they volunteer as"></select>
@@ -579,6 +584,17 @@
       </div>
     </section>
 
+    <section class="mem-pane" data-pane="roles" hidden>
+      <p class="muted">The work roles members hold, one list. Say what each covers: task matching reads the description as well as the name, so a task about a flyer finds the people whose role covers design. Renaming a role renames it on everybody who holds it.</p>
+      <form class="mem-role-new" id="roleNew" autocomplete="off">
+        <label class="fld"><span>New role</span><input id="roleNewName" maxlength="40" placeholder="Media" required /></label>
+        <label class="fld mem-role-desc"><span>What it covers</span><input id="roleNewDesc" maxlength="500" placeholder="Photos, video, posters and the socials" /></label>
+        <button class="btn btn-primary btn-sm" type="submit">Add role</button>
+      </form>
+      <p class="muted tiny" id="roleMsg" role="status" aria-live="polite"></p>
+      <div id="memRolesList"><p class="muted">Loading…</p></div>
+    </section>
+
     <section class="mem-pane" data-pane="dups" hidden>
       <p class="muted">Records that look like one person — the same name, or the same phone. Shown, never merged: a person decides.</p>
       <div id="memDups"></div>
@@ -601,7 +617,8 @@
           <label class="fld"><span>Joined</span><input id="md_joined" type="date" /></label>
         </div>
         <label class="fld"><span>Work roles</span><input id="md_work_roles" maxlength="300" placeholder="Media, Events, Instructor" aria-describedby="md_work_roles_h" /></label>
-        <p class="muted tiny" id="md_work_roles_h">As many as they do, separated by commas. Tasks drawn from goals go to whoever’s roles and description fit.</p>
+        <div class="mem-role-chips" id="md_role_chips" role="group" aria-label="Work roles on the list — press to give or take away"></div>
+        <p class="muted tiny" id="md_work_roles_h">As many as they do — press a role, or type one, separated by commas; a new one joins the list under Roles. Tasks go to whoever’s roles and description fit.</p>
         <label class="fld"><span>What they do</span><textarea id="md_about" rows="2" maxlength="600" placeholder="Runs the Egbeda Saturday class; good with video editing."></textarea></label>
         <label class="fld"><span>Notes</span><textarea id="md_notes" rows="3"></textarea></label>
         <div class="mem-errors" id="md_errors" role="alert" hidden></div>
