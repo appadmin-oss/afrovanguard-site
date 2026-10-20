@@ -8,15 +8,22 @@
    Never caches API responses or authenticated HTML.
    ============================================================ */
 'use strict';
-var VERSION = 'av-pwa-v5';   // a new name empties every older cache on activate
+var VERSION = 'av-pwa-v6';   // a new name empties every older cache on activate
+/* The shell is what the app needs to draw ITSELF offline, so it follows the
+   app. v5 precached nav.css and nav.js, which the portal has not loaded since
+   it moved to avp.css, and left out the tokens and the fonts every page needs
+   before it can look like anything. The icons are listed because they changed:
+   without a VERSION bump an installed app keeps the old placeholder. */
 var SHELL = [
   '/assets/site/offline.html',
-  '/assets/site/nav.css',
-  '/assets/site/nav.js',
-  '/diary/diary.css',
+  '/assets/site/av-tokens.css',
+  '/assets/site/fonts.css',
   '/portal/portal.css',
+  '/portal/avp.css',
+  '/diary/diary.css',
   '/assets/site/icon-192.png',
   '/assets/site/icon-512.png',
+  '/favicon.ico',
 ];
 
 self.addEventListener('install', function (e) {

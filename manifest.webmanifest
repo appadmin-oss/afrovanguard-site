@@ -6,19 +6,21 @@
   "start_url": "/portal/?source=pwa",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait-primary",
-  "background_color": "#0B1120",
-  "theme_color": "#0B1120",
+  "background_color": "#FAF9F6",
+  "theme_color": "#111827",
   "lang": "en-NG",
+  "dir": "ltr",
   "categories": ["education", "social", "productivity"],
   "icons": [
-    { "src": "/assets/site/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/assets/site/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/assets/site/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/site/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "/assets/site/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Community", "url": "/community/", "icons": [{ "src": "/assets/site/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Mentorship", "url": "/mentorship/" },
-    { "name": "The Diary", "url": "/diary/" }
+    { "name": "Community", "short_name": "Community", "url": "/community/", "icons": [{ "src": "/assets/site/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Mentorship", "short_name": "Mentorship", "url": "/mentorship/", "icons": [{ "src": "/assets/site/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "The Diary", "short_name": "Diary", "url": "/diary/", "icons": [{ "src": "/assets/site/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
   ]
 }

@@ -2,7 +2,7 @@
 <html lang="en-NG" prefix="og: https://ogp.me/ns#" class="no-js">
 <head>
   <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si')</script>
-  <!-- Head carried over from repo index.html @ba3a5a1 (SEO, OG/Twitter, JSON-LD, icons). Changes: theme-color as rgb(); msapplication colour metas dropped (hex, IE-only). -->
+  <!-- Head carried over from repo index.html @ba3a5a1 (SEO, OG/Twitter, JSON-LD, icons). Changes: theme-color now matches render_head() and the manifest; msapplication colour metas dropped (hex, IE-only). -->
   <meta charset="UTF-8" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/site/icon-192.png" />
@@ -84,7 +84,8 @@
   <meta http-equiv="Pragma"        content="no-cache" />
   <meta http-equiv="Expires"       content="0" />
 
-  <meta name="theme-color" content="rgb(243 180 22)" />
+  <meta name="theme-color" content="rgb(17 24 39)" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="rgb(7 11 20)" media="(prefers-color-scheme: dark)" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Afrovanguard" />
@@ -551,6 +552,6 @@
 
 </div>
 <script src="/assets/site/chioma.js?v=57e9893498" defer></script>
-<script src="/assets/site/celebrations.js?v=3407eeee99" defer></script>
+<script src="/assets/site/celebrations.js?v=bfcb3b7a88" defer></script>
 </body>
 </html>
