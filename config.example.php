@@ -12,6 +12,28 @@
  *   SetEnv AV_ADMIN_TOKEN     <output of: php -r "echo bin2hex(random_bytes(32));">
  *
  * NEVER commit config.php or .htaccess to git.
+ *
+ * ── THE DATABASE IS THE ONE EXCEPTION ────────────────────────────────────
+ * Every secret below can live in this file. The database settings CANNOT.
+ *
+ * lib/Database.php picks its driver before Config and AvSettings exist — it
+ * has to, because both of them read from the database — so it reads the
+ * environment and nothing else. AV_DB_* written into config.php is dead
+ * text: the site will not complain, it will simply run on the bundled
+ * SQLite file. Put them in .env beside this file, or in .htaccess:
+ *
+ *   SetEnv AV_DB_HOST   localhost
+ *   SetEnv AV_DB_NAME   yourdb
+ *   SetEnv AV_DB_USER   youruser
+ *   SetEnv AV_DB_PASS   yourpassword
+ *   SetEnv AV_DB_STRICT 1     # production: an unreachable MySQL is an
+ *                             # error, not a silent fall back to SQLite
+ *                             # that then accepts writes nobody will find
+ *
+ * MOVING AN EXISTING SITE ONTO MySQL: copy the data across before you point
+ * the site at it. An empty target is not an error — every page just renders
+ * as though the site had been wiped. Studio → System → Database says which
+ * driver is live and where its settings came from.
  */
 
 /**

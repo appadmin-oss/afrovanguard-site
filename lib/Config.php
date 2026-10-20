@@ -106,6 +106,40 @@ final class Config
                 ? self::chk('Driver', 'warn', $drv . ' — requested ' . strtoupper($fell) . ' but it was unreachable; check AV_DB_HOST/NAME/USER/PASS')
                 : self::chk('Driver', 'ok', $drv);
             $db[] = self::chk('Connection', 'ok', 'connected');
+
+            /* The quiet failure this section could not name. Database settings
+               are read from the environment only — .env or .htaccess SetEnv —
+               because pdo() runs before Config and AvSettings exist. Credentials
+               written into config.php, which is where this project puts every
+               other secret, are never seen, and the site runs on SQLite with
+               nothing anywhere saying why. */
+            $cfgSrc = Database::configSource();
+            if ($cfgSrc['ignored']) {
+                $db[] = self::chk('Database settings', 'off',
+                    'config.php defines ' . implode(', ', $cfgSrc['ignored']) . ', and the database is NOT read from '
+                    . 'config.php — only from the environment (.env, or SetEnv in .htaccess). '
+                    . ($drv === 'sqlite'
+                        ? 'That is why this site is on SQLite. Move those lines into .env, but migrate the data across FIRST: '
+                          . 'pointing the site at an empty MySQL loses nothing, but it does show every page as if it had been wiped.'
+                        : 'The live connection comes from the environment; the config.php values are dead text.'));
+            } elseif ($drv === 'sqlite' && $cfgSrc['source'] === 'none') {
+                $db[] = self::chk('Database settings', 'info',
+                    'none set — running on the bundled SQLite file. For MySQL set AV_DB_HOST, AV_DB_NAME, '
+                    . 'AV_DB_USER and AV_DB_PASS in .env or via SetEnv in .htaccess (not config.php: the database is not read from there).');
+            } else {
+                $db[] = self::chk('Database settings', 'ok', 'from the environment');
+            }
+
+            /* A production MySQL that falls back to SQLite on a blip serves and
+               accepts writes against a different database for as long as the
+               blip lasts. AV_DB_STRICT makes that an outage instead. */
+            if ($drv !== 'sqlite' || $fell) {
+                $db[] = self::chk('Fallback to SQLite', Database::dbStrict() ? 'ok' : 'warn',
+                    Database::dbStrict()
+                        ? 'refused — AV_DB_STRICT is set, an unreachable database is a hard error'
+                        : 'allowed — if MySQL blips, requests are served and WRITTEN to the local SQLite file instead, '
+                          . 'and the two drift apart. Set AV_DB_STRICT=1 in production.');
+            }
             $tables = $drv === 'sqlite'
                 ? (int) $pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")->fetchColumn()
                 : (int) $pdo->query('SELECT COUNT(*) FROM information_schema.tables' . ($drv === 'mysql' ? ' WHERE table_schema = DATABASE()' : " WHERE table_schema='public'"))->fetchColumn();
