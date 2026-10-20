@@ -118,17 +118,27 @@ final class Notify
         });
     }
 
+    /* modules/EMAILS.md: academy_certificate — card frame, no illustration.
+       The serial is the certificate id the public verify page checks, so the
+       email carries the same one rather than a second reference. */
     public static function completed(array $user, array $course, ?string $certUrl): void
     {
         self::safe(function () use ($user, $course, $certUrl) {
-            $name = self::first((string) $user['name']);
-            $rows = [
-                'Congratulations, ' . $name . '! You’ve completed <strong>' . htmlspecialchars($course['title']) . '</strong> — every lesson done.',
-                'Your certificate of completion is ready to view, download and share.',
-            ];
-            $cta = $certUrl ? ['text' => 'Get your certificate', 'url' => $certUrl] : ['text' => 'Back to the programme', 'url' => academy_url($course['slug'] . '/')];
-            $html = Mailer::shell('You completed ' . $course['title'] . ' 🎓', $rows, $cta, 'Your certificate is ready.');
-            Mailer::send((string) $user['email'], 'Certificate ready — ' . $course['title'], $html);
+            $serial = '';
+            try {
+                $c = (new LmsRepository())->getCertificate((int) $user['id'], (int) $course['id']);
+                $serial = (string) ($c['serial'] ?? '');
+            } catch (\Throwable $e) { /* the email still goes without it */ }
+            $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : '';
+            Mailer::sendTemplate((string) $user['email'], 'academy_certificate', [
+                'first_name'      => self::first((string) $user['name']),
+                'course_title'    => (string) $course['title'],
+                'completed_on'    => date('j M Y'),
+                'certificate_id'  => $serial,
+                'certificate_url' => (string) ($certUrl ?: academy_url($course['slug'] . '/certificate')),
+                'verify_url'      => $serial !== '' ? $site . '/academy/verify.php?id=' . rawurlencode($serial)
+                                                    : $site . '/academy/verify.php',
+            ]);
         });
     }
 }

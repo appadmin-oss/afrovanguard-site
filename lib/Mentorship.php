@@ -1734,7 +1734,11 @@ final class Mentorship
         $db->prepare("INSERT INTO mentorships (mentor_id, mentee_id, status, message, segment, cohort_id, programme, origin, created_at, updated_at) VALUES (?,?, 'active','', ?,?,?, 'admin', ?,?)")
            ->execute([$mentorId, $menteeId, $seg, max(0, $cohortId), mb_substr($programme, 0, 160), $now, $now]);
         $id = (int) $db->lastInsertId();
-        self::notify($menteeId, 'You’ve been matched with a mentor', 'A mentor has been assigned to you on Afrovanguard — say hello and book your first session.', '/mentorship/');
+        /* modules/EMAILS.md: mentee_matched — the designed email for this
+           exact moment, to the MENTEE. The mentor's copy of the news has no
+           designed template yet, so it stays on notify() below. §5: never
+           any message content, phone number or handle in it. */
+        self::matchedEmail($menteeId, $mentorId, $p);
         self::notify($mentorId, 'A mentee has been assigned to you', 'You’ve been paired with a new mentee on Afrovanguard.', '/mentorship/');
         if (class_exists('Events')) { try { Events::emit('mentorship.assigned', ['id' => $id, 'mentor_id' => $mentorId, 'mentee_id' => $menteeId]); } catch (Throwable $e) {} }
         return ['ok' => true, 'id' => $id];
@@ -1840,6 +1844,31 @@ final class Mentorship
     }
 
     /* ── email (best-effort) ─────────────────────────────────────── */
+    /** The mentee's "meet your mentor" email. Best-effort, like notify(). */
+    private static function matchedEmail(int $menteeId, int $mentorId, array $profile): void
+    {
+        if (!class_exists('Mailer') || !method_exists('Mailer', 'sendTemplate')) return;
+        try {
+            $s = Database::pdo()->prepare('SELECT id, name, email FROM lms_users WHERE id IN (?, ?)');
+            $s->execute([$menteeId, $mentorId]);
+            $by = [];
+            foreach ($s->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) $by[(int) $r['id']] = $r;
+            $mentee = $by[$menteeId] ?? null; $mentor = $by[$mentorId] ?? null;
+            if (!$mentee || empty($mentee['email'])) return;
+            $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : 'https://afrovanguard.org.ng';
+            Mailer::sendTemplate((string) $mentee['email'], 'mentee_matched', [
+                'first_name'        => explode(' ', trim((string) $mentee['name']))[0] ?: 'there',
+                'mentor_name'       => (string) ($mentor['name'] ?? 'your mentor'),
+                'mentor_role'       => (string) ($profile['headline'] ?? ''),
+                'focus'             => (string) ($profile['focus'] ?? ''),
+                'first_session'     => 'To be agreed — book it in your portal',
+                'portal_url'        => $site . '/mentorship/',
+                'safeguarding_email'=> defined('SAFEGUARDING_EMAIL') && SAFEGUARDING_EMAIL !== ''
+                    ? (string) SAFEGUARDING_EMAIL : 'safeguarding@afrovanguard.org.ng',
+            ]);
+        } catch (Throwable $e) { error_log('[mentorship] matched email: ' . $e->getMessage()); }
+    }
+
     private static function notify(int $userId, string $subject, string $line, string $path): void
     {
         if (!class_exists('Mailer')) return;
