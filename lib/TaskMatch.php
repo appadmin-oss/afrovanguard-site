@@ -61,8 +61,28 @@ final class TaskMatch
 
     /** Open tasks beyond which a person starts to count as busy. */
     private const EASY_LOAD = 2;
+    /** Open work, in size points (S 1, M 2, L 4), beyond which a person is busy. */
+    private const EASY_POINTS = 4;
+    /** Days without signing in after which somebody is not counted on. */
+    private const QUIET_DAYS = 30;
 
     private static ?array $profiles = null;
+
+    /**
+     * How the model is told to weigh people — the same evidence the scores
+     * use, in the order that matters: what somebody has done beats what they
+     * are labelled; "handed back as not my work" is an answer; somebody
+     * overloaded, overdue or long absent is a poor pick however well they fit.
+     */
+    private const AI_WEIGH = 'Weigh, in this order: (1) their RECORD — work like this they finished counts more than any label, and a task like it they handed back as "not my kind of work" counts against them; '
+        . '(2) fit of their roles (a person may hold several) and what they say they do, then course, faculty and centre; (3) whether they can: their open work in points and anything overdue, '
+        . 'what they were given this week, and when they were last seen — somebody not seen for weeks is a poor pick, however good the fit. Spread the work when the fit is close. '
+        . 'Give a "confidence" from 0 to 1 that the person will take it and finish it; when nobody reaches 0.35, choose nobody.';
+
+    /** Below this, the model's pick is not acted on: the task waits for somebody to take it. */
+    private const AI_MIN_CONFIDENCE = 0.35;
+    /** And the sweep, which gives without asking, wants more. */
+    private const AUTO_MIN_CONFIDENCE = 0.5;
 
     /** Tests only: stands in for the model in assignMany() — fn(system, prompt, opts) → ['ok','text']. */
     public static ?Closure $aiForTests = null;
@@ -93,9 +113,12 @@ final class TaskMatch
         if (!$ids) return self::$profiles = [];
         $in = implode(',', array_map('intval', array_keys($ids)));
         $out = [];
-        foreach ($pdo->query("SELECT id, name, email, role FROM lms_users WHERE id IN ($in) AND status = 'active'")->fetchAll(PDO::FETCH_ASSOC) as $u) {
+        foreach ($pdo->query("SELECT * FROM lms_users WHERE id IN ($in) AND status = 'active'")->fetchAll(PDO::FETCH_ASSOC) as $u) {
             $out[(int) $u['id']] = ['id' => (int) $u['id'], 'name' => (string) ($u['name'] ?: explode('@', (string) $u['email'])[0]),
-                'email' => strtolower((string) $u['email']), 'role' => (string) $u['role'], 'labels' => [], 'about' => '', 'centre' => '', 'load' => 0];
+                'email' => strtolower((string) $u['email']), 'role' => (string) $u['role'], 'labels' => [], 'about' => '', 'centre' => '', 'load' => 0,
+                /* The size of what they hold (S 1, M 2, L 4 — Collab::points), what of it is overdue, when they were last here. */
+                'points' => 0, 'overdue' => 0, 'last_seen' => (string) ($u['last_login'] ?? ''), 'away_until' => '',
+                'history' => ['done' => [], 'handed_back' => [], 'on_time' => 0, 'late' => 0, 'given_week' => 0]];
             if (!in_array((string) $u['role'], ['', 'learner', 'member'], true)) $out[(int) $u['id']]['labels'][] = (string) $u['role'];
         }
         $add = static function (int $id, string $label) use (&$out): void {
@@ -107,7 +130,12 @@ final class TaskMatch
             if (class_exists('MemberRoster')) MemberRoster::ensure();
             foreach ($pdo->query("SELECT user_id, work_roles, about FROM member_profiles WHERE user_id IN ($in) AND (work_roles <> '' OR about <> '')")->fetchAll(PDO::FETCH_ASSOC) as $r) {
                 $id = (int) $r['user_id'];
-                foreach (class_exists('MemberRoster') ? MemberRoster::workRoles((string) $r['work_roles']) : [] as $role) $add($id, $role);
+                $desc = class_exists('MemberRoles') ? MemberRoles::descriptions() : [];
+                foreach (class_exists('MemberRoster') ? MemberRoster::workRoles((string) $r['work_roles']) : [] as $role) {
+                    $add($id, $role);
+                    /* What the role covers, as the office describes it (lib/MemberRoles.php). */
+                    if (isset($out[$id]) && isset($desc[mb_strtolower($role)])) $out[$id]['roles_desc'][$role] = $desc[mb_strtolower($role)];
+                }
                 if (isset($out[$id])) $out[$id]['about'] = mb_substr((string) $r['about'], 0, 300);
             }
         } catch (Throwable $e) {}
@@ -153,12 +181,22 @@ final class TaskMatch
                 if (isset($out[(int) $r['user_id']]) && $out[(int) $r['user_id']]['centre'] === '') $out[(int) $r['user_id']]['centre'] = (string) $r['centre'];
             }
         } catch (Throwable $e) {}
-        /* Open load */
+        /* Open load: how many, how big, and how many past their date. */
         try {
-            foreach ($pdo->query("SELECT assignee_id, COUNT(*) FROM collab_tasks WHERE done = 0 AND assignee_id IN ($in) GROUP BY assignee_id")->fetchAll(PDO::FETCH_NUM) as [$id, $n]) {
-                if (isset($out[(int) $id])) $out[(int) $id]['load'] = (int) $n;
+            $today = gmdate('Y-m-d');
+            foreach ($pdo->query("SELECT assignee_id, size, due FROM collab_tasks WHERE done = 0 AND assignee_id IN ($in)")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $id = (int) $r['assignee_id'];
+                if (!isset($out[$id])) continue;
+                $out[$id]['load']++;
+                $out[$id]['points'] += class_exists('Collab') ? Collab::points((string) ($r['size'] ?? '')) : 2;
+                if ((string) $r['due'] !== '' && (string) $r['due'] < $today) $out[$id]['overdue']++;
             }
         } catch (Throwable $e) {}
+        /* What they did with work before, and who is away (lib/TaskLedger.php). */
+        if (class_exists('TaskLedger')) {
+            foreach (TaskLedger::history(array_keys($out)) as $id => $h) if (isset($out[$id])) $out[$id]['history'] = $h;
+            foreach (TaskLedger::away(array_keys($out)) as $id => $d) if (isset($out[$id])) $out[$id]['away_until'] = $d;
+        }
         return self::$profiles = $out;
     }
 
@@ -189,12 +227,39 @@ final class TaskMatch
         return array_values(array_unique(array_filter($w, static fn($x) => mb_strlen($x) >= 3 && !in_array($x, self::STOP, true))));
     }
 
+    /** A word's root, so "photograph", "photography" and "photos" meet: its first five letters, for longer words. */
+    private static function stem(string $w): string { return mb_strlen($w) >= 6 ? mb_substr($w, 0, 5) : $w; }
+
     /**
-     * Score one person for a task. Returns [score, reasons[]]. $hint is an
-     * optional kind of work the planner named ("teaching", "admin"…).
+     * What two tasks share, in words — a kind of work, or a word (by its
+     * root) — or '' when they are not alike.
      */
-    public static function score(array $p, string $title, string $hint = ''): array
+    public static function alike(string $a, string $b): string
     {
+        $ka = self::kinds($a);
+        foreach (self::kinds($b) as $k) if (in_array($k, $ka, true)) return $k;
+        $wa = array_map([self::class, 'stem'], array_filter(self::words($a), static fn($w) => mb_strlen($w) >= 4));
+        foreach (self::words($b) as $w) if (mb_strlen($w) >= 4 && in_array(self::stem($w), $wa, true)) return $w;
+        return '';
+    }
+
+    /**
+     * Score one person for a task. Returns [score, reasons[], fit]: score
+     * ranks, fit (the part before whether they can) says whether they fit at all. $hint is an
+     * optional kind of work the planner named ("teaching", "admin"…); $task
+     * may carry the task's due date, size and priority.
+     *
+     * Fit (labels, what they say they do) says who could; the record says
+     * who does: work like it finished (+), the same kind handed back as not
+     * theirs (−), finishing on time or not. Then whether they can: the size of
+     * what they hold, anything overdue, what they were given this week, and
+     * whether they have been seen lately. A task due within three days leans
+     * harder on can. Somebody away is not scored here — shortlist() leaves
+     * them out.
+     */
+    public static function score(array $p, string $title, string $hint = '', array $task = [], ?int $now = null): array
+    {
+        $now = $now ?? time();
         $labels = mb_strtolower(implode(' | ', $p['labels']) . ' | ' . $p['centre']);
         $score = 0.0; $why = [];
         $kinds = self::kinds($title);
@@ -215,6 +280,13 @@ final class TaskMatch
             if (mb_strlen($w) < 4) continue;
             if ($p['centre'] !== '' && mb_strtolower($p['centre']) === $w) { $score += 2.5; $why[] = 'At the ' . $p['centre'] . ' centre'; continue; }
             if (str_contains($labels, $w)) { $score += 2; $why[] = '“' . $w . '” is in ' . self::labelWith($p, $w); }
+            elseif (mb_strlen($w) >= 6 && str_contains($labels, self::stem($w))) { $score += 1.5; $why[] = '“' . $w . '” is close to ' . self::labelWith($p, self::stem($w)); }
+        }
+        /* What their roles cover, as the office describes them: "Media — photos, video, posters". */
+        foreach ((array) ($p['roles_desc'] ?? []) as $role => $d) {
+            $dl = mb_strtolower((string) $d); $hit = '';
+            foreach (self::words($title) as $w) if (mb_strlen($w) >= 4 && (str_contains($dl, $w) || (mb_strlen($w) >= 6 && str_contains($dl, self::stem($w))))) { $hit = $w; break; }
+            if ($hit !== '') { $score += 1.5; $why[] = '“' . $hit . '” is part of their ' . $role . ' role'; break; }
         }
         /* What they say they do: a word of the task in it, or a kind of work it names. */
         $about = mb_strtolower((string) ($p['about'] ?? ''));
@@ -225,10 +297,43 @@ final class TaskMatch
             if ($hit !== '') { $score += 1.5; $why[] = 'Says they do “' . $hit . '”'; }
         }
         if (in_array('children', $kinds, true) && str_contains($labels, 'safeguarding cleared')) { $score += 1; $why[] = 'Safeguarding cleared'; }
-        /* Load: the willing are not handed everything. */
-        if ($p['load'] > self::EASY_LOAD) { $score -= 0.6 * ($p['load'] - self::EASY_LOAD); $why[] = $p['load'] . ' open tasks already'; }
+
+        /* The record: what they did with work like this. */
+        $h = (array) ($p['history'] ?? []);
+        $like = [];
+        foreach ((array) ($h['done'] ?? []) as $d) if (self::alike($title, (string) $d) !== '') { $like[] = (string) $d; if (count($like) >= 3) break; }
+        if ($like) { $score += min(3.0, 1.2 * count($like)); $why[] = 'Finished ' . count($like) . ' like it, e.g. “' . mb_substr($like[0], 0, 60) . '”'; }
+        foreach ((array) ($h['handed_back'] ?? []) as $b) {
+            if (self::alike($title, (string) $b['title']) === '') continue;
+            $ago = (int) floor(($now - (strtotime((string) $b['at'] . ' UTC') ?: $now)) / 86400);
+            if ($b['reason'] === 'not_mine') { $score -= 3; $why[] = 'Handed back “' . mb_substr((string) $b['title'], 0, 50) . '” as not their kind of work'; break; }
+            if ($b['reason'] === 'busy' && $ago <= 14) { $score -= 1; $why[] = 'Handed one like it back ' . ($ago <= 0 ? 'today' : $ago . ' days ago') . ': no time'; break; }
+            if ($b['reason'] === '' || $b['reason'] === 'other') { $score -= 0.5; $why[] = 'Handed one like it back'; break; }
+        }
+        $timed = (int) ($h['on_time'] ?? 0) + (int) ($h['late'] ?? 0);
+        if ($timed >= 3) {
+            $rate = (int) ($h['on_time'] ?? 0) / $timed;
+            if ($rate >= 0.8) { $score += 0.5; $why[] = 'Finishes on time (' . (int) $h['on_time'] . ' of ' . $timed . ')'; }
+            elseif ($rate < 0.5) { $score -= 0.5; $why[] = 'Often late (' . (int) $h['late'] . ' of ' . $timed . ')'; }
+        }
+
+        /* That is the fit. What follows is whether they can, which ranks the
+           fitting people but does not make somebody fit or not. */
+        $fit = $score;
+
+        /* Whether they can: the size of what they hold, what is overdue, what they were given this week. */
+        $urgent = (string) ($task['due'] ?? '') !== '' && (string) $task['due'] <= gmdate('Y-m-d', $now + 3 * 86400);
+        $weight = $urgent ? 2.0 : 1.0;
+        $pts = (int) ($p['points'] ?? 0);
+        if ($pts > self::EASY_POINTS) { $score -= $weight * 0.35 * ($pts - self::EASY_POINTS); $why[] = $p['load'] . ' open tasks already (' . $pts . ' points of work)'; }
         elseif ($p['load'] === 0) { $score += 0.3; $why[] = 'No open tasks'; }
-        return [round($score, 2), array_values(array_unique($why))];
+        if ((int) ($p['overdue'] ?? 0) > 0) { $score -= $weight * 0.8 * min(3, (int) $p['overdue']); $why[] = (int) $p['overdue'] . ' overdue'; }
+        if (($g = (int) ($h['given_week'] ?? 0)) > 2) { $score -= 0.4 * ($g - 2); $why[] = 'Given ' . $g . ' tasks this week'; }
+        /* Whether they are here: somebody not seen for a month is not counted on. */
+        $seen = (string) ($p['last_seen'] ?? '');
+        if ($seen === '') { $score -= $urgent ? 2 : 1; $why[] = 'Has not signed in yet'; }
+        elseif (($days = (int) floor(($now - (strtotime($seen . ' UTC') ?: $now)) / 86400)) > self::QUIET_DAYS) { $score -= $urgent ? 3 : 2; $why[] = 'Not seen for ' . $days . ' days'; }
+        return [round($score, 2), array_values(array_unique($why)), round($fit, 2)];
     }
 
     private static function labelWith(array $p, string $needle): string
@@ -242,16 +347,18 @@ final class TaskMatch
      * [['id','name','summary','score','why'=>[…],'load']…]. People with no
      * relevant label are left out unless nobody fits, then the least busy.
      */
-    public static function shortlist(string $title, int $n = 5, string $hint = '', array $exclude = []): array
+    public static function shortlist(string $title, int $n = 5, string $hint = '', array $exclude = [], array $task = []): array
     {
         $rows = [];
         foreach (self::profiles() as $p) {
             if (in_array($p['id'], $exclude, true)) continue;
-            [$s, $why] = self::score($p, $title, $hint);
-            $rows[] = ['id' => $p['id'], 'name' => $p['name'], 'summary' => self::summary($p), 'score' => $s, 'why' => $why, 'load' => $p['load']];
+            /* Away until a date (TaskLedger::setAway): nothing is put their way until then. */
+            if ((string) ($p['away_until'] ?? '') !== '') continue;
+            [$s, $why, $fit] = self::score($p, $title, $hint, $task);
+            $rows[] = ['id' => $p['id'], 'name' => $p['name'], 'summary' => self::summary($p), 'score' => $s, 'fit' => $fit, 'why' => $why, 'load' => $p['load']];
         }
         usort($rows, static fn($a, $b) => [$b['score'], $a['load'], $a['name']] <=> [$a['score'], $b['load'], $b['name']]);
-        $fit = array_values(array_filter($rows, static fn($r) => $r['score'] >= 1));
+        $fit = array_values(array_filter($rows, static fn($r) => $r['fit'] >= 1));
         return array_slice($fit ?: $rows, 0, max(1, $n));
     }
 
@@ -259,55 +366,110 @@ final class TaskMatch
      * Suggestions for one task, with AI's pick when it is available. Returns
      * ['ok', 'suggestions' => [...], 'via' => 'ai'|'labels'].
      */
-    public static function suggest(string $title, int $n = 3, string $hint = ''): array
+    public static function suggest(string $title, int $n = 3, string $hint = '', array $task = []): array
     {
         $title = trim(mb_substr($title, 0, 300));
         if ($title === '') return ['ok' => false, 'error' => 'Describe the task first.', 'suggestions' => []];
-        $short = self::shortlist($title, 10, $hint);
+        $short = self::shortlist($title, 10, $hint, [], $task);
         if (!$short) return ['ok' => true, 'suggestions' => [], 'via' => 'labels'];
-        if (class_exists('Collab') && Collab::aiAvailable() && count($short) > 1) {
-            $picked = self::aiPick($title, $short, $n);
+        if (self::aiOn() && count($short) > 1) {
+            $picked = self::aiPick($title, $short, $n, $task);
             if ($picked) return ['ok' => true, 'suggestions' => $picked, 'via' => 'ai'];
         }
         return ['ok' => true, 'suggestions' => array_slice($short, 0, $n), 'via' => 'labels'];
     }
 
-    /** AI chooses from the shortlist only — names and labels, nothing private. */
-    private static function aiPick(string $title, array $short, int $n): array
+    private static function aiOn(): bool { return self::$aiForTests !== null || (class_exists('Collab') && Collab::aiAvailable() && class_exists('AvAgent')); }
+
+    /** The model, or the test's stand-in. */
+    private static function ask(string $system, string $prompt, int $max): array
+    {
+        if (self::$aiForTests !== null) return (array) (self::$aiForTests)($system, $prompt, ['max_tokens' => $max]);
+        return class_exists('AvAgent') ? AvAgent::complete($system, $prompt, ['max_tokens' => $max, 'temperature' => 0.1, 'actor' => 'tasks.match']) : ['ok' => false];
+    }
+
+    /** "due 2026-10-22 · size M · high priority" — what about the task bears on who should take it. */
+    private static function taskLine(array $task): string
+    {
+        $b = [];
+        if ((string) ($task['due'] ?? '') !== '') $b[] = 'due ' . $task['due'];
+        if ((string) ($task['size'] ?? '') !== '') $b[] = 'size ' . strtoupper((string) $task['size']) . ' (S an hour or two, M a day, L several days)';
+        if ((string) ($task['priority'] ?? '') === 'high') $b[] = 'high priority';
+        if ((string) ($task['goal'] ?? '') !== '') $b[] = 'towards the goal “' . mb_substr((string) $task['goal'], 0, 120) . '”';
+        return implode(' · ', $b);
+    }
+
+    /** Whether the last aiPick() got no usable answer (as opposed to an answer naming nobody). */
+    private static bool $aiFailed = false;
+
+    /** AI chooses from the shortlist only — names, labels and record, nothing private. */
+    private static function aiPick(string $title, array $short, int $n, array $task = [], float $min = self::AI_MIN_CONFIDENCE): array
     {
         $lines = [];
         foreach ($short as $s) $lines[] = self::candidateLine($s);
-        $system = 'You assign work in Afrovanguard, a Nigerian nonprofit run by volunteers. Choose the best people for the TASK from the CANDIDATES only, '
-            . 'by fit of their roles (a person may hold several), what they say they do, course, faculty and centre, and spread the work: prefer someone with fewer open tasks when the fit is close. '
-            . 'Respond with ONLY a JSON array, best first, at most ' . $n . ' items: [{"id":<candidate number>,"why":"<one short reason, under 15 words>"}]';
-        $prompt = "TASK: " . $title . "\n\nCANDIDATES:\n" . implode("\n", $lines);
-        $r = class_exists('AvAgent') ? AvAgent::complete($system, $prompt, ['max_tokens' => 300, 'temperature' => 0.1, 'actor' => 'tasks.match']) : ['ok' => false];
+        $system = 'You assign work in Afrovanguard, a Nigerian nonprofit run by volunteers. Choose the best people for the TASK from the CANDIDATES only. ' . self::AI_WEIGH . ' '
+            . 'Respond with ONLY a JSON array, best first, at most ' . $n . ' items: [{"id":<candidate number>,"confidence":<0 to 1>,"why":"<one short reason, under 15 words>"}]';
+        $tl = self::taskLine($task);
+        $prompt = "TASK: " . $title . ($tl !== '' ? "\n(" . $tl . ')' : '') . "\n\nCANDIDATES:\n" . implode("\n", $lines);
+        self::$aiFailed = true;
+        $r = self::ask($system, $prompt, 300);
         if (empty($r['ok'])) return [];
         $text = (string) preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim((string) ($r['text'] ?? '')));
         $j = json_decode($text, true);
         if (!is_array($j) && preg_match('/\[.*\]/s', $text, $m)) $j = json_decode($m[0], true);
         if (!is_array($j)) return [];
+        self::$aiFailed = false;
         $by = [];
         foreach ($short as $s) $by[$s['id']] = $s;
         $out = [];
         foreach ($j as $row) {
             $id = (int) (is_array($row) ? ($row['id'] ?? 0) : 0);
             if (!isset($by[$id]) || isset($out[$id])) continue;   /* only the shortlist, once each */
+            $conf = self::confidence($row);
+            if ($conf !== null && $conf < $min) continue;          /* not sure enough to put to anybody */
             $why = trim(mb_substr((string) ($row['why'] ?? ''), 0, 140));
-            $out[$id] = $by[$id];
+            $out[$id] = $by[$id] + ['confidence' => $conf];
             if ($why !== '') array_unshift($out[$id]['why'], $why);
             if (count($out) >= $n) break;
         }
         return array_values($out);
     }
 
-    /** A candidate as the model sees them: number, name, roles and labels, what they do, load. Never an email or a phone. */
+    /** The model's confidence, 0–1, or null when it gave none (an older prompt, or it forgot). */
+    private static function confidence($row): ?float
+    {
+        if (!is_array($row) || !isset($row['confidence']) || !is_numeric($row['confidence'])) return null;
+        $c = (float) $row['confidence'];
+        if ($c > 1 && $c <= 100) $c /= 100;   /* "80" meaning 80% */
+        return max(0.0, min(1.0, $c));
+    }
+
+    /**
+     * A candidate as the model sees them: number, name, roles and labels, what
+     * they do, their record, their load and when they were last here. Never
+     * an email or a phone.
+     */
     private static function candidateLine(array $s): string
     {
-        $about = trim((string) (self::$profiles[$s['id']]['about'] ?? ''));
+        $p = self::$profiles[$s['id']] ?? [];
+        $about = trim((string) ($p['about'] ?? ''));
+        $h = (array) ($p['history'] ?? []);
+        $rec = [];
+        if ($d = array_slice((array) ($h['done'] ?? []), 0, 3)) $rec[] = 'recently finished: ' . implode('; ', array_map(static fn($t) => '"' . mb_substr(str_replace('"', "'", (string) $t), 0, 60) . '"', $d));
+        if ($b = array_slice((array) ($h['handed_back'] ?? []), 0, 2)) $rec[] = 'handed back: ' . implode('; ', array_map(static fn($x) => '"' . mb_substr(str_replace('"', "'", (string) $x['title']), 0, 50) . '"' . ($x['reason'] !== '' ? ' (' . (TaskLedger::REASONS[$x['reason']] ?? $x['reason']) . ')' : ''), $b));
+        $timed = (int) ($h['on_time'] ?? 0) + (int) ($h['late'] ?? 0);
+        if ($timed >= 3) $rec[] = (int) $h['on_time'] . ' of ' . $timed . ' on time';
+        $seen = (string) ($p['last_seen'] ?? '');
+        $seenTxt = $seen === '' ? 'never signed in' : 'last seen ' . max(0, (int) floor((time() - (strtotime($seen . ' UTC') ?: time())) / 86400)) . ' days ago';
+        $rd = [];
+        foreach (array_slice((array) ($p['roles_desc'] ?? []), 0, 3, true) as $role => $d) $rd[] = $role . ': ' . mb_substr(str_replace('"', "'", (string) $d), 0, 90);
         return '#' . $s['id'] . ' ' . $s['name'] . ' — ' . ($s['summary'] ?: 'no labels')
+            . ($rd ? ' — roles cover: ' . implode('; ', $rd) : '')
             . ($about !== '' ? ' — says: "' . str_replace(["\n", '"'], [' ', "'"], mb_substr($about, 0, 200)) . '"' : '')
-            . ' — ' . $s['load'] . ' open tasks';
+            . ($rec ? ' — RECORD: ' . implode(' · ', $rec) : ' — RECORD: none yet')
+            . ' — ' . $s['load'] . ' open tasks (' . (int) ($p['points'] ?? 0) . ' points' . ((int) ($p['overdue'] ?? 0) ? ', ' . (int) $p['overdue'] . ' overdue' : '') . ')'
+            . ((int) ($h['given_week'] ?? 0) ? ', given ' . (int) $h['given_week'] . ' this week' : '')
+            . ' — ' . $seenTxt;
     }
 
     /**
@@ -322,24 +484,23 @@ final class TaskMatch
      */
     public static function assignMany(array $tasks, array $exclude = [], string $about = ''): array
     {
-        $ai = self::$aiForTests ?? ((class_exists('Collab') && Collab::aiAvailable() && class_exists('AvAgent')) ? [AvAgent::class, 'complete'] : null);
-        if (!$tasks || !$ai) return self::spread($tasks, $exclude);
+        if (!$tasks || !self::aiOn()) return self::spread($tasks, $exclude);
         self::profiles();
         $shorts = []; $cands = []; $lines = []; $n = 0; $keyOf = [];
         foreach ($tasks as $k => $t) {
             $n++; $keyOf[$n] = $k;
             $shorts[$k] = [];
-            foreach (self::shortlist((string) $t['title'], 6, (string) ($t['kind'] ?? ''), $exclude) as $r) { $shorts[$k][$r['id']] = $r; $cands[$r['id']] = $r; }
-            $lines[] = $n . '. ' . $t['title'] . ((string) ($t['kind'] ?? '') !== '' ? ' [' . $t['kind'] . ']' : '');
+            foreach (self::shortlist((string) $t['title'], 6, (string) ($t['kind'] ?? ''), $exclude, $t) as $r) { $shorts[$k][$r['id']] = $r; $cands[$r['id']] = $r; }
+            $tl = self::taskLine($t);
+            $lines[] = $n . '. ' . $t['title'] . ((string) ($t['kind'] ?? '') !== '' ? ' [' . $t['kind'] . ']' : '') . ($tl !== '' ? ' (' . $tl . ')' : '');
         }
         if (!$cands) return self::spread($tasks, $exclude);
-        $system = 'You assign the steps of a goal in Afrovanguard, a Nigerian nonprofit run by volunteers. For each STEP choose one person from the CANDIDATES, '
-            . 'by fit of their roles (a person may hold several) and what they say they do; then course, faculty and centre. Spread the work: do not give one person '
-            . 'most of the steps when another fits nearly as well, and count their open tasks. If nobody\'s roles or description really fit a step, answer null for it — '
-            . 'it will wait in the pool for a volunteer to take. Respond with ONLY a JSON array: [{"step":<number>,"id":<candidate number or null>,"why":"<under 15 words>"}]';
+        $system = 'You assign the steps of a goal in Afrovanguard, a Nigerian nonprofit run by volunteers. For each STEP choose one person from the CANDIDATES. ' . self::AI_WEIGH . ' '
+            . 'Do not give one person most of the steps when another fits nearly as well. If nobody really fits a step, answer null for it — '
+            . 'it will wait in the pool for a volunteer to take. Respond with ONLY a JSON array: [{"step":<number>,"id":<candidate number or null>,"confidence":<0 to 1>,"why":"<under 15 words>"}]';
         /* The goal the steps serve: who it is for and the skills it needs say who fits. */
         $prompt = (trim($about) !== '' ? "GOAL:\n" . trim($about) . "\n\n" : '') . "STEPS:\n" . implode("\n", $lines) . "\n\nCANDIDATES:\n" . implode("\n", array_map([self::class, 'candidateLine'], array_values($cands)));
-        $r = $ai($system, $prompt, ['max_tokens' => 600, 'temperature' => 0.1, 'actor' => 'tasks.match']);
+        $r = self::ask($system, $prompt, 700);
         $text = (string) preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim((string) ($r['text'] ?? '')));
         $j = empty($r['ok']) ? null : json_decode($text, true);
         if (!is_array($j) && !empty($r['ok']) && preg_match('/\[.*\]/s', $text, $m)) $j = json_decode($m[0], true);
@@ -355,10 +516,12 @@ final class TaskMatch
             if ($id === null || $id === '' || $id === 'null' || (int) $id <= 0) { $out[$k] = null; continue; }   /* nobody fits: the pool */
             $fit = $shorts[$k][(int) $id] ?? null;                                                              /* only that step's shortlist */
             if (!$fit) { unset($answered[$k]); continue; }
+            $conf = self::confidence($row);
+            if ($conf !== null && $conf < self::AI_MIN_CONFIDENCE) { $out[$k] = null; continue; }              /* not sure enough: the pool */
             $why = trim(mb_substr((string) ($row['why'] ?? ''), 0, 140));
             if ($why !== '') array_unshift($fit['why'], $why);
-            $out[$k] = $fit;
-            if (isset(self::$profiles[$fit['id']])) self::$profiles[$fit['id']]['load']++;
+            $out[$k] = $fit + ['confidence' => $conf];
+            self::took($fit['id'], $tasks[$k]);
         }
         /* A step the model skipped, or answered with someone off its list: the labels decide it. */
         $rest = array_diff_key($tasks, $answered);
@@ -377,11 +540,20 @@ final class TaskMatch
         self::profiles();
         $out = [];
         foreach ($tasks as $k => $t) {
-            $best = self::shortlist((string) $t['title'], 1, (string) ($t['kind'] ?? ''), $exclude)[0] ?? null;
-            $out[$k] = $best && $best['score'] >= 1 ? $best : null;
-            if ($out[$k] && isset(self::$profiles[$out[$k]['id']])) self::$profiles[$out[$k]['id']]['load']++;
+            $best = self::shortlist((string) $t['title'], 1, (string) ($t['kind'] ?? ''), $exclude, $t)[0] ?? null;
+            $out[$k] = $best && $best['fit'] >= 1 ? $best : null;
+            if ($out[$k]) self::took($out[$k]['id'], $t);
         }
         return $out;
+    }
+
+    /** A task handed out in this run counts toward the next one: its count, size and this week's tally. */
+    private static function took(int $id, array $t): void
+    {
+        if (!isset(self::$profiles[$id])) return;
+        self::$profiles[$id]['load']++;
+        self::$profiles[$id]['points'] += class_exists('Collab') ? Collab::points((string) ($t['size'] ?? '')) : 2;
+        self::$profiles[$id]['history']['given_week'] = (int) (self::$profiles[$id]['history']['given_week'] ?? 0) + 1;
     }
 
     /** The kinds of work this vocabulary knows, for the planner's prompt. */
@@ -416,8 +588,8 @@ final class TaskMatch
         $out = [];
         foreach (Collab::poolTasks(60) as $t) {
             if ((int) ($t['creator_id'] ?? 0) === $uid) continue;   /* they posted it: they know it is there */
-            [$score, $why] = self::score($p, (string) $t['title'], '');
-            if ($score < 2) continue;
+            [$score, $why, $fit] = self::score($p, (string) $t['title'], '', $t);
+            if ($fit < 2) continue;   /* their own choice: whether they can is theirs to judge */
             $out[] = ['id' => (int) $t['id'], 'title' => (string) $t['title'], 'due' => (string) $t['due'],
                       'priority' => (string) $t['priority'], 'score' => $score, 'why' => (string) ($why[0] ?? '')];
         }
@@ -459,20 +631,33 @@ final class TaskMatch
         $st->execute([gmdate('Y-m-d H:i:s', $now - $hours * 3600)]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
             $title = (string) $t['title'];
-            $short = array_values(array_filter(self::shortlist($title, 10, '', [(int) $t['creator_id']]),
-                static fn($r) => $r['score'] >= self::ASSIGN_MIN_SCORE && $r['load'] < self::ASSIGN_MAX_LOAD));
+            /* Given without asking, so only to somebody who fits well, is not loaded, and has been here lately. */
+            $short = array_values(array_filter(self::shortlist($title, 10, '', [(int) $t['creator_id']], $t),
+                static fn($r) => $r['fit'] >= self::ASSIGN_MIN_SCORE && $r['load'] < self::ASSIGN_MAX_LOAD && self::present((int) $r['id'], $now)));
             $pick = $short[0] ?? null;
-            if ($pick && count($short) > 1 && Collab::aiAvailable()) $pick = self::aiPick($title, $short, 1)[0] ?? $pick;
+            if ($pick && count($short) > 1 && self::aiOn()) {
+                $ai = self::aiPick($title, $short, 1, $t, self::AUTO_MIN_CONFIDENCE);
+                /* The model answered and is not sure of anybody: it stays in the pool. The
+                   model did not answer: the labels decide, as without AI. */
+                if (!self::$aiFailed) $pick = $ai[0] ?? null;
+            }
             /* Marked either way: a task nobody fits is not re-scored every tick. */
             Database::pdo()->prepare('UPDATE collab_tasks SET auto_assigned_at = ? WHERE id = ?')->execute([gmdate('Y-m-d H:i:s', $now), (int) $t['id']]);
             if (!$pick) { $out['left']++; continue; }
             $why = 'Nobody had taken it in ' . $hours . ' hours, and it fits you: ' . ($pick['why'][0] ?? $pick['summary']) . '. Not for you? Hand it back to the pool from Tasks.';
-            if (Collab::assignTask((int) $t['creator_id'], (int) $t['id'], (int) $pick['id'], true, $why)) {
+            if (Collab::assignTask((int) $t['creator_id'], (int) $t['id'], (int) $pick['id'], true, $why, 'auto')) {
                 $out['assigned']++;
-                if (isset(self::$profiles[(int) $pick['id']])) self::$profiles[(int) $pick['id']]['load']++;
+                self::took((int) $pick['id'], $t);
             }
         }
         return $out;
+    }
+
+    /** Signed in within QUIET_DAYS. */
+    private static function present(int $id, int $now): bool
+    {
+        $seen = (string) (self::$profiles[$id]['last_seen'] ?? '');
+        return $seen !== '' && (strtotime($seen . ' UTC') ?: 0) >= $now - self::QUIET_DAYS * 86400;
     }
 
     /** For tests: forget the cached profiles. */

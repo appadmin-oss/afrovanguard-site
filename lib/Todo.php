@@ -6,6 +6,8 @@
  *   assigned   tasks given to them by somebody else, newest first — the pop-up
  *              marks the ones they have not seen yet
  *   due        their own open tasks due today or already overdue
+ *   open       the rest of their open tasks — one they took from the pool
+ *              included — newest taken first (goal steps show under their goal)
  *   cac        their open CACENTRE tasks due today or earlier (lib/CacTasks)
  *   week       their CACENTRE commitments still open this week (lib/CacWeek)
  *   suggested  pool tasks their labels fit (lib/TaskMatch::forUser)
@@ -36,7 +38,7 @@ final class Todo
     {
         $uid = (int) ($u['id'] ?? 0);
         $out = ['ok' => true, 'enabled' => self::enabled(), 'today' => gmdate('Y-m-d'), 'role' => self::role($u),
-                'assigned' => [], 'due' => [], 'cac' => [], 'week' => [], 'suggested' => [], 'cac_url' => '',
+                'assigned' => [], 'due' => [], 'open' => [], 'cac' => [], 'week' => [], 'suggested' => [], 'cac_url' => '',
                 'member' => [], 'volunteer' => [], 'goals' => [], 'checkins' => []];
         if ($uid <= 0 || !$out['enabled']) return $out;
         $out['goals']     = class_exists('GoalPlanner') ? (static function () use ($uid) { try { return GoalPlanner::forUser($uid); } catch (Throwable $e) { error_log('[todo] goals: ' . $e->getMessage()); return []; } })() : [];
@@ -56,10 +58,15 @@ final class Todo
                 $created = (string) ($t['assigned_at'] ?? '');
                 if ($row['from'] !== '' && $created >= $fresh) $out['assigned'][] = $row + ['at' => $created];
                 elseif ($row['due'] !== '' && $row['due'] <= $today) $out['due'][] = $row;
+                /* Everything else they hold: a task they took from the pool was on
+                   nobody's list but the Tasks page, though "Taken" said it was on theirs. */
+                elseif ((int) ($t['goal_id'] ?? 0) === 0) $out['open'][] = $row + ['at' => $created];
             }
         } catch (Throwable $e) { error_log('[todo] tasks: ' . $e->getMessage()); }
         usort($out['assigned'], static fn($a, $b) => strcmp($b['at'], $a['at']));
         usort($out['due'], static fn($a, $b) => strcmp($a['due'], $b['due']));
+        usort($out['open'], static fn($a, $b) => strcmp($b['at'], $a['at']));
+        $out['open'] = array_slice($out['open'], 0, 8);
 
         if (class_exists('CacTasks')) {
             try {
@@ -238,6 +245,8 @@ final class Todo
         if ($d['assigned']) $sec[] = ['key' => 'assigned', 'ctx' => 'work', 'nudge' => true, 'title' => 'Just assigned to you', 'items' => array_map(
             static fn($x) => $mine($x, trim('From ' . $x['from'] . ($x['due'] !== '' ? ' · ' . $when($x['due'], $t) : ''))) + ['fresh' => $x['at']], $d['assigned'])];
         if ($d['due']) $sec[] = ['key' => 'due', 'ctx' => 'work', 'nudge' => true, 'title' => 'Due', 'items' => array_map(static fn($x) => $mine($x, $when($x['due'], $t)), $d['due'])];
+        if ($d['open'] ?? []) $sec[] = ['key' => 'open', 'ctx' => 'work', 'nudge' => false, 'title' => 'On your list', 'items' => array_map(
+            static fn($x) => $mine($x, $x['due'] !== '' ? $when($x['due'], $t) : 'No date'), $d['open'])];
         if ($d['cac']) $sec[] = ['key' => 'cac', 'ctx' => 'work', 'nudge' => true, 'title' => 'At CACENTRE', 'items' => array_map(static fn($x) => [
             'id' => 'cac' . $x['id'], 'title' => $x['title'], 'meta' => $when($x['due'], $t), 'urgent' => $x['due'] < $t,
             'tick' => ['action' => 'cac_toggle', 'body' => ['id' => $x['id']], 'label' => 'Done']], $d['cac'])];
@@ -274,13 +283,13 @@ final class Todo
         /* The order a day reads them; the pop-up puts the section that
            matches the screen somebody is on first (the Volunteer dashboard
            leads with Volunteering). */
-        $order = ['assigned' => 0, 'due' => 1, 'volunteer' => 2, 'member' => 3, 'cac' => 4, 'checkin' => 5, 'goal' => 6, 'week' => 7, 'suggested' => 8];
+        $order = ['assigned' => 0, 'due' => 1, 'open' => 2, 'volunteer' => 3, 'member' => 4, 'cac' => 5, 'checkin' => 6, 'goal' => 7, 'week' => 8, 'suggested' => 9];
         usort($sec, static fn($a, $b) => $order[$a['key']] <=> $order[$b['key']]);
         return self::dress($sec);
     }
 
     /** What the pop-up draws beside each item: an icon for its kind, and a badge. */
-    public const SECTION_KIND = ['assigned' => 'task', 'due' => 'task', 'cac' => 'cac', 'week' => 'goal', 'goal' => 'task', 'checkin' => 'goal', 'suggested' => 'spark'];
+    public const SECTION_KIND = ['assigned' => 'task', 'due' => 'task', 'open' => 'task', 'cac' => 'cac', 'week' => 'goal', 'goal' => 'task', 'checkin' => 'goal', 'suggested' => 'spark'];
 
     /** A goal's health in a word or two, for a line in the pop-up. */
     public static function healthWord(array $g): string

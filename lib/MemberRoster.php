@@ -187,7 +187,8 @@ final class MemberRoster
             $c['joined_on'] = $j;
         }
         if (array_key_exists('notes', $d)) $c['notes'] = mb_substr(trim((string) $d['notes']), 0, 4000);
-        if (array_key_exists('work_roles', $d)) $c['work_roles'] = implode(', ', self::workRoles($d['work_roles']));
+        /* In the role list's spelling; a role it does not have yet joins it (lib/MemberRoles.php). */
+        if (array_key_exists('work_roles', $d)) $c['work_roles'] = implode(', ', class_exists('MemberRoles') ? MemberRoles::adopt(self::workRoles($d['work_roles'])) : self::workRoles($d['work_roles']));
         if (array_key_exists('about', $d)) $c['about'] = mb_substr(trim(preg_replace('/\s+/u', ' ', (string) $d['about']) ?? ''), 0, 600);
         return ['ok' => !$e, 'clean' => $c, 'errors' => $e];
     }
@@ -548,6 +549,11 @@ final class MemberRoster
             if ($kind === 'ngv') $w[] = $ids ? 'u.id IN (' . implode(',', array_map('intval', $ids)) . ')' : '1 = 0';
             elseif ($ids) $w[] = 'u.id NOT IN (' . implode(',', array_map('intval', $ids)) . ')';
         }
+        /* Holding a work role (lib/MemberRoles.php). */
+        if (($wr = trim((string) ($f['work_role'] ?? ''))) !== '' && class_exists('MemberRoles')) {
+            $hold = MemberRoles::holders($wr);
+            $w[] = $hold ? 'u.id IN (' . implode(',', array_map('intval', $hold)) . ')' : '1 = 0';
+        }
         /* Volunteers, or members who are not (lib/Volunteers decides). */
         $vol = (string) ($f['volunteer'] ?? '');
         $volIds = class_exists('Volunteers') ? Volunteers::volunteerIds() : [];
@@ -562,7 +568,7 @@ final class MemberRoster
         $dir = strtolower((string) ($f['dir'] ?? '')) === 'asc' ? 'ASC' : 'DESC';
         $size = max(10, min(200, (int) ($f['page_size'] ?? 50)));
         $page = max(1, (int) ($f['page'] ?? 1));
-        $st = $pdo->prepare('SELECT u.id, u.name, u.email, u.role, u.status, u.created_at, u.last_login, u.level, u.birthday, u.birth_year, p.phone, p.centre, p.joined_on,
+        $st = $pdo->prepare('SELECT u.id, u.name, u.email, u.role, u.status, u.created_at, u.last_login, u.level, u.birthday, u.birth_year, p.phone, p.centre, p.joined_on, p.work_roles, p.about,
                 (SELECT c.code FROM av_member_cards c WHERE c.member_id = u.id AND c.kind = \'secure\' AND c.status = \'active\' ORDER BY c.id DESC LIMIT 1) AS card,
                 (SELECT MAX(CASE WHEN m.expires_at IS NULL THEN \'9999-12-31 00:00:00\' ELSE m.expires_at END) FROM memberships m WHERE m.user_id = u.id AND m.status = \'active\') AS paid_through'
             . $from . " ORDER BY $sort $dir, u.id DESC LIMIT $size OFFSET " . (($page - 1) * $size));
@@ -668,7 +674,7 @@ final class MemberRoster
      * refused with a reason); one audit line for the run.
      */
     public const BULK_MAX = 500;
-    public const BULK_ACTIONS = ['status', 'centre', 'level', 'membership_grant', 'membership_cancel', 'volunteer_add', 'volunteer_remove'];
+    public const BULK_ACTIONS = ['status', 'centre', 'level', 'membership_grant', 'membership_cancel', 'volunteer_add', 'volunteer_remove', 'work_role_add', 'work_role_remove'];
 
     public static function bulk(array $ids, string $action, array $value, string $actor, array $ctx = []): array
     {
@@ -700,6 +706,9 @@ final class MemberRoster
                 return ['ok' => false, 'code' => 'reason_required', 'error' => 'Months with no payment need a reason — mark it a waiver, or say why.'];
         } elseif ($action === 'membership_cancel') {
             if (trim((string) ($value['note'] ?? '')) === '') return ['ok' => false, 'code' => 'reason_required', 'error' => 'Say why these memberships are ending.'];
+        } elseif ($action === 'work_role_add' || $action === 'work_role_remove') {
+            $role = mb_substr(trim((string) ($value['role'] ?? '')), 0, 40);
+            if ($role === '' || preg_match('/[,;]/', $role)) return ['ok' => false, 'error' => 'Choose the work role.'];
         }
 
         $results = []; $applied = 0; $unchanged = 0; $refused = 0;
@@ -728,6 +737,15 @@ final class MemberRoster
                         $outcome = 'refused';
                     }
                 }
+            } elseif (str_starts_with($action, 'work_role_')) {
+                /* One role added to, or taken off, what each already holds. */
+                $have = self::workRoles((string) (self::profile($id)['work_roles'] ?? ''));
+                $next = $action === 'work_role_add'
+                    ? array_merge($have, [$role])
+                    : array_values(array_filter($have, static fn($x) => mb_strtolower($x) !== mb_strtolower($role)));
+                if ($action === 'work_role_add' && count(self::workRoles($next)) === count($have) && in_array(mb_strtolower($role), array_map('mb_strtolower', $have), true)) { $r = ['ok' => true]; $outcome = 'unchanged'; }
+                elseif ($action === 'work_role_add' && count($have) >= 8) { $r = ['ok' => false, 'code' => 'too_many_roles', 'error' => $u['name'] . ' already holds 8 roles, the most a member can.']; $outcome = 'refused'; }
+                else { $r = self::update($id, ['work_roles' => implode(', ', $next)], $actor, $ctx); $outcome = !$r['ok'] ? 'refused' : (empty($r['changed']) ? 'unchanged' : 'applied'); }
             } elseif (str_starts_with($action, 'membership_')) {
                 if ($ctx && $self === $id) { $results[] = ['id' => $id, 'name' => $u['name'], 'outcome' => 'refused', 'code' => 'own_account', 'error' => 'Your own membership is changed by another admin.']; $refused++; continue; }
                 $r = $action === 'membership_grant'
@@ -741,7 +759,7 @@ final class MemberRoster
             $results[] = ['id' => $id, 'name' => $u['name'], 'outcome' => $outcome] + ($r['ok'] ? [] : ['code' => $r['code'] ?? 'refused', 'error' => $r['error'] ?? 'Refused.']);
             if ($outcome === 'applied') $applied++; elseif ($outcome === 'unchanged') $unchanged++; else $refused++;
         }
-        $what = $action . ($patch ? ' → ' . implode(', ', array_map('strval', $patch)) : (isset($value['months']) ? ' → ' . (int) $value['months'] . ' months' : ''));
+        $what = $action . ($patch ? ' → ' . implode(', ', array_map('strval', $patch)) : (isset($value['months']) ? ' → ' . (int) $value['months'] . ' months' : (isset($role) ? ' → ' . $role : '')));
         self::lms()->audit('member.bulk', '', sprintf('%s · %d chosen · %d applied · %d unchanged · %d refused', $what, count($ids), $applied, $unchanged, $refused), $actor);
         return ['ok' => true, 'partial' => $refused > 0, 'chosen' => count($ids), 'applied' => $applied, 'unchanged' => $unchanged, 'refused' => $refused, 'results' => $results];
     }

@@ -308,6 +308,7 @@ require_once __DIR__ . '/GateAttendance.php';   /* what the gate reports back ab
 require_once __DIR__ . '/MemberCards.php';      /* the secure and printed cards the gate reads */
 require_once __DIR__ . '/NgvCard.php';          /* the NGV ID card and the one standing it prints */
 require_once __DIR__ . '/MemberRoster.php';     /* the member desk: create, manage, import */
+require_once __DIR__ . '/MemberRoles.php';      /* the work roles members hold, kept as one list with descriptions */
 require_once __DIR__ . '/Membership.php';       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited once the receipt is verified */
 require_once __DIR__ . '/NgvIntake.php';        /* NGG promotions to NGV become NGV accounts here */
@@ -402,6 +403,7 @@ require_once __DIR__ . '/MeetingLive.php';
 require_once __DIR__ . '/CrmAudiencePush.php';  /* this site's people, pushed (signed) to CACENTRE's CRM */
 require_once __DIR__ . '/NggVolunteers.php';    /* NGG's volunteers, fetched (signed) from NGG */
 require_once __DIR__ . '/VolunteerSeeds.php';   /* NGG volunteers seeded from a file, linked as they sign in */
+require_once __DIR__ . '/TaskLedger.php';       /* what people did with the work they were given */
 require_once __DIR__ . '/TaskMatch.php';        /* who a task fits, from people's labels (+ AI) */
 require_once __DIR__ . '/Todo.php';             /* the to-do pop-up: one list across both sites */
 require_once __DIR__ . '/GoalPlanner.php';      /* tasks come from goals */

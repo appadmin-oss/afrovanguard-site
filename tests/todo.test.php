@@ -41,8 +41,9 @@ ck('todo: the pool task that fits them is suggested, with why', ($d['suggested']
 ck('todo: the register is not suggested to the cook', !in_array($pool2, array_column($d['suggested'], 'id'), true));
 $sec = Todo::sections($d);
 $keys = array_column($sec, 'key');
-ck('todo: sections in the order a day reads them', $keys === ['assigned', 'due', 'suggested']);
-$it = $sec[2]['items'][0];
+ck('todo: sections in the order a day reads them', $keys === ['assigned', 'due', 'open', 'suggested']);
+ck('todo: a task due later is not nagged about, but is on their list', in_array($later, array_column($d['open'], 'id'), true));
+$it = array_values(array_filter($sec, fn($x) => $x['key'] === 'suggested'))[0]['items'][0];
 ck('todo: a suggestion carries its own action, so the pop-up knows nothing about the site', $it['take']['action'] === 'todo_take' && $it['take']['body'] === ['id' => $pool1]);
 ck('todo: an overdue task is marked urgent, with an Overdue badge and when it was due', $sec[1]['items'][0]['urgent'] === true && $sec[1]['items'][0]['badge']['text'] === 'Overdue' && str_starts_with($sec[1]['items'][0]['meta'], 'Was due '));
 ck('todo: every item says what kind it is, for its icon', !array_filter(array_merge(...array_column($sec, 'items')), fn($i) => empty($i['kind'])));
@@ -64,6 +65,8 @@ ck('sweep: a task posted just now is left for people to take', TaskMatch::autoAs
 $stale = gmdate('Y-m-d H:i:s', time() - 30 * 3600);
 $tdp->prepare('UPDATE collab_tasks SET created_at = ? WHERE id IN (?, ?)')->execute([$stale, $pool1, $pool2]);
 $pool3 = Collab::addPoolTask(9951, 'Zzzz qqqq'); $tdp->prepare('UPDATE collab_tasks SET created_at = ? WHERE id = ?')->execute([$stale, $pool3]);
+/* The sweep gives without asking, so only to people here lately (TaskMatch::present). */
+$tdp->prepare('UPDATE lms_users SET last_login = ? WHERE id IN (9952, 9953)')->execute([gmdate('Y-m-d H:i:s', time() - 2 * 86400)]);
 TaskMatch::forget();
 $r = TaskMatch::autoAssign();
 $who = static fn(int $id) => (int) $tdp->query('SELECT assignee_id FROM collab_tasks WHERE id = ' . $id)->fetchColumn();
@@ -77,6 +80,12 @@ TaskMatch::forget();
 TaskMatch::autoAssign();
 ck('sweep: handed back, it is not pushed on anybody again', $who($pool2) === 0);
 ck('sweep: and the one it was given to sees it as just assigned', in_array($pool1, array_column(Todo::for($cook)['assigned'], 'id'), true));
+$tdp->prepare('UPDATE lms_users SET last_login = ? WHERE id = 9952')->execute([gmdate('Y-m-d H:i:s', time() - 60 * 86400)]);
+$pool4 = Collab::addPoolTask(9951, 'Teach the catering class at Egbeda again'); $tdp->prepare('UPDATE collab_tasks SET created_at = ? WHERE id = ?')->execute([$stale, $pool4]);
+TaskMatch::forget();
+TaskMatch::autoAssign();
+ck('sweep: somebody not seen for two months is not handed work, however well they fit', $who($pool4) === 0);
+$tdp->prepare('UPDATE lms_users SET last_login = ? WHERE id = 9952')->execute([gmdate('Y-m-d H:i:s')]);
 
 /* ── Tailored: a member, a volunteer, a learner ── */
 $mem = $mk(9960, 'Mo Member', 'mo.td@afrovanguard.org.ng', 'member');

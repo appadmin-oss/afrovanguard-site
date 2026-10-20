@@ -101,6 +101,7 @@
               <div class="task-head-l">
                 <h2>My tasks</h2>
                 <span class="task-head-sub" id="taskFocusTxt">Loading…</span>
+                <div class="task-away" id="taskAway" aria-live="polite"></div>
               </div>
               <div class="task-focus" id="taskFocus" title="Today’s progress" hidden>
                 <span class="task-ring" id="taskRing" style="--pct:0"><span class="task-ring-n" id="taskRingN">0</span></span>
