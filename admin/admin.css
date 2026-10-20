@@ -533,6 +533,10 @@ body.studio-authed .studio-side { display: block; }
 .setup-src-unset { opacity: .75; }
 .setup-mask { margin-left: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; color: var(--muted); background: var(--bg); border: 1px solid var(--divider); border-radius: 5px; padding: 2px 7px; }
 .setup-help { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin: 0 0 10px; }
+/* A key that is stored and cannot be read back — the one state that
+   used to look identical to "nothing here yet". */
+.setup-bad { font-size: 12.5px; line-height: 1.55; margin: 0 0 10px; font-weight: 600;
+  color: var(--danger, #b42318); }
 .setup-shadow { font-size: 12px; color: #b45309; line-height: 1.5; margin: -4px 0 10px; }
 .setup-f-row { display: flex; gap: 8px; align-items: center; }
 .setup-f-row input, .setup-f-row select, .setup-f-row textarea { flex: 1; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--divider); background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; }

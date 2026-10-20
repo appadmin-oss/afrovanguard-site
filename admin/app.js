@@ -1747,8 +1747,25 @@
     var warn = $('#setupCrypto');
     var c = d.crypto || {};
     if (warn) {
-      warn.hidden = !!c.ok;
-      warn.innerHTML = c.ok ? '' : '<strong>Keys cannot be stored yet</strong><p>' + escapeHtml(c.reason) + '</p>';
+      /* Three different things, and they were one blank space before.
+         A key that is STORED and cannot be decrypted looked exactly
+         like no key at all on every screen, so the site told somebody
+         to add what they had already added. */
+      var unread = d.unreadable || [];
+      var html = '';
+      if (!c.ok) {
+        html = '<strong>Keys cannot be stored yet</strong><p>' + escapeHtml(c.reason) + '</p>';
+      } else if (unread.length) {
+        html = '<strong>' + unread.length + ' stored key' + (unread.length === 1 ? '' : 's')
+          + ' cannot be read back</strong><p>Something here was saved under a different APP_KEY — '
+          + 'the site was re-keyed, moved, or restored. Paste '
+          + (unread.length === 1 ? 'it' : 'them') + ' again below and saving will re-encrypt '
+          + 'under the key in force now: ' + escapeHtml(unread.join(', ')) + '.</p>';
+      } else if (c.weak) {
+        html = '<strong>No APP_KEY is set</strong><p>' + escapeHtml(c.weak_reason || '') + '</p>';
+      }
+      warn.hidden = html === '';
+      warn.innerHTML = html;
     }
 
     var tests = $('#setupTests');
@@ -1769,6 +1786,9 @@
 
   function setupField(f) {
     var id = 'set_' + f.key;
+    /* Said on the field itself too, not only in the banner at the top:
+       this is the one somebody has to re-paste. */
+    var unreadable = f.unreadable ? '<p class="setup-bad">Stored, but this site cannot read it back. Paste it again.</p>' : '';
     var input;
     if (f.type === 'enum') {
       input = '<select id="' + id + '" data-skey="' + escapeHtml(f.key) + '">'
@@ -1796,6 +1816,7 @@
       + '</div>'
       + '<p class="setup-help">' + escapeHtml(f.help) + '</p>'
       + (f.fingerprint ? '<p class="setup-help">Fingerprint: <code>' + escapeHtml(f.fingerprint) + '</code></p>' : '')
+      + unreadable
       + (f.shadowing
           ? '<p class="setup-shadow">This is overriding a value from ' + escapeHtml(f.shadowing === 'config' ? 'config.php' : 'the environment') + '. Clear it to go back to that.</p>'
           : '')

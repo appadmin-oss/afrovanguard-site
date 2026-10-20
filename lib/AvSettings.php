@@ -401,6 +401,12 @@ final class AvSettings
      * on paths where the database may not exist yet. A failure here must degrade
      * to "nothing stored", never break the request.
      */
+    /** @var array<string,bool> secrets present in the table that would not decrypt */
+    private static array $unreadable = [];
+
+    /** @var list<string> ciphertexts that only an older secret would open */
+    private static array $staleKey = [];
+
     private static function all(): array
     {
         if (self::$memo !== null) return self::$memo;
@@ -419,7 +425,25 @@ final class AvSettings
                     // A secret we cannot decrypt (APP_KEY changed, extension gone)
                     // is skipped rather than passed on as ciphertext, which would
                     // be sent to an API as if it were a key.
-                    if ($p === null) { error_log('[settings] cannot decrypt ' . $k . ' — skipping'); continue; }
+                    /* Read under an older secret: rewrite it under the
+                       one in force now, so the next deploy — or the next
+                       person to set APP_KEY — does not take it away
+                       again. Best effort: a read must never fail because
+                       a repair could not be written. */
+                    if ($p !== null && self::$staleKey !== [] && in_array($v, self::$staleKey, true)) {
+                        self::reseal($k, $p);
+                    }
+                    if ($p === null) {
+                        /* Remembered, not only logged. A stored secret that
+                           cannot be read back looks exactly like no secret
+                           at all to every screen that asks — so the site
+                           says "not set up" to somebody who set it up, and
+                           the only trace is a log line nobody on shared
+                           hosting will ever see. */
+                        self::$unreadable[$k] = true;
+                        error_log('[settings] cannot decrypt ' . $k . ' — skipping');
+                        continue;
+                    }
                     $v = $p;
                 }
                 if ($v !== '') self::$memo[$k] = $v;
@@ -430,6 +454,43 @@ final class AvSettings
             self::$reading = false;
         }
         return self::$memo;
+    }
+
+    /**
+     * Re-encrypt a value under the secret in force now.
+     *
+     * Quiet and best effort. It is a repair, not a decision: the value
+     * is unchanged and was already readable on this host a moment ago.
+     */
+    private static function reseal(string $key, string $plain): void
+    {
+        try {
+            $enc = self::enc($plain);
+            if ($enc === null) return;
+            Database::pdo()
+                ->prepare('UPDATE av_settings SET value = ? WHERE setting_key = ? AND is_secret = 1')
+                ->execute([$enc, $key]);
+            error_log('[settings] re-encrypted ' . $key . ' under the current APP_KEY');
+        } catch (Throwable $e) {
+            error_log('[settings] could not re-encrypt ' . $key . ': ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Secrets that ARE stored and cannot be read back.
+     *
+     * Almost always the APP_KEY: changed, lost, or different because the
+     * site was moved or restored onto another host. Re-pasting the value
+     * fixes it, because saving re-encrypts under the key in force now —
+     * but only if somebody is told that is what is wrong.
+     *
+     * @return list<string>
+     */
+    public static function unreadable(): array
+    {
+        self::all();
+
+        return array_keys(self::$unreadable);
     }
 
     /** A stored setting, or null. Used by Config::get() before anything else. */
@@ -444,6 +505,7 @@ final class AvSettings
     {
         self::$memo = null;
         self::$applied = false;
+        self::$unreadable = [];
     }
 
     /**
@@ -544,6 +606,10 @@ final class AvSettings
                 'placeholder'=> (string) ($d['ph'] ?? ''),
                 'secret'     => $secret,
                 'is_set'     => $live !== '',
+                /* Stored, and unreadable. Not the same as unset, and the
+                   remedy is different: paste it again to re-encrypt it
+                   under the APP_KEY in force now. */
+                'unreadable' => in_array($key, self::unreadable(), true),
                 // A secret shows only a masked tail; a plain setting shows itself.
                 'value'      => $secret ? '' : $live,
                 'preview'    => $secret ? self::maskOf($live) : '',
@@ -557,7 +623,10 @@ final class AvSettings
         }
         $out = [];
         foreach ($groups as $name => $fields) $out[] = ['group' => $name, 'fields' => $fields];
-        return ['groups' => $out, 'crypto' => self::cryptoStatus()];
+        /* Said out loud, next to the crypto banner: a key that is in the
+           table and cannot be decrypted is the one failure that looks
+           identical to no key at all. */
+        return ['groups' => $out, 'crypto' => self::cryptoStatus(), 'unreadable' => self::unreadable()];
     }
 
     /** The value actually in force for a key, from any source. */
@@ -731,10 +800,58 @@ final class AvSettings
         if (!function_exists('sodium_crypto_secretbox') && !function_exists('openssl_encrypt')) {
             return ['ok' => false, 'reason' => 'Neither libsodium nor OpenSSL is available on this host, so credentials cannot be encrypted.'];
         }
-        return ['ok' => true, 'reason' => ''];
+
+        /* Working, but on the fallback key. av_secret() prefers APP_KEY
+           and otherwise generates one into the database — which means
+           the credentials here are locked with a key kept beside them,
+           and anyone who reads the database reads them too. Worth
+           saying while everything still works, rather than after. */
+        $onFallback = !(defined('APP_KEY') && APP_KEY) && !getenv('APP_KEY') && !getenv('AV_APP_KEY');
+
+        return ['ok' => true, 'reason' => '', 'weak' => $onFallback, 'weak_reason' => $onFallback
+            ? 'No APP_KEY is set, so stored credentials are encrypted with a key kept in the database '
+                .'beside them — which protects against very little. Set APP_KEY in config.php. Adding it '
+                .'is safe: anything already stored is re-encrypted under it the next time it is read.'
+            : ''];
     }
 
-    private static function key(): string { return hash('sha256', 'avset|' . (function_exists('av_secret') ? av_secret() : ''), true); }
+    private static function key(?string $secret = null): string
+    {
+        $secret ??= function_exists('av_secret') ? av_secret() : '';
+
+        return hash('sha256', 'avset|' . $secret, true);
+    }
+
+    /**
+     * Every secret this host could plausibly have encrypted with.
+     *
+     * av_secret() prefers APP_KEY and falls back to one generated once and
+     * kept in app_meta (lib/security.php) — which means the encryption key
+     * CHANGES SILENTLY the day somebody adds APP_KEY, or the day an upload
+     * drops it from config.php. Everything stored before that moment stops
+     * decrypting, every screen that asks says "not set up", and the only
+     * trace is a log line.
+     *
+     * So a read tries the current secret first and then the others this
+     * host could have used. Nothing is weakened: these are the same
+     * secrets, on the same machine, that this site would already accept —
+     * the alternative is a credential that is present, correct, and
+     * unreachable.
+     *
+     * @return list<string>
+     */
+    private static function candidateSecrets(): array
+    {
+        $out = [];
+        if (function_exists('av_secret')) $out[] = av_secret();
+        if (defined('APP_KEY') && APP_KEY) $out[] = (string) APP_KEY;
+        $env = getenv('APP_KEY') ?: getenv('AV_APP_KEY');
+        if ($env) $out[] = (string) $env;
+        if (function_exists('av_secret_generated')) $out[] = av_secret_generated();
+        if (defined('ADMIN_TOKEN') && ADMIN_TOKEN) $out[] = (string) ADMIN_TOKEN;
+
+        return array_values(array_unique(array_filter($out, fn ($k) => (string) $k !== '')));
+    }
 
     /** Encrypt, or null when we must refuse. */
     private static function enc(string $plain): ?string
@@ -755,18 +872,38 @@ final class AvSettings
     private static function dec(string $blob): ?string
     {
         if ($blob === '') return '';
+
+        foreach (self::candidateSecrets() as $i => $secret) {
+            $p = self::decWith($blob, $secret);
+            if ($p !== null) {
+                /* Read with something other than the current secret: the
+                   row is correct and stored under a key this host has
+                   since stopped using. Say so, so the caller can put it
+                   right rather than leaving a live credential one deploy
+                   from unreadable. */
+                if ($i > 0) self::$staleKey[] = $blob;
+
+                return $p;
+            }
+        }
+
+        return null;
+    }
+
+    private static function decWith(string $blob, string $secret): ?string
+    {
         try {
             if (strncmp($blob, 's1:', 3) === 0 && function_exists('sodium_crypto_secretbox_open')) {
                 $raw = base64_decode(substr($blob, 3), true);
                 if ($raw === false || strlen($raw) <= SODIUM_CRYPTO_SECRETBOX_NONCEBYTES) return null;
                 $n = substr($raw, 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-                $p = sodium_crypto_secretbox_open(substr($raw, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES), $n, self::key());
+                $p = sodium_crypto_secretbox_open(substr($raw, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES), $n, self::key($secret));
                 return $p === false ? null : $p;
             }
             if (strncmp($blob, 'o1:', 3) === 0 && function_exists('openssl_decrypt')) {
                 $raw = base64_decode(substr($blob, 3), true);
                 if ($raw === false || strlen($raw) <= 28) return null;
-                $p = openssl_decrypt(substr($raw, 28), 'aes-256-gcm', self::key(), OPENSSL_RAW_DATA, substr($raw, 0, 12), substr($raw, 12, 16));
+                $p = openssl_decrypt(substr($raw, 28), 'aes-256-gcm', self::key($secret), OPENSSL_RAW_DATA, substr($raw, 0, 12), substr($raw, 12, 16));
                 return $p === false ? null : $p;
             }
         } catch (Throwable $e) { error_log('[settings] dec: ' . $e->getMessage()); }

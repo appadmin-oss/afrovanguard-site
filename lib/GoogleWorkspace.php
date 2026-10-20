@@ -61,7 +61,7 @@ final class GoogleWorkspace
     public static function explain(string $err = ''): string
     {
         $err = $err !== '' ? $err : self::$lastError;
-        if (!self::configured()) return 'Google Workspace is not set up on this site: an administrator adds the service account key in Studio → Rules & AI → Setup → Google sign-in & Workspace.';
+        if (!self::configured()) return self::whyNotConfigured();
         if ($err === '') return '';
         $fix = match (true) {
             str_contains($err, 'unauthorized_client') => 'Domain-wide delegation does not grant ' . (self::$lastScope !== '' ? 'the scope ' . self::$lastScope : 'the scope this needs')
@@ -110,6 +110,64 @@ final class GoogleWorkspace
     }
 
     public static function configured(): bool { return self::credentials() !== null; }
+
+    /**
+     * Why it is not set up — which is three different things.
+     *
+     * "Not set up" was one sentence telling an administrator to add the
+     * key. That is the right advice for an empty site and useless for the
+     * one that broke: the key IS there, the site cannot read it back, and
+     * being told to add what you already added teaches you the screen is
+     * lying. Worse, when there is no APP_KEY at all, saving refuses too —
+     * so the advice sends somebody round a loop they cannot leave.
+     */
+    public static function whyNotConfigured(): string
+    {
+        if (self::configured()) return '';
+
+        if (class_exists('AvSettings')) {
+            /* Crypto FIRST, and the order is the point. With no APP_KEY
+               nothing decrypts AND nothing can be saved, so telling
+               somebody to paste the key again sends them round a loop
+               they cannot leave: they paste, saving refuses, the screen
+               repeats itself. Fix the key first; the stored value may
+               then read perfectly well on its own. */
+            $crypto = AvSettings::cryptoStatus();
+            if (empty($crypto['ok'])) {
+                return 'Google Workspace cannot be read until this is fixed: '.(string) $crypto['reason']
+                    .' A key may already be stored — once that is right, it will either work again '
+                    .'or need pasting once more.';
+            }
+
+            if (in_array('AV_GDRIVE_SERVICE_ACCOUNT', AvSettings::unreadable(), true)) {
+                return 'A Google Workspace key IS stored on this site, but it cannot be read back — '
+                    .'which happens when APP_KEY changes, or the site is moved or restored onto another host. '
+                    .'Paste the service account key again in Studio → Rules & AI → Setup: saving re-encrypts '
+                    .'it under the key in force now. Nothing else needs to change at Google.';
+            }
+
+        }
+
+        /* Stored as a path rather than pasted JSON — a deployment that
+           points at a file the web user cannot read says nothing at all
+           otherwise. */
+        $raw = trim((string) Config::get('AV_GDRIVE_SERVICE_ACCOUNT', ''));
+        if ($raw !== '' && !str_starts_with($raw, '{')) {
+            return is_file($raw)
+                ? 'The Google Workspace key points at '.$raw.', which this site cannot read. '
+                    .'Check the file\'s permissions, or paste the JSON into Studio → Rules & AI → Setup instead.'
+                : 'The Google Workspace key points at '.$raw.', and there is no file there. '
+                    .'Paste the JSON into Studio → Rules & AI → Setup instead.';
+        }
+        if ($raw !== '') {
+            return 'The stored Google Workspace key is not a usable service-account key — it is not JSON, '
+                .'or it has no client_email and private_key. Download a fresh JSON key and paste it unedited '
+                .'into Studio → Rules & AI → Setup.';
+        }
+
+        return 'Google Workspace is not set up on this site: an administrator adds the service account key '
+            .'in Studio → Rules & AI → Setup → Google sign-in & Workspace.';
+    }
 
     /** Full write sync is opt-in (creates real calendar events + Meet links). */
     public static function calendarWriteEnabled(): bool
