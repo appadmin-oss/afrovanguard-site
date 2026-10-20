@@ -74,6 +74,38 @@ final class AppsScriptMail
         return self::url() !== '' && self::secret() !== '';
     }
 
+    /**
+     * Why mail cannot go this road, in words an operator can act on, or ''
+     * when it can. configured() is a boolean and so cannot tell "no secret
+     * was ever entered" from "the secret is stored and will not decrypt" —
+     * and the screens were reporting the second as the first, sending
+     * somebody to paste a secret that is already there.
+     */
+    public static function whyNotConfigured(): string
+    {
+        if (self::configured()) return '';
+
+        if (class_exists('AvSettings')) {
+            $why = AvSettings::whyUnreadable('AV_GAS_SECRET', 'Apps Script secret',
+                'Studio → Rules & AI → Setup → Email');
+            if ($why !== '') return $why . ' Nothing needs to change in the script itself.';
+        }
+
+        if (self::url() === '' && self::secret() !== '') {
+            return 'The Apps Script secret is set but the web-app URL is not — '
+                . 'Studio → Rules & AI → Setup → Email. It ends in /exec.';
+        }
+        if (self::url() !== '') {
+            return 'The Apps Script URL is set but the secret is not — '
+                . 'Studio → Rules & AI → Setup → Email. It is the text in const SECRET at the top of the script.';
+        }
+
+        /* Opens with "not set up" so the failure log line — "gas: not set up …" —
+           stays the string operators and tests already grep for. */
+        return 'not set up — Studio → Rules & AI → Setup → Email. It is the road mail takes '
+            . 'when SMTP fails (docs/EMAIL-APPS-SCRIPT.md).';
+    }
+
     private static function setting(array $names): string
     {
         foreach ($names as $n) {
