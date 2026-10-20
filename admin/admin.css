@@ -807,3 +807,21 @@ body.studio { --gold-deep: var(--av-gold-text); }
 .mem-role-tag { display:inline-block; font-size:11.5px; font-weight:700; border:1px solid var(--divider); border-radius:var(--radius-full); padding:1px 8px; margin:0 4px 2px 0; }
 .mem-row-about { color:var(--muted); }
 @media (max-width:720px) { .mem-role-new, .mem-role-row { grid-template-columns:1fr; } }
+
+/* The day-to-day desk (lib/MemberDesk.php): filter chips, export, message, activity, notes. */
+.mem-chips-bar { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 0; }
+.mem-chips-bar:empty { display:none; }
+.mem-fchip { font:inherit; font-size:12px; border:1px solid var(--divider); background:var(--surface); color:var(--ink); border-radius:var(--radius-full); padding:4px 10px; cursor:pointer; }
+.mem-fchip--all { font-weight:700; }
+.mem-tools { display:flex; justify-content:flex-end; margin:8px 0; }
+.mem-msg { margin:10px 0; padding:12px 14px; border:1px solid var(--divider); border-radius:12px; background:var(--surface); }
+.mem-msg-mail { display:flex; gap:8px; align-items:center; font-size:13px; margin:6px 0; }
+.mem-act-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px; }
+.mem-act-grid > div { border:1px solid var(--divider); border-radius:10px; padding:8px 10px; display:flex; flex-direction:column; }
+.mem-act-grid b { font-size:16px; }
+.mem-act-grid span { font-size:11.5px; color:var(--muted); }
+.mem-note-add { display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
+.mem-note-add .fld { width:100%; }
+.mem-note { border-left:3px solid var(--divider); padding:4px 10px; margin:8px 0; }
+.mem-note p { margin:0 0 2px; }
+.linklike { background:none; border:0; padding:0; font:inherit; color:inherit; text-decoration:underline; cursor:pointer; }

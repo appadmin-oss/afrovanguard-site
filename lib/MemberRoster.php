@@ -453,6 +453,7 @@ final class MemberRoster
         'active' => 'Active', 'suspended' => 'Suspended', 'joined30' => 'Joined in the last 30 days', 'joined365' => 'Joined in the last 12 months',
         'fined' => 'Have been fined', 'fines_owed' => 'Owe a fine', 'fines_cleared' => 'Fined, nothing owing',
         'level_raised' => 'Level raised in the last 12 months', 'review_open' => 'Promotion awaiting a decision',
+        'dormant' => 'Active, not signed in for 60 days',
     ];
     private static ?array $fineCache = null;
 
@@ -484,6 +485,8 @@ final class MemberRoster
         switch ($seg) {
             case 'active':        return ["u.status = 'active'", []];
             case 'suspended':     return ["u.status = 'suspended'", []];
+            /* Active on paper, absent in fact: the ones to call. */
+            case 'dormant':       return ["u.status = 'active' AND (u.last_login IS NULL OR u.last_login = '' OR u.last_login < ?)", [gmdate('Y-m-d H:i:s', strtotime('-60 days'))]];
             case 'joined30':      return ['u.created_at >= ?', [gmdate('Y-m-d H:i:s', strtotime('-30 days'))]];
             case 'joined365':     return ['u.created_at >= ?', [gmdate('Y-m-d H:i:s', strtotime('-365 days'))]];
             case 'fined':         return [self::idIn(array_keys($fs)), []];

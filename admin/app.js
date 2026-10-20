@@ -3089,7 +3089,7 @@
   function loadMembers() { memTab(($('.subtab[data-mv].active') || { getAttribute: function () { return 'dash'; } }).getAttribute('data-mv')); }
 
   /* The member dashboard, like NGG's: four rows of tiles, each one a list. */
-  var MEM_SEGMENTS = { active: 'Active', suspended: 'Suspended', joined30: 'Joined in the last 30 days', joined365: 'Joined in the last 12 months',
+  var MEM_SEGMENTS = { active: 'Active', suspended: 'Suspended', dormant: 'Active, not signed in for 60 days', joined30: 'Joined in the last 30 days', joined365: 'Joined in the last 12 months',
     fined: 'Have been fined', fines_owed: 'Owe a fine', fines_cleared: 'Fined, nothing owing', level_raised: 'Level raised in the last 12 months', review_open: 'Promotion awaiting a decision' };
   function memTile(n, label, attrs, sub) {
     return '<button class="ov-card" ' + (attrs || 'disabled') + '><span class="ov-card-num">' + n + '</span><span class="ov-card-label">' + escapeHtml(label) + '</span>'
@@ -3102,7 +3102,7 @@
     var dues = function (k, label, sub) { return memTile(du[k] || 0, label, 'data-ms="' + k + '"', sub); };
     return '<h2 class="mem-tiles-h">Membership</h2><div class="ov-grid mem-tiles">'
       + memTile(d.total || 0, 'Members', 'data-all="1"', 'Afrovanguard members — learners are not counted')
-      + seg('active', 'Active') + seg('suspended', 'Suspended')
+      + seg('active', 'Active') + seg('suspended', 'Suspended') + seg('dormant', 'Dormant', 'active, not signed in for 60 days')
       + seg('joined30', 'Joined · 30 days') + seg('joined365', 'Joined · 12 months')
       + memTile(b.vanguards || 0, 'NextGen Vanguards', 'data-kind="ngv"')
       + memTile(d.learners || 0, 'Academy learners', 'data-kind="learner"', 'not members')
@@ -3174,7 +3174,7 @@
   function loadMemRoster() {
     var box = $('#memList'); if (!box) return;
     var qs = ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
-              'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'work_role=' + encodeURIComponent($('#memWorkRole').value), 'sort=' + $('#memSort').value,
+              'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'work_role=' + encodeURIComponent($('#memWorkRole').value), 'centre=' + encodeURIComponent($('#memCentre').value), 'level=' + encodeURIComponent($('#memLevel').value), 'sort=' + $('#memSort').value,
               'dir=' + ($('#memSort').value === 'name' ? 'asc' : 'desc'), 'page=' + memPage].join('&');
     box.innerHTML = '<p class="muted">Loading…</p>';
     api('roster_list&' + qs).then(function (r) {
@@ -3183,15 +3183,58 @@
       if ($('#memRole').options.length <= 1) { var o = $('#memRole').value; $('#memRole').innerHTML = '<option value="">All access levels</option>' + memRoles.map(function (x) { return '<option>' + escapeHtml(x) + '</option>'; }).join(''); $('#memRole').value = o; }
       box.innerHTML = (d.members || []).length ? d.members.map(memRowHTML).join('') : '<p class="muted">' + (d.total === 0 && !$('#memQ').value ? 'No members yet. Add one, or import a spreadsheet.' : 'Nobody matches these filters.') + '</p>';
       memPageIds = (d.members || []).map(function (m) { return +m.id; }); memTotal = d.total; memBulkSync();
+      if ($('#memLevel').options.length <= 1) { var lv = $('#memLevel').value; $('#memLevel').innerHTML = '<option value="">Any level</option>' + memLevels.map(function (x) { return '<option value="' + escapeHtml(x) + '">Level ' + escapeHtml(x) + '</option>'; }).join(''); $('#memLevel').value = lv; }
+      memChipsDraw(); $('#memExport').href = API + '?action=roster_export&' + memFilterQs();
       var pages = Math.max(1, Math.ceil(d.total / d.page_size));
       $('#memPager').innerHTML = pages > 1 ? '<button class="btn btn-outline btn-sm" data-pg="' + (memPage - 1) + '"' + (memPage <= 1 ? ' disabled' : '') + '>← Previous</button>'
         + '<span class="muted">Page ' + memPage + ' of ' + pages + ' · ' + d.total + ' members</span>'
         + '<button class="btn btn-outline btn-sm" data-pg="' + (memPage + 1) + '"' + (memPage >= pages ? ' disabled' : '') + '>Next →</button>' : '<span class="muted">' + d.total + ' member' + (d.total === 1 ? '' : 's') + '</span>';
     }).catch(function () { box.innerHTML = '<p class="muted">Could not load the roster. <button class="btn btn-outline btn-sm" id="memRetry">Retry</button></p>'; });
   }
+  /* The filters in force, each a chip that removes itself — as NGG's roster has them. */
+  var MEM_FILTERS = [['#memQ', 'Search'], ['#memRole', 'Access'], ['#memStatus', 'Status'], ['#memKind', 'Accounts'], ['#memWorkRole', 'Role'], ['#memCentre', 'Centre'], ['#memLevel', 'Level'],
+                     ['#memVolunteer', 'Volunteers'], ['#memMissing', 'Missing'], ['#memSegment', 'List'], ['#memMembership', 'Dues']];
+  function memChipsDraw() {
+    var box = $('#memChips'); if (!box) return;
+    var on = MEM_FILTERS.filter(function (f) { var el = $(f[0]); return el && el.value; });
+    box.innerHTML = on.map(function (f) {
+      var el = $(f[0]), txt = el.tagName === 'SELECT' ? (el.selectedOptions[0] || {}).textContent : el.value;
+      return '<button type="button" class="mem-fchip" data-clear="' + f[0] + '" aria-label="Remove the filter ' + escapeHtml(f[1] + ': ' + txt) + '">' + escapeHtml(f[1]) + ': <b>' + escapeHtml(txt) + '</b> ✕</button>';
+    }).join('') + (on.length > 1 ? '<button type="button" class="mem-fchip mem-fchip--all" data-clear="*">Clear all</button>' : '');
+  }
+  function memCentresFill() {
+    api('roster_centres').then(function (r) {
+      var el = $('#memCentre'), keep = el.value;
+      el.innerHTML = '<option value="">Any centre</option>' + ((r.data && r.data.centres) || []).map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
+      el.value = keep;
+    }).catch(function () {});
+  }
+  /* One member's activity and notes, in the drawer. */
+  function memNotesLoad(id) {
+    $('#mdNotes').innerHTML = ''; $('#mdActivity').innerHTML = '<span class="muted">…</span>';
+    api('member_notes&id=' + id).then(function (r) {
+      var d = r.data || {}; if (!d.ok || +memOpen !== +id) return;
+      var a = d.activity || {}, day = function (x) { return x ? String(x).slice(0, 10) : 'never'; };
+      $('#mdActivity').innerHTML = '<div class="mem-act-grid">'
+        + '<div><b>' + escapeHtml(day(a.last_login)) + '</b><span>last signed in</span></div>'
+        + '<div><b>' + (a.tasks_open || 0) + '</b><span>tasks open</span></div>'
+        + '<div><b>' + (a.tasks_done_90 || 0) + '</b><span>tasks finished · 90 days</span></div>'
+        + '<div><b>' + (a.visits_30 || 0) + '</b><span>gate visits · 30 days' + (a.last_visit ? ' (last ' + escapeHtml(a.last_visit) + ')' : '') + '</span></div></div>';
+      memNotesDraw(d.notes || [], d.me || '');
+    });
+  }
+  function memNotesDraw(notes, me) {
+    $('#mdNotes').innerHTML = notes.length ? notes.map(function (n) {
+      var fresh = (Date.now() - Date.parse(String(n.at).replace(' ', 'T') + 'Z')) < 864e5;
+      return '<div class="mem-note"><p>' + escapeHtml(n.body).replace(/\n/g, '<br>') + '</p><span class="muted tiny">' + escapeHtml(n.author) + ' · ' + escapeHtml(String(n.at).slice(0, 16)) + ' UTC'
+        + (fresh && n.author === me ? ' · <button type="button" class="linklike" data-note-del="' + n.id + '">take it back</button>' : '') + '</span></div>';
+    }).join('') : '<p class="muted tiny">No notes yet.</p>';
+    $('#mdNotes').setAttribute('data-me', me);
+  }
+
   function memFilterQs() {
     return ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
-            'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'work_role=' + encodeURIComponent($('#memWorkRole').value)].join('&');
+            'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'work_role=' + encodeURIComponent($('#memWorkRole').value), 'centre=' + encodeURIComponent($('#memCentre').value), 'level=' + encodeURIComponent($('#memLevel').value)].join('&');
   }
 
   /* ── Many members at once ──
@@ -3378,7 +3421,7 @@
       $('#mdTitle').textContent = m.name + (m.ngv ? ' · NextGen Vanguard' : m.learner ? ' · Academy learner (not a member)' : '');
       memFill('#md_role', memRoles, m.role); memFill('#md_level', memLevels, m.level || 'O', function (x) { return 'Level ' + x; });
       ['name', 'email', 'phone', 'centre', 'notes', 'work_roles', 'about'].forEach(function (k) { $('#md_' + k).value = m[k] || ''; });
-      roleChips();
+      roleChips(); memNotesLoad(memOpen);
       $('#md_bday').value = m.birthday || ''; $('#md_joined').value = m.joined_on || '';
       $('#mdCards').innerHTML = memCardsHTML(m.cards);
       /* Printing is the office's job: PDF for a card printer, PNGs, or an A4 run (card/print.php). */
@@ -3580,13 +3623,13 @@
     document.querySelectorAll('.subtab[data-mv]').forEach(function (b) { b.addEventListener('click', function () { memTab(b.getAttribute('data-mv')); }); });
     $('#memQ').addEventListener('input', function () { clearTimeout(memT); memT = setTimeout(function () { memPage = 1; loadMemRoster(); }, 280); });
     $('#memSegment').innerHTML = '<option value="">Any record</option>' + Object.keys(MEM_SEGMENTS).map(function (k) { return '<option value="' + k + '">' + escapeHtml(MEM_SEGMENTS[k]) + '</option>'; }).join('');
-    ['#memRole', '#memStatus', '#memKind', '#memWorkRole', '#memVolunteer', '#memMissing', '#memMembership', '#memSegment', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
+    ['#memRole', '#memStatus', '#memKind', '#memWorkRole', '#memCentre', '#memLevel', '#memVolunteer', '#memMissing', '#memMembership', '#memSegment', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
     /* A tile opens its list: the roster with exactly that filter and no other. */
     $('#memTiles').addEventListener('click', function (e) {
       if (e.target.closest('#memDashRetry')) { loadMemDash(); return; }
       if (e.target.closest('[data-offline]')) { e.preventDefault(); $('#offStatus').value = 'held'; memTab('offline'); return; }
       var a = e.target.closest('[data-ms],[data-kind],[data-seg],[data-all]'); if (!a) return; e.preventDefault();
-      ['#memRole', '#memStatus', '#memMissing', '#memMembership', '#memSegment'].forEach(function (x) { $(x).value = ''; });
+      ['#memRole', '#memStatus', '#memMissing', '#memMembership', '#memSegment', '#memWorkRole', '#memCentre', '#memLevel', '#memVolunteer'].forEach(function (x) { $(x).value = ''; });
       $('#memQ').value = ''; $('#memKind').value = '';
       if (a.getAttribute('data-kind')) $('#memKind').value = a.getAttribute('data-kind');
       else if (a.getAttribute('data-ms')) { $('#memMembership').value = a.getAttribute('data-ms'); $('#memKind').value = 'all'; }
@@ -3711,6 +3754,45 @@
     $('#mdClose').addEventListener('click', closeMember);
     $('#memDrawer').addEventListener('click', function (e) { if (e.target === this) closeMember(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#memDrawer').hidden) closeMember(); });
+    memCentresFill();
+    $('#memChips').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-clear]'); if (!b) return;
+      var w = b.getAttribute('data-clear');
+      (w === '*' ? MEM_FILTERS.map(function (f) { return f[0]; }) : [w]).forEach(function (x) { if ($(x)) $(x).value = ''; });
+      memPage = 1; memSel = {}; loadMemRoster();
+    });
+    $('#memBulkExport').addEventListener('click', function () { this.href = API + '?action=roster_export&' + memFilterQs() + '&ids=' + memSelIds().join(','); });
+    $('#memBulkMsg').addEventListener('click', function () { var f = $('#memMsgForm'); f.hidden = !f.hidden; this.setAttribute('aria-expanded', String(!f.hidden)); if (!f.hidden) $('#msgTitle').focus(); });
+    $('#msgCancel').addEventListener('click', function () { $('#memMsgForm').hidden = true; $('#memBulkMsg').setAttribute('aria-expanded', 'false'); });
+    $('#memMsgForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var ids = memSelIds(), n = ids.length;
+      if (!n) { toast('Choose who it goes to.'); return; }
+      if (!confirm('Send "' + $('#msgTitle').value.trim() + '" to ' + n + ' member' + (n === 1 ? '' : 's') + ($('#msgEmail').checked ? ', by email too' : '') + '?')) return;
+      var b = $('#msgSend'); b.disabled = true;
+      post('member_message', { ids: ids, title: $('#msgTitle').value.trim(), body: $('#msgBody').value.trim(), email: $('#msgEmail').checked }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { toast(d.error || 'Not sent.'); return; }
+        toast('Sent to ' + d.sent + (d.skipped ? ' · ' + d.skipped + ' suspended skipped' : '') + (d.emailed ? ' · emailed' : '') + '.');
+        $('#memMsgForm').hidden = true; $('#msgTitle').value = ''; $('#msgBody').value = ''; $('#msgEmail').checked = false;
+      }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
+    });
+    $('#mdNoteForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var body = $('#mdNoteBody').value.trim(); if (!body) { $('#mdNoteBody').focus(); return; }
+      post('member_note_add', { id: memOpen, body: body }).then(function (r) {
+        var d = r.data || {}; if (!d.ok) { toast(d.error || 'Not saved.'); return; }
+        $('#mdNoteBody').value = ''; memNotesDraw(d.notes || [], $('#mdNotes').getAttribute('data-me') || '');
+      });
+    });
+    $('#mdNotes').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-note-del]'); if (!b) return;
+      post('member_note_delete', { note_id: +b.getAttribute('data-note-del') }).then(function (r) {
+        var d = r.data || {}; if (!d.ok) { toast(d.error || 'Could not.'); return; }
+        memNotesDraw(d.notes || [], $('#mdNotes').getAttribute('data-me') || '');
+      });
+    });
+
     /* Work roles: the chips give and take away; the list is kept under Roles. */
     $('#md_role_chips').addEventListener('click', function (e) {
       var b = e.target.closest('.mem-role-chip'); if (!b) return;

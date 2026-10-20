@@ -101,6 +101,7 @@ try {
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
         'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
         'roles_list', 'role_save', 'role_delete',
+        'roster_export', 'roster_centres', 'member_notes', 'member_note_add', 'member_note_delete', 'member_activity', 'member_message',
         'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
         'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
@@ -1188,6 +1189,37 @@ try {
         case 'roster_list':
             json_out(['ok' => true, 'roles' => array_keys(LmsAuth::ROLE_RANK), 'levels' => class_exists('Levels') ? Levels::order() : ['O']]
                 + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'work_role', 'sort', 'dir', 'page', 'page_size']))));
+        /* ── The day-to-day desk, as NGG's admin has it (lib/MemberDesk.php) ── */
+        case 'roster_centres':
+            json_out(['ok' => true, 'centres' => array_values(array_filter(array_map('strval', Database::pdo()->query("SELECT DISTINCT centre FROM member_profiles WHERE centre <> '' ORDER BY centre")->fetchAll(PDO::FETCH_COLUMN))))]);
+        case 'roster_export':
+            /* The filtered list, or the chosen members within it. It names people and
+               their phones, so who took it, and how many, goes in the audit log. */
+            $f = array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'work_role', 'sort', 'dir']));
+            $ids = array_values(array_filter(array_map('intval', explode(',', (string) ($_GET['ids'] ?? '')))));
+            $x = MemberDesk::export($f, $ids);
+            $lms->audit('member.export', '', $x['count'] . ' members' . ($ids ? ' (chosen)' : '') . ($x['capped'] ? ' — capped' : '') . ($f ? ' · ' . http_build_query($f) : ''), av_admin_actor());
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="afrovanguard-members-' . gmdate('Y-m-d') . '.csv"');
+            header('Cache-Control: no-store');
+            echo $x['csv'];
+            exit;
+        case 'member_notes':
+            json_out(['ok' => true, 'notes' => MemberDesk::notes((int) ($_GET['id'] ?? 0)), 'activity' => MemberDesk::activity((int) ($_GET['id'] ?? 0)), 'me' => av_admin_actor()]);
+        case 'member_activity':
+            json_out(['ok' => true, 'activity' => MemberDesk::activity((int) ($_GET['id'] ?? 0))]);
+        case 'member_note_add':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberDesk::addNote((int) ($body['id'] ?? 0), (string) ($body['body'] ?? ''), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'member_note_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberDesk::deleteNote((int) ($body['note_id'] ?? 0), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 403);
+        case 'member_message':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberDesk::message((array) ($body['ids'] ?? []), (string) ($body['title'] ?? ''), (string) ($body['body'] ?? ''), !empty($body['email']), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
         /* ── Work roles, one list with descriptions (lib/MemberRoles.php) ── */
         case 'roles_list':
             json_out(['ok' => true, 'roles' => MemberRoles::all()]);

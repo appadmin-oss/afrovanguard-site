@@ -24,7 +24,8 @@ $tp->exec('DELETE FROM team_goals WHERE author_id BETWEEN 9930 AND 9939');
 foreach ([9931 => 'Ola Owner', 9932 => 'Tayo Helper'] as $id => $n) {
     $tp->prepare('INSERT INTO lms_users (id, name, email, password_hash, role, status) VALUES (?,?,?,?,?,?)')->execute([$id, $n, 'gt' . $id . '@afrovanguard.org.ng', 'x', 'member', 'active']);
 }
-$now = strtotime('2026-10-19 12:00:00 UTC');
+/* Today, not a fixed date: goals here are created at the real time, so a pinned day goes stale. */
+$now = time();
 $day = static fn(int $d) => gmdate('Y-m-d', $now + $d * 86400);
 $at = static fn(int $d) => gmdate('Y-m-d H:i:s', $now + $d * 86400);
 $shape = static fn(int $id) => GoalTrack::shape(GoalTrack::row($id), 9931, $now);

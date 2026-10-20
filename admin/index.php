@@ -485,12 +485,16 @@
         <select id="memStatus" aria-label="Filter by status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
         <select id="memKind" aria-label="Which accounts"><option value="">Afrovanguard members</option><option value="ngv">NextGen Vanguards</option><option value="member">Members who are not NGV</option><option value="learner">Academy learners (not members)</option><option value="all">Every account</option></select>
         <select id="memWorkRole" aria-label="Filter by work role"><option value="">Any work role</option></select>
+        <select id="memCentre" aria-label="Filter by centre"><option value="">Any centre</option></select>
+        <select id="memLevel" aria-label="Filter by level"><option value="">Any level</option></select>
         <select id="memVolunteer" aria-label="Volunteers"><option value="">Volunteers or not</option><option value="yes">Volunteers</option><option value="no">Not volunteers</option></select>
         <select id="memMissing" aria-label="Members with something missing"><option value="">Complete or not</option><option value="phone">No phone</option><option value="birthday">No birthday</option><option value="card">No gate card</option></select>
         <select id="memSegment" aria-label="Dashboard list"><option value="">Any record</option></select>
         <select id="memMembership" aria-label="Filter by dues"><option value="">Any dues</option><option value="member">Paying dues</option><option value="lifetime">Lifetime dues</option><option value="current">Dues paid</option><option value="due_soon">Dues due within 30 days</option><option value="lapsed">Dues lapsed</option><option value="cancelled">Dues ended by the office</option><option value="never">Never paid dues</option></select>
         <select id="memSort" aria-label="Order"><option value="">Newest first</option><option value="name">Name A–Z</option><option value="centre">Centre</option><option value="role">Access level</option></select>
       </div>
+      <div class="mem-chips-bar" id="memChips" aria-live="polite"></div>
+      <div class="mem-tools"><a class="btn btn-outline btn-sm" id="memExport" href="#" download>Export these as CSV</a></div>
       <!-- Many at once: one declared action, per-row verdicts, capped at 500 -->
       <div class="mem-bulk" id="memBulk" hidden role="region" aria-label="Act on the chosen members">
         <span id="memBulkCount" aria-live="polite"></span>
@@ -514,8 +518,18 @@
         <select id="memBulkType" hidden aria-label="What they volunteer as"></select>
         <button class="btn btn-primary btn-sm" id="memBulkGo" disabled>Apply</button>
         <button class="btn btn-outline btn-sm" id="memBulkClear">Clear</button>
+        <a class="btn btn-outline btn-sm" id="memBulkExport" href="#" download>Export chosen</a>
+        <button class="btn btn-outline btn-sm" id="memBulkMsg" aria-expanded="false" aria-controls="memMsgForm">Message chosen…</button>
       </div>
       <div id="memBulkResult" role="status"></div>
+      <form class="mem-msg" id="memMsgForm" hidden autocomplete="off">
+        <h3 class="mem-card-h">A message to the chosen members</h3>
+        <label class="fld"><span>Title</span><input id="msgTitle" maxlength="160" required /></label>
+        <label class="fld"><span>Message</span><textarea id="msgBody" rows="4" maxlength="2000" required></textarea></label>
+        <label class="mem-msg-mail"><input type="checkbox" id="msgEmail" /> Email it too, not only a notification in their portal</label>
+        <p class="muted tiny">Suspended accounts are skipped. At most 500 members; the send is recorded in the audit log.</p>
+        <div class="editor-actions"><button type="button" class="btn btn-outline btn-sm" id="msgCancel">Cancel</button><button type="submit" class="btn btn-primary btn-sm" id="msgSend">Send</button></div>
+      </form>
       <label class="mem-check mem-selpage"><input type="checkbox" id="memSelPage" /> <span>Select this page</span></label>
       <div class="entry-list" id="memList"></div>
       <div class="mem-pager" id="memPager"></div>
@@ -620,7 +634,15 @@
         <div class="mem-role-chips" id="md_role_chips" role="group" aria-label="Work roles on the list — press to give or take away"></div>
         <p class="muted tiny" id="md_work_roles_h">As many as they do — press a role, or type one, separated by commas; a new one joins the list under Roles. Tasks go to whoever’s roles and description fit.</p>
         <label class="fld"><span>What they do</span><textarea id="md_about" rows="2" maxlength="600" placeholder="Runs the Egbeda Saturday class; good with video editing."></textarea></label>
-        <label class="fld"><span>Notes</span><textarea id="md_notes" rows="3"></textarea></label>
+        <h3 class="mem-card-h">Activity</h3>
+        <div class="mem-activity" id="mdActivity" aria-live="polite"><span class="muted">…</span></div>
+        <h3 class="mem-card-h">Notes</h3>
+        <form class="mem-note-add" id="mdNoteForm" autocomplete="off">
+          <label class="fld"><span>Add a note — dated and signed</span><textarea id="mdNoteBody" rows="2" maxlength="2000" placeholder="Called about dues; will pay Friday."></textarea></label>
+          <button type="submit" class="btn btn-outline btn-sm">Add note</button>
+        </form>
+        <div class="mem-notes" id="mdNotes"></div>
+        <label class="fld"><span>Older notes (one box)</span><textarea id="md_notes" rows="2"></textarea></label>
         <div class="mem-errors" id="md_errors" role="alert" hidden></div>
         <p class="muted tiny" id="md_lock" hidden></p>
         <h3 class="mem-card-h">Volunteer</h3>
