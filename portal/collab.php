@@ -58,6 +58,9 @@ try {
                 'pool'     => $isOrg ? Collab::poolTasks(60) : [],
                 'roster'   => Collab::roster(200, $allocates),
                 'allocates'=> $allocates,
+                /* Not taking new tasks until this date (TaskLedger), and the reasons a task can be handed back with. */
+                'away_until' => class_exists('TaskLedger') ? TaskLedger::awayUntil($uid) : '',
+                'handback_reasons' => class_exists('TaskLedger') ? TaskLedger::REASONS : [],
                 'ai'       => $isOrg && Collab::aiAvailable(),
                 'goals'    => $isOrg ? array_values(array_filter(Goals::listGoals($uid, 40), fn($g) => empty($g['closed']))) : [],
                 /* Where CACENTRE's goals stand, so an empty list says why; and an
@@ -117,8 +120,13 @@ try {
         case 'task_release':
             $orgGuard();
             $writeGuard();
-            if (!Collab::releaseTask($uid, (int) ($body['id'] ?? 0))) json_out(['ok' => false, 'error' => 'Could not return this task to the pool.'], 400);
+            if (!Collab::releaseTask($uid, (int) ($body['id'] ?? 0), (string) ($body['reason'] ?? ''))) json_out(['ok' => false, 'error' => 'Could not return this task to the pool.'], 400);
             json_out(['ok' => true, 'id' => (int) $body['id']]);
+
+        /* Away until a date: no task is given or suggested to them until then. */
+        case 'task_away':
+            $writeGuard();
+            json_out(TaskLedger::setAway($uid, (string) ($body['until'] ?? '')));
 
         case 'ai_from_goal':
             $orgGuard();
@@ -144,7 +152,8 @@ try {
         case 'task_suggest':
             if (!$allocates) json_out(['ok' => false, 'error' => 'Only people who hand out work see suggestions.'], 403);
             if (!av_rate_ok('collab_suggest_' . $uid, 30, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
-            json_out(TaskMatch::suggest((string) ($body['title'] ?? $_GET['title'] ?? ''), 3, (string) ($body['kind'] ?? '')));
+            json_out(TaskMatch::suggest((string) ($body['title'] ?? $_GET['title'] ?? ''), 3, (string) ($body['kind'] ?? ''),
+                ['due' => (string) ($body['due'] ?? ''), 'priority' => (string) ($body['priority'] ?? ''), 'size' => (string) ($body['size'] ?? '')]));
 
         case 'task_assign':
             $writeGuard();

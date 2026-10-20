@@ -64,6 +64,8 @@ ck('sweep: a task posted just now is left for people to take', TaskMatch::autoAs
 $stale = gmdate('Y-m-d H:i:s', time() - 30 * 3600);
 $tdp->prepare('UPDATE collab_tasks SET created_at = ? WHERE id IN (?, ?)')->execute([$stale, $pool1, $pool2]);
 $pool3 = Collab::addPoolTask(9951, 'Zzzz qqqq'); $tdp->prepare('UPDATE collab_tasks SET created_at = ? WHERE id = ?')->execute([$stale, $pool3]);
+/* The sweep gives without asking, so only to people here lately (TaskMatch::present). */
+$tdp->prepare('UPDATE lms_users SET last_login = ? WHERE id IN (9952, 9953)')->execute([gmdate('Y-m-d H:i:s', time() - 2 * 86400)]);
 TaskMatch::forget();
 $r = TaskMatch::autoAssign();
 $who = static fn(int $id) => (int) $tdp->query('SELECT assignee_id FROM collab_tasks WHERE id = ' . $id)->fetchColumn();
@@ -77,6 +79,12 @@ TaskMatch::forget();
 TaskMatch::autoAssign();
 ck('sweep: handed back, it is not pushed on anybody again', $who($pool2) === 0);
 ck('sweep: and the one it was given to sees it as just assigned', in_array($pool1, array_column(Todo::for($cook)['assigned'], 'id'), true));
+$tdp->prepare('UPDATE lms_users SET last_login = ? WHERE id = 9952')->execute([gmdate('Y-m-d H:i:s', time() - 60 * 86400)]);
+$pool4 = Collab::addPoolTask(9951, 'Teach the catering class at Egbeda again'); $tdp->prepare('UPDATE collab_tasks SET created_at = ? WHERE id = ?')->execute([$stale, $pool4]);
+TaskMatch::forget();
+TaskMatch::autoAssign();
+ck('sweep: somebody not seen for two months is not handed work, however well they fit', $who($pool4) === 0);
+$tdp->prepare('UPDATE lms_users SET last_login = ? WHERE id = 9952')->execute([gmdate('Y-m-d H:i:s')]);
 
 /* ── Tailored: a member, a volunteer, a learner ── */
 $mem = $mk(9960, 'Mo Member', 'mo.td@afrovanguard.org.ng', 'member');

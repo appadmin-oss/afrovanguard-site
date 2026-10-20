@@ -196,7 +196,7 @@ final class Collab
     private static function normPriority(string $p): string { $p = strtolower(trim($p)); return in_array($p, ['low','normal','high'], true) ? $p : 'normal'; }
 
     /** Create a task. Assignee defaults to the creator. Returns the new id or 0. */
-    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal', int $goalId = 0, string $size = ''): int
+    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal', int $goalId = 0, string $size = '', string $via = 'person'): int
     {
         $title = trim(mb_substr(trim($title), 0, 300));
         if ($creatorId <= 0 || $title === '') return 0;
@@ -215,6 +215,8 @@ final class Collab
                     self::nameOf($creatorId) . ' assigned you a task' . ($due !== '' ? ' (due ' . $due . ')' : '') . '. Open the portal to pick it up.', '/portal/#tasks');
             } catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
         }
+        /* Given to somebody else: kept, so what they do with it teaches the next assignment (TaskLedger). */
+        if ($newId > 0 && $assignee !== $creatorId && class_exists('TaskLedger')) TaskLedger::record($newId, $assignee, 'assigned', $title, '', $via);
         return $newId;
     }
 
@@ -259,13 +261,21 @@ final class Collab
      * Release a task back to the pool (assignee_id = 0). Allowed for the current
      * assignee or the creator. Returns true if it went back.
      */
-    public static function releaseTask(int $uid, int $taskId): bool
+    public static function releaseTask(int $uid, int $taskId, string $reason = ''): bool
     {
         self::ensureTasks();
         if ($uid <= 0 || $taskId <= 0) return false;
+        $q = Database::pdo()->prepare('SELECT assignee_id, title FROM collab_tasks WHERE id = ?');
+        $q->execute([$taskId]);
+        $was = $q->fetch(PDO::FETCH_ASSOC) ?: null;
         $st = Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = 0 WHERE id = ? AND done = 0 AND (assignee_id = ? OR creator_id = ?)');
         $st->execute([$taskId, $uid, $uid]);
-        return $st->rowCount() > 0;
+        if ($st->rowCount() === 0) return false;
+        /* Handed back by the person holding it, and why (TaskLedger::REASONS):
+           "not my kind of work" keeps the like of it from them next time;
+           "no time" only for a while. Taken back by its creator, it is not theirs to explain. */
+        if ($was && (int) $was['assignee_id'] === $uid && class_exists('TaskLedger')) TaskLedger::record($taskId, $uid, 'handed_back', (string) $was['title'], $reason);
+        return true;
     }
 
     /**
@@ -273,7 +283,7 @@ final class Collab
      * may run teams may hand out a task from the pool. A finished task stays
      * where it is. The new assignee is told.
      */
-    public static function assignTask(int $uid, int $taskId, int $assigneeId, bool $mayAllocate, string $why = ''): ?array
+    public static function assignTask(int $uid, int $taskId, int $assigneeId, bool $mayAllocate, string $why = '', string $via = 'person'): ?array
     {
         self::ensureTasks();
         if ($uid <= 0 || $taskId <= 0 || $assigneeId <= 0) return null;
@@ -292,6 +302,7 @@ final class Collab
             catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
         }
         self::log($uid, self::nameOf($uid), 'assigned a task to ' . self::nameOf($assigneeId), (string) $t['title'], '/portal/#tasks');
+        if (class_exists('TaskLedger')) TaskLedger::record($taskId, $assigneeId, 'assigned', (string) $t['title'], '', $via);
         return self::oneTask($uid, $taskId);
     }
 
@@ -368,7 +379,11 @@ final class Collab
             $title = trim(mb_substr((string) ($it['title'] ?? ''), 0, 300));
             if ($title === '') continue;
             $kind = strtolower(trim((string) ($it['kind'] ?? '')));
-            $plan[] = ['title' => $title, 'kind' => class_exists('TaskMatch') && in_array($kind, TaskMatch::kindNames(), true) ? $kind : '', 'it' => $it];
+            $days = (int) ($it['days'] ?? 0);
+            /* What the matcher weighs besides the words: when it is due, how big, for which goal. */
+            $plan[] = ['title' => $title, 'kind' => class_exists('TaskMatch') && in_array($kind, TaskMatch::kindNames(), true) ? $kind : '', 'it' => $it,
+                       'due' => ($days > 0 && $days <= 400) ? gmdate('Y-m-d', strtotime($today . ' +' . $days . ' days') ?: time()) : '',
+                       'size' => strtoupper(trim((string) ($it['size'] ?? ''))), 'priority' => self::normPriority((string) ($it['priority'] ?? 'normal')), 'goal' => $goal['title']];
         }
         /* Who each task fits — by AI when configured, reading their roles (several
            each) and what they say they do — spread so one person is not handed
@@ -383,13 +398,9 @@ final class Collab
         $fits = class_exists('TaskMatch') ? TaskMatch::assignMany($plan, [], $about) : [];
         $created = []; $assigned = 0;
         foreach ($plan as $k => $pl) {
-            $it = $pl['it'];
-            $days = (int) ($it['days'] ?? 0);
-            $due  = ($days > 0 && $days <= 400) ? gmdate('Y-m-d', strtotime($today . ' +' . $days . ' days') ?: time()) : '';
-            $pri  = self::normPriority((string) ($it['priority'] ?? 'normal'));
+            $due = $pl['due']; $pri = $pl['priority']; $size = $pl['size'];
             $fit = $fits[$k] ?? null;
-            $size = strtoupper(trim((string) ($it['size'] ?? '')));
-            if ($autoAssign && $fit) { $id = self::addTask($uid, $pl['title'], (int) $fit['id'], $due, $pri, $goalId, $size); $assigned++; }
+            if ($autoAssign && $fit) { $id = self::addTask($uid, $pl['title'], (int) $fit['id'], $due, $pri, $goalId, $size, 'ai'); $assigned++; }
             else $id = self::addPoolTask($uid, $pl['title'], $due, $pri, $goalId, $size);
             if ($id > 0 && ($t = self::oneTask($uid, $id))) {
                 if ($fit) $t['suggest'] = ['id' => (int) $fit['id'], 'name' => (string) $fit['name'], 'why' => (string) ($fit['why'][0] ?? $fit['summary'])];
@@ -437,6 +448,7 @@ final class Collab
         Database::pdo()->prepare('UPDATE collab_tasks SET done = ?, state = ?, state_at = ?, done_at = ?, blocked_reason = ? WHERE id = ?')
             ->execute([$new, $new ? 'done' : ((string) ($t['started_at'] ?? '') !== '' ? 'doing' : 'todo'), $now, $new ? $now : '', '', $taskId]);
         if ($new === 1) self::log($uid, self::nameOf($uid), 'completed a task', (string) $t['title'], '/portal/#tasks');
+        if ($new === 1 && class_exists('TaskLedger')) TaskLedger::record($taskId, (int) (($t['assignee_id'] ?? 0) ?: $uid), 'done', (string) $t['title']);
         /* A step towards a goal: the goal's progress follows. */
         if ((int) ($t['goal_id'] ?? 0) > 0 && class_exists('GoalPlanner')) GoalPlanner::syncProgress((int) $t['goal_id']);
         /* Counted toward a CACENTRE commitment: the tick counts there too. */

@@ -1994,3 +1994,15 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .mr-sub.is-bad { color:var(--red); }
 .mr-row .pbtn { margin-top:8px; }
 .enroll-msg.is-bad { color:var(--red); }
+
+/* Handing a task back: why, in one tap (lib/TaskLedger.php). Away until a date. */
+.task-why { flex-basis:100%; display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:6px 0 2px; padding:8px 10px; border-radius:10px; background:var(--surface-2, rgba(0,0,0,.04)); font-size:12.5px; }
+.task-why-q { font-weight:600; margin-right:4px; }
+.task-why-pick, .task-why-cancel, .task-away-set, .task-away-back, .task-away-save { border:1px solid var(--line, rgba(0,0,0,.15)); background:transparent; color:inherit; border-radius:99px; padding:3px 10px; font:inherit; font-size:12px; cursor:pointer; }
+.task-why-pick:hover, .task-away-set:hover { border-color:currentColor; }
+.task-why-cancel { opacity:.7; }
+.task-away { margin-top:4px; font-size:12px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.task-away-on { color:#b45309; font-weight:600; }
+.task-away-form { display:inline-flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.task-away-form input { font:inherit; font-size:12px; }
+.task:has(.task-why) { flex-wrap:wrap; }

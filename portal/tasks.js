@@ -19,7 +19,7 @@
         poolChk=document.getElementById('taskPool'),
         focusWrap=document.getElementById('taskFocus'), ringEl=document.getElementById('taskRing'),
         ringNEl=document.getElementById('taskRingN'), focusTxt=document.getElementById('taskFocusTxt');
-    var CG=null, TASKS=[], POOL=[], GOALS=[], FILTER='all', SHOW_DONE=false, ALLOCATES=false, SUGGESTED={};
+    var CG=null, TASKS=[], POOL=[], GOALS=[], FILTER='all', SHOW_DONE=false, ALLOCATES=false, SUGGESTED={}, REASONS={}, AWAY='';
     function ymd(off){ var d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+(off||0)); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
     var TODAY=ymd(0), TOMORROW=ymd(1), WEEK_END=ymd(7);
     function isOverdue(t){ return !t.done && t.due && (t.overdue || t.due < TODAY); }
@@ -152,7 +152,7 @@
     function renderActivity(items){ items=items||[]; actEl.innerHTML = items.length ? items.map(function(a){ var obj=a.object?' <b>'+esc(a.object)+'</b>':''; var inner='<span class="act-ava" aria-hidden="true">'+esc(a.initials)+'</span><span class="act-body"><span class="act-line"><b>'+esc(a.actor)+'</b> '+esc(a.verb)+obj+'</span><span class="act-ago">'+esc(a.ago)+'</span></span>'; return '<li class="act">'+(a.url?'<a href="'+esc(a.url)+'">'+inner+'</a>':inner)+'</li>'; }).join('') : '<li class="pc-empty">No activity yet.</li>'; }
 
     function load(){ fetch('/portal/collab.php?action=bootstrap',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok) return;
-        TASKS=d.tasks||[]; GOALS=d.goals||[]; ALLOCATES=!!d.allocates; CG=d.cac_goals||null;
+        TASKS=d.tasks||[]; GOALS=d.goals||[]; ALLOCATES=!!d.allocates; CG=d.cac_goals||null; REASONS=d.handback_reasons||{}; AWAY=d.away_until||''; drawAway();
         POOL=(d.pool||[]).map(function(t){ return SUGGESTED[t.id]?Object.assign({},t,{suggest:SUGGESTED[t.id]}):t; });
         var aw=document.getElementById('aiAssignWrap'); if(aw) aw.hidden=!ALLOCATES;
         render(); renderPool(); renderActivity(d.activity); renderOnline(d.online,d.count); fillRoster(d.roster); fillGoals();
@@ -188,7 +188,8 @@
       clearTimeout(sugT); var v=(input.value||'').trim();
       if(!ALLOCATES||v.length<8){ showSuggest([]); return; }
       sugT=setTimeout(function(){ if(v===sugFor) return; sugFor=v;
-        post('task_suggest',{title:v}).then(function(d){ if((input.value||'').trim()!==v) return; showSuggest(d&&d.ok?d.suggestions:[], d&&d.via); }).catch(function(){}); }, 600); });
+        var dEl=document.getElementById('taskDue'), pEl=document.getElementById('taskPriority');
+        post('task_suggest',{title:v,due:dEl?dEl.value:'',priority:pEl?pEl.value:''}).then(function(d){ if((input.value||'').trim()!==v) return; showSuggest(d&&d.ok?d.suggestions:[], d&&d.via); }).catch(function(){}); }, 600); });
     if(sugEl) sugEl.addEventListener('click', function(e){ var b=e.target.closest('.task-suggest-pick'); if(!b) return;
       var sel=document.getElementById('taskAssignee'); if(!sel) return; var id=b.getAttribute('data-id');
       if(!Array.prototype.some.call(sel.options,function(o){return o.value===id;})){ var o=document.createElement('option'); o.value=id; o.textContent=b.firstChild.textContent; sel.appendChild(o); }
@@ -202,8 +203,43 @@
       if(e.target.closest('#doneToggle')){ SHOW_DONE=!SHOW_DONE; render(); return; }
       var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
       if(e.target.closest('.task-check')){ post('task_toggle',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.map(function(t){return t.id===id?Object.assign({},t,{done:d.done,state:d.done?'done':(t.started_at?'doing':'todo'),stuck:{flag:'',days:0}}):t;}); render(); if(ATTACHED[id]) loadWeek(); } }); }
-      else if(e.target.closest('.task-release')){ var rt=TASKS.filter(function(t){return t.id===id;})[0]; post('task_release',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); if(rt){ POOL.unshift(Object.assign({},rt,{open:true,mine:false,assignee_id:0,assignee_name:'Unclaimed'})); renderPool(); } } }); }
+      else if(e.target.closest('.task-release')){ askWhy(li, id); }
+      else if(e.target.closest('.task-why-pick')){ var b=e.target.closest('.task-why-pick'); release(id, b.getAttribute('data-reason')||''); }
+      else if(e.target.closest('.task-why-cancel')){ var w=li.querySelector('.task-why'); if(w) w.remove(); }
       else if(e.target.closest('.task-del')){ post('task_delete',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); } }); } });
+
+    /* Handing a task back asks why, in one tap: "not my kind of work" keeps the
+       like of it from them next time; "no time" only for a while (lib/TaskLedger.php). */
+    function askWhy(li, id){
+      var old=li.querySelector('.task-why'); if(old){ old.remove(); return; }
+      var keys=Object.keys(REASONS); if(!keys.length){ release(id,''); return; }
+      var w=document.createElement('div'); w.className='task-why'; w.setAttribute('role','group'); w.setAttribute('aria-label','Why hand it back?');
+      w.innerHTML='<span class="task-why-q">Back to the pool — why?</span>'+keys.map(function(k){ return '<button type="button" class="task-why-pick" data-reason="'+esc(k)+'">'+esc(REASONS[k])+'</button>'; }).join('')
+        +'<button type="button" class="task-why-cancel">Keep it</button>';
+      li.appendChild(w); var f=w.querySelector('button'); if(f) f.focus();
+    }
+    function release(id, reason){
+      var rt=TASKS.filter(function(t){return t.id===id;})[0];
+      post('task_release',{id:id,reason:reason}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); if(rt){ POOL.unshift(Object.assign({},rt,{open:true,mine:false,assignee_id:0,assignee_name:'Unclaimed'})); renderPool(); } } else if(d&&d.error) alert(d.error); });
+    }
+
+    /* Away: no task is given or suggested to them until the date. */
+    var awayEl=document.getElementById('taskAway');
+    function drawAway(){
+      if(!awayEl) return;
+      var today=new Date().toISOString().slice(0,10);
+      awayEl.innerHTML = AWAY
+        ? '<span class="task-away-on">Away until '+esc(new Date(AWAY+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short'}))+' — nothing new is given to you</span> <button type="button" class="task-away-back">I’m back</button>'
+        : '<button type="button" class="task-away-set" aria-expanded="false">Going away?</button><span class="task-away-form" hidden><label>Not taking new tasks until <input type="date" min="'+today+'" class="task-away-date"></label> <button type="button" class="task-away-save">Save</button></span>';
+    }
+    if(awayEl) awayEl.addEventListener('click', function(e){
+      var f=awayEl.querySelector('.task-away-form');
+      if(e.target.closest('.task-away-set')){ f.hidden=!f.hidden; e.target.setAttribute('aria-expanded', String(!f.hidden)); if(!f.hidden) f.querySelector('input').focus(); return; }
+      var until = e.target.closest('.task-away-back') ? '' : (e.target.closest('.task-away-save') ? (awayEl.querySelector('.task-away-date').value||'') : null);
+      if(until===null) return;
+      if(e.target.closest('.task-away-save') && !until){ awayEl.querySelector('.task-away-date').focus(); return; }
+      post('task_away',{until:until}).then(function(d){ if(d&&d.ok){ AWAY=d.away_until||''; drawAway(); } else alert((d&&d.error)||'Could not save that.'); });
+    });
 
     // state and size
     listEl.addEventListener('change', function(e){
