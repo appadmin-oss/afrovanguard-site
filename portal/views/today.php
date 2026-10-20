@@ -2,12 +2,23 @@
 /**
  * portal/views/today.php — Today (design: Afrovanguard Portal v2, view "overview").
  *
- * Welcome, Needs your attention, the KPI row, Your calendar, Your journey,
- * Who's online, Team activity and Mentorship — all from what the shell has
- * already read for this member. Live parts keep the ids the panel scripts
- * write to: #kpiTasks, #kpiOnline, #onlineCount, #onlineList and
- * #activityList (portal/tasks.js), #calWeek / #calAgenda / #calSummary
- * (portal/avp.js) and #openMeetModal (portal/meet-modal.js).
+ * Running order, and the reason for it: the page opens with what needs this
+ * member now, because that is the question Today answers. Greeting, Needs
+ * your attention, What are you working on (only when nothing is due), At a
+ * glance, Ask finance for money, then the columns — Your calendar, Your
+ * journey, Who's online, Team activity, Mentorship. tests/portalviews.test.php
+ * pins that order.
+ *
+ * No fact is printed twice. The online count lives in the top bar and the
+ * Who's online card, so there is no KPI for it; mentorship hours are the
+ * KPI and the Mentorship card's own stat, not a third copy in its heading;
+ * today's date appears once, on the lead card.
+ *
+ * Live parts keep the ids the panel scripts write to: #kpiTasks,
+ * #onlineCount, #onlineList and #activityList (portal/tasks.js), #calWeek /
+ * #calAgenda / #calSummary (portal/avp.js) and #openMeetModal
+ * (portal/meet-modal.js). tasks.js null-guards each one, which is why
+ * dropping the online KPI's element is safe.
  */
 declare(strict_types=1);
 
@@ -64,14 +75,15 @@ if ($postsToday) {
         'sub' => 'Catch up with members', 'cta' => 'Open', 'goto' => 'community'];
 }
 
-/* The KPI row. */
+/* The KPI row. Each number appears here or in a card below, never both:
+   members online lives in the top bar and the Who's online card, and
+   mentorship hours are spelled out in the Mentorship card's own stats. */
 $kpis = [];
 if ($isOrg) {
     $kpis[] = ['label' => 'Tasks open', 'value' => (string) ($openTasks + $cacOpen), 'id' => 'kpiTasks',
        'sub' => $cacOpen ? 'here and in the console' : 'across your list', 'chip' => 'Active', 'tone' => 'gold'];
-    $kpis[] = ['label' => 'Members online', 'value' => (string) $onlineNow, 'id' => 'kpiOnline', 'sub' => 'right now', 'chip' => 'Live', 'tone' => 'green'];
 }
-$kpis[] = ['label' => 'Your stage', 'value' => (string) ($journey['label'] ?? 'Member'), 'sub' => ($stageCode === 'O' ? 'Level A up next' : 'Keep building'), 'chip' => 'Level ' . $stageCode, 'tone' => 'indigo'];
+$kpis[] = ['label' => 'Your stage', 'value' => (string) ($journey['label'] ?? 'Member'), 'text' => true, 'sub' => ($stageCode === 'O' ? 'Level A up next' : 'Keep building'), 'chip' => 'Level ' . $stageCode, 'tone' => 'indigo'];
 $kpis[] = ['label' => 'Mentorship hours', 'value' => $mentorHoursLabel, 'sub' => ((int) $mentorStats['attended']) . ' session' . (((int) $mentorStats['attended']) === 1 ? '' : 's') . ' attended', 'chip' => 'Logged', 'tone' => 'gold'];
 if ($dues) {
     $duesOk = $duesState === 'active' || !empty($dues['lifetime']);
@@ -98,6 +110,25 @@ if ($dues) {
           </div>
         </div>
 
+
+<?php if ($attn): ?>
+        <section class="avp-card avp-attn" aria-labelledby="avpAttnH">
+          <div class="avp-card-head"><h2 id="avpAttnH">Needs your attention</h2><span class="avp-chip avp-chip--gold"><?= e(date('D, M j')) ?></span></div>
+          <ul class="avp-attn-list">
+<?php foreach ($attn as $a): ?>
+            <li class="avp-attn-row">
+              <span class="avp-attn-ico avp-tone--<?= e($a['tone']) ?>" aria-hidden="true"><?= e($a['ico']) ?></span>
+              <span class="avp-attn-t"><span class="avp-attn-title"><?= $a['title'] ?></span><span class="avp-attn-sub"><?= $a['sub'] ?></span></span>
+              <a class="avp-pill-btn" href="#<?= e($a['goto']) ?>" data-goto="<?= e($a['goto']) ?>"><?= e($a['cta']) ?> →</a>
+            </li>
+<?php endforeach; ?>
+          </ul>
+        </section>
+<?php else: ?>
+        <p class="avp-allclear"><span aria-hidden="true">✓</span> Nothing needs you right now — <?= e(date('D, M j')) ?>.</p>
+<?php endif; ?>
+
+
 <?php
 /* ── "WHAT ARE YOU WORKING ON?" ──────────────────────────────────────────
    The centre asked for a to-do prompt on the member's screen. The answer
@@ -117,7 +148,7 @@ foreach (array_merge($myTasks, $cacTasks) as $t) {
 if ($isOrg && !$hasPlan):
 ?>
         <section class="pcard today-ask" id="askTask" data-csrf="<?= e($collabCsrf) ?>" data-today="<?= e($todayKey) ?>" aria-labelledby="askTaskH">
-          <div class="pcard-head"><h2 id="askTaskH">What are you working on?</h2><span class="pchip pchip--gold"><?= e(date('D, M j')) ?></span></div>
+          <div class="pcard-head"><h2 id="askTaskH">What are you working on?</h2></div>
           <div class="pcard-body">
             <p class="pcard-note">Nothing on your list for today. Write down one thing — it shows up here and in the centre's console, and you can tick it off from either.</p>
             <form class="ask-row" id="askTaskForm" autocomplete="off">
@@ -133,65 +164,48 @@ if ($isOrg && !$hasPlan):
         </section>
 <?php endif; ?>
 
-        <section class="avp-card avp-attn" aria-labelledby="avpAttnH">
-          <div class="avp-card-head"><h2 id="avpAttnH">Needs your attention</h2><span class="avp-chip avp-chip--gold"><?= e(date('D, M j')) ?></span></div>
-<?php if ($attn): ?>
-          <ul class="avp-attn-list">
-<?php foreach ($attn as $a): ?>
-            <li class="avp-attn-row">
-              <span class="avp-attn-ico avp-tone--<?= e($a['tone']) ?>" aria-hidden="true"><?= e($a['ico']) ?></span>
-              <span class="avp-attn-t"><span class="avp-attn-title"><?= $a['title'] ?></span><span class="avp-attn-sub"><?= $a['sub'] ?></span></span>
-              <a class="avp-pill-btn" href="#<?= e($a['goto']) ?>" data-goto="<?= e($a['goto']) ?>"><?= e($a['cta']) ?> →</a>
-            </li>
-<?php endforeach; ?>
-          </ul>
-<?php else: ?>
-          <p class="avp-empty">Nothing needs you right now.</p>
-<?php endif; ?>
-        </section>
-
-          <!-- Asking finance for money. Not inside the dues block above:
-               this is for every member, and a facilitator who paid a bus
-               fare out of their own pocket is exactly who it is for. Until
-               now they had to find somebody with a finance console login
-               and ask them to type it in. -->
-          <section class="avp-card" id="moneyRequests" data-csrf="<?= e(av_csrf_token()) ?>" aria-labelledby="avpMoneyReqH">
-            <div class="pcard-head"><h2 id="avpMoneyReqH">Ask finance for money</h2></div>
-            <div class="pcard-body">
-              <p class="pcard-note" data-mr-max>A claim for something you paid for, or something that needs buying.</p>
-              <p class="pcard-note" data-mr-down hidden>Finance cannot be reached just now, so requests cannot be sent. Nothing you have already sent is affected.</p>
-
-              <form class="mr-form" data-mr-form novalidate hidden>
-                <label class="mr-wide">What for <input name="title" maxlength="160" required placeholder="Bus fare to the Saturday session"></label>
-                <label class="mr-wide">Why it is needed <textarea name="purpose" rows="2" required placeholder="Four facilitators travelling to the Ikeja centre"></textarea></label>
-                <label>Kind of spending <select name="category" required></select></label>
-                <label>Amount (₦) <input name="amount" type="number" min="100" step="1" required></label>
-
-                <details data-mr-bank>
-                  <summary>Where to pay it back</summary>
-                  <p class="pcard-note">Asked once. Finance keeps it against your name for next time — a request that is approved and then cannot be paid helps nobody.</p>
-                  <label>Account number <input name="account_number" inputmode="numeric" maxlength="20"></label>
-                  <label>Bank <input name="bank_name" maxlength="60" placeholder="GTBank"></label>
-                  <label>Bank code <input name="bank_code" maxlength="10" placeholder="058"></label>
-                </details>
-
-                <button type="submit" class="pbtn pbtn-gold">Send to finance</button>
-              </form>
-
-              <p class="enroll-msg" data-mr-msg role="status" hidden></p>
-              <div data-mr-list aria-live="polite"><p class="pc-empty">Loading…</p></div>
-            </div>
-          </section>
-
         <div class="avp-kpis" aria-label="At a glance">
 <?php foreach ($kpis as $k): ?>
           <div class="avp-kpi">
             <div class="avp-kpi-top"><span class="avp-kpi-l"><?= e($k['label']) ?></span><span class="avp-chip avp-chip--sm avp-chip--<?= e($k['tone']) ?>"><?= e($k['chip']) ?></span></div>
-            <div class="avp-kpi-v av-num"<?= isset($k['id']) ? ' id="' . e($k['id']) . '"' : '' ?>><?= e($k['value']) ?></div>
+            <div class="avp-kpi-v<?= empty($k['text']) ? ' av-num' : ' avp-kpi-v--text' ?>"<?= isset($k['id']) ? ' id="' . e($k['id']) . '"' : '' ?>><?= e($k['value']) ?></div>
             <div class="avp-kpi-s"><?= e($k['sub']) ?></div>
           </div>
 <?php endforeach; ?>
         </div>
+
+        <!-- Asking finance for money. Not inside the dues block above:
+             this is for every member, and a facilitator who paid a bus
+             fare out of their own pocket is exactly who it is for. Until
+             now they had to find somebody with a finance console login
+             and ask them to type it in. -->
+        <section class="avp-card" id="moneyRequests" data-csrf="<?= e(av_csrf_token()) ?>" aria-labelledby="avpMoneyReqH">
+          <div class="pcard-head"><h2 id="avpMoneyReqH">Ask finance for money</h2></div>
+          <div class="pcard-body">
+            <p class="pcard-note" data-mr-max>A claim for something you paid for, or something that needs buying.</p>
+            <p class="pcard-note" data-mr-down hidden>Finance cannot be reached just now, so requests cannot be sent. Nothing you have already sent is affected.</p>
+
+            <form class="mr-form" data-mr-form novalidate hidden>
+              <label class="mr-wide">What for <input name="title" maxlength="160" required placeholder="Bus fare to the Saturday session"></label>
+              <label class="mr-wide">Why it is needed <textarea name="purpose" rows="2" required placeholder="Four facilitators travelling to the Ikeja centre"></textarea></label>
+              <label>Kind of spending <select name="category" required></select></label>
+              <label>Amount (₦) <input name="amount" type="number" min="100" step="1" required></label>
+
+              <details data-mr-bank>
+                <summary>Where to pay it back</summary>
+                <p class="pcard-note">Asked once. Finance keeps it against your name for next time — a request that is approved and then cannot be paid helps nobody.</p>
+                <label>Account number <input name="account_number" inputmode="numeric" maxlength="20"></label>
+                <label>Bank <input name="bank_name" maxlength="60" placeholder="GTBank"></label>
+                <label>Bank code <input name="bank_code" maxlength="10" placeholder="058"></label>
+              </details>
+
+              <button type="submit" class="pbtn pbtn-gold">Send to finance</button>
+            </form>
+
+            <p class="enroll-msg" data-mr-msg role="status" hidden></p>
+            <div data-mr-list aria-live="polite"><p class="pc-empty">Loading…</p></div>
+          </div>
+        </section>
 
         <div class="avp-cols">
           <div class="avp-col avp-col--main">
@@ -258,7 +272,7 @@ if ($isOrg && !$hasPlan):
             </section>
 <?php endif; ?>
             <section class="avp-card" aria-labelledby="avpMentorH">
-              <div class="avp-card-head"><h2 id="avpMentorH">Mentorship</h2><span class="avp-chip avp-chip--gold av-num"><?= e($mentorHoursLabel) ?> logged</span></div>
+              <div class="avp-card-head"><h2 id="avpMentorH">Mentorship</h2></div>
               <div class="avp-card-body">
                 <dl class="avp-stats">
                   <div><dt>Hours logged</dt><dd class="av-num"><?= e($mentorHoursLabel) ?></dd></div>

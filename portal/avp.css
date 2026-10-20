@@ -206,6 +206,13 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 .avp-note { margin: 0; font-size: 15px; line-height: 1.6; color: var(--avp-text-2); text-wrap: pretty; }
 .avp-note strong { color: var(--avp-ink); }
 .avp-empty { margin: 0; padding: 14px 20px; font-size: 14.5px; color: var(--avp-faint); }
+/* "Nothing needs you right now" is an answer, not a section: a whole card
+   with a heading and a date chip to carry one clause was the page's biggest
+   block of nothing. One line, where the card would have been. */
+.avp-allclear { display: flex; align-items: center; gap: 9px; margin: 0 0 20px;
+  padding: 12px 16px; border: 1px solid var(--avp-line); border-radius: 12px;
+  background: var(--avp-side); font-size: 14.5px; color: var(--avp-text-2); }
+.avp-allclear > span { color: var(--avp-green-tx); font-weight: 700; }
 .avp-chip { font-size: 12.5px; font-weight: 700; border-radius: 999px; padding: 3px 10px; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
 .avp-chip--sm { font-size: 11.5px; padding: 2px 8px; }
 .avp-chip--gold, .avp-tone--gold { background: var(--avp-gold-bg); color: var(--avp-gold-tx); }
@@ -233,6 +240,10 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 .avp-kpi-l { font-size: 13.5px; color: var(--avp-muted); }
 .avp-kpi-v { font-size: 28px; font-weight: 600; letter-spacing: -.01em; line-height: 1.1; overflow-wrap: anywhere; }
 .avp-kpi-s { font-size: 13px; color: var(--avp-faint); margin-top: 4px; }
+/* A KPI value that is a phrase rather than a figure. The 28px numeric size
+   is set for "₦128,000"; "Foundation Member" at that size wrapped out of
+   its own card. Same row, same weight, read as text. */
+.avp-kpi-v--text { font-size: 19px; line-height: 1.2; }
 .avp-cols { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
 .avp-col { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
 .avp-col--main { flex: 1 1 560px; }
@@ -436,6 +447,7 @@ body.avp a:hover { color: var(--avp-gold-tx); }
   .avp-kpi-top { align-items: flex-start; gap: 6px; margin-bottom: 6px; }
   .avp-kpi-l { font-size: 12.5px; min-width: 0; line-height: 1.25; }
   .avp-kpi-v { font-size: 23px; }
+  .avp-kpi-v--text { font-size: 16px; }
   .avp-kpi-s { font-size: 12px; margin-top: 3px; }
   /* A KPI that is a wide statement rather than a number keeps the full row. */
   .avp-kpi--wide { grid-column: 1 / -1; }
@@ -452,12 +464,19 @@ body.avp a:hover { color: var(--avp-gold-tx); }
   .avp .avp-h1, .avp .view-head h1 { font-size: 27px; }
 
   /* The greeting and its three quick actions took 196px before any content.
-     The actions scroll as one row instead of wrapping to two. */
+     The actions scroll as one row instead of wrapping to two, and the lede
+     goes: "what's happening across your workspace today" is a caption for
+     the card headings directly under it, and it cost two lines of the first
+     screen. It still reads on a tablet and a desktop, where there is room. */
+  .avp .avp-hello .avp-lede { display: none; }
   .avp-hello { gap: 12px; margin-bottom: 18px; }
-  .avp-hello-actions { flex-wrap: nowrap; width: 100%; overflow-x: auto;
-    scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-  .avp-hello-actions::-webkit-scrollbar { display: none; }
-  .avp-hello-actions > * { flex: 0 0 auto; white-space: nowrap; }
+  .avp-hello-actions { flex-wrap: nowrap; width: 100%; }
+  .avp-hello-actions > * { flex: 0 1 auto; white-space: nowrap; min-width: 0; }
+  /* Three actions could not share 358px without wrapping to two lines or
+     being cut mid-word, and "+ New task" is the one with a tab of its own
+     in the bar at the bottom of the screen. The two meeting actions, which
+     have no such shortcut, keep the row. */
+  .avp-hello-actions > [data-goto="tasks"] { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -66,6 +66,10 @@
     var reachable = !!data.finance_reachable;
     form.hidden = !reachable;
     card.querySelector('[data-mr-down]').hidden = reachable;
+    /* The intro describes the form. With finance unreachable the form is not
+       there, so the intro sat above the outage note describing a control
+       nobody could see. One note at a time. */
+    card.querySelector('[data-mr-max]').hidden = !reachable;
     if (reachable && data.max) {
       card.querySelector('[data-mr-max]').textContent = 'Up to ' + money(data.max) + ' through this form.';
     }
