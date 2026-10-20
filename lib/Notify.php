@@ -1,6 +1,6 @@
 <?php
 /**
- * lib/Notify.php — Academy transactional emails (welcome, enrolment,
+ * lib/Notify.php — Afrovanguard transactional emails (welcome, enrolment,
  * membership, completion). Thin layer over Mailer with branded copy.
  *
  * Every method is best-effort and self-contained: it builds the message,
@@ -77,15 +77,15 @@ final class Notify
         self::safe(function () use ($user) {
             $name = self::first((string) $user['name']);
             $html = Mailer::shell(
-                'Welcome to the Academy, ' . $name . ' 👋',
+                'Welcome to Afrovanguard, ' . $name,
                 [
-                    'Your free Afrovanguard Academy account is ready. You can now enrol in programmes, track your progress lesson by lesson, take knowledge checks and earn verifiable certificates.',
+                    'Your free Afrovanguard account is ready. You can now enrol in programmes, track your progress lesson by lesson, take knowledge checks and earn verifiable certificates.',
                     'Start with our open programmes — no payment needed — and pick up exactly where you leave off, on any device.',
                 ],
                 ['text' => 'Explore programmes', 'url' => academy_url('')],
-                'Your Afrovanguard Academy account is ready.'
+                'Your Afrovanguard account is ready.'
             );
-            Mailer::send((string) $user['email'], 'Welcome to Afrovanguard Academy', $html);
+            Mailer::send((string) $user['email'], 'Welcome to Afrovanguard', $html);
         });
     }
 
@@ -112,15 +112,15 @@ final class Notify
         self::safe(function () use ($user) {
             $name = self::first((string) $user['name']);
             $html = Mailer::shell(
-                'Welcome to Academy membership 🌟',
+                'Your membership is active',
                 [
                     'Thank you, ' . $name . '. Your membership is active — every members’ programme is now open to you, alongside priority cohorts and your certificates.',
                     'Most of all, thank you for backing the mission to raise one million incorruptible leaders for Africa.',
                 ],
                 ['text' => 'Browse members’ programmes', 'url' => academy_url('')],
-                'Your Afrovanguard Academy membership is active.'
+                'Your Afrovanguard membership is active.'
             );
-            Mailer::send((string) $user['email'], 'Your Academy membership is active', $html);
+            Mailer::send((string) $user['email'], 'Your Afrovanguard membership is active', $html);
         });
     }
 
