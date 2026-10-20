@@ -2660,16 +2660,102 @@
         renderResult(d);
       }).catch(function () { setMsg('Network error — try again.', 'err'); }).finally(function () { busy(false); });
     });
+    /* Migrating in slices. The old handler posted db_migrate once and waited:
+       on a shared host that request is stopped at 30s, which leaves the
+       target part-filled and every retry refused because it is no longer
+       empty. This begins a job and then asks for one slice at a time, so a
+       timeout costs a slice instead of the migration. */
+    function renderProgress(job) {
+      var wrap = $('#dbResult'); wrap.hidden = false;
+      var names = job.order || [];
+      var done = 0, copied = 0, total = 0;
+      var rows = names.map(function (t) {
+        var r = (job.tables || {})[t] || {};
+        total += (r.src | 0); copied += (r.copied | 0); if (r.done) done++;
+        return '<tr><td>' + escapeHtml(t) + '</td><td class="db-n">' + (r.src | 0)
+          + '</td><td class="db-n">' + (r.copied | 0) + '</td><td>'
+          + (r.done ? '<span class="db-ok">✓</span>' : (r.copied ? '…' : '')) + '</td></tr>';
+      }).join('');
+      $('#dbReport').innerHTML =
+        '<p class="' + (job.phase === 'error' ? 'db-note-bad' : 'db-note-ok') + '">'
+          + escapeHtml(job.phase === 'error' ? ('Stopped: ' + (job.error || 'unknown error'))
+            : (job.phase === 'done' ? 'Copied ' + copied + ' rows across ' + done + ' tables.'
+              : 'Copying… ' + done + ' of ' + names.length + ' tables, ' + copied + ' of ' + total + ' rows.'))
+          + '</p>'
+        + ((job.skipped && job.skipped.length)
+            ? '<p class="db-note-bad">Not in the target, so not copied: ' + escapeHtml(job.skipped.join(', '))
+              + '. Tick “Create the tables first” and begin again.</p>' : '')
+        + '<table class="db-table"><thead><tr><th>Table</th><th class="db-n">Rows</th><th class="db-n">Copied</th><th></th></tr></thead><tbody>'
+        + rows + '</tbody></table>';
+    }
+
+    function renderVerify(v) {
+      var bad = (v.tables || []).filter(function (r) { return !r.ok; });
+      $('#dbLog').textContent = (v.tables || []).map(function (r) {
+        return (r.ok ? '✓ ' : '✗ ') + r.table + '  source ' + r.source + '  target ' + (r.target === null ? 'missing' : r.target);
+      }).join('\n');
+      return bad;
+    }
+
     $('#dbMigrateBtn').addEventListener('click', function () {
-      var pp = params(); pp.dry_run = false;
+      var pp = params();
       if (!pp.name) { setMsg('Enter the target database name.', 'err'); return; }
-      if (!confirm('Copy all data into ' + pp.driver.toUpperCase() + ' database “' + pp.name + '” on ' + (pp.host || 'localhost') + '?\n\nThis writes to the target. Make sure it is the right, empty database.')) return;
-      busy(true); setMsg('Migrating… this can take a moment.', '');
-      post('db_migrate', pp).then(function (r) {
-        var d = r.data || {};
-        setMsg(d.ok ? 'Migration verified ✓' : (d.error || 'Migration failed — see below.'), d.ok ? 'ok' : 'err');
-        renderResult(d); loadDatabase();
-      }).catch(function () { setMsg('Network error — try again.', 'err'); }).finally(function () { busy(false); });
+      if (!confirm('Copy all data into ' + pp.driver.toUpperCase() + ' database “' + pp.name + '” on ' + (pp.host || 'localhost') + '?\n\n'
+        + 'This writes to the target. It does NOT switch this site over — you do that by hand once the counts match.')) return;
+      pp.replace = pp.truncate;
+      busy(true); setMsg('Preparing…', '');
+
+      /* Resuming is picking the job back up, NOT beginning a new one: a
+         second begin would find rows in the target and refuse, which is the
+         dead end an interrupted migration used to leave behind. */
+      post('db_job_state', {}).then(function (r0) {
+        var running = ((r0.data || {}).job) || null;
+        if (running && running.phase === 'copy') {
+          if (!confirm('A migration into ' + (running.target || 'the target') + ' stopped part-way.\n\n'
+            + 'OK carries on from where it stopped. Cancel leaves it alone.')) { busy(false); return null; }
+          renderProgress(running);
+          return slice();
+        }
+        return post('db_job_begin', pp).then(function (r) {
+          var d = r.data || {};
+          if (!d.ok) { setMsg(d.error || 'Could not start.', 'err'); return null; }
+          renderProgress(d.job);
+          return slice();
+        });
+
+        /* One slice per request until the job says it is finished. Each call
+           is short enough to come back before the host cuts it off. */
+        function slice() {
+          return post('db_job_step', pp).then(function (r2) {
+            var job = (r2.data || {}).job || {};
+            renderProgress(job);
+            if (job.phase === 'copy') {
+              setMsg('Copying… keep this tab open.', '');
+              return slice();
+            }
+            if (job.phase === 'error') { setMsg('Stopped: ' + (job.error || 'unknown error'), 'err'); return null; }
+            setMsg('Copied. Verifying…', '');
+            return post('db_job_verify', pp).then(function (r3) {
+              var v = (r3.data || {}).verify || {};
+              var bad = renderVerify(v);
+              setMsg(v.ok ? 'Migration verified ✓ every table matches.'
+                : (bad.length + ' table(s) do not match — see the log below.'), v.ok ? 'ok' : 'err');
+              var envWrap = $('#dbEnvWrap');
+              if (v.ok) {
+                envWrap.hidden = false;
+                $('#dbEnv').textContent = 'AV_DB_DRIVER=' + pp.driver + '\nAV_DB_HOST=' + (pp.host || 'localhost')
+                  + '\nAV_DB_PORT=' + (pp.port || (pp.driver === 'pgsql' ? '5432' : '3306'))
+                  + '\nAV_DB_NAME=' + pp.name + '\nAV_DB_USER=' + pp.user
+                  + '\nAV_DB_PASS=your-password\nAV_DB_STRICT=1';
+              } else envWrap.hidden = true;
+              loadDatabase();
+              return null;
+            });
+          });
+        }
+      }).catch(function () {
+        setMsg('Network error — nothing copied so far is lost. Press Migrate now again and it offers to carry on from where it stopped.', 'err');
+      }).finally(function () { busy(false); });
     });
   })();
 

@@ -1280,7 +1280,8 @@
 
       <div class="side-card">
         <h3>Migrate to a new database</h3>
-        <p class="muted" style="margin-top:-4px">Create an empty MySQL/PostgreSQL database in cPanel first, then enter its details below. Go in order: <b>Test connection</b> → <b>Dry run</b> → <b>Migrate now</b>.</p>
+        <p class="muted" style="margin-top:-4px">Create an empty MySQL/PostgreSQL database in cPanel first, then enter its details below. Go in order: <b>Test connection</b> → <b>Dry run</b> → <b>Migrate now</b>. The copy runs in slices and remembers where it got to, so a shared host cutting the request off costs a slice, not the migration — if it stops, press <b>Migrate now</b> again and it carries on. Keep the tab open while it runs.</p>
+        <p class="muted tiny">It fills the target and stops there; this site keeps running on its current database until you repoint it by hand. <b>The database is the one setting that cannot live in <code>config.php</code></b> — it is read from the environment only, so the lines below go in <code>.env</code> or <code>.htaccess</code>.</p>
         <form id="dbForm" class="db-form" autocomplete="off">
           <div class="db-row3">
             <label class="fld"><span>Type</span><select id="db_driver"><option value="mysql">MySQL / MariaDB</option><option value="pgsql">PostgreSQL</option></select></label>
@@ -1310,7 +1311,7 @@
       <h3>Result</h3>
       <div id="dbReport"></div>
       <div id="dbEnvWrap" hidden>
-        <p class="muted" style="margin:10px 0 6px">Add these to your <code>.env</code> (set <code>AV_DB_PASS</code> to the real password), then reload the site to run on the new database:</p>
+        <p class="muted" style="margin:10px 0 6px">Add these to your <code>.env</code> or <code>.htaccess</code> (set <code>AV_DB_PASS</code> to the real password), then reload the site to run on the new database. Not <code>config.php</code>: the database is not read from there, and the site would stay on SQLite without saying so. <code>AV_DB_STRICT=1</code> makes an unreachable database an error rather than a silent fall back to the old SQLite file that then accepts writes:</p>
         <pre class="db-env" id="dbEnv"></pre>
       </div>
       <details style="margin-top:10px"><summary class="muted">Migration log</summary><pre class="db-log" id="dbLog"></pre></details>
