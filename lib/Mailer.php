@@ -358,7 +358,11 @@ final class Mailer
         }
 
         $from = self::from($opt);
-        $alt  = trim((string) preg_replace('/\s+/', ' ', strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", $html))));
+        /* The plain-text part. A template renderer hands us a real one
+           ($opt['text']); everything else still gets the tag-stripped guess,
+           which is all there is for an HTML string built by hand. */
+        $alt  = trim((string) ($opt['text'] ?? ''));
+        if ($alt === '') $alt = trim((string) preg_replace('/\s+/', ' ', strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", $html))));
         $transport = self::transport();
         $bulk = self::isBulk($opt);
         $roads = self::plan($transport, $bulk);
@@ -716,6 +720,36 @@ final class Mailer
             if ($v !== '') $out[$k] = mb_substr($v, 0, 500);
         }
         return $out;
+    }
+
+    /**
+     * Send one of the designed templates (lib/email/templates/*.php).
+     *
+     * The handoff's own av_send_email() takes a PHPMailer instance and calls
+     * ->send() on it. This application does not send that way: Mailer picks a
+     * road (SMTP, Apps Script, Resend, relay, host mail) per message, with
+     * fallbacks, rate limits and a disabled switch. So the RENDERER is used as
+     * shipped and the transport stays ours — which is also what the renderer
+     * is split for, av_email_render() being a pure function of template + vars.
+     *
+     * Subject, HTML and the plain-text part all come from the template. The
+     * caller passes display-ready strings (formatted dates, "₦25,000.00") and
+     * never pre-escapes: the template escapes with e().
+     *
+     * @param array $vars every var the template's `Vars:` header lists
+     */
+    public static function sendTemplate(string $to, string $template, array $vars, array $opt = []): bool
+    {
+        try {
+            require_once __DIR__ . '/email/_layout.php';
+            $r = av_email_render($template, $vars);
+        } catch (\Throwable $e) {
+            self::$lastError = 'Email template ' . $template . ': ' . $e->getMessage();
+            error_log('[mail] ' . self::$lastError);
+            return false;
+        }
+        $opt['text'] = $r['text'];
+        return self::send($to, $r['subject'], $r['html'], $opt);
     }
 
     /* ══ THE EMAIL ════════════════════════════════════════════════════════════
