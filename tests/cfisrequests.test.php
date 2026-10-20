@@ -106,9 +106,22 @@ ck('and no category list is invented while finance cannot be asked for one '
 ck('the portal has an endpoint for it',
    is_file(AV_ROOT . '/portal/money-requests.php'));
 
-$card = (string) @file_get_contents(AV_ROOT . '/portal/views/membership.php');
-ck('and a card on the membership view, so there is a way to reach it',
+$card = (string) @file_get_contents(AV_ROOT . '/portal/views/today.php');
+ck('and the card is on Today, which is the page a member lands on',
    str_contains($card, 'id="moneyRequests"'));
+ck('exactly once across every view — all of them render into one document, '
+ . 'so a second copy would be a duplicate id and the script would drive '
+ . 'whichever came first',
+   (function () {
+       $n = 0;
+       foreach (glob(AV_ROOT . '/portal/views/*.php') as $f) {
+           $n += substr_count((string) @file_get_contents($f), 'id="moneyRequests"');
+       }
+       return $n === 1;
+   })());
+ck('and the membership view points at it rather than repeating it',
+   str_contains((string) @file_get_contents(AV_ROOT . '/portal/views/membership.php'),
+                'Ask finance for money on Today'));
 ck('whose script the portal loads',
    str_contains((string) @file_get_contents(AV_ROOT . '/portal/index.php'), 'money-requests.js'));
 ck('the card is not inside the org-only dues block — a facilitator who paid '
@@ -127,5 +140,16 @@ $js = (string) @file_get_contents(AV_ROOT . '/portal/money-requests.js');
 ck('the form is drawn from what finance says it accepts, with no list kept here',
    str_contains($js, 'data.categories') && !preg_match('/\[\s*.transport.\s*,/', $js));
 
+/* ── what Today can say without asking finance ─────────────────────── */
+
+$sum = CfisRequests::summaryFor(7);
+ck('the dashboard count knows about the one that never went',
+   $sum['total'] === 1 && $sum['unsent'] === 1 && $sum['open'] === 1);
+ck('and it is local only — no call to finance to draw the page somebody lands on',
+   !str_contains((function () {
+       $src = (string) @file_get_contents(AV_ROOT . '/lib/CfisRequests.php');
+       $at = strpos($src, 'function summaryFor');
+       return substr($src, $at, strpos($src, 'function post', $at) - $at);
+   })(), 'self::post('));
 ck('somebody else\'s requests are not theirs to see',
    count(CfisRequests::forUser(8)['requests']) === 0);

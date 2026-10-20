@@ -259,6 +259,37 @@ final class CfisRequests
         ];
     }
 
+    /**
+     * A count for the dashboard, from THIS site only.
+     *
+     * Deliberately no call to finance: Today is the page every member
+     * lands on, and it must not wait on a network round-trip to another
+     * system to draw. What is local is also what is certain — we know
+     * what we failed to send, because we are the ones who failed to send
+     * it. The live statuses are fetched when the card itself is drawn.
+     *
+     * @return array{total: int, unsent: int, open: int}
+     */
+    public static function summaryFor(int $userId): array
+    {
+        self::table();
+
+        $row = Database::pdo()->prepare(
+            "SELECT COUNT(*) AS total,
+                    SUM(CASE WHEN cfis_reference = '' THEN 1 ELSE 0 END) AS unsent,
+                    SUM(CASE WHEN status NOT IN ('paid', 'rejected', 'cancelled') THEN 1 ELSE 0 END) AS open
+             FROM cfis_member_requests WHERE user_id = ?"
+        );
+        $row->execute([$userId]);
+        $r = $row->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        return [
+            'total' => (int) ($r['total'] ?? 0),
+            'unsent' => (int) ($r['unsent'] ?? 0),
+            'open' => (int) ($r['open'] ?? 0),
+        ];
+    }
+
     /* ── transport ──────────────────────────────────────────────────── */
 
     /**
