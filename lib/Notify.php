@@ -72,38 +72,32 @@ final class Notify
         });
     }
 
+    /* modules/EMAILS.md: welcome — sent when membership is confirmed. */
     public static function welcome(array $user): void
     {
         self::safe(function () use ($user) {
-            $name = self::first((string) $user['name']);
-            $html = Mailer::shell(
-                'Welcome to Afrovanguard, ' . $name,
-                [
-                    'Your free Afrovanguard account is ready. You can now enrol in programmes, track your progress lesson by lesson, take knowledge checks and earn verifiable certificates.',
-                    'Start with our open programmes — no payment needed — and pick up exactly where you leave off, on any device.',
-                ],
-                ['text' => 'Explore programmes', 'url' => academy_url('')],
-                'Your Afrovanguard account is ready.'
-            );
-            Mailer::send((string) $user['email'], 'Welcome to Afrovanguard', $html);
+            Mailer::sendTemplate((string) $user['email'], 'welcome', [
+                'first_name' => self::first((string) $user['name']),
+                'member_id'  => (string) ($user['member_ref'] ?? $user['ref'] ?? $user['id'] ?? ''),
+                'joined_on'  => date('j M Y', strtotime((string) ($user['created_at'] ?? 'now')) ?: time()),
+                'chapter'    => (string) ($user['chapter'] ?? 'Alimosho'),
+                'portal_url' => (defined('SITE_URL') ? rtrim(SITE_URL, '/') : '') . '/portal/',
+            ]);
         });
     }
 
+    /* modules/EMAILS.md: academy_enrolled — card frame, no illustration. */
     public static function enrolled(array $user, array $course): void
     {
         self::safe(function () use ($user, $course) {
-            $name = self::first((string) $user['name']);
-            $url  = academy_url($course['slug'] . '/learn/');
-            $html = Mailer::shell(
-                'You’re enrolled in ' . $course['title'],
-                [
-                    'Hi ' . $name . ', your place in <strong>' . htmlspecialchars($course['title']) . '</strong> is confirmed. Every lesson, quiz and your certificate are now unlocked.',
-                    'Learn at your own pace — your progress is saved automatically as you go.',
-                ],
-                ['text' => 'Start learning', 'url' => $url],
-                'Your enrolment in ' . $course['title'] . ' is confirmed.'
-            );
-            Mailer::send((string) $user['email'], 'You’re enrolled — ' . $course['title'], $html);
+            Mailer::sendTemplate((string) $user['email'], 'academy_enrolled', [
+                'first_name'    => self::first((string) $user['name']),
+                'course_title'  => (string) $course['title'],
+                'course_url'    => academy_url($course['slug'] . '/learn/'),
+                'course_length' => (string) ($course['length_label'] ?? $course['duration'] ?? 'Self-paced'),
+                'lessons_count' => (string) ($course['lessons_count'] ?? $course['lessons'] ?? ''),
+                'starts_on'     => (string) ($course['starts_on'] ?? 'Today'),
+            ]);
         });
     }
 
