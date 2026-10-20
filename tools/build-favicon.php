@@ -17,15 +17,15 @@ $root = dirname(__DIR__);
    One source of truth for the brand mark: assets/site/av-seal-256.png.
 
    The icons used to be a flat gold "A" on a navy that is in no token — a
-   placeholder nobody replaced. They are the seal now, and they are built at
-   three different crops because one artwork cannot serve 512px and 16px:
+   placeholder nobody replaced. They are the seal now, WHOLE, at every size:
 
-     any / maskable   the whole seal on the brand ink. Maskable gets a bigger
+     any / maskable   the seal on the brand ink. Maskable gets a bigger
                       margin so Android's circle never bites the gold ring.
-     favicon          the seal's CENTRE — the shield and knot — because the
-                      ring text ("AMBASSADORS FOR COMMUNITY, TECH & CULTURAL
-                      ADVANCEMENTS") is unreadable mush below about 64px, and
-                      a mark nobody can read is not a mark.
+     favicon          the same seal at 48, 32 and 16.
+
+   THE SEAL IS NEVER CROPPED, RECOLOURED OR DRAWN OVER HERE. Scaling it and
+   centring it on a plate is all this script may do to it. If the mark needs
+   a simplified small-size variant, that is the designer's to draw.
    ---------------------------------------------------------------------- */
 $srcSeal = $root . '/assets/site/av-seal-256.png';
 if (is_file($srcSeal) && function_exists('imagecreatefrompng')) {
