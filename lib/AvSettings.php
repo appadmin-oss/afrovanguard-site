@@ -493,6 +493,44 @@ final class AvSettings
         return array_keys(self::$unreadable);
     }
 
+    /**
+     * Why a stored setting cannot be read, in words an operator can act on,
+     * or '' when the store itself is fine (the value may simply be unset —
+     * that is the caller's own business to describe).
+     *
+     * Two states belong to the STORE rather than to any one integration, and
+     * a plain "is it set?" cannot tell either of them from "never entered":
+     * the crypto is unavailable, and the value is there but will not decrypt.
+     * Both were being re-derived per integration, and each screen that forgot
+     * told the operator to paste a value that is already stored. There is one
+     * of these now; GoogleWorkspace, AppsScriptMail and Config::diagnostics()
+     * all ask it.
+     *
+     * Crypto is checked FIRST, and the order is the point: with no APP_KEY
+     * nothing decrypts AND nothing can be saved, so "paste it again" sends
+     * somebody round a loop they cannot leave.
+     *
+     * @param string $key   the DEFS key, e.g. AV_GAS_SECRET
+     * @param string $what  how to name it to a person, e.g. "Apps Script secret"
+     * @param string $where where it is pasted, when that is not the usual place
+     */
+    public static function whyUnreadable(string $key, string $what, string $where = 'Studio → Rules & AI → Setup'): string
+    {
+        $crypto = self::cryptoStatus();
+        if (empty($crypto['ok'])) {
+            return 'The ' . $what . ' cannot be read until this is fixed: ' . (string) $crypto['reason']
+                . ' A value may already be stored — once the key is right it will either work again, '
+                . 'or need pasting once more.';
+        }
+        if (in_array($key, self::unreadable(), true)) {
+            return 'The ' . $what . ' IS stored on this site, but it cannot be read back — which happens when '
+                . 'APP_KEY changes, or the site is moved or restored onto another host. Paste the '
+                . $what . ' again in ' . $where . ': saving re-encrypts it under the key in force now.';
+        }
+
+        return '';
+    }
+
     /** A stored setting, or null. Used by Config::get() before anything else. */
     public static function get(string $key): ?string
     {

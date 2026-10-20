@@ -321,7 +321,12 @@ final class Mailer
                 if (!self::smtpConfigured()) return 'not configured (SMTP_HOST, SMTP_USERNAME, AV_SMTP_PASSWORD)';
                 return self::loadPhpMailer() ? '' : 'PHPMailer is missing';
             case 'gas':
-                return self::gas() !== null ? '' : 'not set up (Studio → Rules & AI → Setup → Email → Apps Script URL and secret)';
+                if (self::gas() !== null) return '';
+                /* The reason, so a failure log naming this road says whether
+                   the secret was never entered or is stored and unreadable. */
+                return class_exists('AppsScriptMail')
+                    ? AppsScriptMail::whyNotConfigured()
+                    : 'not set up (Studio → Rules & AI → Setup → Email → Apps Script URL and secret)';
             case 'relay':
                 if ($fake ? !isset(self::$fakes['relay']) : !self::relayConfigured()) return 'not configured';
                 return self::normAttachments($opt) ? 'cannot carry attachments' : '';

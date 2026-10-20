@@ -74,6 +74,26 @@ final class Config
             $rt[] = self::chk('ext: ' . $ext, extension_loaded($ext) ? 'ok' : ($ext === 'pdo_sqlite' ? 'off' : 'info'), extension_loaded($ext) ? 'loaded' : 'not loaded');
         }
         $rt[] = self::chk('fastcgi_finish_request', function_exists('fastcgi_finish_request') ? 'ok' : 'info', function_exists('fastcgi_finish_request') ? 'available (webhooks flush after response)' : 'not available (webhooks flush at shutdown / cron)');
+        /* The settings store itself. Nothing on this page said a word about it,
+           so a site whose secrets had stopped decrypting showed a column of
+           "not configured" with no hint that the values are all still there —
+           and a site with no APP_KEY never learned its credentials are
+           encrypted with a key kept in the row beside them. */
+        if (class_exists('AvSettings')) {
+            $cs = AvSettings::cryptoStatus();
+            $un = AvSettings::unreadable();
+            if (empty($cs['ok'])) {
+                $rt[] = self::chk('Stored secrets', 'off', (string) $cs['reason']);
+            } elseif ($un) {
+                $rt[] = self::chk('Stored secrets', 'warn', count($un) . ' stored but unreadable: '
+                    . implode(', ', $un) . ' — each is still in the database; paste it again in '
+                    . 'Rules & AI → Setup to re-encrypt it under the key in force now');
+            } elseif (!empty($cs['weak'])) {
+                $rt[] = self::chk('Stored secrets', 'warn', (string) $cs['weak_reason']);
+            } else {
+                $rt[] = self::chk('Stored secrets', 'ok', 'encrypted with APP_KEY');
+            }
+        }
         $groups[] = ['group' => 'Runtime', 'checks' => $rt];
 
         // Database
@@ -145,10 +165,12 @@ final class Config
             ][$mode] ?? $mode);
             $gasSet = AppsScriptMail::configured();
             $gasState = $gasSet ? 'ok' : ($mode === 'gas' ? 'off' : 'warn');
+            /* Not a boolean: "URL set but no secret" was printed when the
+               secret is stored and merely unreadable, which sent the operator
+               to paste a secret that is already there. */
             $checks[] = self::chk('Google Apps Script', $gasState, $gasSet
                 ? 'set up · ' . AppsScriptMail::url() . ' — press “Check Apps Script” below to see its account and allowance'
-                : (AppsScriptMail::url() !== '' ? 'URL set but no secret — Rules & AI → Setup → Email'
-                    : 'not set up — the road mail takes when SMTP fails (docs/EMAIL-APPS-SCRIPT.md)'));
+                : AppsScriptMail::whyNotConfigured());
             if (Mailer::relayConfigured()) {
                 $checks[] = self::chk('NGG Apps Script relay', 'info', 'MAIL_RELAY_URL set — still used, after the site’s own script');
             }
@@ -174,7 +196,12 @@ final class Config
         $groups[] = ['group' => 'Identity & Workspace', 'checks' => [
             self::chk('Admin token', (defined('ADMIN_TOKEN') && strlen((string) ADMIN_TOKEN) >= 8) ? 'ok' : 'off', 'Studio access'),
             self::chk('Google sign-in (OAuth)', $oauth ? 'ok' : 'warn', $oauth ? 'enabled' : 'not configured — password sign-in still works'),
-            self::chk('Workspace API (service account)', $wsApi ? 'ok' : 'warn', $wsApi ? 'configured — live Calendar/Drive reads in the portal' : 'not set — portal uses the launchpad + embeds'),
+            /* The reason, not the bare fact: a key that is stored but cannot be
+               decrypted read as "not set" here, which is the one answer that
+               makes an operator redo work they have already done. */
+            self::chk('Workspace API (service account)', $wsApi ? 'ok' : 'warn', $wsApi
+                ? 'configured — live Calendar/Drive reads in the portal'
+                : (class_exists('GoogleWorkspace') ? GoogleWorkspace::whyNotConfigured() : 'not set')),
             self::chk('Directory delegation', ($wsApi && $wsSub !== '') ? 'ok' : 'info', $wsApi ? ($wsSub !== '' ? 'impersonates ' . $wsSub : 'no AV_WS_SUBJECT — directory read disabled') : '—'),
             self::chk('Google redirect URI', 'info', class_exists('GoogleAuth') ? GoogleAuth::redirectUri() . ' — register exactly this on the OAuth client' : '—'),
             (static function () {

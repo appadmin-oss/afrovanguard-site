@@ -125,27 +125,13 @@ final class GoogleWorkspace
     {
         if (self::configured()) return '';
 
+        /* The two states that belong to the settings store rather than to
+           Google — crypto unavailable, and stored-but-undecryptable. Shared,
+           because every encrypted setting has them and each screen that
+           re-derived them got one of them wrong. */
         if (class_exists('AvSettings')) {
-            /* Crypto FIRST, and the order is the point. With no APP_KEY
-               nothing decrypts AND nothing can be saved, so telling
-               somebody to paste the key again sends them round a loop
-               they cannot leave: they paste, saving refuses, the screen
-               repeats itself. Fix the key first; the stored value may
-               then read perfectly well on its own. */
-            $crypto = AvSettings::cryptoStatus();
-            if (empty($crypto['ok'])) {
-                return 'Google Workspace cannot be read until this is fixed: '.(string) $crypto['reason']
-                    .' A key may already be stored — once that is right, it will either work again '
-                    .'or need pasting once more.';
-            }
-
-            if (in_array('AV_GDRIVE_SERVICE_ACCOUNT', AvSettings::unreadable(), true)) {
-                return 'A Google Workspace key IS stored on this site, but it cannot be read back — '
-                    .'which happens when APP_KEY changes, or the site is moved or restored onto another host. '
-                    .'Paste the service account key again in Studio → Rules & AI → Setup: saving re-encrypts '
-                    .'it under the key in force now. Nothing else needs to change at Google.';
-            }
-
+            $why = AvSettings::whyUnreadable('AV_GDRIVE_SERVICE_ACCOUNT', 'service account key');
+            if ($why !== '') return $why . ' Nothing else needs to change at Google.';
         }
 
         /* Stored as a path rather than pasted JSON — a deployment that
