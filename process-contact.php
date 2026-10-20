@@ -177,131 +177,76 @@ function mail_send_contact(string $to, string $subject, string $html, ?array $at
 /* ═══════════════════════════════════════════════════════════
    EMAIL TEMPLATES  (same base CSS / wrap as process-donation.php)
    ═══════════════════════════════════════════════════════════ */
-function baseCss(): string {
-    return 'body,table,td,a{-webkit-text-size-adjust:100%;}table{border-collapse:collapse;}'
-        . 'body{margin:0;padding:0;background:#f4f4f4;font-family:\'Source Sans 3\',-apple-system,BlinkMacSystemFont,sans-serif;color:#111;}'
-        . '.wrap{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;}'
-        . '.hd{background:#0d1220;border-bottom:4px solid #f3b416;padding:20px 40px;text-align:center;}'
-        . '.brand{font-family:\'Cormorant Garamond\',Georgia,serif;font-size:26px;font-weight:700;color:#fff;}'
-        . '.gold{color:#f3b416;}.tag{font-size:10px;letter-spacing:2px;font-weight:700;color:#f3b416;text-transform:uppercase;margin-top:4px;}'
-        . '.sec{padding:32px 40px;}.ft{background:#fafafa;border-top:1px solid #eee;padding:24px 32px;text-align:center;}'
-        . 'h1{font-family:\'Cormorant Garamond\',Georgia,serif;font-size:28px;margin:0 0 20px;color:#111;line-height:1.2;}'
-        . 'p{font-size:15px;line-height:1.65;margin:0 0 16px;color:#4b5563;}strong{color:#111;}'
-        . '.badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;background:#fffbf0;color:#8d480e;padding:6px 10px;border-radius:999px;margin-bottom:16px;}'
-        . '.card{background:#fffbf0;border:1px solid #ffe688;border-radius:8px;padding:20px;margin-bottom:24px;}'
-        . '.lbl{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#8d480e;margin-bottom:4px;}'
-        . '.val{font-size:15px;font-weight:600;color:#111;}.row{margin-top:14px;}'
-        . '.btn{display:inline-block;padding:14px 24px;background:#f3b416;color:#0d1220!important;text-decoration:none;border-radius:6px;font-weight:700;font-size:15px;}'
-        . '.ft p{font-size:11px;color:#6b7280;margin:0 0 8px;}.ft a{color:#6b7280;text-decoration:underline;}'
-        . '@media(max-width:600px){.sec,.hd{padding:24px 20px!important;}h1{font-size:22px!important;}.btn{width:100%!important;display:block;text-align:center;box-sizing:border-box;}}';
-}
-
-function wrap(string $badge, string $body, string $note = ''): string {
-    $css  = baseCss();
-    $year = date('Y');
-    return "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><style>{$css}</style></head><body>"
-        . "<center><table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr><td style=\"padding:40px 10px;\">"
-        . "<table class=\"wrap\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">"
-        . "<tr><td class=\"hd\" align=\"center\"><div class=\"brand\">AFROVANGUARD<span class=\"gold\">.</span></div>"
-        . "<div class=\"tag\">The Force for Good</div></td></tr>"
-        . "<tr><td class=\"sec\"><span class=\"badge\">{$badge}</span><br>{$body}</td></tr>"
-        . "<tr><td class=\"ft\">"
-        . ($note ? "<p>{$note}</p>" : '')
-        . "<p>Afrovanguard &middot; CACENTRE, Alimosho, Lagos</p>"
-        . "<p><a href=\"mailto:cacentre@afrovanguard.org.ng\">cacentre@afrovanguard.org.ng</a> &middot; <a href=\"https://afrovanguard.org.ng/privacy-policy/\">Privacy Policy</a></p>"
-        . "<p>&copy; {$year} Afrovanguard. All rights reserved.</p>"
-        . "</td></tr></table></td></tr></table></center></body></html>";
-}
+/* The emails here used to carry their own <style> block and class names.
+   Gmail strips <style>, so for most recipients they arrived as unstyled
+   browser-default text. They use the shared template now: one look, inline
+   styles, the mark at the foot. */
 
 /* ── Auto-reply sent to the person who contacted us ────────── */
 function autoReplyHtml(array $d): string {
-    $name    = esc($d['name']);
-    $purpose = esc($d['purpose_label']);
-    $ref     = esc($d['ref']);
-    $body    = "<h1>We received your message &#128338;</h1>"
-        . "<p><strong>Hello {$name},</strong></p>"
-        . "<p>Thank you for reaching out to Afrovanguard. Your message has been received and a member of our team will respond within <strong>24&ndash;48 hours</strong> on business days (Monday&ndash;Friday, 9 am&ndash;5 pm WAT).</p>"
-        . "<div class=\"card\">"
-        . "<div class=\"lbl\">Your Enquiry</div><div class=\"val\">{$purpose}</div>"
-        . "<div class=\"row\"><div class=\"lbl\">Reference</div>"
-        . "<div class=\"val\" style=\"font-size:13px;word-break:break-all;\">{$ref}</div></div>"
-        . "<div class=\"row\"><div class=\"lbl\">Received</div>"
-        . "<div class=\"val\" style=\"font-size:13px;\">" . date('F j, Y \a\t g:i A T') . "</div></div>"
-        . "</div>"
-        . "<p>In the meantime, you can:</p>"
-        . "<ul style=\"padding-left:20px;margin-bottom:20px;\">"
-        . "<li style=\"margin-bottom:8px;\">Explore our <a href=\"https://afrovanguard.org.ng/projects/\" style=\"color:#f3b416;\">Projects</a></li>"
-        . "<li style=\"margin-bottom:8px;\">Support our work at <a href=\"https://afrovanguard.org.ng/donate/\" style=\"color:#f3b416;\">afrovanguard.org.ng/donate</a></li>"
-        . "<li>Follow us on Instagram &amp; YouTube @afrovanguard for impact stories</li>"
-        . "</ul>"
-        . "<p>For urgent matters, reach us directly via WhatsApp: <strong>+234 903 777 6318</strong></p>"
-        . "<p style=\"margin-top:28px;\">Warm regards,<br><strong>The Afrovanguard Team</strong><br>"
-        . "<span style=\"font-size:12px;color:#f3b416;text-transform:uppercase;\">The Force for Good</span></p>";
-    return wrap('&#9993; Message Received', $body, 'You received this because you submitted a message at afrovanguard.org.ng/contact.');
+    $facts = Mailer::facts([
+        ['Your enquiry', $d['purpose_label']],
+        ['Reference',    $d['ref']],
+        ['Received',     date('F j, Y \a\t g:i A T')],
+    ]);
+    $link = static fn(string $url, string $text): string =>
+        '<a href="' . $url . '" style="color:#8A6406;text-decoration:underline">' . $text . '</a>';
+    return Mailer::shell(
+        'We received your message',
+        [
+            'Hello <strong>' . esc($d['name']) . '</strong>,',
+            'Thank you for reaching out to Afrovanguard. Your message has been received and a member of our team will respond within <strong>24&ndash;48 hours</strong> on business days (Monday&ndash;Friday, 9 am&ndash;5 pm WAT).',
+            $facts,
+            'In the meantime you can explore our ' . $link('https://afrovanguard.org.ng/projects/', 'projects')
+                . ', support the work at ' . $link('https://afrovanguard.org.ng/donate.html', 'afrovanguard.org.ng/donate')
+                . ', or follow @afrovanguard on Instagram and YouTube for impact stories.',
+            'For urgent matters, reach us on WhatsApp: <strong>+234 903 777 6318</strong>',
+            'Warm regards,<br><strong>The Afrovanguard Team</strong>',
+        ],
+        null,
+        'We have your message — we reply within 24–48 hours.',
+        [
+            'eyebrow' => 'Message received',
+            'note'    => 'You received this because you submitted a message at afrovanguard.org.ng/contact.',
+        ]
+    );
 }
 
 /* ── Internal admin notification ───────────────────────────── */
 function adminNotifyHtml(array $d): string {
-    $year = date('Y');
-    $css  = baseCss();
     $purposeMap = [
-        'volunteer' => '&#128101; Volunteering',
-        'business'  => '&#128188; Business / Partnership',
-        'tech'      => '&#128187; Technology (Techome)',
-        'media'     => '&#127909; Media (Mediapro)',
-        'career'    => '&#127891; Career Development',
-        'creative'  => '&#127912; Creative / Cultural (Africa GATES)',
-        'kingdom'   => '&#9733; Kingdom Advancement',
-        'donation'  => '&#128176; Donation Enquiry',
-        'general'   => '&#128172; General Enquiry',
+        'volunteer' => 'Volunteering',
+        'business'  => 'Business / Partnership',
+        'tech'      => 'Technology (Techome)',
+        'media'     => 'Media (Mediapro)',
+        'career'    => 'Career Development',
+        'creative'  => 'Creative / Cultural (Africa GATES)',
+        'kingdom'   => 'Kingdom Advancement',
+        'donation'  => 'Donation Enquiry',
+        'general'   => 'General Enquiry',
     ];
-    $purposeLabel = $purposeMap[$d['purpose'] ?? 'general'] ?? '&#128172; General Enquiry';
-
-    $rows = [
-        ['Purpose',   $purposeLabel],
-        ['Name',      esc($d['name'])],
-        ['Email',     esc($d['email'])],
-        ['Phone',     esc($d['phone'] ?: '—')],
-        ['Location',  esc($d['location'] ?: '—')],
-        ['Subject',   esc($d['subject'] ?: '—')],
-        ['Reference', esc($d['ref'])],
+    $facts = Mailer::facts([
+        ['Purpose',   $purposeMap[$d['purpose'] ?? 'general'] ?? 'General Enquiry'],
+        ['Name',      $d['name']],
+        ['Email',     $d['email']],
+        ['Phone',     $d['phone'] ?: '—'],
+        ['Location',  $d['location'] ?: '—'],
+        ['Subject',   $d['subject'] ?: '—'],
+        ['Reference', $d['ref']],
         ['Submitted', date('Y-m-d H:i:s T')],
-    ];
-
-    $tableRows = '';
-    foreach ($rows as [$label, $value]) {
-        $tableRows .= "<tr>"
-            . "<td style=\"padding:8px 14px 8px 0;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8d480e;white-space:nowrap;vertical-align:top;\">{$label}</td>"
-            . "<td style=\"padding:8px 0;font-size:14px;color:#111;\">{$value}</td>"
-            . "</tr>";
+    ]);
+    $rows = [$facts, Mailer::panel('Message', nl2br(esc($d['message'])))];
+    if (!empty($d['attachment_name'])) {
+        $rows[] = 'Attachment: <strong>' . esc($d['attachment_name']) . '</strong>';
     }
-
-    $msgBody = nl2br(esc($d['message']));
-    $hasAttachment = !empty($d['attachment_name'])
-        ? "<p style=\"font-size:13px;color:#4b5563;\">&#128206; Attachment: <strong>" . esc($d['attachment_name']) . "</strong></p>"
-        : '';
-
-    $body = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><style>{$css}</style></head><body>"
-        . "<center><table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr><td style=\"padding:40px 10px;\">"
-        . "<table class=\"wrap\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">"
-        . "<tr><td class=\"hd\" align=\"center\">"
-        . "<div class=\"brand\">AFROVANGUARD<span class=\"gold\">.</span></div>"
-        . "<div class=\"tag\">New Contact Submission</div></td></tr>"
-        . "<tr><td class=\"sec\">"
-        . "<span class=\"badge\">&#128395; New Message</span><br>"
-        . "<h1 style=\"font-size:22px;\">Contact Form Submission</h1>"
-        . "<div class=\"card\"><table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">{$tableRows}</table></div>"
-        . "<div style=\"background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin-bottom:20px;\">"
-        . "<div style=\"font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#8d480e;margin-bottom:10px;\">Message</div>"
-        . "<div style=\"font-size:14px;color:#374151;line-height:1.7;\">{$msgBody}</div>"
-        . "</div>"
-        . $hasAttachment
-        . "<a href=\"mailto:" . esc($d['email']) . "?subject=Re:%20Your%20Afrovanguard%20Enquiry%20(" . urlencode($d['ref']) . ")\" class=\"btn\" style=\"margin-bottom:20px;\">Reply to {$d['name']} &rarr;</a>"
-        . "</td></tr>"
-        . "<tr><td class=\"ft\"><p>&copy; {$year} Afrovanguard. Internal notification &mdash; do not forward.</p></td></tr>"
-        . "</table></td></tr></table></center></body></html>";
-
-    return $body;
+    return Mailer::shell(
+        'Contact form submission',
+        $rows,
+        ['text' => 'Reply to ' . $d['name'],
+         'url'  => 'mailto:' . $d['email'] . '?subject=' . rawurlencode('Re: Your Afrovanguard Enquiry (' . $d['ref'] . ')')],
+        $d['name'] . ' — ' . ($d['subject'] ?: 'new enquiry'),
+        ['eyebrow' => 'New message', 'note' => 'Internal notification — do not forward.']
+    );
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -629,13 +574,16 @@ if ($action === 'newsletter') {
     }
 
     /* Optional welcome email */
-    $welcomeHtml = wrap(
-        '&#127881; You\'re In!',
-        "<h1>Welcome to the Afrovanguard community!</h1>"
-        . "<p>You've been added to our newsletter. You'll receive weekly updates on programs, events, and impact stories from across the movement.</p>"
-        . "<p>Follow us: <a href=\"https://www.instagram.com/afrovanguard/\" style=\"color:#f3b416;\">@afrovanguard</a></p>"
-        . "<p>Warm regards,<br><strong>The Afrovanguard Team</strong></p>",
-        'You received this because you subscribed at afrovanguard.org.ng.'
+    $welcomeHtml = Mailer::shell(
+        'Welcome to the Afrovanguard community',
+        [
+            "You've been added to our newsletter. You'll receive weekly updates on programs, events, and impact stories from across the movement.",
+            'Follow us: <a href="https://www.instagram.com/afrovanguard/" style="color:#8A6406;text-decoration:underline">@afrovanguard</a>',
+            'Warm regards,<br><strong>The Afrovanguard Team</strong>',
+        ],
+        ['text' => 'See what we are building', 'url' => 'https://afrovanguard.org.ng/'],
+        "You're in — weekly updates from the movement.",
+        ['eyebrow' => "You're in", 'note' => 'You received this because you subscribed at afrovanguard.org.ng.']
     );
     mail_send_contact($email, 'Welcome to Afrovanguard — You\'re In!', $welcomeHtml);
 

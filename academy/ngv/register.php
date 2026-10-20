@@ -30,10 +30,19 @@ function ngv_notify_application(int $id, array $d): void
     $site  = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '';
 
     if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $html = "<p>Hi {$first},</p>"
-              . '<p>Thank you for applying to <b>NextGen Vanguard</b> — we\'ve received your application and our team will review it and be in touch.</p>'
-              . '<p><b>Next step:</b> if you don\'t already have an Afrovanguard account, create one with this same email so we can enrol you and open your dashboard.</p>'
-              . '<p>— Afrovanguard Academy</p>';
+        /* It used to send four bare <p> tags, so it arrived in browser-default
+           Times with no margins. Same words, in the house template. */
+        $html = Mailer::shell(
+            'We have your application',
+            [
+                "Hi {$first},",
+                'Thank you for applying to <b>NextGen Vanguard</b> — we\'ve received your application and our team will review it and be in touch.',
+                '<b>Next step:</b> if you don\'t already have an Afrovanguard account, create one with this same email so we can enrol you and open your dashboard.',
+            ],
+            $site !== '' ? ['text' => 'Create your account', 'url' => $site . '/login'] : null,
+            'We received your NextGen Vanguard application.',
+            ['eyebrow' => 'NextGen Vanguard']
+        );
         try { Mailer::send($email, 'We received your NextGen Vanguard application', $html); } catch (Throwable $e) {}
     }
 

@@ -718,32 +718,178 @@ final class Mailer
         return $out;
     }
 
-    public static function shell(string $heading, array $rows, ?array $cta = null, string $preheader = ''): string
+    /* ══ THE EMAIL ════════════════════════════════════════════════════════════
+       One template for every message this site sends.
+
+       It is the home page's language, moved into the one medium that cannot
+       have the home page's stylesheet: Cormorant over a clean sans, warm paper
+       under a white card, a single gold accent, hairlines instead of shadows.
+
+       Three rules email forces on that:
+
+       1. INLINE STYLES ONLY. Gmail strips <style> blocks, which is how the
+          contact and donation emails — built with a <style> block and class
+          names — have been arriving at most people unstyled. Everything here
+          is on the element.
+       2. HEX, NOT TOKENS. var(--av-ink) resolves to nothing in a mail client,
+          so the values are written out. They are the SAME values as
+          assets/site/av-tokens.css and are listed once, below, so a token
+          change has one place to follow.
+       3. THE WEBFONT WILL NOT LOAD. Cormorant Garamond and Source Sans 3 are
+          self-hosted for the site; almost no mail client will fetch them. The
+          fallbacks are therefore chosen, not inherited: Georgia carries the
+          display line (same era, similar colour on the page), and the system
+          sans stack carries the body.
+
+       The mark sits at the FOOTER, not over the heading: the first thing read
+       should be the sentence the message exists for. */
+
+    /** The site tokens this template needs, written out for mail clients. */
+    private const MAIL = [
+        'ink'    => '#111827',   // --av-ink
+        'body'   => '#3D3D3D',   // --av-copy-0
+        'muted'  => '#5F636D',   // --av-muted
+        'paper'  => '#FAF9F6',   // --av-paper
+        'white'  => '#FFFFFF',   // --av-white
+        'line'   => '#E8E6E1',   // --av-line
+        'gold'   => '#F3B416',   // --av-gold
+        'goldtx' => '#8A6406',   // --av-gold-text (4.5:1 on white — link colour)
+        'stone'  => '#F8F7F4',   // --av-stone-2
+    ];
+    private const MAIL_SERIF = "'Cormorant Garamond',Garamond,Georgia,'Times New Roman',serif";
+    private const MAIL_SANS  = "'Source Sans 3',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
+
+    /**
+     * A label/value table — a receipt, an enquiry, a set of submitted fields.
+     *
+     * Inline-styled for the same reason everything here is: the stylesheet
+     * never arrives. Values are escaped; pass pre-built HTML with $raw.
+     *
+     * @param array<array{0:string,1:string}> $rows
+     */
+    public static function facts(array $rows, bool $raw = false): string
     {
+        $c = self::MAIL;
+        $out = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;margin:0 0 20px">';
+        foreach ($rows as $i => [$label, $value]) {
+            $top = $i === 0 ? '0' : '10px';
+            $out .= '<tr>'
+                 . '<td style="padding:' . $top . ' 16px 10px 0;font-family:' . self::MAIL_SANS . ';font-size:11px;'
+                 . 'font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:' . $c['muted'] . ';'
+                 . 'white-space:nowrap;vertical-align:top;width:1%">' . htmlspecialchars((string) $label, ENT_QUOTES, 'UTF-8') . '</td>'
+                 . '<td style="padding:' . $top . ' 0 10px;font-family:' . self::MAIL_SANS . ';font-size:15px;'
+                 . 'line-height:1.55;color:' . $c['ink'] . '">'
+                 . ($raw ? (string) $value : htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'))
+                 . '</td></tr>';
+        }
+        return $out . '</table>';
+    }
+
+    /** A quiet bordered block — a quoted message, a receipt, a set of facts. */
+    public static function panel(string $label, string $html): string
+    {
+        $c = self::MAIL;
+        $head = $label === '' ? '' :
+            '<p style="margin:0 0 10px;font-family:' . self::MAIL_SANS . ';font-size:11px;font-weight:700;'
+            . 'letter-spacing:.1em;text-transform:uppercase;color:' . $c['goldtx'] . '">'
+            . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</p>';
+        return '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;margin:0 0 20px">'
+             . '<tr><td style="padding:20px 22px;background:' . $c['stone'] . ';border:1px solid ' . $c['line'] . ';border-radius:10px">'
+             . $head
+             . '<div style="font-family:' . self::MAIL_SANS . ';font-size:15px;line-height:1.65;color:' . $c['body'] . '">' . $html . '</div>'
+             . '</td></tr></table>';
+    }
+
+    /**
+     * @param string     $heading   the one sentence the message is about
+     * @param string[]   $rows      paragraphs; raw HTML, already escaped by the caller
+     * @param array|null $cta       ['text' => …, 'url' => …]
+     * @param string     $preheader the line the inbox shows beside the subject
+     * @param array      $opt       'eyebrow' a short label above the heading;
+     *                              'note' a quiet line in the footer (why this
+     *                              email was sent, a reference number, …)
+     */
+    public static function shell(string $heading, array $rows, ?array $cta = null, string $preheader = '', array $opt = []): string
+    {
+        $c    = self::MAIL;
         $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : 'https://afrovanguard.org.ng';
+        $host = preg_replace('#^https?://#', '', $site);
+        $esc  = static fn(string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
+
         $body = '';
-        foreach ($rows as $r) { $body .= '<p style="margin:0 0 16px;font-size:15.5px;line-height:1.6;color:#2b2b2e">' . $r . '</p>'; }
+        foreach ($rows as $r) {
+            $r = trim((string) $r);
+            if ($r === '') continue;
+            $body .= '<p style="margin:0 0 18px;font-family:' . self::MAIL_SANS . ';font-size:16px;line-height:1.65;color:' . $c['body'] . '">' . $r . '</p>';
+        }
+
+        $eyebrow = trim((string) ($opt['eyebrow'] ?? ''));
+        $eyebrow = $eyebrow === '' ? '' :
+            '<p style="margin:0 0 12px;font-family:' . self::MAIL_SANS . ';font-size:11px;font-weight:700;'
+            . 'letter-spacing:.14em;text-transform:uppercase;color:' . $c['goldtx'] . '">' . $esc($eyebrow) . '</p>';
+
+        /* The button is a table so Outlook gives it its padding, and 48px tall
+           so a thumb can hit it. */
         $btn = '';
         if ($cta && !empty($cta['url']) && !empty($cta['text'])) {
-            $btn = '<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 4px"><tr><td style="border-radius:8px;background:#f3b416">'
-                . '<a href="' . htmlspecialchars($cta['url'], ENT_QUOTES) . '" style="display:inline-block;padding:13px 26px;font-weight:700;font-size:15px;color:#15140f;text-decoration:none;border-radius:8px">'
-                . htmlspecialchars($cta['text']) . '</a></td></tr></table>';
+            $btn = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:26px 0 4px">'
+                 . '<tr><td align="center" bgcolor="' . $c['gold'] . '" style="border-radius:8px">'
+                 . '<a href="' . $esc((string) $cta['url']) . '" style="display:inline-block;padding:15px 30px;'
+                 . 'font-family:' . self::MAIL_SANS . ';font-size:15.5px;font-weight:700;line-height:18px;'
+                 . 'color:' . $c['ink'] . ';text-decoration:none;border-radius:8px">' . $esc((string) $cta['text'])
+                 . '</a></td></tr></table>';
         }
-        $pre = $preheader !== '' ? '<div style="display:none;max-height:0;overflow:hidden;opacity:0">' . htmlspecialchars($preheader) . '</div>' : '';
-        return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
-            . '<body style="margin:0;padding:0;background:#f4f2ec;font-family:\'Source Sans 3\',-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#2b2b2e">'
+
+        $note = trim((string) ($opt['note'] ?? ''));
+        $note = $note === '' ? '' :
+            '<p style="margin:0 0 14px;font-family:' . self::MAIL_SANS . ';font-size:13px;line-height:1.6;color:' . $c['muted'] . '">' . $note . '</p>';
+
+        /* The preheader is what the inbox shows next to the subject. The
+           zero-width run after it stops the client pulling the heading in
+           behind it. */
+        $pre = $preheader === '' ? '' :
+            '<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0;color:transparent">'
+            . $esc($preheader) . str_repeat('&#847;&zwnj;&nbsp;', 24) . '</div>';
+
+        $heading = $esc($heading);
+
+        return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            . '<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">'
+            . '<title>' . $heading . '</title></head>'
+            . '<body style="margin:0;padding:0;width:100%;background:' . $c['paper'] . '">'
             . $pre
-            . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2ec;padding:28px 12px"><tr><td align="center">'
-            . '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.06)">'
-            . '<tr><td style="background:#15140f;border-bottom:4px solid #f3b416;padding:22px 36px">'
-            . '<span style="color:#fff;font-size:18px;font-weight:800;letter-spacing:.02em">Afrovanguard <span style="color:#f3b416">Academy</span></span></td></tr>'
-            . '<tr><td style="padding:34px 36px 30px">'
-            . '<h1 style="margin:0 0 18px;font-size:24px;line-height:1.2;color:#15140f">' . htmlspecialchars($heading) . '</h1>'
+            . '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background:' . $c['paper'] . '">'
+            . '<tr><td align="center" style="padding:40px 16px">'
+
+            . '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="600" style="width:100%;max-width:600px;background:' . $c['white'] . ';border:1px solid ' . $c['line'] . ';border-radius:14px;overflow:hidden">'
+
+            /* One gold hairline carries the brand at the top; the mark is at the foot. */
+            . '<tr><td style="height:3px;line-height:3px;font-size:0;background:' . $c['gold'] . '">&nbsp;</td></tr>'
+
+            . '<tr><td style="padding:40px 36px 34px">'
+            . $eyebrow
+            . '<h1 style="margin:0 0 20px;font-family:' . self::MAIL_SERIF . ';font-size:31px;line-height:1.18;'
+            . 'font-weight:400;letter-spacing:-.01em;color:' . $c['ink'] . '">' . $heading . '</h1>'
             . $body . $btn
             . '</td></tr>'
-            . '<tr><td style="padding:22px 36px;background:#faf8f3;border-top:1px solid #ece7da;font-size:12.5px;color:#8a8578;line-height:1.6">'
-            . 'Afrovanguard — raising one million incorruptible leaders for Africa.<br>'
-            . '<a href="' . $site . '" style="color:#a8821a;text-decoration:none">' . str_replace('https://', '', $site) . '</a>'
-            . '</td></tr></table></td></tr></table></body></html>';
+
+            /* The mark, last: seal, wordmark, what we are for, where to find us. */
+            . '<tr><td style="padding:28px 36px 32px;background:' . $c['stone'] . ';border-top:1px solid ' . $c['line'] . '">'
+            . $note
+            . '<table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr>'
+            . '<td style="padding-right:12px" valign="middle">'
+            . '<img src="' . $site . '/assets/site/av-seal-96.png" width="44" height="44" alt="Afrovanguard"'
+            . ' style="display:block;width:44px;height:44px;border:0;outline:none;text-decoration:none"></td>'
+            . '<td valign="middle"><span style="font-family:' . self::MAIL_SERIF . ';font-size:20px;line-height:1.1;'
+            . 'color:' . $c['ink'] . '">Afrovanguard</span></td>'
+            . '</tr></table>'
+            . '<p style="margin:14px 0 0;font-family:' . self::MAIL_SANS . ';font-size:13px;line-height:1.6;color:' . $c['muted'] . '">'
+            . 'Raising one million incorruptible leaders for Africa.<br>'
+            . '<a href="' . $site . '/" style="color:' . $c['goldtx'] . ';text-decoration:none">' . $esc((string) $host) . '</a>'
+            . '</p>'
+            . '</td></tr>'
+
+            . '</table></td></tr></table></body></html>';
     }
 }
