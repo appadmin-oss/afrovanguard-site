@@ -100,7 +100,7 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 .avp .skip-link { position: absolute; left: 12px; top: -60px; z-index: 100; background: var(--avp-primary); color: var(--avp-on-primary); padding: 10px 14px; border-radius: var(--av-r-8); }
 .avp .skip-link:focus { top: 12px; }
 
-.avp-app { display: flex; min-height: 100vh; background: var(--avp-bg); }
+.avp-app { display: flex; min-height: 100vh; min-height: 100dvh; background: var(--avp-bg); }
 
 /* ── sidebar ───────────────────────────────────────────────────────────── */
 .avp-side { width: 264px; flex-shrink: 0; background: var(--avp-side); border-right: 1px solid var(--avp-side-line);
@@ -421,6 +421,43 @@ body.avp a:hover { color: var(--avp-gold-tx); }
   .avp .avp-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 0; background: transparent; color: var(--avp-faint); font-size: 11px; font-weight: 600; cursor: pointer; min-height: 44px; }
   .avp .avp-tab.is-active, .avp .avp-tab[aria-expanded="true"] { color: var(--avp-ink); }
   .avp .avp-tab:hover { color: var(--avp-ink); }
+
+  /* The height of the bottom chrome, published so anything floating (the
+     to-do pop-up, a toast) clears it instead of hard-coding 20px and landing
+     on top of a tab. Declared on :root because a fixed element is often a
+     child of <body>, not of .avp, so it cannot inherit from the shell.
+     This file only loads on portal pages, so the value cannot leak. */
+  :root { --avp-bottom-ui: calc(62px + env(safe-area-inset-bottom)); }
+
+  /* At a glance: two columns, not one. auto-fit/minmax(200px) gives a single
+     column under 412px, which turns five numbers into 637px of scrolling. */
+  .avp-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .avp-kpi { padding: 12px 13px; border-radius: 12px; }
+  .avp-kpi-top { align-items: flex-start; gap: 6px; margin-bottom: 6px; }
+  .avp-kpi-l { font-size: 12.5px; min-width: 0; line-height: 1.25; }
+  .avp-kpi-v { font-size: 23px; }
+  .avp-kpi-s { font-size: 12px; margin-top: 3px; }
+  /* A KPI that is a wide statement rather than a number keeps the full row. */
+  .avp-kpi--wide { grid-column: 1 / -1; }
+
+  /* 11.5px is below the floor for anything a member has to read. */
+  .avp .avp-chip--sm, .avp .mstat-l, .avp .goal-opt, .avp .avp-day-l { font-size: 12px; }
+  .avp .avp-tab { font-size: 12px; }
+
+  /* The footer's links were 18px of target in a 390px-wide thumb world. */
+  .avp-foot a { display: inline-flex; align-items: center; min-height: 44px; }
+  .avp-foot { gap: 0 16px; }
+
+  /* A 34px serif title eats a third of the first screen on a phone. */
+  .avp .avp-h1, .avp .view-head h1 { font-size: 27px; }
+
+  /* The greeting and its three quick actions took 196px before any content.
+     The actions scroll as one row instead of wrapping to two. */
+  .avp-hello { gap: 12px; margin-bottom: 18px; }
+  .avp-hello-actions { flex-wrap: nowrap; width: 100%; overflow-x: auto;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .avp-hello-actions::-webkit-scrollbar { display: none; }
+  .avp-hello-actions > * { flex: 0 0 auto; white-space: nowrap; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -11,7 +11,11 @@
   --dy-nb-ink: var(--av-nb-ink);
   container-type: inline-size; container-name: avdy;
   position: relative; display: flex; border: 1px solid var(--dy-bd); border-radius: var(--av-r-12); overflow: hidden;
-  height: calc(100vh - 48px - 130px); min-height: 560px; background: var(--dy-bg); color: var(--dy-tx);
+  /* dvh, not vh: on a phone 100vh is the viewport with the browser toolbar
+     retracted, so a vh-sized pane hangs below the screen whenever it is not.
+     The vh line stays first as the fallback for a browser without dvh. */
+  height: calc(100vh - 48px - 130px); height: calc(100dvh - 48px - 130px);
+  min-height: 560px; background: var(--dy-bg); color: var(--dy-tx);
   font-size: 14px;
 }
 .avp.is-dark .avdy { --dy-nb-ink: var(--av-dk-nb-ink); }
@@ -313,7 +317,7 @@
   .avnb-bar { gap: 2px; padding: 0 6px 0 10px; }
   .avnb-saved { display: none; }
 }
-@media (max-width: 639px) { .avdy { height: calc(100vh - 48px - 62px - 120px); border-radius: var(--av-r-10); } }
+@media (max-width: 639px) { .avdy { height: calc(100vh - 48px - 62px - 120px); height: calc(100dvh - 48px - 62px - 120px); border-radius: var(--av-r-10); } }
 @media (prefers-reduced-motion: reduce) { .avdy *, .avdy *::before { animation: none !important; transition: none !important; } }
 
 /* Touch: 44px tap height for the diary's small buttons. */

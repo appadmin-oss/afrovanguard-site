@@ -515,3 +515,7 @@ html.av-si .avh .avh-drawer-ctas{grid-template-columns:1fr}
 /* The Studio's homepage preview (admin/preview.php): says plainly it is a draft. */
 .cms-preview-bar{position:sticky;top:0;z-index:1000;display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;align-items:center;padding:10px 16px;background:var(--av-ink);color:var(--av-white);font-size:14px;font-weight:600}
 .cms-preview-bar a{color:var(--av-gold);text-decoration:underline;text-underline-offset:3px}
+
+/* Phones: the uppercase kickers read at 11px on a desktop and not on a
+   390px screen. Everything else here already reflows; this is type only. */
+@media (max-width:639px){.avh-tag{font-size:12px}.avh-play{font-size:11px;letter-spacing:-.5px}}

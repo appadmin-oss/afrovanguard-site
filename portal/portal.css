@@ -219,9 +219,11 @@ body.portal-app .read-progress { display:none; }
 .pseg-n { font-size:11px; font-weight:700; padding:0 6px; border-radius:999px; background:var(--surface-2); color:var(--muted-2); }
 .pseg-btn.is-on .pseg-n { background:var(--gold-soft); color:var(--gold-deeper); }
 .task-add { display:flex; gap:10px; margin-bottom:14px; }
-.task-add input { flex:1; min-width:0; padding:10px 14px; border-radius:9px; border:1px solid var(--border-2);
+/* Text fields only. A bare `input` here also caught the pool checkbox, which
+   then grew to fill the row and carried 10px of padding and a border. */
+.task-add input:not([type="checkbox"]) { flex:1; min-width:0; padding:10px 14px; border-radius:9px; border:1px solid var(--border-2);
   background:var(--surface-3); font-size:14px; color:var(--ink); }
-.task-add input:focus { outline:none; border-color:var(--gold); background:var(--surface); }
+.task-add input:not([type="checkbox"]):focus { outline:none; border-color:var(--gold); background:var(--surface); }
 .task-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
 .task { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:10px; border:1px solid var(--border-2); background:var(--surface); }
 .task.is-done { background:var(--surface-3); border-color:var(--surface-2); }
@@ -261,9 +263,12 @@ body.portal-app .read-progress { display:none; }
 .task-due.is-over  { color:var(--red); background:var(--red-soft); border-color:var(--red-bd); }
 .task-due.is-today { color:var(--gold-deeper); background:var(--gold-soft); border-color:var(--gold-soft-bd); }
 .task-due.is-soon  { color:var(--indigo); background:var(--indigo-soft); border-color:var(--indigo-bd); }
-/* checkbox field in the add form */
-.task-af--check { flex-direction:row; align-items:center; gap:7px; }
-.task-af--check input { width:16px; height:16px; accent-color:var(--gold); }
+/* Checkbox field in the add form. Doubled class on purpose: the base .task-af
+   (flex-direction:column, uppercase micro-label) is declared further down this
+   file, so at equal specificity it won and the box sat above its own label. */
+.task-af.task-af--check { flex-direction:row; align-items:center; gap:7px;
+  font-size:13px; font-weight:600; letter-spacing:0; text-transform:none; color:var(--body); }
+.task-af--check input { width:18px; height:18px; accent-color:var(--gold); }
 .task-af--grow { flex:1 1 auto; min-width:180px; }
 
 /* ---------- task list: urgency group headers ---------- */
@@ -756,29 +761,6 @@ body.portal-app .read-progress { display:none; }
   .view-head { flex-wrap:wrap; gap:8px; }
 }
 
-/* Phones */
-@media (max-width:560px) {
-  .phead h1 { font-size:22px; }
-  .pcard-head { flex-wrap:wrap; gap:8px; }
-  .pcard-head .pseg { width:100%; justify-content:space-between; }
-  /* action buttons fill the row instead of wrapping awkwardly */
-  .phead-actions { width:100%; gap:8px; }
-  .phead-actions .pbtn { flex:1 1 auto; justify-content:center; }
-  /* compact top bar — drop the "Portal /" crumb prefix, keep the page name */
-  .portal-shell .ptop{ gap:8px; padding:0 14px; }
-  .portal-shell .ptop-crumb > span:first-child, .portal-shell .ptop-sep{ display:none; }
-  .portal-shell .ptop-actions{ gap:8px; }
-  /* tasks: quick-add + filters stack cleanly */
-  .task-add-meta { gap:8px; }
-  .task-add-meta .task-af { flex:1 1 44%; }
-  .task-add-meta .pbtn { margin-left:0; width:100%; }
-  .task-filters { flex-wrap:wrap; }
-  /* KPI values a touch smaller so 2-up fits comfortably */
-  .pkpi-value { font-size:22px; }
-}
-@media (max-width:380px) {
-  .pkpis { grid-template-columns:1fr 1fr; }
-}
 
 /* ============================================================
    PRODUCTIVITY — "Today" attention panel + dedicated Tasks tab
@@ -1909,6 +1891,10 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 @media (max-width:30rem) {
   .today-ask .ask-row { flex-direction:column; align-items:stretch; }
   .today-ask .ask-btns { justify-content:flex-start; }
+  /* Once the row is a column, flex-basis is a HEIGHT: the 18rem basis above
+     was rendering the one-line field 288px tall on every phone. */
+  .today-ask .pinp { flex:0 0 auto; min-height:48px; font-size:16px; }
+  .today-ask .ask-btns .pbtn { flex:1 1 auto; justify-content:center; min-height:44px; }
 }
 /* Visible to a screen reader, not to the eye. The field has a placeholder,
    and a placeholder is not a label: it disappears the moment somebody types
@@ -2016,3 +2002,47 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .tr-t { font-weight:600; overflow-wrap:anywhere; }
 .tr-m { font-size:12.5px; color:var(--muted); }
 .tr-m .is-bad { color:#b91c1c; }
+
+/* ============================================================
+   PHONE RULES LIVE AT THE END OF THIS FILE.
+   A media query adds no specificity, so a phone rule declared above a
+   base rule of equal specificity loses to it. This block used to sit at
+   line ~759 and several of its rules had been dead ever since a base
+   rule for the same single class was appended below them.
+   ============================================================ */
+/* Phones. 639px, not 560: that is where avp.css swaps in the tab bar, and a
+   single phone breakpoint is one fewer place for the two to disagree. */
+@media (max-width:639px) {
+  .phead h1 { font-size:22px; }
+  .pcard-head { flex-wrap:wrap; gap:8px; }
+  .pcard-head .pseg { width:100%; justify-content:space-between; }
+  /* action buttons fill the row instead of wrapping awkwardly */
+  .phead-actions { width:100%; gap:8px; }
+  .phead-actions .pbtn { flex:1 1 auto; justify-content:center; }
+  /* compact top bar — drop the "Portal /" crumb prefix, keep the page name */
+  .portal-shell .ptop{ gap:8px; padding:0 14px; }
+  .portal-shell .ptop-crumb > span:first-child, .portal-shell .ptop-sep{ display:none; }
+  .portal-shell .ptop-actions{ gap:8px; }
+  /* tasks: quick-add + filters stack cleanly */
+  .task-add-meta { gap:8px; }
+  .task-add-meta .task-af { flex:1 1 44%; }
+  .task-add-meta .task-af.task-af--check { flex:1 1 100%; min-height:44px; }
+  .task-add-meta .pbtn { margin-left:0; width:100%; }
+  .task-filters { flex-wrap:wrap; }
+  /* KPI values a touch smaller so 2-up fits comfortably */
+  .pkpi-value { font-size:22px; }
+
+  /* A segmented filter bar is one bar. Wrapped, five filters became two ragged
+     rows inside one pill; scrolled, they stay a row the width of the screen. */
+  .pseg, .pseg.tr-tabs { display:flex; flex-wrap:nowrap; width:100%; overflow-x:auto;
+    scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .pseg::-webkit-scrollbar, .pseg.tr-tabs::-webkit-scrollbar { display:none; }
+  .pseg-btn { flex:0 0 auto; min-height:40px; white-space:nowrap; }
+
+  /* A field label a person reads is not 11px. */
+  .task-af, .attn-sub { font-size:12px; }
+  .task-focus-cap { font-size:12px; }
+}
+@media (max-width:380px) {
+  .pkpis { grid-template-columns:1fr 1fr; }
+}
