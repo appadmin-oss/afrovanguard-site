@@ -476,60 +476,11 @@
     }
   };
 
-  /* ── The mark, for the day ────────────────────────────────────────────
-     The tab icon picks up the occasion the same way the pop-up's ring logo
-     does: the shield, with a ring in the day's colour around it. It rides
-     the celebrations request the page already makes — no extra round trip,
-     no new route — and it is painted, never fetched, so a day with no
-     holiday costs nothing at all.
-
-     Everything here is guarded. A browser without canvas, a blocked image, a
-     colour the server did not send: the <link> is left exactly as the server
-     wrote it, which is the real mark either way. */
-  function favicon(theme) {
-    if (!theme || !theme.today || !/^#[0-9a-f]{3,8}$/i.test(String(theme.theme || ''))) return;
-    if (!document.createElement('canvas').getContext) return;
-    var img = new Image();
-    img.onload = function () {
-      try {
-        var N = 64, c = document.createElement('canvas'), x = c.getContext('2d');
-        c.width = c.height = N;
-        var ring = 5, inset = ring + 1;
-        /* Clip the mark to a circle first: the artwork is a rounded SQUARE,
-           so without this its corners sit outside the ring and the day's
-           colour reads as a broken band rather than a border. */
-        x.save();
-        x.beginPath();
-        x.arc(N / 2, N / 2, (N - ring * 2) / 2, 0, Math.PI * 2);
-        x.clip();
-        x.drawImage(img, inset, inset, N - inset * 2, N - inset * 2);
-        x.restore();
-        x.lineWidth = ring;
-        x.strokeStyle = theme.theme;
-        x.beginPath();
-        x.arc(N / 2, N / 2, (N - ring) / 2, 0, Math.PI * 2);
-        x.stroke();
-        var href = c.toDataURL('image/png');
-        var link = document.querySelector('link[rel~="icon"][data-avcel-fav]');
-        if (!link) {
-          link = document.createElement('link');
-          link.rel = 'icon'; link.type = 'image/png';
-          link.setAttribute('data-avcel-fav', '');
-          document.head.appendChild(link);
-        }
-        link.href = href;
-      } catch (e) { /* a tab icon is never worth an error */ }
-    };
-    img.src = '/assets/site/av-mark.png';
-  }
-
   if (!window.fetch) return;
   fetch('/api.php?action=celebrations', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (d) {
-      if (!d) return;
-      favicon(d.theme);                       // public: a national day is not member-only
-      if (!d.celebration && !(d.theme && isMember())) return;
+      if (!d || (!d.celebration && !(d.theme && isMember()))) return;
       window.AvCel.data = d;
       var css = ensureCss();
       var go = function () { loadArt(function () { start(d); }); };
