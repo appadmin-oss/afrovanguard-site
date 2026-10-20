@@ -337,6 +337,16 @@ final class AvRules
             'label' => 'Plan a goal again after (days)',
             'help'  => 'A goal whose steps were removed is planned again after this long. A goal whose steps are all done is planned again the next day.',
         ],
+        'tasks.daily_report' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Tasks',
+            'label' => 'Daily task report',
+            'help'  => 'Each evening, coordinators and admins get the day\'s tasks in three lists — done, undone (overdue first) and unclaimed — in the portal and by email. Also on the Tasks page at any time.',
+        ],
+        'tasks.daily_report_hour' => [
+            'type' => 'int', 'default' => 18, 'min' => 0, 'max' => 23, 'group' => 'Tasks',
+            'label' => 'Daily task report: hour it is sent (Lagos time)',
+            'help'  => 'The report goes out at the first cron run after this hour, once a day.',
+        ],
         'tasks.todo_popup' => [
             'type' => 'bool', 'default' => true, 'group' => 'Tasks',
             'label' => 'To-do pop-up',

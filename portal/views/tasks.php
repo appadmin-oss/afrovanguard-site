@@ -81,6 +81,24 @@
             </div>
           </section>
 
+          <!-- The day's tasks for whoever hands out work (lib/TaskReport.php); shown by tasks.js when they may. -->
+          <section class="pcard task-report" id="taskReport" hidden>
+            <div class="pcard-head">
+              <h2>Today’s report</h2>
+              <span class="pchip pchip--gold" id="trHead">…</span>
+            </div>
+            <div class="pcard-body">
+              <div class="pseg tr-tabs" role="tablist" aria-label="Tasks today">
+                <button type="button" role="tab" class="pseg-btn is-on" aria-selected="true" data-tr="done">Done <b id="trDoneN">0</b></button>
+                <button type="button" role="tab" class="pseg-btn" aria-selected="false" data-tr="undone">Undone <b id="trUndoneN">0</b></button>
+                <button type="button" role="tab" class="pseg-btn" aria-selected="false" data-tr="unclaimed">Unclaimed <b id="trUnclaimedN">0</b></button>
+                <button type="button" role="tab" class="pseg-btn" aria-selected="false" data-tr="people">By person</button>
+              </div>
+              <ul class="tr-list" id="trList" aria-live="polite" tabindex="0" aria-label="Tasks in the chosen list"></ul>
+              <p class="pcard-note">Sent to coordinators and admins each evening too, in the portal and by email.</p>
+            </div>
+          </section>
+
           <section class="pcard" id="taskPool" data-csrf="<?= e($collabCsrf) ?>">
             <div class="pcard-head">
               <h2>Task pool</h2>

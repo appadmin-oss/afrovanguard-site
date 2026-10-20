@@ -204,6 +204,9 @@ $knownMetaKeys = [
     // the next cron tick reads them again: mirrors upsert on cac_goal_id, so
     // nothing doubles.
     'cac_goals_synced_at', 'cac_goals_last', 'cac_goals_ver', 'cac_bridge_last',
+    // The daily task report (lib/TaskReport). Reviewed: gates no migration.
+    // The day it last went out; lost, that day's report is sent once more.
+    'task_report_day',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {

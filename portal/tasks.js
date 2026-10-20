@@ -151,13 +151,31 @@
       users=users||[]; onlineEl.innerHTML = users.length ? users.map(function(u){ return '<div class="online-row"><span class="online-ava is-'+esc(u.status)+'">'+esc(u.initials)+'</span><span class="online-name">'+esc(u.name)+'</span></div>'; }).join('') : '<p class="pc-empty">Just you so far.</p>'; }
     function renderActivity(items){ items=items||[]; actEl.innerHTML = items.length ? items.map(function(a){ var obj=a.object?' <b>'+esc(a.object)+'</b>':''; var inner='<span class="act-ava" aria-hidden="true">'+esc(a.initials)+'</span><span class="act-body"><span class="act-line"><b>'+esc(a.actor)+'</b> '+esc(a.verb)+obj+'</span><span class="act-ago">'+esc(a.ago)+'</span></span>'; return '<li class="act">'+(a.url?'<a href="'+esc(a.url)+'">'+inner+'</a>':inner)+'</li>'; }).join('') : '<li class="pc-empty">No activity yet.</li>'; }
 
+    /* Today's report: done, undone, unclaimed — for whoever hands out work. */
+    var TR = null, TR_TAB = 'done', trEl = document.getElementById('taskReport');
+    function trLoad(){ if(!trEl) return; if(!ALLOCATES){ trEl.hidden = true; return; }
+      fetch('/portal/collab.php?action=task_report',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok) return; TR=d.report; trEl.hidden=false; trDraw(); }).catch(function(){}); }
+    function trDraw(){
+      if(!TR) return; var c=TR.counts;
+      document.getElementById('trHead').textContent = 'Done '+c.done+' · Undone '+c.undone+(c.overdue?' ('+c.overdue+' overdue)':'')+' · Unclaimed '+c.unclaimed;
+      document.getElementById('trDoneN').textContent=c.done; document.getElementById('trUndoneN').textContent=c.undone; document.getElementById('trUnclaimedN').textContent=c.unclaimed;
+      trEl.querySelectorAll('[data-tr]').forEach(function(b){ var on=b.getAttribute('data-tr')===TR_TAB; b.classList.toggle('is-on',on); b.setAttribute('aria-selected',on?'true':'false'); });
+      var li=function(main, meta, cls){ return '<li class="tr-item'+(cls?' '+cls:'')+'"><span class="tr-t">'+main+'</span><span class="tr-m">'+meta+'</span></li>'; }, rows='';
+      if(TR_TAB==='done') rows=TR.done.map(function(x){ return li(esc(x.title), esc(x.by)+(x.late?' · <em>late</em>':'')+(x.goal?' · ◎ '+esc(x.goal):'')); }).join('') || '<li class="pc-empty">Nothing finished yet today.</li>';
+      else if(TR_TAB==='undone') rows=TR.undone.map(function(x){ return li(esc(x.title), esc(x.who)+(x.late_days>0?' · <b class="is-bad">'+x.late_days+' day'+(x.late_days===1?'':'s')+' overdue</b>':(x.due_today?' · due today':(x.due?' · due '+esc(x.due):'')))+(x.blocked?' · blocked: '+esc(x.blocked):''), x.late_days>0?'is-late':''); }).join('') || '<li class="pc-empty">Nothing held and open.</li>';
+      else if(TR_TAB==='unclaimed') rows=TR.unclaimed.map(function(x){ return li(esc(x.title), 'in the pool '+(x.age_days===0?'since today':x.age_days+' day'+(x.age_days===1?'':'s'))+(x.priority==='high'?' · <b>high priority</b>':'')+(x.due?' · due '+esc(x.due):'')); }).join('') || '<li class="pc-empty">The pool is empty.</li>';
+      else rows=TR.people.map(function(p){ return li(esc(p.name), p.done+' done · '+p.open+' open'+(p.overdue?' · <b class="is-bad">'+p.overdue+' overdue</b>':'')); }).join('') || '<li class="pc-empty">Nobody holds a task.</li>';
+      document.getElementById('trList').innerHTML = rows;
+    }
+    if(trEl) trEl.addEventListener('click', function(e){ var b=e.target.closest('[data-tr]'); if(!b) return; TR_TAB=b.getAttribute('data-tr'); trDraw(); });
+
     /* A task taken or ticked elsewhere on the page (the to-do pop-up) shows here at once. */
     document.addEventListener('av:tasks-changed', function(){ setTimeout(load, 200); });
     function load(){ fetch('/portal/collab.php?action=bootstrap',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok) return;
         TASKS=d.tasks||[]; GOALS=d.goals||[]; ALLOCATES=!!d.allocates; CG=d.cac_goals||null; REASONS=d.handback_reasons||{}; AWAY=d.away_until||''; drawAway();
         POOL=(d.pool||[]).map(function(t){ return SUGGESTED[t.id]?Object.assign({},t,{suggest:SUGGESTED[t.id]}):t; });
         var aw=document.getElementById('aiAssignWrap'); if(aw) aw.hidden=!ALLOCATES;
-        render(); renderPool(); renderActivity(d.activity); renderOnline(d.online,d.count); fillRoster(d.roster); fillGoals();
+        render(); renderPool(); renderActivity(d.activity); renderOnline(d.online,d.count); fillRoster(d.roster); fillGoals(); trLoad();
         if(aiCard) aiCard.hidden = !d.ai;   // only show the AI planner when Claude is wired up
       }).catch(function(){}); }
 

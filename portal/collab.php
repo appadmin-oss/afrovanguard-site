@@ -123,6 +123,12 @@ try {
             if (!Collab::releaseTask($uid, (int) ($body['id'] ?? 0), (string) ($body['reason'] ?? ''))) json_out(['ok' => false, 'error' => 'Could not return this task to the pool.'], 400);
             json_out(['ok' => true, 'id' => (int) $body['id']]);
 
+        /* The day's tasks: done, undone, unclaimed — for whoever hands out work. */
+        case 'task_report':
+            if (!$allocates) json_out(['ok' => false, 'error' => 'The daily report is for whoever hands out work.'], 403);
+            $d = (string) ($_GET['day'] ?? '');
+            json_out(['ok' => true, 'report' => TaskReport::build(preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? $d : null)]);
+
         /* Away until a date: no task is given or suggested to them until then. */
         case 'task_away':
             $writeGuard();
