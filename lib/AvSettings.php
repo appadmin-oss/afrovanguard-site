@@ -1083,7 +1083,11 @@ final class AvSettings
 
     private static function testGoogleWorkspace(): array
     {
-        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::configured()) return ['ok' => false, 'detail' => 'Paste the service account key first.'];
+        if (!class_exists('GoogleWorkspace')) return ['ok' => false, 'detail' => 'Google Workspace support is not installed.'];
+        /* The reason, not "paste the key first" — a key that IS stored and
+           cannot be decrypted was being answered with an instruction the
+           operator had already followed. */
+        if (!GoogleWorkspace::configured()) return ['ok' => false, 'detail' => GoogleWorkspace::whyNotConfigured()];
         $p = GoogleWorkspace::probe();
         if (empty($p['token_ok'])) {
             return ['ok' => false, 'detail' => 'Google refused the service account: ' . (string) ($p['error'] ?? 'no reason given')
@@ -1101,14 +1105,29 @@ final class AvSettings
            domain-wide delegation fails only when its feature runs, so this used to say ✓
            while scheduling and Meet were refused. */
         $missing = [];
+        $unchecked = [];
         foreach ((array) ($p['scopes'] ?? []) as $scope => $why) {
-            if ((string) $why !== '') $missing[] = (GoogleWorkspace::DELEGATED_SCOPES[$scope] ?? $scope);
+            $why = (string) $why;
+            if ($why === '') continue;
+            /* Out of time is not the same as refused, and saying so matters:
+               one sends somebody to the Google Admin console, the other to
+               press the button again. */
+            if ($why === GoogleWorkspace::SCOPE_UNCHECKED) { $unchecked[] = (GoogleWorkspace::DELEGATED_SCOPES[$scope] ?? $scope); continue; }
+            $missing[] = (GoogleWorkspace::DELEGATED_SCOPES[$scope] ?? $scope);
+        }
+        if ($unchecked) {
+            $bits[] = count($unchecked) . ' scope' . (count($unchecked) === 1 ? '' : 's')
+                . ' not checked — the test ran out of time before reaching them ('
+                . implode(', ', $unchecked) . '). What is above is accurate; press Test again to carry on.';
         }
         if ($missing) {
             $bits[] = 'not granted: ' . implode(', ', $missing) . '. In the Google Admin console → Security → API controls → Domain-wide delegation, edit client ID '
                 . (string) ($p['client_id'] ?? '') . ' and set its scopes to exactly: ' . GoogleWorkspace::delegationLine();
         }
-        return ['ok' => !$bad && !$missing, 'detail' => implode(' · ', $bits)];
+        /* Unchecked scopes are not a pass: the answer is incomplete, and
+           saying ✓ to an incomplete answer is how a missing scope reaches
+           production. */
+        return ['ok' => !$bad && !$missing && !$unchecked, 'detail' => implode(' · ', $bits)];
     }
 
     /**

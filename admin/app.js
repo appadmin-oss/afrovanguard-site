@@ -1874,13 +1874,43 @@
     var what = b.getAttribute('data-what');
     var out = $('#stout_' + what);
     b.disabled = true; if (out) { out.className = 'setup-test-out'; out.textContent = 'testing…'; }
+
+    /* The server bounds its own work, but a request can still be left hanging
+       by something between here and it — a proxy holding the socket open long
+       after PHP has gone. Without this the button sat on "testing…" with no
+       answer ever arriving, which reads as the test being broken rather than
+       slow. 45s is comfortably past the server's own budget. */
+    var settled = false;
+    var giveUp = setTimeout(function () {
+      if (settled) return;
+      settled = true;
+      b.disabled = false;
+      if (out) {
+        out.className = 'setup-test-out is-bad';
+        out.textContent = '✗ No answer after 45 seconds. The request did not come back — '
+          + 'check System → health for what is reachable from this server.';
+      }
+    }, 45000);
+
     post('setup_test', { what: what }).then(function (r) {
+      if (settled) return; settled = true; clearTimeout(giveUp);
       b.disabled = false;
       var d = r.data || {};
       if (!out) return;
       out.className = 'setup-test-out ' + (d.ok ? 'is-ok' : 'is-bad');
       out.textContent = (d.ok ? '✓ ' : '✗ ') + (d.detail || '') + (d.ms != null ? ' (' + d.ms + 'ms)' : '');
-    }).catch(function () { b.disabled = false; if (out) { out.className = 'setup-test-out is-bad'; out.textContent = 'The test failed.'; } });
+    }).catch(function (e) {
+      if (settled) return; settled = true; clearTimeout(giveUp);
+      b.disabled = false;
+      if (out) {
+        out.className = 'setup-test-out is-bad';
+        /* Say which failure it was. "The test failed" covered a refusal, a
+           timeout and a page of HTML from a dead PHP process alike. */
+        out.textContent = '✗ The test could not be completed — '
+          + ((e && e.message) ? e.message : 'the server sent no usable answer')
+          + '. If this was a long wait, the server ran out of time talking to Google.';
+      }
+    });
   });
 
   /* ============================================================
