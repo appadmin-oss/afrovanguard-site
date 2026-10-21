@@ -232,10 +232,28 @@ final class GoogleWorkspace
     private static function http(string $method, string $url, ?string $bearer, ?string $postBody = null, ?string $jsonBody = null): ?array
     {
         if (!function_exists('curl_init')) return null;
+
+        /* A call must fit inside whatever budget the caller set, and a host
+           that accepts nothing must not cost the full timeout. probe() makes
+           sixteen of these in a row: at 15s each with no connect timeout that
+           is four minutes, against a shared host that stops the request at
+           thirty seconds — so the Studio's test button returned nothing at
+           all, which is not a result anybody can act on. */
+        $timeout = 15;
+        if (self::$deadline !== null) {
+            $left = self::$deadline - microtime(true);
+            if ($left <= 0.5) {
+                self::$lastError = 'ran out of time before this call could be made';
+                return null;
+            }
+            $timeout = max(1, (int) floor(min(15, $left)));
+        }
+
         $ch = curl_init($url);
         $headers = ['Accept: application/json'];
         if ($bearer) $headers[] = 'Authorization: Bearer ' . $bearer;
-        $opt = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => &$headers];
+        $opt = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $timeout,
+                CURLOPT_CONNECTTIMEOUT => min(5, $timeout), CURLOPT_HTTPHEADER => &$headers];
         if ($jsonBody !== null) {
             $headers[] = 'Content-Type: application/json';
             $opt[CURLOPT_CUSTOMREQUEST] = $method;
@@ -1142,12 +1160,23 @@ final class GoogleWorkspace
      *
      * @return array<string,string>
      */
+    /** Marks a scope the probe had no time to test — not a refusal. */
+    public const SCOPE_UNCHECKED = '~unchecked~';
+
     public static function scopeCheck(?string $asUser = null): array
     {
         $who = $asUser ?: self::subject();
         if (!self::configured() || $who === '') return [];
         $out = [];
         foreach (array_keys(self::DELEGATED_SCOPES) as $scope) {
+            /* Eleven scopes, one token exchange each. Out of time, the rest
+               are reported UNCHECKED rather than refused: "refused" sends
+               somebody to the Admin console to fix a delegation that may be
+               perfectly fine. */
+            if (self::$deadline !== null && microtime(true) >= self::$deadline - 0.5) {
+                $out[$scope] = self::SCOPE_UNCHECKED;
+                continue;
+            }
             self::$lastError = '';
             $out[$scope] = self::accessToken($scope, false, $who) !== null ? '' : (self::$lastError ?: 'refused');
         }
@@ -1164,10 +1193,32 @@ final class GoogleWorkspace
      * Connectivity probe for the Studio → System page. Reports what actually
      * works against live Google, without leaking tokens.
      */
-    public static function probe(): array
+    /** Set by probe() so one press of the test button cannot outlive the request. */
+    private static ?float $deadline = null;
+
+    /** Seconds this probe may spend, leaving the host room to send the answer. */
+    public static function probeBudget(): float
+    {
+        $limit = (int) ini_get('max_execution_time');
+        if ($limit <= 0) $limit = 30;              // 0 means no limit (CLI); assume a shared host's 30
+
+        return max(5.0, min(20.0, $limit * 0.6));  // 60%, so there is always time to render JSON
+    }
+
+    public static function probe(?float $budget = null): array
     {
         if (!self::configured()) return ['configured' => false];
         self::$lastError = '';
+        self::$deadline = microtime(true) + ($budget ?? self::probeBudget());
+        try {
+            return self::probeInner();
+        } finally {
+            self::$deadline = null;
+        }
+    }
+
+    private static function probeInner(): array
+    {
         $tok = self::accessToken(self::SCOPE_CALENDAR, self::subject() !== '');
         $err = self::$lastError;
         /* Each step reports its OWN error: a 0 beside an error is a failure,
