@@ -124,6 +124,42 @@ Database::pdo()->prepare("DELETE FROM av_settings WHERE setting_key = 'AV_GDRIVE
 AvSettings::flush();
 AvSettings::apply();
 
+/* ── a key put in config.php ──────────────────────────────────────────── */
+
+$saArr = json_decode($sa, true);
+/* The JSON written inside double quotes: PHP turned each \n in the private
+   key into a real line break, which JSON forbids. */
+$dq = str_replace('\n', "\n", $sa);
+ck('workspace: config.php: the JSON in double quotes is still read',
+   json_decode($dq, true) === null && (GoogleWorkspace::parseKey($dq)['private_key'] ?? '') === $saArr['private_key']);
+ck('workspace: config.php: a PHP array is read as the key', GoogleWorkspace::parseKey($saArr) !== null);
+ck('workspace: config.php: half a file is still refused', GoogleWorkspace::parseKey('{"type":"service_account"') === null);
+
+$cfgDir = sys_get_temp_dir() . '/av-gwcfg-' . getmypid();
+@mkdir($cfgDir, 0775, true);
+$cfgCase = static function (string $src) use ($cfgDir): string {
+    file_put_contents("$cfgDir/config.php", $src);
+    GoogleWorkspace::$configPath = "$cfgDir/config.php";
+    $f = GoogleWorkspace::configFileFinding();
+    GoogleWorkspace::$configPath = null;
+    return $f;
+};
+$tpl = "<?php\n/* Drive */\ndefine('AV_GDRIVE_SERVICE_ACCOUNT', getenv('AV_GDRIVE_SERVICE_ACCOUNT') ?: '');\n";
+$f = $cfgCase($tpl . "\n\ndefine('AV_GDRIVE_SERVICE_ACCOUNT', '" . $sa . "');\n");
+ck('workspace: config.php: a key defined after the template line is named, with both lines',
+   str_contains($f, '2 times (lines 3, 6)') && str_contains($f, 'keeps only the FIRST'));
+ck('workspace: config.php: and the finding never prints the key',
+   !str_contains($f, 'PRIVATE KEY') && !str_contains($f, 'gserviceaccount'));
+ck('workspace: config.php: the template line left empty is named',
+   str_contains($cfgCase($tpl), "line 3, but its value is empty"));
+ck('workspace: config.php: a key under another name is named',
+   str_contains($cfgCase("<?php\ndefine('GOOGLE_SERVICE_ACCOUNT', '" . $sa . "');\n"), 'under GOOGLE_SERVICE_ACCOUNT (line 2)'));
+ck('workspace: config.php: a key in a variable is named',
+   str_contains($cfgCase("<?php\n\$serviceAccount = '" . $sa . "';\n"), 'variable $serviceAccount'));
+ck('workspace: config.php: a config without the key says nothing',
+   $cfgCase("<?php\ndefine('SITE_URL', 'x');\n") === '');
+@unlink("$cfgDir/config.php"); @rmdir($cfgDir);
+
 $js = (string) file_get_contents(dirname(__DIR__) . '/admin/app.js');
 ck('workspace: the Save button does not say "Saved." for a request the server refused',
    str_contains($js, "'Not saved — '") && str_contains($js, "'Nothing was saved.'"));

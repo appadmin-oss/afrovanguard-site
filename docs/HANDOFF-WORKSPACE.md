@@ -385,3 +385,30 @@ key and press Save, then read the message beside the button. If it says
 "Not saved — …", the reason is printed. If it says "Saved.", the key is in
 the database and reads back. Then press Test Google Workspace: a failure
 there is delegation or egress (§4.5), not configuration.
+
+## 10. The key is in config.php, not the Studio — 2026-10-21
+
+The operator confirmed the key was added to **config.php**. §4 assumed a
+Studio paste throughout. Two config.php mistakes both end in "not set up",
+and both were reproduced here:
+
+1. **Defined twice.** `config.example.php` already carries
+   `define('AV_GDRIVE_SERVICE_ACCOUNT', getenv(…) ?: '');`. A second
+   `define(...)` further down is ignored (PHP keeps the first), so the
+   constant is `''` while the key sits plainly in the file.
+2. **The JSON in double quotes.** PHP turns each `\n` in `private_key` into a
+   real line break; `json_decode()` refuses it ("Control character error").
+
+Now:
+
+- `GoogleWorkspace::parseKey()` (also used by `lib/Drive.php`) reads the
+  double-quoted form by escaping line breaks inside string values only, and
+  accepts a PHP array.
+- `GoogleWorkspace::configFileFinding()` reads config.php's **source** and
+  names, by line number and never by value: a key defined more than once, the
+  template line left empty, a key under another constant name, or one put in
+  a `$variable`; and says when config.php was not loaded at all.
+  `whyNotConfigured()` asks it first, so the Studio banner, System health and
+  the Test button all say it.
+
+Tests: nine more in `tests/gwssetup.test.php`.

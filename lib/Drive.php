@@ -39,6 +39,7 @@ final class Drive
     /** Parse the service-account JSON (raw or a file path). Returns null if absent/invalid. */
     private static function credentials(): ?array
     {
+        if (class_exists('GoogleWorkspace')) return GoogleWorkspace::parseKey(class_exists('Config') ? Config::get('AV_GDRIVE_SERVICE_ACCOUNT', '') : '');
         $v = self::cfg('AV_GDRIVE_SERVICE_ACCOUNT');
         if ($v === '') return null;
         $json = (str_starts_with(ltrim($v), '{')) ? $v : (is_file($v) ? (string) @file_get_contents($v) : '');

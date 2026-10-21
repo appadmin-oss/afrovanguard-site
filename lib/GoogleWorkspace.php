@@ -137,7 +137,14 @@ final class GoogleWorkspace
         /* Stored as a path rather than pasted JSON — a deployment that
            points at a file the web user cannot read says nothing at all
            otherwise. */
-        $raw = trim((string) Config::get('AV_GDRIVE_SERVICE_ACCOUNT', ''));
+        /* config.php, read for what it says rather than for what PHP made of
+           it: a key defined twice, or under another name, is right there in
+           the file and invisible to everything that asks the constant. */
+        $inFile = self::configFileFinding();
+        if ($inFile !== '') return $inFile;
+
+        $got = Config::get('AV_GDRIVE_SERVICE_ACCOUNT', '');
+        $raw = is_array($got) ? '{' : trim((string) $got);
         if ($raw !== '' && !str_starts_with($raw, '{')) {
             return is_file($raw)
                 ? 'The Google Workspace key points at '.$raw.', which this site cannot read. '
@@ -183,11 +190,92 @@ final class GoogleWorkspace
 
     private static function credentials(): ?array
     {
-        $v = (string) Config::get('AV_GDRIVE_SERVICE_ACCOUNT', '');
-        if ($v === '') return null;
-        $json = str_starts_with(ltrim($v), '{') ? $v : (is_file($v) ? (string) @file_get_contents($v) : '');
-        $c = json_decode($json, true);
+        return self::parseKey(Config::get('AV_GDRIVE_SERVICE_ACCOUNT', ''));
+    }
+
+    /**
+     * A service-account key as config.php, the environment or the Studio hold it:
+     * the JSON itself, a path to the file, or (in config.php) a PHP array.
+     * Shared with lib/Drive.php, so both read a key the same way.
+     *
+     * One repair, and only one: the JSON written into config.php inside DOUBLE
+     * quotes. PHP turns every \n in the private key into a real line break,
+     * which JSON forbids, so the key was correct and unreadable. Line breaks
+     * inside string values are put back as \n; nothing else is changed.
+     */
+    public static function parseKey($v): ?array
+    {
+        if (is_array($v)) {
+            $c = $v;
+        } else {
+            $v = trim((string) $v);
+            if ($v === '') return null;
+            $json = str_starts_with($v, '{') ? $v : (is_file($v) ? (string) @file_get_contents($v) : '');
+            $c = json_decode($json, true);
+            if (!is_array($c) && $json !== '') {
+                $fixed = preg_replace_callback('/"(?:[^"\\\\]|\\\\.)*"/s',
+                    static fn ($m) => str_replace(["\r\n", "\r", "\n", "\t"], ['\n', '\n', '\n', '\t'], $m[0]), $json);
+                $c = is_string($fixed) ? json_decode($fixed, true) : null;
+            }
+        }
+
         return (is_array($c) && !empty($c['client_email']) && !empty($c['private_key'])) ? $c : null;
+    }
+
+    /** Tests point this at a sample config.php; null reads the site's own. */
+    public static ?string $configPath = null;
+
+    /**
+     * What is wrong with the key in config.php, read from the file's SOURCE —
+     * names and line numbers only, never a value. '' when config.php is not
+     * the explanation.
+     *
+     * The common mistake is invisible at runtime: config.example.php already
+     * has define('AV_GDRIVE_SERVICE_ACCOUNT', getenv(…) ?: ''), so a key
+     * defined again further down is ignored — PHP keeps the first definition,
+     * the empty one — and the site says "not set up" to somebody looking at the
+     * key in the file.
+     */
+    public static function configFileFinding(): string
+    {
+        $state = self::$configPath !== null || !function_exists('av_config_state')
+            ? ['present' => true, 'loaded' => true, 'reason' => ''] : av_config_state();
+        $file = self::$configPath ?? ((defined('AV_ROOT') ? AV_ROOT : dirname(__DIR__)) . '/config.php');
+        if (empty($state['present'])) return '';
+        if (empty($state['loaded'])) {
+            return 'config.php was not read at all on this request (' . (string) $state['reason'] . '), so nothing in it — the key included — applies.';
+        }
+        $src = (string) @file_get_contents($file);
+        if ($src === '') return '';
+        $line = static fn (int $off): int => substr_count(substr($src, 0, $off), "\n") + 1;
+
+        preg_match_all('/define\s*\(\s*[\'"]AV_GDRIVE_SERVICE_ACCOUNT[\'"]/', $src, $m, PREG_OFFSET_CAPTURE);
+        $at = array_map(static fn ($x) => $line((int) $x[1]), $m[0]);
+        if (count($at) > 1) {
+            return 'config.php defines AV_GDRIVE_SERVICE_ACCOUNT ' . count($at) . ' times (lines ' . implode(', ', $at) . '). '
+                . 'PHP keeps only the FIRST, on line ' . $at[0] . ', and ignores the rest — so if your key is on a later line, '
+                . 'it is never used. Put the key on line ' . $at[0] . ' in place of the empty value, and delete the other definitions.';
+        }
+        if (count($at) === 1) {
+            $raw = defined('AV_GDRIVE_SERVICE_ACCOUNT') ? constant('AV_GDRIVE_SERVICE_ACCOUNT') : null;
+            if ($raw === '' || $raw === null) {
+                return 'config.php defines AV_GDRIVE_SERVICE_ACCOUNT on line ' . $at[0] . ', but its value is empty here. '
+                    . 'If that is the template line, define(\'AV_GDRIVE_SERVICE_ACCOUNT\', getenv(…) ?: \'\'), the key goes in place '
+                    . 'of the final \'\' — in single quotes, pasted whole.';
+            }
+        }
+        if (!$at) {
+            if (preg_match('/^\s*\$(\w+)\s*=[^;]*service_account/mi', $src, $v, PREG_OFFSET_CAPTURE)) {
+                return 'config.php puts a service account key in the variable $' . $v[1][0] . ' (line ' . $line((int) $v[0][1])
+                    . '), but the site reads the constant AV_GDRIVE_SERVICE_ACCOUNT. Use define(\'AV_GDRIVE_SERVICE_ACCOUNT\', \'…the JSON…\');';
+            }
+            if (preg_match('/define\s*\(\s*[\'"](\w+)[\'"]\s*,[^;]*service_account/i', $src, $v, PREG_OFFSET_CAPTURE)) {
+                return 'config.php has a service account key under ' . $v[1][0] . ' (line ' . $line((int) $v[0][1])
+                    . '), but the site reads AV_GDRIVE_SERVICE_ACCOUNT. Rename it to that.';
+            }
+        }
+
+        return '';
     }
 
     /** Admin to impersonate for delegated APIs (Directory). */
