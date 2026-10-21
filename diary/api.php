@@ -258,6 +258,12 @@ try {
                 : $f->unfollow((string) ($body['author'] ?? ''), $email);
             json_out($res, $res['ok'] ? 200 : 422);
         }
+        case 'reply.mute': {
+            // The "stop these" link in every reply email: one click, no sign-in.
+            $ok = (new DiaryRepository())->muteRepliesByToken((string) ($_GET['t'] ?? ''));
+            header('Location: ' . diary_url($ok ? '?muted=1' : ''), true, 302);
+            exit;
+        }
         case 'follow.stop': {
             // The link in every follow email: one click, no sign-in.
             $author = (new DiaryFollows())->stopByToken((string) ($_GET['t'] ?? ''));

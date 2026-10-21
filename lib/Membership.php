@@ -247,7 +247,46 @@ final class Membership
             $months . ' month' . ($months === 1 ? '' : 's') . ' → ' . substr($expires, 0, 10)
             . ($amount > 0 ? ' · ₦' . number_format($amount) . ' by ' . $method . ' (' . $ref . ')' : ' · ' . ($source === 'waiver' ? 'waived' : 'no payment'))
             . ($note !== '' ? ' · ' . $note : ''), $actor);
+        /* modules/EMAILS.md: dues_receipt — only where money actually
+           changed hands. A waiver and a courtesy month are not receipts, and
+           sending one would put a figure in somebody's inbox that nobody
+           paid. */
+        if ($amount > 0) self::duesReceipt($userId, $amount, $method, $ref, $months, $expires);
         return ['ok' => true, 'expires_at' => $expires, 'reference' => $ref ?: null, 'membership' => self::summary($userId)];
+    }
+
+    /**
+     * The receipt for dues taken in person or by transfer.
+     *
+     * items[] is one line here — membership for N months. The template takes
+     * a list because a payment can cover dues AND a training fee in one go;
+     * when that path exists it adds a second line rather than a second email.
+     * Best-effort: a receipt that fails to send never un-does the membership
+     * that was just granted and recorded.
+     */
+    private static function duesReceipt(int $userId, int $amount, string $method, string $ref, int $months, string $expires): void
+    {
+        if (!class_exists('Mailer') || !method_exists('Mailer', 'sendTemplate')) return;
+        try {
+            $email = self::email($userId);
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+            $st = Database::pdo()->prepare('SELECT name FROM lms_users WHERE id = ?');
+            $st->execute([$userId]);
+            $name = (string) ($st->fetchColumn() ?: '');
+            $money = '₦' . number_format($amount);
+            $label = 'Membership dues · ' . $months . ' month' . ($months === 1 ? '' : 's');
+            $site  = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '';
+            Mailer::sendTemplate($email, 'dues_receipt', [
+                'first_name'  => explode(' ', trim($name))[0] ?: 'there',
+                'items'       => [['label' => $label, 'amount' => $money]],
+                'total'       => $money,
+                'receipt_no'  => $ref !== '' ? $ref : 'AVD-' . date('y-m-') . str_pad((string) $userId, 4, '0', STR_PAD_LEFT),
+                'paid_on'     => date('j M Y'),
+                'method'      => ucfirst($method),
+                'period'      => 'Paid through ' . date('j M Y', strtotime($expires) ?: time()),
+                'receipt_url' => $site . '/portal/#membership',
+            ]);
+        } catch (Throwable $e) { error_log('[membership] dues receipt: ' . $e->getMessage()); }
     }
 
     /** A membership that does not expire. A reason is required: it is a gift of every future year's dues. */

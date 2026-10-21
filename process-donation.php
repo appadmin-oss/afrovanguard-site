@@ -269,6 +269,20 @@ function esc($v): string {
 /* ═══════════════════════════════════════════════════════════
    EMAIL
    ═══════════════════════════════════════════════════════════ */
+/* The designed templates own their own subject line, so this is mail_send
+   with the subject taken out and the template put in. Same donations@ sender,
+   same Mailer roads. */
+function mail_send_tpl(string $to, array $spec): bool {
+    if (!ENABLE_EMAIL_NOTIFICATIONS) return true;
+    if (!class_exists('Mailer') || !method_exists('Mailer', 'sendTemplate')) return false;
+    $dfrom = defined('DONATIONS_FROM_EMAIL') && DONATIONS_FROM_EMAIL !== '' ? DONATIONS_FROM_EMAIL : 'donations@afrovanguard.org.ng';
+    $dname = defined('DONATIONS_FROM_NAME') && DONATIONS_FROM_NAME !== '' ? DONATIONS_FROM_NAME : (defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard');
+    [$tpl, $vars] = $spec;
+    $ok = Mailer::sendTemplate($to, $tpl, $vars, ['from' => $dfrom, 'fromName' => $dname, 'replyTo' => $dfrom]);
+    if (!$ok) error_log('[AV] donation mail to ' . $to . ': ' . (method_exists('Mailer', 'lastError') ? Mailer::lastError() : 'send failed'));
+    return $ok;
+}
+
 function mail_send(string $to, string $sub, string $html): bool {
     if (!ENABLE_EMAIL_NOTIFICATIONS) return true;
     // Deliver through the one shared Mailer: PHPMailer over authenticated SMTP
@@ -316,31 +330,22 @@ function mail_send(string $to, string $sub, string $html): bool {
    They use the shared template now — one look across every message the site
    sends, inline styles, the mark at the foot. */
 
-function receiptHtml(array $d): string {
-    $sym  = $d['currency'] ?? 'NGN';
-    $amt  = $sym . ' ' . number_format((float) ($d['amount'] ?? 0), 2);
-    $name = trim(($d['firstName'] ?? '') . ' ' . ($d['lastName'] ?? ''));
-    return Mailer::shell(
-        'Thank you for your gift',
+/* modules/EMAILS.md: donation_receipt. Display-ready strings only — the
+   template escapes, so nothing here is pre-escaped. */
+function receiptHtml(array $d): array {
+    $sym = (string) ($d['currency'] ?? 'NGN');
+    return [
+        'donation_receipt',
         [
-            '<strong>Vanguard ' . esc($name) . ',</strong>',
-            "Your donation to Afrovanguard is confirmed. You're directly empowering young African leaders through mentorship, creative arts, technology training, and community projects across Nigeria and 14 nations.",
-            Mailer::facts([
-                ['Amount donated', $amt],
-                ['Reference',      $d['reference'] ?? '—'],
-                ['Campaign',       $d['campaign'] ?? 'General Fund'],
-                ['Frequency',      $d['frequency'] ?? 'One-time'],
-                ['Date & time',    date('F j, Y \a\t g:i A T')],
-            ]),
-            '<strong>Your impact</strong>',
-            "100% of your gift funds programs — zero admin fees. You'll receive quarterly impact reports showing your donation in action: School Storm campus tours, Street-To-Stardom creative arts, Techome equipment drives, and more.",
-            'Questions? <a href="mailto:donations@afrovanguard.org.ng" style="color:#8A6406;text-decoration:underline">donations@afrovanguard.org.ng</a>',
-            'With gratitude,<br><strong>The Afrovanguard Team</strong>',
+            'first_name'  => trim((string) ($d['firstName'] ?? '')) ?: 'friend',
+            'amount'      => ($sym === 'NGN' ? '₦' : $sym . ' ') . number_format((float) ($d['amount'] ?? 0), 2),
+            'receipt_no'  => (string) ($d['reference'] ?? '—'),
+            'paid_on'     => date('j M Y'),
+            'method'      => (string) ($d['method'] ?? 'Card · Paystack'),
+            'designation' => (string) ($d['campaign'] ?? 'Where most needed'),
+            'receipt_url' => 'https://afrovanguard.org.ng/give/receipt/' . rawurlencode((string) ($d['reference'] ?? '')),
         ],
-        ['text' => 'See our projects', 'url' => 'https://afrovanguard.org.ng/projects/'],
-        'Your gift of ' . $amt . ' is confirmed.',
-        ['eyebrow' => 'Donation receipt', 'note' => 'You received this because you donated to Afrovanguard.']
-    );
+    ];
 }
 
 function bankHtml(array $d): string {
@@ -832,7 +837,7 @@ if ($action==='record_donation') {
     $done   = !$stored;
     if (!$done) {
         if ($email) {
-            mail_send($email,'Thank You for Your Donation to Afrovanguard 🎉',receiptHtml([
+            mail_send_tpl($email,receiptHtml([
                 'firstName'=>$fn,'lastName'=>$ln,'email'=>$email,
                 'amount'=>$amount,'currency'=>$currency,
                 'campaign'=>ucwords(str_replace(['-','_'],' ',$camp)),
@@ -920,7 +925,7 @@ if ($action==='record_bank_transfer') {
     ];
     storeDonationIfNew($ref,$bt_entry,$amount,$camp,'NGN');
     $p=explode(' ',$name,2);
-    mail_send($email,'Your Afrovanguard Donation is Confirmed 🎉',receiptHtml([
+    mail_send_tpl($email,receiptHtml([
         'firstName'=>$p[0],'lastName'=>$p[1]??'','email'=>$email,
         'amount'=>$amount,'currency'=>'NGN',
         'campaign'=>ucwords(str_replace(['-','_'],' ',$camp)),

@@ -147,6 +147,13 @@ final class LmsRepository
     /** Can this (maybe-null) user open this lesson? */
     public function canAccess(?array $user, array $course, array $lesson): bool
     {
+        /* A scheduled lesson is shut until its date, whoever is asking —
+           otherwise "available_at" is a label on a door that is not locked,
+           and the email announcing the unlock arrives after the fact. Staff
+           are exempt below, because somebody has to check it before it
+           opens. */
+        if (class_exists('LmsDrip') && !LmsDrip::lessonOpen($lesson)
+            && !($user && LmsAuth::canTeach($user))) return false;
         if (!empty($lesson['is_preview'])) return true;             // previews always open
         $access = $course['access_type'] ?? 'open';
         if ($access === 'open') return true;                        // open courses: all lessons free

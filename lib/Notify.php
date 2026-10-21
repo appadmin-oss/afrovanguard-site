@@ -72,38 +72,32 @@ final class Notify
         });
     }
 
+    /* modules/EMAILS.md: welcome — sent when membership is confirmed. */
     public static function welcome(array $user): void
     {
         self::safe(function () use ($user) {
-            $name = self::first((string) $user['name']);
-            $html = Mailer::shell(
-                'Welcome to Afrovanguard, ' . $name,
-                [
-                    'Your free Afrovanguard account is ready. You can now enrol in programmes, track your progress lesson by lesson, take knowledge checks and earn verifiable certificates.',
-                    'Start with our open programmes — no payment needed — and pick up exactly where you leave off, on any device.',
-                ],
-                ['text' => 'Explore programmes', 'url' => academy_url('')],
-                'Your Afrovanguard account is ready.'
-            );
-            Mailer::send((string) $user['email'], 'Welcome to Afrovanguard', $html);
+            Mailer::sendTemplate((string) $user['email'], 'welcome', [
+                'first_name' => self::first((string) $user['name']),
+                'member_id'  => (string) ($user['member_ref'] ?? $user['ref'] ?? $user['id'] ?? ''),
+                'joined_on'  => date('j M Y', strtotime((string) ($user['created_at'] ?? 'now')) ?: time()),
+                'chapter'    => (string) ($user['chapter'] ?? 'Alimosho'),
+                'portal_url' => (defined('SITE_URL') ? rtrim(SITE_URL, '/') : '') . '/portal/',
+            ]);
         });
     }
 
+    /* modules/EMAILS.md: academy_enrolled — card frame, no illustration. */
     public static function enrolled(array $user, array $course): void
     {
         self::safe(function () use ($user, $course) {
-            $name = self::first((string) $user['name']);
-            $url  = academy_url($course['slug'] . '/learn/');
-            $html = Mailer::shell(
-                'You’re enrolled in ' . $course['title'],
-                [
-                    'Hi ' . $name . ', your place in <strong>' . htmlspecialchars($course['title']) . '</strong> is confirmed. Every lesson, quiz and your certificate are now unlocked.',
-                    'Learn at your own pace — your progress is saved automatically as you go.',
-                ],
-                ['text' => 'Start learning', 'url' => $url],
-                'Your enrolment in ' . $course['title'] . ' is confirmed.'
-            );
-            Mailer::send((string) $user['email'], 'You’re enrolled — ' . $course['title'], $html);
+            Mailer::sendTemplate((string) $user['email'], 'academy_enrolled', [
+                'first_name'    => self::first((string) $user['name']),
+                'course_title'  => (string) $course['title'],
+                'course_url'    => academy_url($course['slug'] . '/learn/'),
+                'course_length' => (string) ($course['length_label'] ?? $course['duration'] ?? 'Self-paced'),
+                'lessons_count' => (string) ($course['lessons_count'] ?? $course['lessons'] ?? ''),
+                'starts_on'     => (string) ($course['starts_on'] ?? 'Today'),
+            ]);
         });
     }
 
@@ -124,17 +118,49 @@ final class Notify
         });
     }
 
+    /**
+     * modules/EMAILS.md: academy_quiz_passed — on a pass only.
+     *
+     * §4 is explicit that there is no email on a fail, which is the right
+     * call and worth keeping deliberately: a knowledge check you can retake
+     * is not news, and mailing somebody their failure is how people stop
+     * taking the checks at all.
+     */
+    public static function quizPassed(array $user, array $lesson, array $result, string $nextUrl): void
+    {
+        self::safe(function () use ($user, $lesson, $result, $nextUrl) {
+            if (empty($result['passed'])) return;
+            Mailer::sendTemplate((string) $user['email'], 'academy_quiz_passed', [
+                'first_name' => self::first((string) $user['name']),
+                'quiz_title' => (string) ($lesson['title'] ?? 'Knowledge check'),
+                'score'      => (int) ($result['score'] ?? 0) . '%',
+                'pass_mark'  => (int) ($result['pass'] ?? 70) . '%',
+                'next_url'   => $nextUrl,
+            ]);
+        });
+    }
+
+    /* modules/EMAILS.md: academy_certificate — card frame, no illustration.
+       The serial is the certificate id the public verify page checks, so the
+       email carries the same one rather than a second reference. */
     public static function completed(array $user, array $course, ?string $certUrl): void
     {
         self::safe(function () use ($user, $course, $certUrl) {
-            $name = self::first((string) $user['name']);
-            $rows = [
-                'Congratulations, ' . $name . '! You’ve completed <strong>' . htmlspecialchars($course['title']) . '</strong> — every lesson done.',
-                'Your certificate of completion is ready to view, download and share.',
-            ];
-            $cta = $certUrl ? ['text' => 'Get your certificate', 'url' => $certUrl] : ['text' => 'Back to the programme', 'url' => academy_url($course['slug'] . '/')];
-            $html = Mailer::shell('You completed ' . $course['title'] . ' 🎓', $rows, $cta, 'Your certificate is ready.');
-            Mailer::send((string) $user['email'], 'Certificate ready — ' . $course['title'], $html);
+            $serial = '';
+            try {
+                $c = (new LmsRepository())->getCertificate((int) $user['id'], (int) $course['id']);
+                $serial = (string) ($c['serial'] ?? '');
+            } catch (\Throwable $e) { /* the email still goes without it */ }
+            $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : '';
+            Mailer::sendTemplate((string) $user['email'], 'academy_certificate', [
+                'first_name'      => self::first((string) $user['name']),
+                'course_title'    => (string) $course['title'],
+                'completed_on'    => date('j M Y'),
+                'certificate_id'  => $serial,
+                'certificate_url' => (string) ($certUrl ?: academy_url($course['slug'] . '/certificate')),
+                'verify_url'      => $serial !== '' ? $site . '/academy/verify.php?id=' . rawurlencode($serial)
+                                                    : $site . '/academy/verify.php',
+            ]);
         });
     }
 }

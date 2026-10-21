@@ -477,6 +477,13 @@ final class Mentorship
             $db->prepare('INSERT INTO mentor_profiles (user_id, headline, bio, focus, capacity, accepting, segment, approval, source, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
                ->execute([$uid, $headline, $bio, $focus, $capacity, $accepting, $segment, $approval, 'applied', $now, $now]);
             if (class_exists('Events')) { try { Events::emit('mentor.joined', ['user_id' => $uid, 'headline' => $headline, 'segment' => $segment, 'approval' => $approval]); } catch (Throwable $e) {} }
+            /* modules/EMAILS.md: mentor_application_received. Only for an
+               application that is actually waiting on somebody — an external
+               mentor is approved on the spot and gets mentor_approved below
+               instead, so this would tell them to wait for a decision that
+               has already been made. */
+            if ($approval === 'pending') self::applicationEmail($uid, $now);
+            else self::approvedEmail($uid);
         }
         return ['ok' => true, 'profile' => self::profile($uid)];
     }
@@ -1621,8 +1628,18 @@ final class Mentorship
         if (!in_array($status, ['pending', 'approved', 'declined'], true)) return false;
         $accepting = $status === 'approved' ? null : 0; // declining/parking stops new requests
         $db = Database::pdo();
+        /* Read the old value first: this is an undo primitive as well as the
+           admin action, so it is called with the status a profile already
+           has. Mailing on the TRANSITION means an undo-redo does not tell a
+           mentor twice that they have been approved. */
+        $was = '';
+        try {
+            $q = $db->prepare('SELECT approval FROM mentor_profiles WHERE user_id = ?');
+            $q->execute([$uid]); $was = (string) $q->fetchColumn();
+        } catch (Throwable $e) { /* fall through; worst case is no email */ }
         if ($accepting === null) $db->prepare('UPDATE mentor_profiles SET approval=?, updated_at=? WHERE user_id=?')->execute([$status, self::now(), $uid]);
         else $db->prepare('UPDATE mentor_profiles SET approval=?, accepting=?, updated_at=? WHERE user_id=?')->execute([$status, $accepting, self::now(), $uid]);
+        if ($status === 'approved' && $was !== 'approved') self::approvedEmail($uid);
         return true;
     }
     public static function setPairStatus(int $id, string $status): bool
@@ -1734,7 +1751,11 @@ final class Mentorship
         $db->prepare("INSERT INTO mentorships (mentor_id, mentee_id, status, message, segment, cohort_id, programme, origin, created_at, updated_at) VALUES (?,?, 'active','', ?,?,?, 'admin', ?,?)")
            ->execute([$mentorId, $menteeId, $seg, max(0, $cohortId), mb_substr($programme, 0, 160), $now, $now]);
         $id = (int) $db->lastInsertId();
-        self::notify($menteeId, 'You’ve been matched with a mentor', 'A mentor has been assigned to you on Afrovanguard — say hello and book your first session.', '/mentorship/');
+        /* modules/EMAILS.md: mentee_matched — the designed email for this
+           exact moment, to the MENTEE. The mentor's copy of the news has no
+           designed template yet, so it stays on notify() below. §5: never
+           any message content, phone number or handle in it. */
+        self::matchedEmail($menteeId, $mentorId, $p);
         self::notify($mentorId, 'A mentee has been assigned to you', 'You’ve been paired with a new mentee on Afrovanguard.', '/mentorship/');
         if (class_exists('Events')) { try { Events::emit('mentorship.assigned', ['id' => $id, 'mentor_id' => $mentorId, 'mentee_id' => $menteeId]); } catch (Throwable $e) {} }
         return ['ok' => true, 'id' => $id];
@@ -1840,6 +1861,70 @@ final class Mentorship
     }
 
     /* ── email (best-effort) ─────────────────────────────────────── */
+    /** "We have your mentor application" — only while a decision is pending. */
+    private static function applicationEmail(int $uid, string $at): void
+    {
+        self::templateTo($uid, 'mentor_application_received', static fn(array $u, string $site): array => [
+            'first_name'     => explode(' ', trim((string) $u['name']))[0] ?: 'there',
+            'submitted_on'   => date('j M Y', strtotime($at) ?: time()),
+            'application_ref'=> 'AVM-' . date('y', strtotime($at) ?: time()) . '-' . str_pad((string) $uid, 4, '0', STR_PAD_LEFT),
+            'status_url'     => $site . '/mentorship/',
+        ]);
+    }
+
+    /** "You're approved to mentor" — sent once, on the transition. */
+    private static function approvedEmail(int $uid): void
+    {
+        self::templateTo($uid, 'mentor_approved', static fn(array $u, string $site): array => [
+            'first_name'   => explode(' ', trim((string) $u['name']))[0] ?: 'there',
+            'training_url' => $site . '/mentorship/mentor/?v=academy',
+            'portal_url'   => $site . '/mentorship/mentor/',
+        ]);
+    }
+
+    /**
+     * Look one user up and send them a designed template. Best-effort: a
+     * missing account, a missing address or a mail failure never fails the
+     * action that triggered it.
+     */
+    private static function templateTo(int $uid, string $template, callable $vars): void
+    {
+        if (!class_exists('Mailer') || !method_exists('Mailer', 'sendTemplate')) return;
+        try {
+            $s = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?');
+            $s->execute([$uid]);
+            $u = $s->fetch(PDO::FETCH_ASSOC);
+            if (!$u || empty($u['email'])) return;
+            $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : 'https://afrovanguard.org.ng';
+            Mailer::sendTemplate((string) $u['email'], $template, $vars($u, $site));
+        } catch (Throwable $e) { error_log('[mentorship] ' . $template . ': ' . $e->getMessage()); }
+    }
+
+    /** The mentee's "meet your mentor" email. Best-effort, like notify(). */
+    private static function matchedEmail(int $menteeId, int $mentorId, array $profile): void
+    {
+        if (!class_exists('Mailer') || !method_exists('Mailer', 'sendTemplate')) return;
+        try {
+            $s = Database::pdo()->prepare('SELECT id, name, email FROM lms_users WHERE id IN (?, ?)');
+            $s->execute([$menteeId, $mentorId]);
+            $by = [];
+            foreach ($s->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) $by[(int) $r['id']] = $r;
+            $mentee = $by[$menteeId] ?? null; $mentor = $by[$mentorId] ?? null;
+            if (!$mentee || empty($mentee['email'])) return;
+            $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : 'https://afrovanguard.org.ng';
+            Mailer::sendTemplate((string) $mentee['email'], 'mentee_matched', [
+                'first_name'        => explode(' ', trim((string) $mentee['name']))[0] ?: 'there',
+                'mentor_name'       => (string) ($mentor['name'] ?? 'your mentor'),
+                'mentor_role'       => (string) ($profile['headline'] ?? ''),
+                'focus'             => (string) ($profile['focus'] ?? ''),
+                'first_session'     => 'To be agreed — book it in your portal',
+                'portal_url'        => $site . '/mentorship/',
+                'safeguarding_email'=> defined('SAFEGUARDING_EMAIL') && SAFEGUARDING_EMAIL !== ''
+                    ? (string) SAFEGUARDING_EMAIL : 'safeguarding@afrovanguard.org.ng',
+            ]);
+        } catch (Throwable $e) { error_log('[mentorship] matched email: ' . $e->getMessage()); }
+    }
+
     private static function notify(int $userId, string $subject, string $line, string $path): void
     {
         if (!class_exists('Mailer')) return;

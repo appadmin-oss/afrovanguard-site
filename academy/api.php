@@ -85,6 +85,21 @@ try {
             if (!av_rate_ok('otp_verify', 12, 900)) json_out(['ok' => false, 'error' => 'Too many attempts — try again later.'], 429);
             av_require_google_for_org((string) ($body['email'] ?? ''));
             json_out(LmsAuth::loginWithOtp((string) ($body['email'] ?? ''), (string) ($body['code'] ?? ''), (string) ($body['name'] ?? '')));
+        /* ── Forgotten password ──
+           Rate-limited harder than login: this one sends mail, so it is the
+           endpoint somebody would use to bury an address under reset links. */
+        case 'reset-request':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            if (!av_rate_ok('pwd_reset_req', 5, 900)) json_out(['ok' => false, 'error' => 'Too many reset requests — wait a few minutes.'], 429);
+            json_out(LmsAuth::requestPasswordReset((string) ($body['email'] ?? '')));
+        case 'reset-complete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            if (!av_rate_ok('pwd_reset_done', 12, 900)) json_out(['ok' => false, 'error' => 'Too many attempts — try again later.'], 429);
+            $r = LmsAuth::completePasswordReset((string) ($body['token'] ?? ''), (string) ($body['password'] ?? ''));
+            json_out($r, $r['ok'] ? 200 : 422);
+
         case 'set-password':   // add/replace a password (after signing in by code)
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
@@ -156,7 +171,11 @@ try {
             if (empty($res['ok'])) json_out(['ok' => false, 'error' => 'This lesson has no quiz.'], 400);
             if (!empty($res['passed'])) {
                 $done = $lms->completeIfDone((int) $u['id'], (int) $c['id']);
+                /* Finishing the course is the bigger news, so when the quiz
+                   that passed is also the last thing outstanding, only the
+                   certificate email goes — not both in the same minute. */
                 if (!empty($done['newly'])) Notify::completed($u, $c, academy_url($c['slug'] . '/certificate'));
+                else Notify::quizPassed($u, $lesson, $res, academy_url($c['slug'] . '/learn/'));
             }
             $res['progress'] = $lms->progress((int) $u['id'], (int) $c['id']);
             json_out($res);

@@ -17,15 +17,15 @@ $root = dirname(__DIR__);
    One source of truth for the brand mark: assets/site/av-seal-256.png.
 
    The icons used to be a flat gold "A" on a navy that is in no token — a
-   placeholder nobody replaced. They are the seal now, and they are built at
-   three different crops because one artwork cannot serve 512px and 16px:
+   placeholder nobody replaced. They are the seal now, WHOLE, at every size:
 
-     any / maskable   the whole seal on the brand ink. Maskable gets a bigger
+     any / maskable   the seal on the brand ink. Maskable gets a bigger
                       margin so Android's circle never bites the gold ring.
-     favicon          the seal's CENTRE — the shield and knot — because the
-                      ring text ("AMBASSADORS FOR COMMUNITY, TECH & CULTURAL
-                      ADVANCEMENTS") is unreadable mush below about 64px, and
-                      a mark nobody can read is not a mark.
+     favicon          the same seal at 48, 32 and 16.
+
+   THE SEAL IS NEVER CROPPED, RECOLOURED OR DRAWN OVER HERE. Scaling it and
+   centring it on a plate is all this script may do to it. If the mark needs
+   a simplified small-size variant, that is the designer's to draw.
    ---------------------------------------------------------------------- */
 $srcSeal = $root . '/assets/site/av-seal-256.png';
 if (is_file($srcSeal) && function_exists('imagecreatefrompng')) {
@@ -71,24 +71,20 @@ if (is_file($srcSeal) && function_exists('imagecreatefrompng')) {
     $im = $canvas(512); $plate($im, 512, 0); $place($im, $seal, 512, 0.56);
     $save($im, 'assets/site/icon-512-maskable.png');
 
-    /* The favicon crop: the shield and knot alone — tight enough that no
-       sliver of the outer gold ring survives in the corners, and set on the
-       ink plate so the mark still reads on a dark browser tab, where a
-       transparent black shield would simply vanish. */
-    $cut  = (int) round($sw * 0.50);
-    $off  = (int) round(($sw - $cut) / 2);
-    $mono = $canvas($cut);
-    $plate($mono, $cut, (int) round($cut * 0.22));
-    imagecopy($mono, $seal, 0, 0, $off, $off, $cut, $cut);
-    imagepng($mono, $root . '/assets/site/av-mark.png', 9);
-    echo "wrote assets/site/av-mark.png (", number_format(filesize($root . '/assets/site/av-mark.png')), " bytes)\n";
+    /* favicon.ico — 48, 32 and 16, each its own image so no chrome has to
+       downscale another.
 
-    /* favicon.ico — 48, 32 and 16, so every chrome picks its own size rather
-       than downscaling one. Each entry is a PNG payload (Vista+ ICO). */
+       The WHOLE seal, at every size. An earlier pass here cropped it to the
+       shield and knot because the ring text stops being readable somewhere
+       under 64px — which is true, and is not a reason to cut a logo apart.
+       The seal is one lockup. At 16px it reads as a gold ring around a dark
+       shield, which is what a 16px mark is for; it is not supposed to be
+       read, it is supposed to be recognised. A genuine small-size variant is
+       the designer's to draw, not this script's to invent. */
     $entries = [];
     foreach ([48, 32, 16] as $n) {
         $im = $canvas($n);
-        imagecopyresampled($im, $mono, 0, 0, 0, 0, $n, $n, $cut, $cut);
+        imagecopyresampled($im, $seal, 0, 0, 0, 0, $n, $n, $sw, $sh);
         ob_start(); imagepng($im, null, 9); $entries[$n] = ob_get_clean();
         imagedestroy($im);
     }
@@ -96,16 +92,14 @@ if (is_file($srcSeal) && function_exists('imagecreatefrompng')) {
     $ico    = pack('vvv', 0, 1, $count);
     $offset = 6 + 16 * $count;
     foreach ($entries as $n => $png) {
-        $ico .= pack('CCCC', $n === 256 ? 0 : $n, $n === 256 ? 0 : $n, 0, 0)
-              . pack('vv', 1, 32)
-              . pack('VV', strlen($png), $offset);
+        $ico .= pack('CCCC', $n, $n, 0, 0) . pack('vv', 1, 32) . pack('VV', strlen($png), $offset);
         $offset += strlen($png);
     }
     foreach ($entries as $png) $ico .= $png;
     file_put_contents($root . '/favicon.ico', $ico);
     echo 'wrote favicon.ico (', number_format(strlen($ico)), " bytes, ", $count, " sizes)\n";
 
-    imagedestroy($mono); imagedestroy($seal);
+    imagedestroy($seal);
 } else {
     echo "skip icons (no GD or assets/site/av-seal-256.png missing)\n";
 }

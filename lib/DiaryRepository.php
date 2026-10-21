@@ -256,6 +256,13 @@ CREATE TABLE IF NOT EXISTS diary_saves (
   created_at   TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (user_id, article_id, visitor_hash)
 );
+CREATE TABLE IF NOT EXISTS diary_reply_mutes (
+  email      VARCHAR(190) NOT NULL,
+  token      VARCHAR(40)  NOT NULL DEFAULT '',
+  muted_at   TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (email)
+);
 SQL;
 
     private function ensureEngagement(): void
@@ -686,6 +693,88 @@ SQL;
      * Removing a top-level comment removes its replies with it. A reply left
      * under a deleted question reads as an answer to whatever is above it now.
      */
+    /**
+     * modules/EMAILS.md: diary_reply — "somebody replied to you".
+     *
+     * Only for a reply (a comment with a parent), only to the parent's
+     * author, never to somebody replying to themselves, and never to a
+     * person who has muted these. The excerpts are deliberately short: the
+     * email is a nudge back to the thread, not a copy of it.
+     */
+    public function replyEmail(int $commentId): void
+    {
+        if (!class_exists('Mailer') || !method_exists('Mailer', 'sendTemplate')) return;
+        try {
+            $st = $this->db->prepare(
+                'SELECT c.id, c.body, c.name, c.user_id, c.parent_id, a.slug, a.title
+                   FROM diary_comments c JOIN articles a ON a.id = c.article_id
+                  WHERE c.id = ?');
+            $st->execute([$commentId]);
+            $reply = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$reply || (int) $reply['parent_id'] <= 0) return;
+
+            $st = $this->db->prepare("SELECT id, name, email, user_id, body FROM diary_comments WHERE id = ? AND status = 'published'");
+            $st->execute([(int) $reply['parent_id']]);
+            $parent = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$parent) return;
+
+            $to = strtolower(trim((string) $parent['email']));
+            if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) return;
+            if ((int) $parent['user_id'] > 0 && (int) $parent['user_id'] === (int) $reply['user_id']) return;
+            if ($this->replyMuted($to)) return;
+
+            $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '';
+            Mailer::sendTemplate($to, 'diary_reply', [
+                'replier_name'  => (string) $reply['name'],
+                'post_title'    => (string) $reply['title'],
+                'reply_excerpt' => self::excerpt((string) $reply['body']),
+                'your_excerpt'  => self::excerpt((string) $parent['body']),
+                'reply_url'     => $site . '/diary/' . rawurlencode((string) $reply['slug']) . '/#c' . (int) $reply['id'],
+                'mute_url'      => $site . '/diary/api.php?action=reply.mute&t=' . $this->replyMuteToken($to),
+            ]);
+        } catch (Throwable $e) { error_log('[diary] replyEmail: ' . $e->getMessage()); }
+    }
+
+    private static function excerpt(string $body, int $max = 160): string
+    {
+        $b = trim((string) preg_replace('/\s+/u', ' ', strip_tags($body)));
+        return mb_strlen($b) <= $max ? $b : mb_substr($b, 0, $max - 1) . '…';
+    }
+
+    /** The one-click token carried by every reply email. Stable per address. */
+    public function replyMuteToken(string $email): string
+    {
+        $this->ensureEngagement();
+        $email = strtolower(trim($email));
+        $get = $this->db->prepare('SELECT token FROM diary_reply_mutes WHERE email = ?');
+        $get->execute([$email]);
+        $tok = (string) ($get->fetchColumn() ?: '');
+        if ($tok !== '') return $tok;
+        $this->db->prepare(Database::insertIgnore('diary_reply_mutes', ['email', 'token', 'muted_at', 'created_at']))
+                 ->execute([$email, bin2hex(random_bytes(20)), '', gmdate('Y-m-d H:i:s')]);
+        $get->execute([$email]);
+        return (string) ($get->fetchColumn() ?: '');
+    }
+
+    /** Muted only once the link was actually clicked, not merely issued. */
+    public function replyMuted(string $email): bool
+    {
+        $this->ensureEngagement();
+        $st = $this->db->prepare("SELECT 1 FROM diary_reply_mutes WHERE email = ? AND muted_at <> ''");
+        $st->execute([strtolower(trim($email))]);
+        return (bool) $st->fetchColumn();
+    }
+
+    /** One click, no sign-in. True when a real token muted somebody. */
+    public function muteRepliesByToken(string $token): bool
+    {
+        $this->ensureEngagement();
+        if (!preg_match('/^[a-f0-9]{40}$/', $token)) return false;
+        $st = $this->db->prepare("UPDATE diary_reply_mutes SET muted_at = ? WHERE token = ? AND muted_at = ''");
+        $st->execute([gmdate('Y-m-d H:i:s'), $token]);
+        return $st->rowCount() > 0;
+    }
+
     public function setCommentStatus(int $id, string $status): bool
     {
         if (!in_array($status, ['published', 'removed', 'pending'], true)) return false;
@@ -693,6 +782,12 @@ SQL;
         try {
             if ($status === 'published') {
                 $this->db->prepare("UPDATE diary_comments SET status = 'published', reports = 0 WHERE id = ?")->execute([$id]);
+                /* Here, and not in addThreadComment(): a comment is posted
+                   PENDING and only becomes visible when it is published, so
+                   mailing on the post would announce a reply nobody can read
+                   — including every one that turns out to be spam and is
+                   never published at all. */
+                $this->replyEmail($id);
             } else {
                 $this->db->prepare('UPDATE diary_comments SET status = ? WHERE id = ? OR parent_id = ?')->execute([$status, $id, $id]);
             }

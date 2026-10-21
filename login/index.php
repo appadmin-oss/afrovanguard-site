@@ -180,12 +180,25 @@ $desc  = 'Sign in to your Afrovanguard account to continue learning, track your 
             </label>
             <p class="avsi-msg avsi-msg--tight" role="status" aria-live="polite" data-avsi-msg="pw"></p>
             <button class="avsi-btn" type="submit" data-avsi-pwsubmit>Sign in</button>
+            <span class="avsi-resend">Forgotten it? <button type="button" class="avsi-link" data-avsi-forgot>Email me a reset link</button></span>
           </form>
+
 <?php endif; ?>
 <?php if (!empty($methods['otp']) && !empty($methods['password'])): ?>
           <div class="avsi-or"><button type="button" class="avsi-link avsi-swap" data-avsi-swap>Use a password instead</button></div>
 <?php endif; ?>
         </div>
+
+        <!-- Set a new password, from the link in the reset email. Shown only
+             when the page is opened with ?reset=<token>. -->
+        <form class="avsi-form" data-avsi-reset-form data-avsi-step="reset" novalidate hidden>
+          <label class="avsi-label" for="avsi-rpw">New password
+            <span class="avsi-pw"><input class="avsi-input" id="avsi-rpw" type="password" autocomplete="new-password" enterkeyhint="go" placeholder="Choose a password" aria-describedby="avsi-rpw-hint" /><button type="button" class="avsi-pwtoggle" aria-pressed="false" aria-label="Show password" data-avsi-pwtoggle="avsi-rpw">Show</button></span>
+          </label>
+          <span class="avsi-hint" id="avsi-rpw-hint">At least <?= (int) $pwMin ?> characters. Signing in everywhere else ends when you save this.</span>
+          <p class="avsi-msg" role="status" aria-live="polite" data-avsi-reset-msg></p>
+          <button class="avsi-btn" type="submit" data-avsi-resetsubmit>Save new password</button>
+        </form>
 
         <!-- Step 3 · secure (optional) -->
         <form class="avsi-form" data-avsi-step="3" data-avsi-setpw-form novalidate hidden>

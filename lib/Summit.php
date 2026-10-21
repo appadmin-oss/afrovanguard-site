@@ -163,6 +163,7 @@ final class Summit
                 source VARCHAR(24) NOT NULL DEFAULT 'web',
                 notified_at VARCHAR(32) NOT NULL DEFAULT '',
                 notify_error VARCHAR(400) NOT NULL DEFAULT '',
+                ticket_code VARCHAR(24) NOT NULL DEFAULT '',
                 created_at VARCHAR(32) NOT NULL DEFAULT ''
             );
             CREATE INDEX IF NOT EXISTS idx_summit_reg_edition ON summit_registrations(edition, created_at);
@@ -171,7 +172,8 @@ final class Summit
             // Installs created before delivery was tracked still have the old
             // shape; add the two columns rather than asking for a migration.
             foreach (['notified_at' => "VARCHAR(32) NOT NULL DEFAULT ''",
-                      'notify_error' => "VARCHAR(400) NOT NULL DEFAULT ''"] as $col => $type) {
+                      'notify_error' => "VARCHAR(400) NOT NULL DEFAULT ''",
+                      'ticket_code' => "VARCHAR(24) NOT NULL DEFAULT ''"] as $col => $type) {
                 if (!Database::columnExists('summit_registrations', $col)) {
                     $db->exec("ALTER TABLE summit_registrations ADD COLUMN {$col} {$type}");
                 }
@@ -358,6 +360,50 @@ final class Summit
      *
      * Returns ['ok' => bool, 'error' => string, 'admin' => bool].
      */
+    /**
+     * The ticket code on a seat claim, minted once and then kept.
+     *
+     * A resent confirmation has to be the SAME ticket: a code that changed
+     * on every send would leave a door scanner with one code and the
+     * attendee's inbox full of others. Shape: AVT-XXXXXX, unambiguous
+     * characters only (no O/0, I/1), because people read these aloud at a
+     * door and type them into a phone.
+     */
+    public static function ticketCode(int $id): string
+    {
+        self::ensure();
+        $db = Database::pdo();
+        $st = $db->prepare('SELECT ticket_code FROM summit_registrations WHERE id = ?');
+        $st->execute([$id]);
+        $code = trim((string) ($st->fetchColumn() ?: ''));
+        if ($code !== '') return $code;
+
+        $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        for ($try = 0; $try < 8; $try++) {
+            $body = '';
+            for ($i = 0; $i < 6; $i++) $body .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+            $candidate = 'AVT-' . $body;
+            $u = $db->prepare('SELECT 1 FROM summit_registrations WHERE ticket_code = ?');
+            $u->execute([$candidate]);
+            if ($u->fetchColumn()) continue;
+            $db->prepare("UPDATE summit_registrations SET ticket_code = ? WHERE id = ? AND ticket_code = ''")
+               ->execute([$candidate, $id]);
+            $st->execute([$id]);
+            return trim((string) ($st->fetchColumn() ?: $candidate));
+        }
+        return 'AVT-' . str_pad((string) $id, 6, '0', STR_PAD_LEFT);
+    }
+
+    /** A seat claim by its ticket code — for the QR page and the door. */
+    public static function byTicket(string $code): ?array
+    {
+        self::ensure();
+        if (!preg_match('/^AVT-[A-Z2-9]{6}$/', strtoupper(trim($code)))) return null;
+        $st = Database::pdo()->prepare('SELECT * FROM summit_registrations WHERE ticket_code = ?');
+        $st->execute([strtoupper(trim($code))]);
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
     public static function notify(int $id, array $d): array
     {
         if (!class_exists('Mailer')) {
@@ -387,14 +433,25 @@ final class Summit
                     . "If you would rather sort it out now, message us on WhatsApp at {$wa}.",
                 'Master. Tame. Own.<br>— Afrovanguard',
             ];
-            $html = Mailer::shell(
-                'Your seat is reserved',
-                $rows,
-                ['url' => self::url(), 'text' => 'See the summit page'],
-                $f['edition'] . ' — ' . $f['date_short'] . ', ' . $v['area'] . ', ' . $v['city']
-            );
+            /* modules/EMAILS.md: event_ticket. The ticket needs a code and
+               a QR, which a seat claim did not have — ticketCode() mints one
+               on first use and keeps it, so a resent email is the same
+               ticket rather than a second one. */
+            $code = self::ticketCode($id);
+            $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '';
             try {
-                $ok = Mailer::send($email, 'Your seat at ' . $f['edition'] . ' is reserved', $html);
+                $ok = Mailer::sendTemplate($email, 'event_ticket', [
+                    'first_name'   => explode(' ', $name)[0] ?: 'there',
+                    'event_name'   => (string) $f['name'] . ' · ' . (string) $f['edition'],
+                    'event_date'   => (string) $f['date_label'],
+                    'event_time'   => (string) $f['time_label'],
+                    'venue'        => $v['name'] . ', ' . $v['area'] . ', ' . $v['city'],
+                    'ticket_code'  => $code,
+                    'holder_name'  => $name . ($seats > 1 ? ' (' . $seats . ' seats)' : ''),
+                    'qr_url'       => $site . '/academy/dns/ticket.php?t=' . rawurlencode($code) . '&f=png',
+                    'calendar_url' => $site . '/academy/dns/ticket.php?t=' . rawurlencode($code) . '&f=ics',
+                    'cancel_url'   => self::url(),
+                ]);
                 if (!$ok) $error = Mailer::lastError() ?: 'Send failed';
             } catch (Throwable $e) {
                 $error = $e->getMessage();
