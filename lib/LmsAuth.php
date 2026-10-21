@@ -194,6 +194,102 @@ final class LmsAuth
         return ['ok' => true, 'message' => 'Password saved. You can now sign in with it.'];
     }
 
+    /* ── Forgotten password ──────────────────────────────────────────────────
+       The site signs people in by emailed code as well as by password, so a
+       reset is not the only way back in — but an account WITH a password and
+       no way to change it is a dead end, and it was one.
+
+       Two rules shape what follows:
+
+       1. It never says whether an address has an account. The answer to
+          "forgot password" is the same sentence either way, or the form
+          becomes a way to ask the site who its members are. The existing
+          otp-request endpoint already works this way.
+       2. The token is stored hashed and used once. A reset link sitting in a
+          mailbox is a password; it is treated like one. */
+
+    public const RESET_TTL = 3600;   // one hour
+
+    /** Start a reset. Always reports the same thing, account or no account. */
+    public static function requestPasswordReset(string $email): array
+    {
+        $same = ['ok' => true, 'message' => 'If that address has an account, a reset link is on its way.'];
+        $email = strtolower(trim($email));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return $same;
+        self::ensureSecurity();
+        try {
+            $db = Database::pdo();
+            $st = $db->prepare("SELECT id, name, email FROM lms_users WHERE email = ? AND status = 'active'");
+            $st->execute([$email]);
+            $u = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$u) return $same;
+
+            /* One live token per account: asking twice retires the first, so a
+               link forwarded or logged earlier stops working. */
+            $db->prepare("UPDATE lms_password_resets SET used_at = ? WHERE user_id = ? AND used_at = ''")
+               ->execute([gmdate('Y-m-d H:i:s'), (int) $u['id']]);
+
+            $token = bin2hex(random_bytes(32));
+            $ip    = function_exists('av_client_ip') ? (string) av_client_ip() : (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+            $db->prepare('INSERT INTO lms_password_resets (user_id, token_hash, ip, expires_at, used_at, created_at) VALUES (?,?,?,?,?,?)')
+               ->execute([(int) $u['id'], hash('sha256', $token), $ip,
+                          gmdate('Y-m-d H:i:s', time() + self::RESET_TTL), '', gmdate('Y-m-d H:i:s')]);
+
+            if (class_exists('Mailer') && method_exists('Mailer', 'sendTemplate')) {
+                $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '';
+                Mailer::sendTemplate((string) $u['email'], 'password_reset', [
+                    'first_name'       => explode(' ', trim((string) $u['name']))[0] ?: 'there',
+                    'reset_url'        => $site . '/login/?reset=' . $token,
+                    'expires_minutes'  => (string) (int) (self::RESET_TTL / 60),
+                    'request_time'     => date('j M Y, g:ia'),
+                    'request_location' => $ip !== '' ? $ip : 'an unrecognised device',
+                ]);
+            }
+        } catch (Throwable $e) { error_log('[auth] reset request: ' . $e->getMessage()); }
+        return $same;
+    }
+
+    /** Whose reset this token is, if it is live. Null for spent/expired/junk. */
+    public static function resetTokenUser(string $token): ?array
+    {
+        if (!preg_match('/^[a-f0-9]{64}$/', $token)) return null;
+        self::ensureSecurity();
+        try {
+            $st = Database::pdo()->prepare(
+                "SELECT r.id, r.user_id, u.name, u.email
+                   FROM lms_password_resets r JOIN lms_users u ON u.id = r.user_id
+                  WHERE r.token_hash = ? AND r.used_at = '' AND r.expires_at > ?
+                  LIMIT 1");
+            $st->execute([hash('sha256', $token), gmdate('Y-m-d H:i:s')]);
+            return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (Throwable $e) { return null; }
+    }
+
+    /**
+     * Finish a reset: set the password, spend the token, and sign every other
+     * session out — whoever took the account is holding a cookie, and a new
+     * password that leaves their session alive has changed nothing.
+     */
+    public static function completePasswordReset(string $token, string $password): array
+    {
+        $row = self::resetTokenUser($token);
+        if (!$row) return ['ok' => false, 'error' => 'That reset link has expired or been used. Ask for a new one.'];
+        if ($e = AuthPolicy::passwordError($password)) return ['ok' => false, 'error' => $e];
+        $db = Database::pdo();
+        /* email_verified too: clicking a link we posted to that mailbox IS
+           proof of control over it. Without this, somebody who never got
+           round to verifying can complete a reset and still be told to
+           verify — a dead end at the end of the road out of a dead end. */
+        $db->prepare('UPDATE lms_users SET password_hash = ?, has_password = 1, email_verified = 1 WHERE id = ?')
+           ->execute([password_hash($password, PASSWORD_BCRYPT), (int) $row['user_id']]);
+        $db->prepare('UPDATE lms_password_resets SET used_at = ? WHERE id = ?')
+           ->execute([gmdate('Y-m-d H:i:s'), (int) $row['id']]);
+        try { $db->prepare('DELETE FROM lms_sessions WHERE user_id = ?')->execute([(int) $row['user_id']]); }
+        catch (Throwable $e) { error_log('[auth] reset: could not clear sessions: ' . $e->getMessage()); }
+        if (class_exists('Events')) { try { Events::emit('member.password.reset', ['user_id' => (int) $row['user_id']]); } catch (Throwable $e) {} }
+        return ['ok' => true, 'message' => 'Password changed. Sign in with it now.'];
+    }
+
     /**
      * Sign in (or provision) an account from a verified OAuth profile (Google).
      * Funnels every OAuth path through one place: find-or-create by email,
@@ -342,6 +438,15 @@ final class LmsAuth
             fails INTEGER NOT NULL DEFAULT 0,
             locked_until VARCHAR(32) NOT NULL DEFAULT '',
             updated_at VARCHAR(32) NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS lms_password_resets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL DEFAULT 0,
+            token_hash VARCHAR(64) NOT NULL DEFAULT '',
+            ip VARCHAR(64) NOT NULL DEFAULT '',
+            expires_at VARCHAR(32) NOT NULL DEFAULT '',
+            used_at VARCHAR(32) NOT NULL DEFAULT '',
+            created_at VARCHAR(32) NOT NULL DEFAULT ''
         );";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
         try { Database::execSchema($db, $ddl); } catch (Throwable $e) {}

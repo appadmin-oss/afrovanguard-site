@@ -236,6 +236,50 @@
     }).catch(() => { busy(pwBtn, false); say(msg, 'Network error — please try again.', 'err'); });
   });
 
+  /* ---- forgotten password ----
+     Two halves of one road: ask for a link, then set a password from it.
+     The request half always says the same thing back, whether or not that
+     address has an account — the server answers that way too, and a form
+     that reported "no such account" would be a way to ask the site who its
+     members are. */
+  const forgotBtn  = q('[data-avsi-forgot]');
+  const resetForm  = q('[data-avsi-reset-form]');
+  const resetIn    = q('#avsi-rpw');
+  const resetBtn   = q('[data-avsi-resetsubmit]');
+  const resetMsg   = q('[data-avsi-reset-msg]');
+  const resetToken = new URLSearchParams(location.search).get('reset') || '';
+
+  if (forgotBtn) forgotBtn.addEventListener('click', () => {
+    if (!email) { say(msg, 'Enter your email address first.', 'err'); return; }
+    busy(forgotBtn, true);
+    post('reset-request', { email }).then(d => {
+      busy(forgotBtn, false);
+      say(msg, (d && d.message) || 'If that address has an account, a reset link is on its way.', 'ok');
+    }).catch(() => { busy(forgotBtn, false); say(msg, 'Network error — please try again.', 'err'); });
+  });
+
+  if (resetForm && /^[a-f0-9]{64}$/.test(resetToken)) {
+    // Arrived from the email: this is the only thing on the card.
+    qa('[data-avsi-step], [data-avsi-pw-form], .avsi-or, [data-avsi-steps]').forEach(el => { el.hidden = true; });
+    resetForm.hidden = false;   // after the sweep: it carries data-avsi-step too
+    focusSoon(resetIn);
+    resetForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const pw = resetIn.value;
+      if (!pw) { say(resetMsg, 'Choose a password.', 'err'); resetIn.focus(); return; }
+      busy(resetBtn, true);
+      post('reset-complete', { token: resetToken, password: pw }).then(d => {
+        busy(resetBtn, false);
+        if (d && d.ok) {
+          say(resetMsg, (d.message || 'Password changed.') + ' Taking you to sign in…', 'ok');
+          setTimeout(() => go('/login/'), 1200);
+          return;
+        }
+        say(resetMsg, (d && d.error) || 'That link has expired. Ask for a new one.', 'err');
+      }).catch(() => { busy(resetBtn, false); say(resetMsg, 'Network error — please try again.', 'err'); });
+    });
+  }
+
   /* ---- step 3 · optional password ---- */
   function afterSignIn(d) {
     if (d.user && d.has_password === false && methods.password && setForm) {
