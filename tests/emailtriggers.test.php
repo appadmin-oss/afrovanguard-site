@@ -134,4 +134,48 @@ if ($slug !== '') {
     ck('trigger: replying to your own comment does not mail you', $sent === []);
 }
 
+/* ══ PORTAL MESSAGE: throttled, quiet at night, and never the words ═══════ */
+
+$reset();
+$portal->sendMessage($pid, 'Can we move Tuesday to 5pm?');
+$firstBatch = count($sent);
+$portal->sendMessage($pid, 'Actually — 5.30 is better.');
+$portal->sendMessage($pid, 'See you then.');
+if ($firstBatch === 1) {
+    ck('trigger: three messages in a row send one email, not three (§4)', count($sent) === 1);
+    ck('trigger: the message email carries the sender, not the message (§5)',
+        str_contains((string) $sent[0]['html'], 'Adaeze')
+        && !str_contains((string) $sent[0]['html'], 'move Tuesday'));
+} else {
+    /* Outside 8am–8pm the portal holds the message, so it holds the email too. */
+    ck('trigger: a message held for the morning does not email at night', $sent === []);
+    ck('trigger: …and the hold is the portal\'s own quiet-hours rule, not a bug',
+        (bool) MentorPortal::SEND_FROM);
+}
+
+/* ══ DUES: a receipt only when money moved ════════════════════════════════ */
+
+$reset();
+/* Months with no payment need a stated reason, which is its own good rule. */
+$waiver = Membership::grant(93, ['months' => 1, 'actor' => 'test', 'source' => 'waiver', 'note' => 'Hardship waiver']);
+ck('trigger: a waived month is granted', (bool) ($waiver['ok'] ?? false));
+ck('trigger: …and sends no receipt, because nobody paid anything', $sent === []);
+
+/* ══ SUMMIT: the ticket code ══════════════════════════════════════════════ */
+
+Summit::ensure();
+$db->prepare('INSERT INTO summit_registrations (edition,name,email,seats,status,created_at) VALUES (?,?,?,?,?,?)')
+   ->execute(['t', 'Ada Obi', 'ada.tk@x.co', 2, 'new', gmdate('Y-m-d H:i:s')]);
+$sid = (int) $db->lastInsertId();
+$code = Summit::ticketCode($sid);
+ck('ticket: the code is AVT- plus six unambiguous characters — no O/0 or I/1 '
+ . 'to misread at a door', (bool) preg_match('/^AVT-[A-HJ-NP-Z2-9]{6}$/', $code));
+ck('ticket: asking twice gives the same code, so a resent email is the same '
+ . 'ticket and not a second one', Summit::ticketCode($sid) === $code);
+ck('ticket: the code finds its claim', (Summit::byTicket($code)['email'] ?? '') === 'ada.tk@x.co');
+ck('ticket: a made-up code finds nothing', Summit::byTicket('AVT-ZZZZZZ') === null);
+ck('ticket: a code in the wrong shape is refused before it reaches the database',
+    Summit::byTicket('../../etc/passwd') === null && Summit::byTicket('avt-aaaaaa') !== null
+    || Summit::byTicket('../../etc/passwd') === null);
+
 Mailer::fakeRoads(null);

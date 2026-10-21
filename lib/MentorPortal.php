@@ -1544,7 +1544,55 @@ final class MentorPortal
 
         $this->db->prepare('INSERT INTO mentor_messages (mentorship_id, sender_id, body, created_at, send_after) VALUES (?,?,?,?,?)')
             ->execute([$pairingId, $this->mentorId, $body, self::now(), $after]);
+        /* A message held for the morning is not announced at 1am. The portal
+           already refuses to deliver outside SEND_FROM..SEND_TO because these
+           are young people's phones; an email would walk straight around it. */
+        if (!$queued) $this->messageEmail($pairingId);
         return ['ok' => true, 'queued' => $queued, 'when' => date('j M · g:ia', $now)];
+    }
+
+    /**
+     * modules/EMAILS.md: portal_message — "you have a new message".
+     *
+     * It carries the sender, the time and a link, and NEVER the message
+     * itself (§5). That is not a limitation of the template: a mentor's
+     * message to a fifteen-year-old should be read where it can be reported
+     * and where a safeguarding lead can see it, not sitting in a mail spool
+     * and on a lock screen.
+     *
+     * One email per pairing per 30 minutes (§4), so a mentor typing four
+     * short messages in a row sends one.
+     */
+    private function messageEmail(int $pairingId): void
+    {
+        if (!class_exists('Mailer') || !method_exists('Mailer', 'sendTemplate')) return;
+        try {
+            $cut = gmdate('Y-m-d H:i:s', time() - 30 * 60);
+            $st  = $this->db->prepare(
+                "SELECT COUNT(*) FROM mentor_messages
+                  WHERE mentorship_id = ? AND sender_id = ? AND created_at > ?");
+            $st->execute([$pairingId, $this->mentorId, $cut]);
+            if ((int) $st->fetchColumn() > 1) return;   // this one is already in the count
+
+            $st = $this->db->prepare(
+                'SELECT eu.name AS to_name, eu.email AS to_email, mu.name AS from_name
+                   FROM mentorships m
+                   JOIN lms_users eu ON eu.id = m.mentee_id
+                   JOIN lms_users mu ON mu.id = m.mentor_id
+                  WHERE m.id = ?');
+            $st->execute([$pairingId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$r || !filter_var((string) $r['to_email'], FILTER_VALIDATE_EMAIL)) return;
+
+            $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '';
+            Mailer::sendTemplate((string) $r['to_email'], 'portal_message', [
+                'sender_name'       => (string) $r['from_name'],
+                'sent_at'           => date('j M Y, g:ia'),
+                'message_url'       => $site . '/mentorship/',
+                'safeguarding_email'=> defined('SAFEGUARDING_EMAIL') && SAFEGUARDING_EMAIL !== ''
+                    ? (string) SAFEGUARDING_EMAIL : 'safeguarding@afrovanguard.org.ng',
+            ]);
+        } catch (Throwable $e) { error_log('[mentorportal] message email: ' . $e->getMessage()); }
     }
 
     /* ── Values ───────────────────────────────────────────────────────────────
