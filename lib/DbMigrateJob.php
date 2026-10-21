@@ -177,8 +177,14 @@ final class DbMigrateJob
     /**
      * One slice of work, bounded by time rather than by rows, so the answer
      * comes back before the host cuts the request off.
+     *
+     * $maxSlices caps how many slices a single call may copy, whatever the
+     * clock says. Zero means the time budget alone decides, which is what a
+     * host wants. A caller that needs the work split into fixed, repeatable
+     * units — a test proving the cursor really resumes, or a driver pacing
+     * itself against a server that bills by the query — sets it to 1.
      */
-    public static function step(PDO $src, PDO $dst, float $budgetSec = 10.0, ?string $expect = null): array
+    public static function step(PDO $src, PDO $dst, float $budgetSec = 10.0, ?string $expect = null, int $maxSlices = 0): array
     {
         $s = self::state();
         if ($s === null) throw new RuntimeException('No migration is running. Start one first.');
@@ -193,19 +199,24 @@ final class DbMigrateJob
         }
 
         /* The floor is small on purpose: the caller sets the budget from what
-           the host allows, and a test drives it one slice at a time. */
+           the host allows, and a budget below it would buy no work at all. */
         $deadline = microtime(true) + max(0.05, $budgetSec);
+        $slices = 0;
         try {
             foreach ($s['order'] as $t) {
                 if (!empty($s['tables'][$t]['done'])) continue;
+                $spent = false;
                 while (microtime(true) < $deadline) {
                     $moved = self::slice($src, $dst, $t, $s['tables'][$t]['cursor']);
                     $s['tables'][$t]['copied'] += $moved['rows'];
                     $s['tables'][$t]['cursor']  = $moved['cursor'];
+                    $slices++;
+                    $spent = $maxSlices > 0 && $slices >= $maxSlices;
                     if ($moved['rows'] < self::SLICE) { $s['tables'][$t]['done'] = true; break; }
+                    if ($spent) break;
                 }
                 self::put($s);
-                if (microtime(true) >= $deadline) return $s;
+                if ($spent || microtime(true) >= $deadline) return $s;
             }
             $s['phase'] = 'done';
             $s['finished'] = gmdate('c');

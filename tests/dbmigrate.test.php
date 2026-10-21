@@ -79,16 +79,20 @@ ck('migrate: beginning records a table list', !empty($state['tables']));
 ck('migrate: and stores no password',
    !str_contains((string) json_encode($state), 'hunter2-the-target-password'));
 
-/* A budget of 0 is clamped to the floor, so drive it with many short calls
-   the way a browser polling a shared host does. */
+/* Drive it one slice per call, the way a browser polling a shared host does.
+   The cap, not the clock, decides how much a call copies: a time budget small
+   enough to force a second call on one machine is large enough to finish the
+   job on a faster one, and a test that only passes on slow hardware is not a
+   test of resuming. */
 $calls = 0;
 do {
-    $state = DbMigrateJob::step($src, $dst, 0.01);
+    $state = DbMigrateJob::step($src, $dst, 10.0, null, 1);
     $calls++;
-} while (($state['phase'] ?? '') === 'copy' && $calls < 400);
+} while (($state['phase'] ?? '') === 'copy' && $calls < 2000);
 
 ck('migrate: the job finishes', ($state['phase'] ?? '') === 'done');
-ck('migrate: and took more than one call — it resumed where it stopped', $calls > 1);
+ck('migrate: and took a call per slice — it resumed where it stopped each time',
+   $calls > (int) ceil(950 / 400) && $calls < 2000);
 ck('migrate: the big table arrived whole, with no row copied twice',
    Migrator::count($dst, 'mig_probe') === 950);
 ck('migrate: no error was recorded', ($state['error'] ?? '') === '');
@@ -129,8 +133,8 @@ ck('migrate: a second run into a full target is refused', $refused);
 DbMigrateJob::reset();
 DbMigrateJob::begin($src, $dst, ['driver' => 'mysql', 'host' => 'h', 'name' => 'n'], true);
 $calls = 0;
-do { $state = DbMigrateJob::step($src, $dst, 0.01); $calls++; }
-while (($state['phase'] ?? '') === 'copy' && $calls < 400);
+do { $state = DbMigrateJob::step($src, $dst, 10.0, null, 1); $calls++; }
+while (($state['phase'] ?? '') === 'copy' && $calls < 2000);
 ck('migrate: replace re-runs cleanly instead of doubling rows',
    DbMigrateJob::verify($src, $dst)['ok']);
 
