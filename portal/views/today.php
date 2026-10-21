@@ -174,9 +174,9 @@ if ($isOrg && !$hasPlan):
 <?php endforeach; ?>
         </div>
 
-        <!-- Asking for something — money from finance, or a change to your
-             record — is on its own page now: Requests (views/requests.php). -->
-        <p class="avp-today-ask"><a href="#requests" data-goto="requests">Ask for something — money from finance, or a change to your record →</a></p>
+        <!-- Asking finance for money is its own page: Finance requests
+             (views/requests.php). A change to your record is in Membership. -->
+        <p class="avp-today-ask"><a href="#requests" data-goto="requests">Ask finance for money →</a></p>
 
 
         <div class="avp-cols">

@@ -208,8 +208,8 @@ if ($isVol) {
 $mreqWaiting = class_exists('MemberRequests') ? count(array_filter(MemberRequests::mine((int) $u['id']), static fn($r) => $r['status'] === 'pending')) : 0;
 $nav['You'] = [
     ['diary', 'Diary', 'gray', $myEntries ? (string) count($myEntries) : ''],
-    ['requests', 'Requests', $mreqWaiting ? 'gold' : 'gray', $mreqWaiting ? (string) $mreqWaiting : ''],
-    ['membership', ($isOrg ? 'Membership' : 'Account'), 'gray', ''],
+    ['membership', ($isOrg ? 'Membership' : 'Account'), $mreqWaiting ? 'gold' : 'gray', $mreqWaiting ? (string) $mreqWaiting : ''],
+    ['requests', 'Finance requests', 'gray', ''],
 ];
 if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gray', ''];
 /* The phone bar: five tabs, the design's choice for each role, "More" opens the drawer. */

@@ -101,12 +101,47 @@ declare(strict_types=1);
 
 <?php require AV_ROOT . '/portal/_card.php'; ?>
 
-          <!-- The card itself lives on Today, which is where a member
-               lands. One card, one id: every view is rendered into the
-               same document here, so a second copy would be a duplicate
-               id and the script would drive whichever came first. -->
+<?php $mreqCentres = class_exists('Centres') ? Centres::names() : [];
+      $mreqMe = class_exists('MemberRoster') ? MemberRoster::get((int) $u['id']) : null; ?>
+          <!-- Asking for a change to your own record — another centre,
+               corrected details, pausing or leaving. An admin decides in the
+               Studio → Members → Approvals (lib/MemberRequests.php). -->
+        <section class="avp-card" id="memberRequests" data-csrf="<?= e(av_csrf_token()) ?>" aria-labelledby="avpMreqH">
+          <div class="pcard-head"><h2 id="avpMreqH">Ask for a change to your membership</h2></div>
+          <div class="pcard-body">
+            <form class="mr-form" data-mq-form novalidate>
+              <label class="mr-wide">What are you asking for
+                <select name="kind" data-mq-kind required>
+<?php foreach (MemberRequests::KINDS as $k => $label): ?>
+                  <option value="<?= e($k) ?>"><?= e($label) ?></option>
+<?php endforeach; ?>
+                </select>
+              </label>
+              <label class="mr-wide" data-mq-for="centre">Which centre
+                <select name="centre">
+                  <option value="">Choose a centre</option>
+<?php foreach ($mreqCentres as $c): if ($mreqMe && mb_strtolower($c) === mb_strtolower((string) $mreqMe['centre'])) continue; ?>
+                  <option value="<?= e($c) ?>"><?= e($c) ?></option>
+<?php endforeach; ?>
+                </select>
+              </label>
+              <p class="pcard-note" data-mq-for="centre"><?= $mreqMe && (string) $mreqMe['centre'] !== '' ? 'You are at ' . e((string) $mreqMe['centre']) . ' now.' : 'You are not at a centre yet.' ?></p>
+              <label data-mq-for="details" hidden>Your name, as it should be <input name="name" maxlength="120" value="<?= e((string) ($mreqMe['name'] ?? '')) ?>" autocomplete="name"></label>
+              <label data-mq-for="details" hidden>Your phone <input name="phone" inputmode="tel" maxlength="24" value="<?= e((string) ($mreqMe['phone'] ?? '')) ?>" autocomplete="tel"></label>
+              <label class="mr-wide">Anything an admin should know <textarea name="message" rows="2" maxlength="1000" data-mq-message placeholder="I moved house and the Ayobo centre is nearer."></textarea></label>
+              <button type="submit" class="pbtn pbtn-gold">Send to an admin</button>
+            </form>
+            <p class="enroll-msg" data-mq-msg role="status" hidden></p>
+            <h3 class="avp-req-h3">Your requests</h3>
+            <div data-mq-list aria-live="polite"><p class="pc-empty">Loading…</p></div>
+          </div>
+        </section>
+
+          <!-- Money is asked for in Finance requests (views/requests.php). One
+               card, one id: every view is rendered into the same document, so
+               a second copy would be a duplicate id. -->
           <p class="pcard-note">Paid for something, or need something bought?
-            <a href="#requests" data-goto="requests">Ask finance for money in Requests →</a></p>
+            <a href="#requests" data-goto="requests">Ask finance for money in Finance requests →</a></p>
 
 
 <?php if ($isOrg): ?>

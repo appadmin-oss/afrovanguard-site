@@ -1,60 +1,25 @@
 <?php
 /**
- * portal/views/requests.php — Requests: everything a member asks for, in one place.
+ * portal/views/requests.php — Finance requests: a member asks CACENTRE finance for money.
  *
- * Two kinds, decided by different people:
- *   · a change to their own record — another centre, corrected details,
- *     pausing or leaving, anything else (lib/MemberRequests.php). An admin
- *     decides in the Studio → Members → Approvals.
- *   · money from CACENTRE finance (lib/CfisRequests.php). Finance decides,
- *     in CFIS; this site only says who asked and what for.
+ * The request goes to CFIS (lib/CfisRequests.php) and joins the same approval
+ * ladder as one typed at a finance desk; this site only says who asked and
+ * what for. It used to be a card near the bottom of Today that showed no form
+ * at all while finance was not connected; it is its own page now, in the
+ * member's menu, and says plainly when finance is not switched on.
  *
- * Asking for these used to be either impossible (record changes) or a card
- * near the bottom of Today that showed no form at all while finance was not
- * connected. Both live here, under the member's own name.
+ * A change to the member's own record is asked for in Membership
+ * (views/membership.php, lib/MemberRequests.php), decided by an admin.
  *
- * Hooks: #memberRequests (portal/member-requests.js), #moneyRequests
- * (portal/money-requests.js).
+ * Hook: #moneyRequests (portal/money-requests.js).
  */
 declare(strict_types=1);
-$mreqCentres = class_exists('Centres') ? Centres::names() : [];
-$mreqMe = class_exists('MemberRoster') ? MemberRoster::get((int) $u['id']) : null;
 ?>
       <section class="pview avp-view avp-requests" id="view-requests" data-view="requests" hidden aria-labelledby="avpReqH">
-        <div class="avp-view-head"><h1 class="avp-h1" id="avpReqH">Requests</h1></div>
-        <p class="avp-req-intro">Ask from here, under your own name. A change to your record is decided by an admin; money is decided by CACENTRE finance. You see each answer below, and by email.</p>
+        <div class="avp-view-head"><h1 class="avp-h1" id="avpReqH">Finance requests</h1></div>
+        <p class="avp-req-intro">Ask CACENTRE finance for money, under your own name: a claim for something you paid for, or something that needs buying. Finance decides, and you see where each request stands below. A change to your own record is asked for in Membership.</p>
         <div class="avp-stack">
 
-        <section class="avp-card" id="memberRequests" data-csrf="<?= e(av_csrf_token()) ?>" aria-labelledby="avpMreqH">
-          <div class="pcard-head"><h2 id="avpMreqH">Ask for a change to your record</h2></div>
-          <div class="pcard-body">
-            <form class="mr-form" data-mq-form novalidate>
-              <label class="mr-wide">What are you asking for
-                <select name="kind" data-mq-kind required>
-<?php foreach (MemberRequests::KINDS as $k => $label): ?>
-                  <option value="<?= e($k) ?>"><?= e($label) ?></option>
-<?php endforeach; ?>
-                </select>
-              </label>
-              <label class="mr-wide" data-mq-for="centre">Which centre
-                <select name="centre">
-                  <option value="">Choose a centre</option>
-<?php foreach ($mreqCentres as $c): if ($mreqMe && mb_strtolower($c) === mb_strtolower((string) $mreqMe['centre'])) continue; ?>
-                  <option value="<?= e($c) ?>"><?= e($c) ?></option>
-<?php endforeach; ?>
-                </select>
-              </label>
-              <p class="pcard-note" data-mq-for="centre"><?= $mreqMe && (string) $mreqMe['centre'] !== '' ? 'You are at ' . e((string) $mreqMe['centre']) . ' now.' : 'You are not at a centre yet.' ?></p>
-              <label data-mq-for="details" hidden>Your name, as it should be <input name="name" maxlength="120" value="<?= e((string) ($mreqMe['name'] ?? '')) ?>" autocomplete="name"></label>
-              <label data-mq-for="details" hidden>Your phone <input name="phone" inputmode="tel" maxlength="24" value="<?= e((string) ($mreqMe['phone'] ?? '')) ?>" autocomplete="tel"></label>
-              <label class="mr-wide">Anything an admin should know <textarea name="message" rows="2" maxlength="1000" data-mq-message placeholder="I moved house and the Ayobo centre is nearer."></textarea></label>
-              <button type="submit" class="pbtn pbtn-gold">Send to an admin</button>
-            </form>
-            <p class="enroll-msg" data-mq-msg role="status" hidden></p>
-            <h3 class="avp-req-h3">Your requests</h3>
-            <div data-mq-list aria-live="polite"><p class="pc-empty">Loading…</p></div>
-          </div>
-        </section>
 
         <!-- Asking finance for money. Not inside the dues block above:
              this is for every member, and a facilitator who paid a bus

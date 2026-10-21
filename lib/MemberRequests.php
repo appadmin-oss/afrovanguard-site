@@ -8,7 +8,7 @@
  * member ask for these from their own record (api/_lib/domain/member-self.php);
  * this is the same here.
  *
- *   · The member asks in the portal → Requests. Nothing about their record
+ *   · The member asks in the portal → Membership. Nothing about their record
  *     changes until an admin approves.
  *   · An admin decides in the Studio → Members → Approvals, under "From
  *     members". Approved, a change of centre or of details is applied to the
@@ -245,7 +245,7 @@ final class MemberRequests
             Mailer::send((string) $u['email'], ($status === 'approved' ? 'Your request was approved' : 'Your request was not approved'),
                 '<p>' . htmlspecialchars($summary) . '</p>'
                 . ($status === 'approved' ? '<p>' . htmlspecialchars($outcome !== '' ? $outcome : 'Approved.') . '</p>' : '<p>Why: ' . htmlspecialchars($reason) . '</p>')
-                . '<p>You can see your requests in your portal → Requests.</p>');
+                . '<p>You can see your requests in your portal → Membership.</p>');
         } catch (Throwable $e) { error_log('[member-requests] mail: ' . $e->getMessage()); }
     }
 

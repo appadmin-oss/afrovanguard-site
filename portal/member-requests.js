@@ -1,5 +1,5 @@
 /* ============================================================
-   portal/member-requests.js — asking for a change to your own record.
+   portal/member-requests.js — asking for a change to your own record (portal → Membership).
 
    Another centre, corrected details, pausing or leaving, anything else.
    Nothing changes until an admin approves it in the Studio; the answer is

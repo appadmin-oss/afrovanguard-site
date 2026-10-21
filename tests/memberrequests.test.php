@@ -65,11 +65,14 @@ ck('requests: at most ' . MemberRequests::OPEN_MAX . ' open at once', !MemberReq
 $root = dirname(__DIR__);
 $view = (string) file_get_contents($root . '/portal/views/requests.php');
 $idx = (string) file_get_contents($root . '/portal/index.php');
-ck('requests: the portal has a Requests page in the member’s own menu', str_contains($idx, "['requests', 'Requests'") && str_contains($idx, "views/requests.php") && str_contains($idx, '/portal/member-requests.js'));
-ck('requests: both kinds of request are on it — a change to your record, and money from finance', str_contains($view, 'id="memberRequests"') && str_contains($view, 'id="moneyRequests"'));
+$memv = (string) file_get_contents($root . '/portal/views/membership.php');
+ck('requests: a change to your record is asked for in Membership', str_contains($memv, 'id="memberRequests"') && str_contains($idx, '/portal/member-requests.js'));
+ck('requests: the portal has a Finance requests page in the member’s own menu, for money only', str_contains($idx, "['requests', 'Finance requests'") && str_contains($idx, "views/requests.php")
+    && str_contains($view, 'id="moneyRequests"') && !str_contains($view, 'id="memberRequests"'));
+ck('requests: Membership shows how many of your requests are waiting', str_contains($idx, "['membership', (\$isOrg ? 'Membership' : 'Account'), \$mreqWaiting"));
 ck('requests: money is no longer only on Today, which now points to Requests', !str_contains((string) file_get_contents($root . '/portal/views/today.php'), 'id="moneyRequests"'));
 ck('requests: when finance is not set up, the member is told so — not "cannot be reached"', str_contains($view, 'data-mr-off') && str_contains((string) file_get_contents($root . '/portal/money-requests.js'), 'finance_configured === false'));
-ck('requests: the Requests page carries no inline style', !str_contains($view, 'style='));
+ck('requests: neither page carries an inline style', !str_contains($view, 'style=') && !str_contains($memv, 'style='));
 $ep = (string) file_get_contents($root . '/portal/member-requests.php');
 ck('requests: a member’s write needs their token and is rate-limited', str_contains($ep, "av_require_write(\$uid, 'member_request'"));
 $api = (string) file_get_contents($root . '/admin/api.php');
