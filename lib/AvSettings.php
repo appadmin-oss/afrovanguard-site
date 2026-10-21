@@ -494,6 +494,25 @@ final class AvSettings
     }
 
     /**
+     * Whether a row for this setting exists at all, and who wrote it when —
+     * never the value. "Not set up" covers both "never saved" and "saved and
+     * since lost"; this is what tells them apart without a database console.
+     *
+     * @return array{by:string,at:string}|null
+     */
+    public static function storedRow(string $key): ?array
+    {
+        try {
+            self::ensure();
+            $q = Database::pdo()->prepare('SELECT updated_by, updated_at FROM av_settings WHERE setting_key = ?');
+            $q->execute([$key]);
+            $r = $q->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) { return null; }
+
+        return $r ? ['by' => (string) $r['updated_by'], 'at' => (string) $r['updated_at']] : null;
+    }
+
+    /**
      * Why a stored setting cannot be read, in words an operator can act on,
      * or '' when the store itself is fine (the value may simply be unset —
      * that is the caller's own business to describe).
@@ -712,7 +731,13 @@ final class AvSettings
             $val = trim((string) $raw);
 
             // Unchanged masked secret — nothing to do.
-            if (!empty($d['secret']) && ($val === self::MASK || strpos($val, '…') !== false)) continue;
+            if (!empty($d['secret']) && $val === self::MASK) continue;
+            /* The masked preview copied by hand. Skipping it quietly reported
+               the save as fine while nothing was stored; say what happened. */
+            if (!empty($d['secret']) && strpos($val, '…') !== false) {
+                $errors[$key] = 'That is the masked preview, not the value — paste the real one (it never contains “…”).';
+                continue;
+            }
 
             if ($val === '') {
                 try {
@@ -745,6 +770,22 @@ final class AvSettings
                 $db->prepare('DELETE FROM av_settings WHERE setting_key = ?')->execute([$key]);
                 $db->prepare('INSERT INTO av_settings (setting_key, value, is_secret, updated_by, updated_at) VALUES (?,?,?,?,?)')
                    ->execute([$key, $store, $isSecret, mb_substr($actor, 0, 191), gmdate('c')]);
+                /* Read it back before calling it saved. A secret that went in
+                   and will not come out is the state every screen then reports
+                   as "not set up" — catch it here, while the operator is still
+                   looking at the field. */
+                if ($isSecret) {
+                    $back = $db->prepare('SELECT value FROM av_settings WHERE setting_key = ?');
+                    $back->execute([$key]);
+                    $got = $back->fetchColumn();
+                    if ($got === false || self::dec((string) $got) !== $val) {
+                        $errors[$key] = $got === false
+                            ? 'The database accepted the value but does not have it — nothing is stored. Check System → health → Database.'
+                            : 'Stored, but it does not read back as what was pasted (the stored copy was cut short or cannot be decrypted). Nothing usable is stored; check System → health.';
+                        $db->prepare('DELETE FROM av_settings WHERE setting_key = ?')->execute([$key]);
+                        continue;
+                    }
+                }
                 $saved++;
             } catch (Throwable $e) {
                 error_log('[settings] save: ' . $e->getMessage());

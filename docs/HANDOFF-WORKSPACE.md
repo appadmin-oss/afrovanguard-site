@@ -350,3 +350,38 @@ than writing a fourth boolean. `tests/mailsetup.test.php` documents the trap.
 Equally: **do not let a timeout be reported as a refusal.** It sends an
 operator to the Google Admin console to fix a delegation that may be fine.
 That distinction is why `SCOPE_UNCHECKED` exists.
+
+---
+
+## 9. Follow-up, 2026-10-21 — a save that was never a save
+
+Found by reading the client, not the server. §4.3 says "the save path refuses
+loudly", and the SERVER does — but the Setup screen's Save handler only
+looked at the per-field `errors` map. Any reply without one read as success:
+a firewall or host error page, an expired session the retry could not
+recover, a PHP fatal, a 413. The screen said **"Saved."**, toasted
+**"Setup saved."**, and nothing had reached `av_settings`. Every screen then
+correctly said "not set up". That fits the operator's report exactly, and §6's
+"ruled out" list did not cover it.
+
+Fixed:
+
+| Where | What |
+|---|---|
+| `admin/app.js` (Save) | "Saved." only when the reply carries `groups` and `saved > 0`. A refused request says **"Not saved — <the server's reason>"** and keeps the form; a reply that stored nothing says **"Nothing was saved."** Clear shows the reason too. |
+| `AvSettings::save()` | A secret containing "…" (the masked preview copied by hand) is now an error with a reason, not a silent `continue` that counted as fine. |
+| `AvSettings::save()` | Every secret is **read back and decrypted** before it is counted as saved; a value that does not come back is removed and reported against the field. |
+| `AvSettings::storedRow()` | Whether a row exists and who wrote it when — never the value. |
+| `GoogleWorkspace::whyNotConfigured()` | When nothing is stored, says **"no service account key has ever been saved here"** and that a Save which looked fine did not reach the database. This is the `db row` line from the §4b script, built in — the drop-in script is no longer needed for that question. |
+
+Tests: six more in `tests/gwssetup.test.php`.
+
+Also checked: the live site's Cloudflare passes a POST carrying a
+key-shaped body to the app (it answered the app's own `401 Unauthorized.`
+JSON). A full-size key body was not sent.
+
+**What the operator does now:** deploy this branch, open Setup, paste the
+key and press Save, then read the message beside the button. If it says
+"Not saved — …", the reason is printed. If it says "Saved.", the key is in
+the database and reads back. Then press Test Google Workspace: a failure
+there is delegation or egress (§4.5), not configuration.

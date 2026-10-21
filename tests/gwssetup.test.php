@@ -104,6 +104,29 @@ ck('workspace: and is not told a key is stored when none is',
    !str_contains(GoogleWorkspace::whyNotConfigured(), 'IS stored'));
 ck('workspace: nothing stored is not "unreadable"',
    AvSettings::unreadable() === []);
+ck('workspace: and it says no key was ever saved here, so a Save that never landed shows',
+   str_contains(GoogleWorkspace::whyNotConfigured(), 'no service account key has ever been saved here'));
+ck('workspace: storedRow() knows there is no row, without reading the value',
+   AvSettings::storedRow('AV_GDRIVE_SERVICE_ACCOUNT') === null);
+
+/* ── a save is reported only when it really stored something ─────────── */
+
+$r = AvSettings::save(['AV_GDRIVE_SERVICE_ACCOUNT' => '{ "type": "service_account", … }'], 'tester');
+ck('workspace: the masked preview pasted back is refused with a reason, not skipped as if saved',
+   ($r['saved'] ?? 0) === 0 && str_contains((string) ($r['errors']['AV_GDRIVE_SERVICE_ACCOUNT'] ?? ''), 'masked preview'));
+$r = AvSettings::save(['AV_GDRIVE_SERVICE_ACCOUNT' => $sa], 'tester');
+AvSettings::flush();
+ck('workspace: a real key is read back before it is called saved',
+   ($r['saved'] ?? 0) === 1 && empty($r['errors']) && GoogleWorkspace::configured());
+ck('workspace: storedRow() names who saved it',
+   (AvSettings::storedRow('AV_GDRIVE_SERVICE_ACCOUNT')['by'] ?? '') === 'tester');
+Database::pdo()->prepare("DELETE FROM av_settings WHERE setting_key = 'AV_GDRIVE_SERVICE_ACCOUNT'")->execute();
+AvSettings::flush();
+AvSettings::apply();
+
+$js = (string) file_get_contents(dirname(__DIR__) . '/admin/app.js');
+ck('workspace: the Save button does not say "Saved." for a request the server refused',
+   str_contains($js, "'Not saved — '") && str_contains($js, "'Nothing was saved.'"));
 
 /* ── the fallback key, named while it still works ─────────────────────── */
 

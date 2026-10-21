@@ -151,8 +151,17 @@ final class GoogleWorkspace
                 .'into Studio → Rules & AI → Setup.';
         }
 
-        return 'Google Workspace is not set up on this site: an administrator adds the service account key '
-            .'in Studio → Rules & AI → Setup → Google sign-in & Workspace.';
+        $how = 'an administrator adds the service account key in Studio → Rules & AI → Setup → Google sign-in & Workspace.';
+        /* Say whether a key was ever saved here. "Not set up" after somebody
+           pressed Save is the report this whole area kept producing, and the
+           first question is always whether the save reached the database. */
+        if (class_exists('AvSettings') && AvSettings::storedRow('AV_GDRIVE_SERVICE_ACCOUNT') === null) {
+            return 'Google Workspace is not set up on this site: no service account key has ever been saved here '
+                .'(if you pressed Save, it did not reach the database — save again and read the message beside the button). '
+                .'To set it up, ' . $how;
+        }
+
+        return 'Google Workspace is not set up on this site: ' . $how;
     }
 
     /** Full write sync is opt-in (creates real calendar events + Meet links). */

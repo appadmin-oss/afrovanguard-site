@@ -1842,7 +1842,7 @@
     post('setup_save', { values: vals }).then(function (r) {
       var d = r.data || {};
       if (d.saved) { toast('Cleared.'); renderSetup(d); setupDirty = {}; }
-      else toast('Could not clear that.');
+      else toast('Could not clear that' + (d.error ? ' — ' + d.error : '.'));
     });
   });
 
@@ -1855,8 +1855,17 @@
       var d = r.data || {};
       var errs = d.errors || {};
       var names = Object.keys(errs);
+      /* "Saved." only when the server says it stored something. A refused
+         request — a firewall page, an expired session, a PHP fatal — has no
+         per-field errors either, and used to read as success: the operator
+         was told a key was saved that never reached the database. */
       if (names.length) {
         $('#setupMsg').textContent = names.map(function (k) { return k + ': ' + errs[k]; }).join(' · ');
+      } else if (!d.groups) {
+        $('#setupMsg').textContent = 'Not saved — ' + (d.error || 'the server sent no usable answer') + ' Your changes are still in the form; try again.';
+        return;
+      } else if (!d.saved) {
+        $('#setupMsg').textContent = 'Nothing was saved.';
       } else {
         $('#setupMsg').textContent = 'Saved.';
         toast('Setup saved.');
