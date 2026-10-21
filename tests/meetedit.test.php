@@ -123,3 +123,31 @@ $ep->exec("DELETE FROM meeting_attendees WHERE meeting_id IN (SELECT id FROM mee
 $ep->exec("DELETE FROM meetings WHERE title LIKE 'ME %'");
 $ep->exec('DELETE FROM lms_users WHERE id BETWEEN 9760 AND 9769');
 foreach ($eEnv as $k => $v) { if ($v === false) putenv($k); else putenv($k . '=' . $v); }
+
+/* ── What the organiser is SHOWN after a successful edit ──────────────────
+   Reported as "meetings cannot be edited". They can: update() returns
+   ok=true and the row changes. What failed was the telling.
+
+   portal/meetings.js has say(text, tone), and tone decides the colour.
+   The success branch passed `true` (green) and cleared after 3s; the
+   warning branch passed nothing, so a save that carried a note — "there
+   is still no Meet link", which this site emits on EVERY edit while
+   Google Workspace is unreachable — was painted in the failure colour and
+   left on screen. The edit had saved. Nothing said so.
+
+   Pinned at source because the defect is in the rendering, not the route,
+   and this repository has no browser in its suite. */
+$js = (string) file_get_contents(AV_ROOT . '/portal/meetings.js');
+
+ck('meet-ui: a warning after a save is never rendered with no tone',
+   !preg_match('~say\(d\.warning\)~', $js));
+ck('meet-ui: every warning branch says the work was done first',
+   substr_count($js, "say('✓ ' + d.warning, 'warn')") === substr_count($js, 'd.warning) '));
+ck('meet-ui: say() knows a third tone, so "done, with a caveat" is not red',
+   str_contains($js, "tone === 'warn'") && str_contains($js, "tone === true || tone === 'ok'"));
+
+/* The contract the rendering leans on — a save Google could not mirror is a
+   success carrying a warning, never an error — is already pinned by the
+   Google-refuses case earlier in this file, and that runs before teardown
+   with a live meeting. Re-asserting it down here only proved the rows had
+   already been deleted. */

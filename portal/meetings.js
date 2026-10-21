@@ -39,7 +39,18 @@
   }
   function fmtDur(m) { m = +m || 0; var h = Math.floor(m / 60), r = m % 60; return h ? (h + 'h' + (r ? ' ' + r + 'm' : '')) : (r + 'm'); }
 
-  function say(t, ok) { if (!msg) return; msg.textContent = t || ''; msg.style.color = ok ? 'var(--afg-success,#16a34a)' : ''; }
+  /* Three tones, not two. `true` still means success, for the callers that
+     pass it. 'warn' is the one that was missing: an action that DID what was
+     asked and has something to add. Without it a saved edit carrying a
+     "no Meet link yet" note was painted in the failure colour and left on
+     screen, so on a site where Google Workspace is not working every single
+     edit looked like it had been rejected. */
+  function say(t, tone) {
+    if (!msg) return;
+    msg.textContent = t || '';
+    msg.style.color = tone === true || tone === 'ok' ? 'var(--afg-success,#16a34a)'
+      : (tone === 'warn' ? 'var(--av-gold-text,#8a6406)' : '');
+  }
 
   function transcriptHtml(m) {
     var t = m.transcript;
@@ -332,7 +343,7 @@
       l.disabled = true; l.textContent = 'Asking Google…';
       post('update', { id: +l.getAttribute('data-id') }).then(function (d) {
         if (!d || !d.ok) { say((d && d.error) || 'Could not add the link.'); l.disabled = false; return; }
-        if (d.warning) say(d.warning); else say('Meet link added ✓ — everyone has it', true);
+        if (d.warning) say('✓ ' + d.warning, 'warn'); else say('Meet link added ✓ — everyone has it', true);
         load();
       });
     }
@@ -355,7 +366,10 @@
       post('update', body).then(function (d) {
         if (!d || !d.ok) { say((d && d.error) || 'Could not save.'); return; }
         endEdit();
-        if (d.warning) say(d.warning); else { say('Saved ✓ — everyone has the change', true); setTimeout(function () { say(''); }, 3000); }
+        /* Saved either way: the caveat follows the tick, and stays up (a
+           success clears after 3s) because it is something to act on. */
+        if (d.warning) say('✓ ' + d.warning, 'warn');
+        else { say('Saved ✓ — everyone has the change', true); setTimeout(function () { say(''); }, 3000); }
         load();
       }).catch(function () { say('Network error.'); });
       return;
@@ -366,7 +380,7 @@
       if (!d || !d.ok) { say((d && d.error) || 'Could not schedule.'); return; }
       /* A warning stays until it is read — it is the only place the reason appears. */
       var cap = d.meeting && d.meeting.capture, capOk = cap === 'all' || cap === 'transcript';
-      if (d.warning) { say(d.warning); }
+      if (d.warning) { say('✓ ' + d.warning, 'warn'); }
       else if (d.meeting && d.meeting.meet_url && !capOk && d.meeting.capture_note) { say('Scheduled and invited — but it will not transcribe itself: ' + d.meeting.capture_note); }
       else { say('Scheduled ✓ — invite sent' + (capOk ? '; Google will transcribe it' : ''), true); setTimeout(function () { say(''); }, 3500); }
       form.reset();
