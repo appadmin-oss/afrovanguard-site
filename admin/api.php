@@ -996,11 +996,21 @@ try {
                 $file = AV_ROOT . "/db/schema.$to.sql";
                 if (!is_file($file)) json_out(['ok' => false, 'error' => "Schema file missing: db/schema.$to.sql"], 500);
                 $sql = preg_replace('/--[^\n]*/', '', (string) file_get_contents($file));
+                /* "Already there" is not a failure. MySQL has no
+                   CREATE INDEX IF NOT EXISTS, so re-applying this schema always
+                   raises 1061 Duplicate key name on the first index — and this
+                   loop aborted the entire migration on it, which made a second
+                   attempt impossible once the tables existed. */
+                $skipped = 0;
                 foreach (array_filter(array_map('trim', explode(';', (string) $sql))) as $stmt) {
                     try { $target->exec($stmt); $appliedStmts++; }
-                    catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Schema step failed: ' . $e->getMessage(), 'log' => $log], 500); }
+                    catch (Throwable $e) {
+                        if (Database::isBenignSchemaError($e)) { $skipped++; continue; }
+                        json_out(['ok' => false, 'error' => 'Schema step failed: ' . $e->getMessage(), 'log' => $log], 500);
+                    }
                 }
-                $append("Applied db/schema.$to.sql ($appliedStmts statements)\n");
+                $append("Applied db/schema.$to.sql ($appliedStmts statements"
+                    . ($skipped ? ", $skipped already there" : '') . ")\n");
                 require_once AV_ROOT . '/lib/workspace.php';
                 require_once AV_ROOT . '/lib/celebrations.php';
                 require_once AV_ROOT . '/lib/people.php';

@@ -164,3 +164,49 @@ ck('migrate: every POST is treated as a write, so a token is required',
    tables the migration copies. It used to count Migrator::ORDER. */
 ck('migrate: db_status counts every table, not the hand-written list',
    (bool) preg_match('~db_status.*?Migrator::allTables~s', $api));
+
+/* ── 6. "already there" is not a failure ─────────────────────────────────
+   Reported from production, with the schema step ticked:
+
+     Schema step failed: SQLSTATE[42000]: Syntax error or access violation:
+     1061 Duplicate key name 'idx_articles_published'
+
+   MySQL has no CREATE INDEX IF NOT EXISTS, and db/schema.mysql.sql carries
+   ten bare CREATE INDEX statements, so re-applying it ALWAYS raises 1061 on
+   the first one. admin db_migrate aborted the whole migration there, which
+   meant that once the tables existed no further attempt could ever get
+   past the schema step. DbMigrateJob had the opposite fault: it swallowed
+   every error, so a target that genuinely refused the schema would have
+   been filled with rows anyway.
+
+   Database::isBenignSchemaError() already knew the answer and was private. */
+$dup = new PDOException("SQLSTATE[42000]: Syntax error or access violation: 1061 Duplicate key name 'idx_articles_published'");
+ck('migrate: the exact 1061 from production is treated as already-there',
+   Database::isBenignSchemaError($dup));
+
+foreach ([
+    '1050 Table \'articles\' already exists'            => 'a table that exists',
+    '1060 Duplicate column name \'status\''             => 'a column that exists',
+    '1826 Duplicate foreign key constraint name \'fk1\'' => 'a foreign key that exists',
+] as $msg => $label) {
+    ck('migrate: ' . $label . ' is already-there too', Database::isBenignSchemaError(new PDOException($msg)));
+}
+
+/* The other half, and the one that matters more: a real refusal must still
+   stop the migration rather than be shrugged off. */
+foreach ([
+    "SQLSTATE[42000]: Access denied for user 'x'@'localhost' to database 'y'",
+    'SQLSTATE[HY000]: Got error 28 from storage engine',
+    "SQLSTATE[42S02]: Base table or view not found: 1146 Table 'db.articles' doesn't exist",
+] as $real) {
+    ck('migrate: a real schema failure is not mistaken for already-there: ' . substr($real, 0, 40),
+       !Database::isBenignSchemaError(new PDOException($real)));
+}
+
+/* Both schema paths must consult it rather than inventing an answer. */
+$apiSrc = (string) file_get_contents(AV_ROOT . '/admin/api.php');
+$jobSrc = (string) file_get_contents(AV_ROOT . '/lib/DbMigrateJob.php');
+ck('migrate: the one-shot schema step skips benign errors instead of aborting',
+   (bool) preg_match('~Schema step failed~', $apiSrc) && str_contains($apiSrc, 'Database::isBenignSchemaError'));
+ck('migrate: the resumable schema step stops on a real one instead of swallowing it',
+   str_contains($jobSrc, 'Database::isBenignSchemaError') && str_contains($jobSrc, 'refused part of the schema'));

@@ -726,8 +726,11 @@ final class Database
         }
     }
 
-    /** True for "object already exists / duplicate" DDL errors that make an ensure() re-run a no-op. */
-    private static function isBenignSchemaError(Throwable $e): bool
+    /** True for "object already exists / duplicate" DDL errors that make an ensure() re-run a no-op.
+     *  Public because applying a schema to a migration target needs exactly this
+     *  judgement, and had been making it up — one path aborted on a duplicate
+     *  index, the other swallowed every error including the real ones. */
+    public static function isBenignSchemaError(Throwable $e): bool
     {
         $m = $e->getMessage();
         // MySQL: 1050 table exists · 1060 dup column · 1061 dup key/index · 1826 dup FK.

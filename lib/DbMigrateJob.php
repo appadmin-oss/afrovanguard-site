@@ -117,7 +117,17 @@ final class DbMigrateJob
         $n = 0;
         foreach (array_filter(array_map('trim', explode(';', (string) file_get_contents($f)))) as $stmt) {
             if ($stmt === '' || str_starts_with($stmt, '--')) continue;
-            try { $dst->exec($stmt); $n++; } catch (Throwable $e) { /* already there */ }
+            try { $dst->exec($stmt); $n++; }
+            catch (Throwable $e) {
+                /* "Already there" is expected on a re-run — MySQL has no
+                   CREATE INDEX IF NOT EXISTS, so every retry raises 1061. Any
+                   OTHER error is the target telling us the schema did not
+                   land, and swallowing it would mean copying rows into tables
+                   that are not shaped the way this site expects. */
+                if (Database::isBenignSchemaError($e)) continue;
+                throw new RuntimeException('The target refused part of the schema: ' . $e->getMessage()
+                    . ' — nothing has been copied.', 0, $e);
+            }
         }
 
         return $n;
