@@ -829,3 +829,24 @@ body.studio { --gold-deep: var(--av-gold-text); }
 .mem-note { border-left:3px solid var(--divider); padding:4px 10px; margin:8px 0; }
 .mem-note p { margin:0 0 2px; }
 .linklike { background:none; border:0; padding:0; font:inherit; color:inherit; text-decoration:underline; cursor:pointer; }
+
+/* Members: what used to be inline styles, as classes. */
+.ml-auto { margin-left: auto; }
+.mem-gap-top { margin-top: 12px; }
+.editor-actions.is-inline { justify-content: flex-start; padding: 0; border: 0; }
+#roleMsg.is-bad, #centreMsg.is-bad { color: var(--red, #b91c1c); }
+.mem-bars .h5 { height: 5%; } .mem-bars .h10 { height: 10%; } .mem-bars .h15 { height: 15%; } .mem-bars .h20 { height: 20%; }
+.mem-bars .h25 { height: 25%; } .mem-bars .h30 { height: 30%; } .mem-bars .h35 { height: 35%; } .mem-bars .h40 { height: 40%; }
+.mem-bars .h45 { height: 45%; } .mem-bars .h50 { height: 50%; } .mem-bars .h55 { height: 55%; } .mem-bars .h60 { height: 60%; }
+.mem-bars .h65 { height: 65%; } .mem-bars .h70 { height: 70%; } .mem-bars .h75 { height: 75%; } .mem-bars .h80 { height: 80%; }
+.mem-bars .h85 { height: 85%; } .mem-bars .h90 { height: 90%; } .mem-bars .h95 { height: 95%; } .mem-bars .h100 { height: 100%; }
+
+/* Members → Centres */
+.mem-centre-new { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 12px 0; }
+.mem-centre-new .fld { margin: 0; }
+.mem-centre-code { max-width: 8rem; text-transform: uppercase; }
+.mem-centres { display: flex; flex-direction: column; gap: 8px; }
+.mem-centre-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 10px 12px; border: 1px solid var(--divider); border-radius: var(--radius-md); }
+.mem-centre-row.is-retired { opacity: .7; }
+.mem-centre-row .fld { margin: 0; }
+.mem-centre-ops { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }

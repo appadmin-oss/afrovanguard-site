@@ -103,6 +103,7 @@ try {
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
         'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
         'roles_list', 'role_save', 'role_delete',
+        'centres_list', 'centre_save', 'centre_status', 'centre_delete',
         'roster_export', 'roster_centres', 'member_notes', 'member_note_add', 'member_note_delete', 'member_activity', 'member_message',
         'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
@@ -1277,7 +1278,8 @@ try {
                 + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'work_role', 'sort', 'dir', 'page', 'page_size']))));
         /* ── The day-to-day desk, as NGG's admin has it (lib/MemberDesk.php) ── */
         case 'roster_centres':
-            json_out(['ok' => true, 'centres' => array_values(array_filter(array_map('strval', Database::pdo()->query("SELECT DISTINCT centre FROM member_profiles WHERE centre <> '' ORDER BY centre")->fetchAll(PDO::FETCH_COLUMN))))]);
+            /* The office's list: open centres to put people in, every centre to filter by. */
+            json_out(['ok' => true, 'centres' => array_column(Centres::all(), 'name'), 'open' => Centres::names()]);
         case 'roster_export':
             /* The filtered list, or the chosen members within it. It names people and
                their phones, so who took it, and how many, goes in the audit log. */
@@ -1317,6 +1319,21 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = MemberRoles::delete((int) ($body['id'] ?? 0), av_admin_actor());
             json_out($r, $r['ok'] ? 200 : 404);
+        /* ── Centres, one list with codes (lib/Centres.php) ── */
+        case 'centres_list':
+            json_out(['ok' => true, 'centres' => Centres::all()]);
+        case 'centre_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Centres::save(['id' => $body['id'] ?? 0, 'name' => $body['name'] ?? '', 'code' => $body['code'] ?? ''], av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'centre_status':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Centres::setStatus((int) ($body['id'] ?? 0), (string) ($body['status'] ?? ''), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'centre_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Centres::delete((int) ($body['id'] ?? 0), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 409);
         case 'roster_get':
             $m = MemberRoster::get((int) ($_GET['id'] ?? 0));
             json_out($m ? ['ok' => true, 'member' => $m] : ['ok' => false, 'error' => 'No such member.'], $m ? 200 : 404);

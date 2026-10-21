@@ -437,6 +437,7 @@
       <button class="subtab active" data-mv="dash" role="tab">Dashboard</button>
       <button class="subtab" data-mv="roster" role="tab">Roster</button>
       <button class="subtab" data-mv="roles" role="tab">Roles</button>
+      <button class="subtab" data-mv="centres" role="tab">Centres</button>
       <button class="subtab" data-mv="import" role="tab">Import</button>
       <button class="subtab" data-mv="volunteers" role="tab">Volunteers</button>
       <button class="subtab" data-mv="dups" role="tab">Duplicates</button>
@@ -449,7 +450,7 @@
         <label class="fld"><span>Name</span><input id="mc_name" placeholder="Full name" autocomplete="off" /></label>
         <label class="fld"><span>Email</span><input id="mc_email" type="email" placeholder="name@example.com" autocomplete="off" /></label>
         <label class="fld"><span>Phone</span><input id="mc_phone" inputmode="tel" placeholder="0803 000 0000" /></label>
-        <label class="fld"><span>Centre</span><input id="mc_centre" placeholder="Egbeda" /></label>
+        <label class="fld"><span>Centre</span><select id="mc_centre" data-centre-pick><option value="">No centre</option></select></label>
         <label class="fld"><span>Access level</span><select id="mc_role"></select></label>
         <label class="fld"><span>Membership level</span><select id="mc_level"></select></label>
         <label class="fld"><span>Birthday</span><input id="mc_bday" placeholder="1998-07-14 or 07-14" maxlength="10" /></label>
@@ -541,7 +542,7 @@
         <p class="muted">Save the sheet as CSV. The first row names the columns: <b>Name</b> and <b>Email</b> (both required), Phone, Centre, Access level, Level, Date of birth, Date joined, <b>NGV number</b> (the number on a card they already hold), Card code (an older card read by a format below). An email that already has an account <b>is</b> that account: the row fills it in and links it — and any NGV application under the same email — rather than making a second. Importing twice updates the same people.</p>
         <label class="btn btn-outline btn-sm mem-file">Choose CSV…<input type="file" id="miFile" accept=".csv,text/csv" hidden /></label>
         <span class="muted tiny" id="miFileName"></span>
-        <div class="mem-create-grid" style="margin-top:12px">
+        <div class="mem-create-grid mem-gap-top">
           <label class="fld"><span>What the ID column holds</span><select id="miIdFormat" aria-describedby="miIdHelp"></select></label>
           <label class="fld"><span>Cards these members already hold</span><select id="miFormat"></select></label>
           <label class="fld mem-check"><input type="checkbox" id="miOverwrite" /> <span>Replace values a record already has (default: fill blanks only)</span></label>
@@ -609,6 +610,18 @@
       <div id="memRolesList"><p class="muted">Loading…</p></div>
     </section>
 
+    <section class="mem-pane" data-pane="centres" hidden>
+      <p class="muted">The centres members belong to, one list with a short code, as NGG keeps its centres. A member's centre is one of these or none. Renaming a centre renames it on every member there; a centre in use is retired, not deleted — its members keep it, and nobody new is put there.</p>
+      <form class="mem-centre-new" id="centreNew" autocomplete="off">
+        <label class="fld"><span>New centre</span><input id="centreNewName" maxlength="60" placeholder="Egbeda" required /></label>
+        <label class="fld"><span>Code</span><input id="centreNewCode" class="mem-centre-code" maxlength="8" placeholder="EG" aria-describedby="centreCodeHelp" /></label>
+        <button class="btn btn-primary btn-sm" type="submit">Add centre</button>
+      </form>
+      <p class="muted tiny" id="centreCodeHelp">Leave the code blank and one is made from the name.</p>
+      <p class="muted tiny" id="centreMsg" role="status" aria-live="polite"></p>
+      <div id="memCentresList"><p class="muted">Loading…</p></div>
+    </section>
+
     <section class="mem-pane" data-pane="dups" hidden>
       <p class="muted">Records that look like one person — the same name, or the same phone. Shown, never merged: a person decides.</p>
       <div id="memDups"></div>
@@ -624,7 +637,7 @@
           <label class="fld"><span>Name</span><input id="md_name" /></label>
           <label class="fld"><span>Email</span><input id="md_email" type="email" /></label>
           <label class="fld"><span>Phone</span><input id="md_phone" inputmode="tel" /></label>
-          <label class="fld"><span>Centre</span><input id="md_centre" /></label>
+          <label class="fld"><span>Centre</span><select id="md_centre" data-centre-pick><option value="">No centre</option></select></label>
           <label class="fld"><span>Access level</span><select id="md_role"></select></label>
           <label class="fld"><span>Membership level</span><select id="md_level"></select></label>
           <label class="fld"><span>Birthday</span><input id="md_bday" maxlength="10" placeholder="1998-07-14 or 07-14" /></label>
@@ -686,7 +699,7 @@
         <div class="mem-cardphoto" id="mdCardPhoto">
           <div class="mem-cp-frame"><img id="mdCpImg" alt="Card photo" hidden><span id="mdCpNone">No photo — the card prints initials.</span></div>
           <div class="mem-cp-side">
-            <div class="editor-actions" style="justify-content:flex-start;padding:0;border:0">
+            <div class="editor-actions is-inline">
               <button class="btn btn-outline btn-sm" id="mdCpPick" type="button">Add photo</button>
               <button class="btn btn-outline btn-sm" id="mdCpClear" type="button" hidden>Remove photo</button>
             </div>

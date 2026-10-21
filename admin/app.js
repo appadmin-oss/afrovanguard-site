@@ -3227,6 +3227,7 @@
     if (which === 'dash') loadMemDash();
     if (which === 'roster') loadMemRoster();
     if (which === 'roles') loadMemRoles();
+    if (which === 'centres') loadMemCentres();
     if (which === 'import') loadMemFormats();
     if (which === 'dups') loadMemDups();
     if (which === 'volunteers') { loadVolProjects(); vsStatus(); }
@@ -3279,14 +3280,14 @@
         + Object.keys(d.by_role || {}).map(function (k) { return memChip(d.by_role[k], k); }).join('');
       var max = Math.max.apply(null, (d.joined || []).map(function (m) { return m.joined; }).concat([1]));
       $('#memJoined').innerHTML = (d.joined || []).map(function (m) {
-        return '<span style="height:' + Math.max(2, Math.round(m.joined / max * 100)) + '%" title="' + escapeHtml(m.month) + ': ' + m.joined + ' joined"><i>' + escapeHtml(m.month.slice(5)) + '</i></span>';
+        return '<span class="h' + Math.min(100, Math.max(5, Math.round(m.joined / max * 20) * 5)) + '" title="' + escapeHtml(m.month) + ': ' + m.joined + ' joined"><i>' + escapeHtml(m.month.slice(5)) + '</i></span>';
       }).join('');
       var q = d.quality || {}, keys = Object.keys(q);
       $('#memQuality').innerHTML = keys.length ? '<div class="mem-quality">' + keys.map(function (k) {
         return '<a href="#" data-missing="' + escapeHtml(k) + '"><span>' + escapeHtml(q[k].label) + '</span><b>' + q[k].n + '</b></a>';
       }).join('') + '</div>' : '<p class="muted">Nothing to fix. Every record is complete.</p>';
       var c = d.by_centre || {};
-      $('#memCentres').innerHTML = Object.keys(c).map(function (k) { return '<div class="mem-card-row"><span>' + escapeHtml(k) + '</span><b style="margin-left:auto">' + c[k] + '</b></div>'; }).join('') || '<p class="muted">No centres recorded.</p>';
+      $('#memCentres').innerHTML = Object.keys(c).map(function (k) { return '<div class="mem-card-row"><span>' + escapeHtml(k) + '</span><b class="ml-auto">' + c[k] + '</b></div>'; }).join('') || '<p class="muted">No centres recorded.</p>';
     });
     api('ngv_intake').then(function (r) {
       var w = (r.data && r.data.waiting) || [];
@@ -3348,12 +3349,49 @@
       return '<button type="button" class="mem-fchip" data-clear="' + f[0] + '" aria-label="Remove the filter ' + escapeHtml(f[1] + ': ' + txt) + '">' + escapeHtml(f[1]) + ': <b>' + escapeHtml(txt) + '</b> ✕</button>';
     }).join('') + (on.length > 1 ? '<button type="button" class="mem-fchip mem-fchip--all" data-clear="*">Clear all</button>' : '');
   }
+  /* Centres come from the office's list (lib/Centres.php): every centre to
+     filter by, only the open ones to put somebody in. */
+  var CENTRES = { all: [], open: [] };
   function memCentresFill() {
-    api('roster_centres').then(function (r) {
+    return api('roster_centres').then(function (r) {
+      CENTRES = { all: (r.data && r.data.centres) || [], open: (r.data && r.data.open) || [] };
       var el = $('#memCentre'), keep = el.value;
-      el.innerHTML = '<option value="">Any centre</option>' + ((r.data && r.data.centres) || []).map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
+      el.innerHTML = '<option value="">Any centre</option>' + CENTRES.all.map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
       el.value = keep;
+      document.querySelectorAll('select[data-centre-pick]').forEach(function (s) { centrePick(s, s.value); });
     }).catch(function () {});
+  }
+  /* A picker of the open centres — and the member's own, even if it has since been retired. */
+  function centrePick(sel, current) {
+    if (!sel) return;
+    var list = CENTRES.open.slice();
+    if (current && list.indexOf(current) < 0) list.push(current);
+    sel.innerHTML = '<option value="">No centre</option>' + list.map(function (c) {
+      return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + (CENTRES.open.indexOf(c) < 0 ? ' (retired)' : '') + '</option>';
+    }).join('');
+    sel.value = current || '';
+  }
+
+  function centreSaid(t, bad) { var m = $('#centreMsg'); if (m) { m.textContent = t || ''; m.classList.toggle('is-bad', !!bad); } }
+  function loadMemCentres() {
+    var box = $('#memCentresList'); if (!box) return;
+    api('centres_list').then(function (r) {
+      var cs = (r.data && r.data.centres) || [];
+      if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load the centres. <button type="button" class="btn btn-outline btn-sm" data-centre-retry>Try again</button></p>'; return; }
+      box.innerHTML = cs.length ? '<div class="mem-centres">' + cs.map(function (c) {
+        var retired = c.status !== 'active';
+        return '<form class="mem-centre-row' + (retired ? ' is-retired' : '') + '" data-id="' + c.id + '">'
+          + '<label class="fld"><span>Centre</span><input name="name" maxlength="60" value="' + escapeHtml(c.name) + '" required /></label>'
+          + '<label class="fld"><span>Code</span><input name="code" class="mem-centre-code" maxlength="8" value="' + escapeHtml(c.code) + '" required /></label>'
+          + '<div class="mem-centre-ops">'
+          + '<button type="button" class="btn btn-outline btn-sm" data-centre-members="' + escapeHtml(c.name) + '">' + c.members + ' member' + (c.members === 1 ? '' : 's') + '</button>'
+          + (retired ? '<span class="badge draft">Retired</span>' : '')
+          + '<button type="submit" class="btn btn-primary btn-sm">Save</button>'
+          + '<button type="button" class="btn btn-outline btn-sm" data-centre-status="' + (retired ? 'active' : 'retired') + '" data-name="' + escapeHtml(c.name) + '">' + (retired ? 'Reopen' : 'Retire') + '</button>'
+          + '<button type="button" class="btn btn-outline btn-sm" data-centre-del data-n="' + c.members + '" data-name="' + escapeHtml(c.name) + '">Delete</button>'
+          + '</div></form>';
+      }).join('') + '</div>' : '<p class="muted">No centres yet. Add the first above — Egbeda, Ayobo…</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the centres. <button type="button" class="btn btn-outline btn-sm" data-centre-retry>Try again</button></p>'; });
   }
   /* One member's activity and notes, in the drawer. */
   function memNotesLoad(id) {
@@ -3506,7 +3544,7 @@
       var g = (r.data && r.data.groups) || [];
       $('#memDups').innerHTML = g.length ? g.map(function (x) {
         return '<div class="side-card"><h3>' + escapeHtml(x.why) + '</h3>' + x.members.map(function (m) {
-          return '<div class="mem-card-row"><span>' + escapeHtml(m.name) + '</span><span class="muted">' + escapeHtml(m.email) + (m.phone ? ' · ' + escapeHtml(m.phone) : '') + '</span><button class="btn btn-outline btn-sm mem-open" data-id="' + m.id + '" style="margin-left:auto">Open</button></div>';
+          return '<div class="mem-card-row"><span>' + escapeHtml(m.name) + '</span><span class="muted">' + escapeHtml(m.email) + (m.phone ? ' · ' + escapeHtml(m.phone) : '') + '</span><button class="btn btn-outline btn-sm mem-open ml-auto" data-id="' + m.id + '">Open</button></div>';
         }).join('') + '</div>';
       }).join('') : '<p class="muted">No records look like the same person.</p>';
     });
@@ -3517,7 +3555,7 @@
     return (cards || []).filter(function (c) { return c.status === 'active'; }).map(function (c) {
       var kind = c.kind === 'secure' ? 'Secure card' : c.kind === 'ngv' ? (/-NGV-/i.test(c.code) ? 'NGV ID' : 'Member ID') : 'Old printed card (' + escapeHtml(c.format) + ')';
       /* A secure card's QR opens /q/<code>: its live card and standing, and what the gate will say. */
-      var open = c.kind === 'secure' ? ' <a class="btn btn-outline btn-sm" style="margin-left:auto" target="_blank" rel="noopener" href="/q/' + encodeURIComponent(c.code) + '">Card &amp; status</a>' : '';
+      var open = c.kind === 'secure' ? ' <a class="btn btn-outline btn-sm ml-auto" target="_blank" rel="noopener" href="/q/' + encodeURIComponent(c.code) + '">Card &amp; status</a>' : '';
       return '<div class="mem-card-row"><span class="badge published">' + kind + '</span><code>' + escapeHtml(c.code) + '</code>' + open + '</div>';
     }).join('') || '<p class="muted">No card yet — the gate can only find them by name.</p>';
   }
@@ -3566,7 +3604,8 @@
       var m = r.data && r.data.member; if (!m) { toast('Could not open.'); return; }
       $('#mdTitle').textContent = m.name + (m.ngv ? ' · NextGen Vanguard' : m.learner ? ' · Academy learner (not a member)' : '');
       memFill('#md_role', memRoles, m.role); memFill('#md_level', memLevels, m.level || 'O', function (x) { return 'Level ' + x; });
-      ['name', 'email', 'phone', 'centre', 'notes', 'work_roles', 'about'].forEach(function (k) { $('#md_' + k).value = m[k] || ''; });
+      ['name', 'email', 'phone', 'notes', 'work_roles', 'about'].forEach(function (k) { $('#md_' + k).value = m[k] || ''; });
+      centrePick($('#md_centre'), m.centre || '');
       roleChips(); memNotesLoad(memOpen);
       $('#md_bday').value = m.birthday || ''; $('#md_joined').value = m.joined_on || '';
       $('#mdCards').innerHTML = memCardsHTML(m.cards);
@@ -3647,7 +3686,7 @@
       var v = (r.data && r.data.volunteers) || [], box = $('#vpMembers');
       box.hidden = false;
       box.innerHTML = '<h3>' + escapeHtml(name) + ' · ' + v.length + ' volunteer' + (v.length === 1 ? '' : 's') + '</h3>'
-        + (v.length ? v.map(function (x) { return '<div class="mem-card-row"><span>' + escapeHtml(x.name) + '</span><span class="badge">' + escapeHtml(x.type_label) + '</span><span class="muted tiny">since ' + escapeHtml(x.since) + '</span><button class="btn btn-outline btn-sm mem-open" data-id="' + x.id + '" style="margin-left:auto">Open</button></div>'; }).join('')
+        + (v.length ? v.map(function (x) { return '<div class="mem-card-row"><span>' + escapeHtml(x.name) + '</span><span class="badge">' + escapeHtml(x.type_label) + '</span><span class="muted tiny">since ' + escapeHtml(x.since) + '</span><button class="btn btn-outline btn-sm mem-open ml-auto" data-id="' + x.id + '">Open</button></div>'; }).join('')
           : '<p class="muted">Nobody placed yet. Choose members on the Roster → “Make volunteers”.</p>');
     });
   }
@@ -3685,11 +3724,11 @@
     var own = why.indexOf('roster') >= 0 || why.indexOf('team') >= 0;
     box.innerHTML = '<div class="mem-card-row">' + (why.length ? '<span class="badge published">Volunteer</span><span class="muted">' + why.map(function (w) { return escapeHtml(VOL_WHY[w] || w); }).join(' · ') + '</span>'
         : '<span class="muted">Not a volunteer. Place them on a project to make them one.</span>')
-      + (own ? '<button class="btn btn-outline btn-sm" style="margin-left:auto" id="mdVolOff">Remove from volunteers</button>' : '') + '</div>'
+      + (own ? '<button class="btn btn-outline btn-sm ml-auto" id="mdVolOff">Remove from volunteers</button>' : '') + '</div>'
       + projs.map(function (p) {
           return '<div class="mem-card-row"><span class="badge">' + escapeHtml(p.name) + '</span><span>' + escapeHtml(p.type_label) + '</span>'
             + '<span class="muted tiny">' + (p.source === 'ngg' ? 'placed by NGG' + (p.centre ? ' · ' + escapeHtml(p.centre) : '') : 'since ' + escapeHtml(p.since || '')) + '</span>'
-            + (p.source === 'ngg' ? '' : '<button class="btn btn-outline btn-sm vp-un" style="margin-left:auto" data-p="' + p.project_id + '">End</button>') + '</div>';
+            + (p.source === 'ngg' ? '' : '<button class="btn btn-outline btn-sm vp-un ml-auto" data-p="' + p.project_id + '">End</button>') + '</div>';
         }).join('');
     volFillPickers('#mdVolProject', '#mdVolType');
     var off = $('#mdVolOff');
@@ -3950,7 +3989,7 @@
     });
     var chipT = 0;
     $('#md_work_roles').addEventListener('input', function () { clearTimeout(chipT); chipT = setTimeout(roleChips, 300); });
-    function roleSaid(t, bad) { var m = $('#roleMsg'); if (m) { m.textContent = t || ''; m.style.color = bad ? 'var(--red, #b91c1c)' : ''; } }
+    function roleSaid(t, bad) { var m = $('#roleMsg'); if (m) { m.textContent = t || ''; m.classList.toggle('is-bad', !!bad); } }
     $('#roleNew').addEventListener('submit', function (e) {
       e.preventDefault();
       post('role_save', { id: 0, name: $('#roleNewName').value.trim(), description: $('#roleNewDesc').value.trim() }).then(function (r) {
@@ -3980,6 +4019,41 @@
       }
     });
     rolesGet().catch(function () {});
+
+    $('#centreNew').addEventListener('submit', function (e) {
+      e.preventDefault();
+      post('centre_save', { id: 0, name: $('#centreNewName').value.trim(), code: $('#centreNewCode').value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { centreSaid(d.error || 'Could not add it.', true); return; }
+        centreSaid('Added ' + d.centre.name + ' (' + d.centre.code + ').'); $('#centreNewName').value = ''; $('#centreNewCode').value = '';
+        loadMemCentres(); memCentresFill();
+      });
+    });
+    $('#memCentresList').addEventListener('submit', function (e) {
+      var f = e.target.closest('.mem-centre-row'); if (!f) return;
+      e.preventDefault();
+      post('centre_save', { id: +f.getAttribute('data-id'), name: f.elements.name.value.trim(), code: f.elements.code.value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { centreSaid(d.error || 'Could not save it.', true); return; }
+        centreSaid(d.moved ? 'Saved — ' + d.moved + ' member' + (d.moved === 1 ? '' : 's') + ' moved with the new name.' : 'Saved.');
+        loadMemCentres(); memCentresFill();
+      });
+    });
+    $('#memCentresList').addEventListener('click', function (e) {
+      var st = e.target.closest('[data-centre-status]'), del = e.target.closest('[data-centre-del]'), see = e.target.closest('[data-centre-members]');
+      if (e.target.closest('[data-centre-retry]')) { loadMemCentres(); return; }
+      var id = +((e.target.closest('.mem-centre-row') || { getAttribute: function () { return 0; } }).getAttribute('data-id'));
+      if (st) {
+        var to = st.getAttribute('data-centre-status');
+        if (to === 'retired' && !confirm('Retire ' + st.getAttribute('data-name') + '? Its members keep it; nobody new can be put there.')) return;
+        post('centre_status', { id: id, status: to }).then(function (r) { var d = r.data || {}; centreSaid(d.ok ? (to === 'retired' ? 'Retired.' : 'Reopened.') : (d.error || 'That did not go through.'), !d.ok); loadMemCentres(); memCentresFill(); });
+      } else if (del) {
+        if (!confirm('Delete ' + del.getAttribute('data-name') + '? A centre with members is refused — retire it instead.')) return;
+        post('centre_delete', { id: id }).then(function (r) { var d = r.data || {}; centreSaid(d.ok ? 'Deleted.' : (d.error || 'That did not go through.'), !d.ok); loadMemCentres(); memCentresFill(); });
+      } else if (see) {
+        memCentresFill().then(function () { $('#memCentre').value = see.getAttribute('data-centre-members'); memPage = 1; memSel = {}; memTab('roster'); });
+      }
+    });
 
     $('#mdSave').addEventListener('click', function () {
       var p = { id: memOpen, name: $('#md_name').value.trim(), email: $('#md_email').value.trim(), phone: $('#md_phone').value.trim(), centre: $('#md_centre').value.trim(),

@@ -181,6 +181,10 @@ $knownMetaKeys = [
     // Lost, the import runs again and finds nothing new to bring (it only
     // fills a draft or a first version that is not already there).
     'cms_legacy_imported',
+    // The centres directory (lib/Centres). Reviewed: gates no migration. Marks
+    // that the centres already typed on members were taken into av_centres
+    // once. Lost, the adoption runs again and adds only names not yet listed.
+    'av_centres_adopted',
     // Google (lib/GoogleAuth, lib/GoogleWorkspace). Reviewed: gate no migration.
     // The last failed Google round-trip and the last directory sync, shown on
     // the System page. Lost, the page says "none recorded" / "not run yet" and
