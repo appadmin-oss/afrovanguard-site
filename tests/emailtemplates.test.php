@@ -112,3 +112,57 @@ $other = av_email_render('welcome', $sample)['html'];
 ck('email: Academy templates use the card frame, the rest the centre frame',
     $acad !== '' && $other !== '' && $acad !== $other
     && str_contains($acad, 'Academy'));
+
+/* ---------------------------------------------------------------------------
+ * Outlook fallbacks for the illustrations.
+ *
+ * The Word rendering engine behind Outlook for Windows freezes an animated GIF
+ * on its first frame. Frame 1 of these illustrations is the blank start of a
+ * draw-on animation — heart, bubbles and check measure 0.0% ink — so an Outlook
+ * reader of a donation receipt, a diary reply or a mentor approval would see an
+ * empty 100x75 hole. Each illustration therefore ships a PNG of its last frame,
+ * served to Outlook alone through a downlevel-revealed conditional. Every other
+ * client still gets the untouched GIF.
+ * ------------------------------------------------------------------------- */
+$artDir = __DIR__ . '/../assets/site/email';
+$seen = [];
+foreach ($templates as $t) {
+    $html = av_email_render($t, $sample)['html'];
+    if (!preg_match_all('~/([a-z]+)\.gif~', $html, $m)) {
+        ck("email/$t: carries no illustration, so needs no Outlook fallback",
+            !str_contains($html, '[if mso]><img'));
+        continue;
+    }
+    foreach (array_unique($m[1]) as $art) {
+        $seen[$art] = true;
+        ck("email/$t: the $art GIF is hidden from Outlook, not just sent to it",
+            str_contains($html, '<!--[if !mso]><!--><img class="av-art" src="')
+            && str_contains($html, "/$art.gif"));
+        ck("email/$t: Outlook is served $art.png instead, at the same 100x75 box",
+            preg_match('~\[if mso\]><img class="av-art" src="https://[^"]+/' . $art
+                . '\.png" width="100" height="75"~', $html) === 1);
+    }
+}
+
+ck('email: every illustration the templates use has a PNG beside it on disk',
+    $seen !== [] && !array_filter(array_keys($seen),
+        fn ($a) => !is_file("$artDir/$a.png")));
+
+/* A fallback that is itself blank would fix nothing. */
+foreach (array_keys($seen) as $art) {
+    $im = @imagecreatefrompng("$artDir/$art.png");
+    $ink = 0;
+    $cells = 0;
+    if ($im) {
+        for ($y = 0; $y < imagesy($im); $y += 2) {
+            for ($x = 0; $x < imagesx($im); $x += 2) {
+                $c = imagecolorsforindex($im, imagecolorat($im, $x, $y));
+                $cells++;
+                if ($c['alpha'] > 100) { continue; }
+                if (($c['red'] + $c['green'] + $c['blue']) / 3 < 235) { $ink++; }
+            }
+        }
+    }
+    ck("email: the $art fallback is the finished drawing, not a blank frame",
+        $im !== false && $cells > 0 && (100 * $ink / $cells) > 3.0);
+}
