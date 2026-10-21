@@ -539,12 +539,17 @@ final class MemberRoster
 
     /* ══ The roster ═════════════════════════════════════════════════════════ */
 
-    private const SORTS = ['name' => 'u.name', 'joined' => 'u.created_at', 'role' => 'u.role', 'status' => 'u.status', 'centre' => 'p.centre'];
+    private const SORTS = ['name' => 'LOWER(u.name)', 'joined' => 'u.created_at', 'role' => 'u.role', 'status' => 'u.status', 'centre' => 'p.centre'];
 
-    /** Filtered, sorted and paged on the server — sorting a page in hand orders page three and calls it the roster. */
-    public static function roster(array $f): array
+    /**
+     * The roster's filter, once: the WHERE and its arguments every reader of
+     * the roster shares — the page, the count, select-all-matching and the
+     * export — so "all N matching" is always the N the list said.
+     *
+     * @return array{0:string,1:array,2:array} [FROM … WHERE, args, volunteer ids]
+     */
+    private static function filter(array $f): array
     {
-        self::ensure();
         $w = []; $a = [];
         $q = trim((string) ($f['q'] ?? ''));
         if ($q !== '') { $like = '%' . str_replace(['%', '_', '\\'], '', mb_strtolower($q)) . '%'; $w[] = '(LOWER(u.name) LIKE ? OR LOWER(u.email) LIKE ? OR p.phone LIKE ?)'; array_push($a, $like, $like, $like); }
@@ -591,11 +596,20 @@ final class MemberRoster
         if ($vol === 'yes') $w[] = $volIds ? 'u.id IN (' . implode(',', array_map('intval', array_keys($volIds))) . ')' : '1 = 0';
         elseif ($vol === 'no' && $volIds) $w[] = 'u.id NOT IN (' . implode(',', array_map('intval', array_keys($volIds))) . ')';
         $where = $w ? ' WHERE ' . implode(' AND ', $w) : '';
-        $from = ' FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id' . $where;
+        return [' FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id' . $where, $a, $volIds];
+    }
+
+    /** Filtered, sorted and paged on the server — sorting a page in hand orders page three and calls it the roster. */
+    public static function roster(array $f): array
+    {
+        self::ensure();
+        [$from, $a, $volIds] = self::filter($f);
         $pdo = Database::pdo();
         $st = $pdo->prepare('SELECT COUNT(*)' . $from); $st->execute($a);
         $total = (int) $st->fetchColumn();
-        $sort = self::SORTS[(string) ($f['sort'] ?? '')] ?? 'u.id';
+        /* Allow-listed by name; anything else is the default, never an error. */
+        $sortKey = isset(self::SORTS[(string) ($f['sort'] ?? '')]) ? (string) $f['sort'] : '';
+        $sort = $sortKey !== '' ? self::SORTS[$sortKey] : 'u.id';
         $dir = strtolower((string) ($f['dir'] ?? '')) === 'asc' ? 'ASC' : 'DESC';
         $size = max(10, min(200, (int) ($f['page_size'] ?? 50)));
         $page = max(1, (int) ($f['page'] ?? 1));
@@ -612,7 +626,7 @@ final class MemberRoster
             if ($r['membership'] === 'lifetime') $r['paid_through'] = null;
             return $r + ['ngv' => isset($ngv[(int) $r['id']]), 'volunteer' => isset($volIds[(int) $r['id']])];
         }, $st->fetchAll(PDO::FETCH_ASSOC));
-        return ['members' => $rows, 'total' => $total, 'page' => $page, 'page_size' => $size];
+        return ['members' => $rows, 'total' => $total, 'page' => $page, 'page_size' => $size, 'sort' => $sortKey, 'dir' => strtolower($dir)];
     }
 
     /** Every NextGen Vanguard's member id, as a set: enrolled, or holding an NGV card. */
@@ -803,15 +817,15 @@ final class MemberRoster
     /** Every id matching a roster filter, so "select all N matching" is one request, capped like a run. */
     public static function ids(array $f): array
     {
-        $f['page'] = 1; $f['page_size'] = 200;
-        $all = []; $total = 0;
-        for ($p = 1; $p <= (int) ceil(self::BULK_MAX / 200) + 1; $p++) {
-            $f['page'] = $p;
-            $r = self::roster($f); $total = $r['total'];
-            foreach ($r['members'] as $m) $all[] = (int) $m['id'];
-            if (count($r['members']) < 200 || count($all) > self::BULK_MAX) break;
-        }
-        return ['ids' => array_slice($all, 0, self::BULK_MAX), 'total' => $total, 'capped' => $total > self::BULK_MAX];
+        self::ensure();
+        [$from, $a] = self::filter($f);
+        $pdo = Database::pdo();
+        $st = $pdo->prepare('SELECT COUNT(*)' . $from); $st->execute($a);
+        $total = (int) $st->fetchColumn();
+        /* One query, the same WHERE as the list, capped like a run. */
+        $st = $pdo->prepare('SELECT u.id' . $from . ' ORDER BY u.id DESC LIMIT ' . self::BULK_MAX);
+        $st->execute($a);
+        return ['ids' => array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)), 'total' => $total, 'capped' => $total > self::BULK_MAX];
     }
 
     /* ══ What has happened to this member ═══════════════════════════════════ */

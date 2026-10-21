@@ -3316,7 +3316,8 @@
       + (m.work_roles || m.about ? '<div class="entry-meta mem-row-roles">' + (m.work_roles ? String(m.work_roles).split(/\s*,\s*/).map(function (r) { return '<span class="mem-role-tag">' + escapeHtml(r) + '</span>'; }).join('') : '<span class="muted">No work role</span>')
           + (m.about ? ' <span class="mem-row-about">' + escapeHtml(String(m.about).slice(0, 120)) + '</span>' : '') + '</div>' : '')
       + '<div class="entry-meta">' + (m.card ? 'Gate card <code>' + escapeHtml(m.card) + '</code>' : '<b>No gate card</b>') + ' · joined ' + escapeHtml(String(m.joined_on || m.created_at || '').slice(0, 10)) + '</div></div>'
-      + '<div class="entry-ops"><button class="btn btn-outline btn-sm mem-open" data-id="' + m.id + '">Open</button></div></div>';
+      + '<div class="entry-ops"><select class="mem-row-act" data-id="' + m.id + '" aria-label="Act on ' + escapeHtml(m.name || 'this member') + '"><option value="">Actions…</option>' + memActionOptions('row') + '</select>'
+      + '<button class="btn btn-outline btn-sm mem-open" data-id="' + m.id + '">Open</button></div></div>';
   }
   function loadMemRoster() {
     var box = $('#memList'); if (!box) return;
@@ -3425,6 +3426,47 @@
      The count is read before the confirm, and the server's per-row verdicts
      are reported as they are: a run where some were refused is partial. */
   function memSelIds() { return Object.keys(memSel).map(Number); }
+  /* ── One declaration per member action ──
+     The bulk bar and each row's menu are drawn from this list and run through
+     one runner (memRunAction), so an action and its bulk twin cannot drift
+     into asking differently or doing different things — NGG's rule
+     (components.jsx runAdminAction). `value` names the input an action
+     needs; `warn` is said before it runs; `bulkHidden` / `rowHidden` keep it
+     off one surface. The server decides who may: lib/MemberRoster::bulk. */
+  var MEMBER_ACTIONS = [
+    { id: 'status:active', label: 'Reactivate' },
+    { id: 'status:suspended', label: 'Suspend', warn: 'They are signed out, and their gate pass stops at the door.' },
+    { id: 'centre', label: 'Set centre…', value: 'centre' },
+    { id: 'level', label: 'Set level…', value: 'level' },
+    { id: 'membership_grant', label: 'Give months of dues (waiver or reason)…', value: 'months' },
+    { id: 'membership_cancel', label: 'End dues…', value: 'reason' },
+    { id: 'volunteer_add', label: 'Make volunteers', rowLabel: 'Make a volunteer', value: 'project', warn: 'Each gets the Volunteer dashboard and a notification.' },
+    { id: 'volunteer_remove', label: 'Remove from volunteers', warn: 'They leave their volunteer teams; their hours stay on record.' },
+    { id: 'work_role_add', label: 'Give a work role…', value: 'role' },
+    { id: 'work_role_remove', label: 'Take away a work role…', value: 'role' }
+  ];
+  function memAction(id) { return MEMBER_ACTIONS.filter(function (a) { return a.id === id; })[0] || null; }
+  function memActionOptions(surface) {
+    return MEMBER_ACTIONS.filter(function (a) { return !(surface === 'bulk' ? a.bulkHidden : a.rowHidden); })
+      .map(function (a) { return '<option value="' + escapeHtml(a.id) + '">' + escapeHtml(surface === 'row' && a.rowLabel ? a.rowLabel : a.label) + '</option>'; }).join('');
+  }
+  /* The one runner. Never throws; per-row verdicts win over the top-level ok. */
+  function memRunAction(id, ids, value) {
+    var action = id, v = value || {};
+    if (id.indexOf('status:') === 0) { action = 'status'; v = { status: id.slice(7) }; }
+    return post('roster_bulk', { ids: ids, action: action, value: v }).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) return { ran: false, ok: 0, failed: ids.length, error: d.error || 'Refused.', results: [] };
+      return { ran: true, ok: d.applied, unchanged: d.unchanged, failed: d.refused, partial: !!d.partial, results: d.results || [] };
+    }).catch(function () { return { ran: false, ok: 0, failed: ids.length, error: 'Network error — nothing was changed.', results: [] }; });
+  }
+  function memRunSummary(res) {
+    if (!res.ran) return '<div class="mem-errors">' + escapeHtml(res.error) + '</div>';
+    var refused = res.results.filter(function (x) { return x.outcome === 'refused'; });
+    return '<p class="mem-bulk-sum"><b>' + (res.partial ? 'Partly done' : 'Done') + '</b> — ' + res.ok + ' changed · ' + (res.unchanged || 0) + ' already so · ' + res.failed + ' refused</p>'
+      + refused.slice(0, 50).map(function (x) { return '<div class="muted tiny">↳ ' + escapeHtml((x.name || '#' + x.id) + ': ' + x.error) + '</div>'; }).join('');
+  }
+
   function memBulkSync() {
     var n = memSelIds().length;
     $('#memBulk').hidden = n === 0;
@@ -3435,8 +3477,10 @@
     var onPage = memPageIds.filter(function (i) { return memSel[i]; }).length, sp = $('#memSelPage');
     sp.checked = memPageIds.length > 0 && onPage === memPageIds.length;
     sp.indeterminate = onPage > 0 && onPage < memPageIds.length;
-    var a = $('#memBulkAction').value, v = $('#memBulkValue');
-    v.hidden = !(a === 'centre' || a === 'level' || a === 'membership_grant' || a === 'membership_cancel');
+    var sel = $('#memBulkAction');
+    if (sel.options.length < 2) sel.insertAdjacentHTML('beforeend', memActionOptions('bulk'));
+    var a = sel.value, v = $('#memBulkValue'), decl = memAction(a) || {};
+    v.hidden = ['centre', 'level', 'months', 'reason'].indexOf(decl.value) < 0;
     $('#memBulkProject').hidden = $('#memBulkType').hidden = a !== 'volunteer_add';
     $('#memBulkRole').hidden = a.indexOf('work_role_') !== 0;
     if (a.indexOf('work_role_') === 0) roleFill('#memBulkRole', 'Choose the role');
@@ -3444,6 +3488,33 @@
     v.placeholder = a === 'centre' ? 'Centre name' : a === 'level' ? 'Level (' + memLevels.join(', ') + ')' : a === 'membership_grant' ? 'Months, then a reason: 12 Scholarship' : 'Why these memberships end';
     $('#memBulkGo').disabled = !a || n === 0;
   }
+  /* A row's menu: the same action, for one member. One that needs a value
+     chooses that member alone and hands the action to the bulk bar, where its
+     value is asked for; one that does not runs here, through the same runner. */
+  document.addEventListener('change', function (e) {
+    var s = e.target.closest('.mem-row-act'); if (!s || !s.value) return;
+    var id = +s.getAttribute('data-id'), decl = memAction(s.value); s.value = '';
+    if (!decl) return;
+    if (decl.value) {
+      memSel = {}; memSel[id] = true;
+      document.querySelectorAll('.mem-pick').forEach(function (c) { c.checked = +c.getAttribute('data-id') === id; });
+      $('#memBulkAction').value = decl.id; memBulkSync();
+      var first = ['#memBulkValue', '#memBulkRole', '#memBulkProject'].map(function (q) { return $(q); }).filter(function (el) { return el && !el.hidden; })[0];
+      $('#memBulk').scrollIntoView({ block: 'nearest' }); if (first) first.focus();
+      return;
+    }
+    var name = (s.closest('.mem-row') && s.closest('.mem-row').querySelector('.entry-title')) ? s.closest('.mem-row').querySelector('.entry-title').firstChild.textContent : 'this member';
+    if (!confirm(decl.label.replace(/…$/, '') + ' — ' + name + '?' + (decl.warn ? ' ' + decl.warn : ''))) return;
+    s.disabled = true;
+    memRunAction(decl.id, [id]).then(function (res) {
+      s.disabled = false;
+      var one = res.results[0] || {};
+      if (!res.ran) toast(res.error);
+      else if (one.outcome === 'refused') toast(one.error || 'Refused.');
+      else { toast(one.outcome === 'unchanged' ? 'Already so.' : 'Done.'); loadMemRoster(); }
+    });
+  });
+
   function memBulkRun() {
     var ids = memSelIds(), n = ids.length, a = $('#memBulkAction').value, raw = $('#memBulkValue').value.trim(), action = a, value = {};
     if (a.indexOf('status:') === 0) { action = 'status'; value.status = a.slice(7); }
@@ -3453,17 +3524,16 @@
     else if (a === 'membership_cancel') value.note = raw;
     else if (a.indexOf('work_role_') === 0) { value.role = $('#memBulkRole').value; if (!value.role) { toast('Choose the work role.'); return; } }
     else if (a === 'volunteer_add') { value.project_id = +$('#memBulkProject').value; value.type = $('#memBulkType').value; if (!value.project_id) { toast('Choose the project they volunteer on.'); return; } }
-    var label = $('#memBulkAction').selectedOptions[0].textContent.replace(/…$/, '');
-    if (!confirm(label + ' — ' + n + ' account' + (n === 1 ? '' : 's') + '?' + (action === 'status' && value.status === 'suspended' ? ' They are signed out, and their gate pass stops at the door.' : '') + (action === 'volunteer_add' ? ' Each gets the Volunteer dashboard and a notification.' : action === 'volunteer_remove' ? ' They leave their volunteer teams; their hours stay on record.' : ''))) return;
+    /* The count is read before the confirm, so a list refreshing underneath
+       cannot change what was agreed to. */
+    var decl = memAction(a) || { label: a };
+    if (!confirm(decl.label.replace(/…$/, '') + ' — ' + n + ' account' + (n === 1 ? '' : 's') + '?' + (decl.warn ? ' ' + decl.warn : ''))) return;
     var b = $('#memBulkGo'); b.disabled = true;
-    post('roster_bulk', { ids: ids, action: action, value: value }).then(function (r) {
-      var d = r.data || {};
-      if (!d.ok) { $('#memBulkResult').innerHTML = '<div class="mem-errors">' + escapeHtml(d.error || 'Refused.') + '</div>'; return; }
-      var refused = (d.results || []).filter(function (x) { return x.outcome === 'refused'; });
-      $('#memBulkResult').innerHTML = '<p class="mem-bulk-sum"><b>' + (d.partial ? 'Partly done' : 'Done') + '</b> — ' + d.applied + ' changed · ' + d.unchanged + ' already so · ' + d.refused + ' refused</p>'
-        + refused.slice(0, 50).map(function (x) { return '<div class="muted tiny">↳ ' + escapeHtml((x.name || '#' + x.id) + ': ' + x.error) + '</div>'; }).join('');
-      memSel = {}; loadMemRoster();
-    }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; memBulkSync(); });
+    memRunAction(a, ids, value).then(function (res) {
+      $('#memBulkResult').innerHTML = memRunSummary(res);
+      if (res.ran) { memSel = {}; loadMemRoster(); }
+      b.disabled = false; memBulkSync();
+    });
   }
 
   /* ── One member's membership ── */
@@ -3749,13 +3819,14 @@
   }
   function memVolSet(action, value) {
     var id = memOpen;
-    post('roster_bulk', { ids: [id], action: action, value: value || {} }).then(function (r) {
-      var d = r.data || {}, x = (d.results || [])[0] || {};
-      if (!d.ok || x.outcome === 'refused') { toast((x && x.error) || d.error || 'Refused.'); }
+    /* The drawer's volunteer buttons are the same declared actions, run the same way. */
+    memRunAction(action, [id], value).then(function (res) {
+      var x = res.results[0] || {};
+      if (!res.ran || x.outcome === 'refused') { toast(x.error || res.error || 'Refused.'); }
       else toast(action === 'volunteer_add' ? 'Placed on the project.' : 'Removed from volunteers.');
       memVolRefresh(); volMeta = null;
       loadMemRoster();
-    }).catch(function () { toast('Network error.'); });
+    });
   }
 
   /* Import */

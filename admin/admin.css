@@ -850,3 +850,5 @@ body.studio { --gold-deep: var(--av-gold-text); }
 .mem-centre-row.is-retired { opacity: .7; }
 .mem-centre-row .fld { margin: 0; }
 .mem-centre-ops { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+/* A roster row's action menu (drawn from MEMBER_ACTIONS, like the bulk bar). */
+.entry-ops .mem-row-act { width: auto; max-width: 12rem; min-height: 32px; padding: 4px 8px; font-size: 13px; }

@@ -98,6 +98,20 @@ ck('centres: the Centres section carries no inline style', !str_contains($pane, 
 $memJs = substr($js, (int) strpos($js, 'function memTab('), (int) strpos($js, "\$('#mdSave')") - (int) strpos($js, 'function memTab('));
 ck('members: the member desk’s script writes no inline style', $memJs !== '' && !preg_match('/style=|\.style\./', $memJs));
 
+/* ── select-all-matching, and the one action list ─────────────────────── */
+$f = ['q' => 'centres.test', 'kind' => 'all'];
+$ids = MemberRoster::ids($f);
+ck('members: "choose all matching" is every id the list counts, in one query', $ids['total'] === MemberRoster::roster($f + ['page_size' => 200])['total'] && count($ids['ids']) === $ids['total'] && !$ids['capped']);
+ck('members: it shares the list’s filter, so a filter narrows it the same way', MemberRoster::ids($f + ['centre' => 'Ikorodu'])['total'] === MemberRoster::roster($f + ['centre' => 'Ikorodu'])['total']);
+$rsrc = (string) file_get_contents(dirname(__DIR__) . '/lib/MemberRoster.php');
+$idsBody = substr($rsrc, (int) strpos($rsrc, 'public static function ids('), 900);
+ck('members: select-all no longer pages through the roster', !str_contains($idsBody, 'self::roster(') && str_contains($idsBody, 'self::filter($f)'));
+ck('members: an unknown sort falls back to the default and the list says which sort it used', MemberRoster::roster($f + ['sort' => 'DROP TABLE'])['sort'] === '' && MemberRoster::roster($f + ['sort' => 'name', 'dir' => 'asc'])['sort'] === 'name');
+$js2 = (string) file_get_contents(dirname(__DIR__) . '/admin/app.js');
+ck('members: one declaration of member actions feeds the bulk bar and every row', str_contains($js2, 'var MEMBER_ACTIONS = [') && str_contains($js2, "memActionOptions('bulk')") && str_contains($js2, "memActionOptions('row')"));
+ck('members: both run through one runner', substr_count($js2, "post('roster_bulk'") === 1 && str_contains($js2, 'function memRunAction('));
+ck('members: the bulk bar’s actions are not a second hand-written list', !str_contains((string) file_get_contents(dirname(__DIR__) . '/admin/index.php'), '<option value="status:suspended">'));
+
 /* Leave nothing behind for the files that run after this one. */
 $cPdo->exec("DELETE FROM member_profiles WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@centres.test')");
 $cPdo->exec("DELETE FROM lms_users WHERE email LIKE '%@centres.test'");

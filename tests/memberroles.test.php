@@ -83,7 +83,7 @@ ck('admin: roles are listed, saved and removed, management only', str_contains($
    && str_contains($api, "'roles_list', 'role_save', 'role_delete',"));
 $html = (string) file_get_contents(AV_ROOT . '/admin/index.php');
 ck('admin: a Roles tab, a role filter, bulk give/take, and chips in the drawer', str_contains($html, 'data-mv="roles"') && str_contains($html, 'id="memWorkRole"')
-   && str_contains($html, 'value="work_role_add"') && str_contains($html, 'id="md_role_chips"'));
+   && str_contains((string) file_get_contents(dirname(__DIR__) . '/admin/app.js'), "{ id: 'work_role_add', label: 'Give a work role…'") && str_contains($html, 'id="md_role_chips"'));
 
 $rp->exec('DELETE FROM collab_tasks WHERE creator_id BETWEEN 9920 AND 9929 OR assignee_id BETWEEN 9920 AND 9929');
 $rp->exec('DELETE FROM member_profiles WHERE user_id BETWEEN 9920 AND 9929');

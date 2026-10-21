@@ -502,16 +502,6 @@
         <button class="btn btn-outline btn-sm" id="memBulkAll" hidden></button>
         <select id="memBulkAction" aria-label="Action for the chosen members">
           <option value="">Choose an action…</option>
-          <option value="status:active">Reactivate</option>
-          <option value="status:suspended">Suspend</option>
-          <option value="centre">Set centre…</option>
-          <option value="level">Set level…</option>
-          <option value="membership_grant">Give months of dues (waiver or reason)…</option>
-          <option value="membership_cancel">End dues…</option>
-          <option value="volunteer_add">Make volunteers</option>
-          <option value="volunteer_remove">Remove from volunteers</option>
-          <option value="work_role_add">Give a work role…</option>
-          <option value="work_role_remove">Take away a work role…</option>
         </select>
         <select id="memBulkRole" hidden aria-label="Work role"></select>
         <input id="memBulkValue" hidden aria-label="Value for the action" />
