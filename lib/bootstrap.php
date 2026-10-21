@@ -320,6 +320,7 @@ require_once __DIR__ . '/CacGoals.php';   /* CACENTRE's goals, mirrored here and
 require_once __DIR__ . '/CacInventory.php'; /* and its register, for the same reason */
 require_once __DIR__ . '/CacLeads.php';    /* and the follow-ups a member owes */
 require_once __DIR__ . '/LmsRepository.php';
+require_once __DIR__ . '/LmsDrip.php';
 require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/CfisCheckout.php';  /* CACENTRE collects where this site has no merchant account */
 require_once __DIR__ . '/CfisRequests.php';  /* a member asks CACENTRE finance for money */

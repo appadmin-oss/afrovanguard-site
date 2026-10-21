@@ -104,6 +104,13 @@ if (class_exists('NgvLedger')) {
 // password resets. Deduped per (update, recipient), so this never writes to
 // anybody twice however often it runs.
 if (class_exists('Appeals')) {
+    /* The Academy's time-driven emails: a lesson unlocking, a course left
+       sitting for a week, a live class tomorrow. Each records what it has
+       sent, so running this every five minutes still mails each learner
+       once (lib/LmsDrip.php). */
+    try { $result['academy_drip'] = LmsDrip::cronTick(); }
+    catch (Throwable $e) { $result['academy_drip_error'] = $e->getMessage(); }
+
     try { $result['appeals'] = Appeals::cronTick(); }
     catch (Throwable $e) { error_log('[cron] appeals: ' . $e->getMessage()); }
 }
