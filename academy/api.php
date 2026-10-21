@@ -156,7 +156,11 @@ try {
             if (empty($res['ok'])) json_out(['ok' => false, 'error' => 'This lesson has no quiz.'], 400);
             if (!empty($res['passed'])) {
                 $done = $lms->completeIfDone((int) $u['id'], (int) $c['id']);
+                /* Finishing the course is the bigger news, so when the quiz
+                   that passed is also the last thing outstanding, only the
+                   certificate email goes — not both in the same minute. */
                 if (!empty($done['newly'])) Notify::completed($u, $c, academy_url($c['slug'] . '/certificate'));
+                else Notify::quizPassed($u, $lesson, $res, academy_url($c['slug'] . '/learn/'));
             }
             $res['progress'] = $lms->progress((int) $u['id'], (int) $c['id']);
             json_out($res);

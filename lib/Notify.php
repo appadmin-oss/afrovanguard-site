@@ -118,6 +118,28 @@ final class Notify
         });
     }
 
+    /**
+     * modules/EMAILS.md: academy_quiz_passed — on a pass only.
+     *
+     * §4 is explicit that there is no email on a fail, which is the right
+     * call and worth keeping deliberately: a knowledge check you can retake
+     * is not news, and mailing somebody their failure is how people stop
+     * taking the checks at all.
+     */
+    public static function quizPassed(array $user, array $lesson, array $result, string $nextUrl): void
+    {
+        self::safe(function () use ($user, $lesson, $result, $nextUrl) {
+            if (empty($result['passed'])) return;
+            Mailer::sendTemplate((string) $user['email'], 'academy_quiz_passed', [
+                'first_name' => self::first((string) $user['name']),
+                'quiz_title' => (string) ($lesson['title'] ?? 'Knowledge check'),
+                'score'      => (int) ($result['score'] ?? 0) . '%',
+                'pass_mark'  => (int) ($result['pass'] ?? 70) . '%',
+                'next_url'   => $nextUrl,
+            ]);
+        });
+    }
+
     /* modules/EMAILS.md: academy_certificate — card frame, no illustration.
        The serial is the certificate id the public verify page checks, so the
        email carries the same one rather than a second reference. */

@@ -237,6 +237,7 @@ final class MentorPortal
         self::addCol('mentorships', 'started_at', "VARCHAR(32) NOT NULL DEFAULT ''");
         self::addCol('mentorships', 'ends_at', "VARCHAR(32) NOT NULL DEFAULT ''");
         self::addCol('mentorships', 'close_steps', "VARCHAR(48) NOT NULL DEFAULT ''");
+        self::addCol('mentorships', 'close_told_at', "VARCHAR(32) NOT NULL DEFAULT ''");
         self::addCol('mentor_sessions', 'topics', "VARCHAR(255) NOT NULL DEFAULT ''");
         self::addCol('mentor_sessions', 'mood', "VARCHAR(24) NOT NULL DEFAULT ''");
 
@@ -1364,10 +1365,78 @@ final class MentorPortal
         $st = $this->db->prepare('SELECT close_steps FROM mentorships WHERE id = ?');
         $st->execute([$pairingId]);
         $have = array_values(array_filter(explode(',', (string) $st->fetchColumn())));
+        $was  = $have;
         $have = $on ? array_values(array_unique(array_merge($have, [$step]))) : array_values(array_diff($have, [$step]));
         $this->db->prepare('UPDATE mentorships SET close_steps = ?, updated_at = ? WHERE id = ?')
             ->execute([implode(',', $have), self::now(), $pairingId]);
+        /* modules/EMAILS.md: mentorship_closing, "planned close scheduled
+           (both parties)". Scheduling the closing session IS that moment —
+           the first of the three steps. Sent on the TRANSITION, so a mentor
+           who unticks and reticks the box does not send it twice. */
+        if ($step === 'schedule' && $on && !in_array('schedule', $was, true)) $this->closingEmail($pairingId);
         return ['ok' => true, 'steps' => $have];
+    }
+
+    /**
+     * Tell both people the mentorship has an ending, and when.
+     *
+     * An ending that is named and prepared for is the point of the planned
+     * close, so each of them gets the other's name and the same dates.
+     * reflection_due is a week after the final session: the spec does not set
+     * it, and a week is the gap the portal's own closing guidance uses
+     * between the last meeting and looking back on it.
+     */
+    private function closingEmail(int $pairingId): void
+    {
+        if (!class_exists('Mailer') || !method_exists('Mailer', 'sendTemplate')) return;
+        try {
+            /* Once per pairing, ever. The transition check above stops a
+               double save; this stops a mentor who unticks the box and
+               reticks it from telling two people a second time that their
+               mentorship is ending. A planned ending is announced once. */
+            $seen = $this->db->prepare("SELECT close_told_at FROM mentorships WHERE id = ?");
+            $seen->execute([$pairingId]);
+            if (trim((string) $seen->fetchColumn()) !== '') return;
+            $this->db->prepare('UPDATE mentorships SET close_told_at = ? WHERE id = ?')
+                     ->execute([self::now(), $pairingId]);
+            $st = $this->db->prepare(
+                'SELECT m.started_at, m.created_at, m.ends_at,
+                        mu.name AS mentor_name, mu.email AS mentor_email,
+                        eu.name AS mentee_name, eu.email AS mentee_email
+                   FROM mentorships m
+                   JOIN lms_users mu ON mu.id = m.mentor_id
+                   JOIN lms_users eu ON eu.id = m.mentee_id
+                  WHERE m.id = ?');
+            $st->execute([$pairingId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$r) return;
+
+            // The closing session is the next one still scheduled.
+            $q = $this->db->prepare(
+                "SELECT scheduled_at FROM mentor_sessions
+                  WHERE mentorship_id = ? AND attendance = 'scheduled' AND scheduled_at <> ''
+                  ORDER BY scheduled_at ASC LIMIT 1");
+            $q->execute([$pairingId]);
+            $finalAt = (string) ($q->fetchColumn() ?: $r['ends_at']);
+            $finalTs = $finalAt !== '' ? (strtotime($finalAt . ' UTC') ?: 0) : 0;
+
+            $site    = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '';
+            $started = (string) ($r['started_at'] ?: $r['created_at']);
+            $vars    = [
+                'started_on'     => self::when($started, 'j M Y') ?: '—',
+                'final_session'  => $finalTs ? date('j M Y', $finalTs) : 'To be confirmed',
+                'reflection_due' => $finalTs ? date('j M Y', $finalTs + 7 * 86400) : 'After your last session',
+                'plan_url'       => $site . '/mentorship/',
+            ];
+            foreach ([['mentee_email', 'mentee_name', 'mentor_name'], ['mentor_email', 'mentor_name', 'mentee_name']] as [$toK, $meK, $themK]) {
+                $to = trim((string) $r[$toK]);
+                if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) continue;
+                Mailer::sendTemplate($to, 'mentorship_closing', $vars + [
+                    'first_name'   => explode(' ', trim((string) $r[$meK]))[0] ?: 'there',
+                    'partner_name' => (string) $r[$themK],
+                ]);
+            }
+        } catch (Throwable $e) { error_log('[mentorportal] closing email: ' . $e->getMessage()); }
     }
 
     /**
