@@ -256,6 +256,9 @@ final class CfisRequests
             'categories' => array_values((array) ($live['categories'] ?? [])),
             'max' => (string) ($live['max'] ?? ''),
             'finance_reachable' => $reachable,
+            /* Not set up is not "cannot be reached just now": one is a
+               setting an administrator makes once, the other passes. */
+            'finance_configured' => self::configured(),
         ];
     }
 

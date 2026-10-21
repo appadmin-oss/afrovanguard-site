@@ -3375,14 +3375,38 @@
   }
 
   /* ── Approvals: an admin's sensitive acts, waiting for a second person ── */
+  /* The badge counts both: admins' acts and members' requests. */
   function approvalsBadge() {
-    return api('approvals_list&status=pending').then(function (r) {
-      var n = (r.data && r.data.pending) || 0, b = $('#apprBadge');
+    return Promise.all([api('approvals_list&status=pending'), api('member_requests_list&status=pending')]).then(function (x) {
+      var n = ((x[0].data && x[0].data.pending) || 0) + ((x[1].data && x[1].data.pending) || 0), b = $('#apprBadge');
       if (b) { b.hidden = !n; b.textContent = n; }
     }).catch(function () {});
   }
+  var MREQ_WORDS = { pending: 'Waiting', approved: 'Approved', rejected: 'Not approved', withdrawn: 'Withdrawn', deciding: 'Being decided' };
+  function loadMemberRequests() {
+    var box = $('#mreqList'); if (!box) return;
+    var st = ($('#apprStatus') || {}).value || 'pending';
+    if (['pending', 'approved', 'rejected', 'withdrawn', 'all'].indexOf(st) < 0) st = 'all';
+    api('member_requests_list&status=' + encodeURIComponent(st)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load members’ requests. <button type="button" class="btn btn-outline btn-sm" data-mreq-retry>Try again</button></p>'; return; }
+      var rows = d.requests || [];
+      box.innerHTML = rows.length ? rows.map(function (q) {
+        return '<div class="appr-row" data-mreq="' + q.id + '">'
+          + '<div class="appr-main"><div class="appr-sum">' + escapeHtml(q.summary) + '</div>'
+          + '<div class="muted tiny">' + escapeHtml(q.member.email) + (q.member.centre ? ' · at ' + escapeHtml(q.member.centre) : '') + ' · ' + escapeHtml(String(q.created_at).slice(0, 16)) + ' UTC</div>'
+          + (q.reason ? '<div class="muted tiny">Why: ' + escapeHtml(q.reason) + '</div>' : '')
+          + (q.outcome ? '<div class="muted tiny">' + escapeHtml(q.outcome) + '</div>' : '') + '</div>'
+          + '<div class="appr-ops"><span class="badge ' + (q.status === 'pending' ? 'draft' : q.status === 'approved' ? 'published' : '') + '">' + escapeHtml(MREQ_WORDS[q.status] || q.status) + '</span>'
+          + (q.status === 'pending' ? '<button type="button" class="btn btn-primary btn-sm" data-mreq-do="approve">Approve</button><button type="button" class="btn btn-outline btn-sm" data-mreq-do="reject">Reject</button>' : '')
+          + '<button type="button" class="btn btn-outline btn-sm mem-open" data-id="' + q.member.id + '">Open record</button>'
+          + '</div></div>';
+      }).join('') : '<p class="muted">' + (st === 'pending' ? 'No member is waiting for an answer.' : 'No requests here.') + '</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load members’ requests. <button type="button" class="btn btn-outline btn-sm" data-mreq-retry>Try again</button></p>'; });
+  }
   var APPR_WORDS = { pending: 'Waiting', approved: 'Approved', rejected: 'Not approved', failed: 'Approved, could not run', withdrawn: 'Withdrawn', expired: 'Expired', running: 'Running' };
   function loadApprovals() {
+    loadMemberRequests();
     var box = $('#apprList'); if (!box) return;
     var st = ($('#apprStatus') || {}).value || 'pending';
     box.innerHTML = '<p class="muted">Loading…</p>';
@@ -4129,6 +4153,20 @@
     rolesGet().catch(function () {});
 
     $('#apprStatus').addEventListener('change', loadApprovals);
+    $('#mreqList').addEventListener('click', function (e) {
+      if (e.target.closest('[data-mreq-retry]')) { loadMemberRequests(); return; }
+      var b = e.target.closest('[data-mreq-do]'); if (!b) return;
+      var row = b.closest('[data-mreq]'), id = +row.getAttribute('data-mreq'), what = b.getAttribute('data-mreq-do');
+      var reason = '';
+      if (what === 'reject') { reason = prompt('Why not? The member sees this.'); if (reason === null) return; if (!reason.trim()) { toast('Say why — the member sees it.'); return; } }
+      else if (!confirm('Approve?\n\n' + row.querySelector('.appr-sum').textContent)) return;
+      b.disabled = true;
+      post('member_request_decide', { id: id, decision: what, reason: reason }).then(function (r) {
+        var d = r.data || {};
+        toast(d.ok ? (d.status === 'approved' ? 'Approved' + (d.outcome ? ' — ' + d.outcome : '') + '. The member is told.' : 'Not approved. The member is told why.') : (d.error || 'That did not go through.'));
+        loadMemberRequests(); approvalsBadge(); if (d.ok) loadMemRoster();
+      });
+    });
     $('#apprList').addEventListener('click', function (e) {
       if (e.target.closest('[data-appr-retry]')) { loadApprovals(); return; }
       var b = e.target.closest('[data-appr]'); if (!b) return;

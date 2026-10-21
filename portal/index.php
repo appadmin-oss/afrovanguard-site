@@ -205,8 +205,10 @@ if ($isVol) {
     $volWaiting = Volunteers::waitingCount($u);
     $nav['Volunteering'] = [['volunteer', 'Volunteer dashboard', $volWaiting > 0 ? 'gold' : 'green', $volWaiting > 0 ? (string) $volWaiting : '']];
 }
+$mreqWaiting = class_exists('MemberRequests') ? count(array_filter(MemberRequests::mine((int) $u['id']), static fn($r) => $r['status'] === 'pending')) : 0;
 $nav['You'] = [
     ['diary', 'Diary', 'gray', $myEntries ? (string) count($myEntries) : ''],
+    ['requests', 'Requests', $mreqWaiting ? 'gold' : 'gray', $mreqWaiting ? (string) $mreqWaiting : ''],
     ['membership', ($isOrg ? 'Membership' : 'Account'), 'gray', ''],
 ];
 if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gray', ''];
@@ -339,6 +341,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
 <?php endif; ?>
 <?php
         require __DIR__ . '/views/membership.php';
+        require __DIR__ . '/views/requests.php';
         require __DIR__ . '/views/diary.php';
         if ($isVol) require __DIR__ . '/views/volunteer.php';
 ?>
@@ -400,6 +403,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
   <script src="<?= e(av_asset('/portal/palette.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/money-requests.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/portal/member-requests.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/community/community.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/avdy.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/commitments.js')) ?>" defer></script>

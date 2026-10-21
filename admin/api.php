@@ -104,7 +104,7 @@ try {
         'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
         'roles_list', 'role_save', 'role_delete',
         'centres_list', 'centre_save', 'centre_status', 'centre_delete',
-        'approvals_list', 'approval_decide', 'approval_withdraw',
+        'approvals_list', 'approval_decide', 'approval_withdraw', 'member_requests_list', 'member_request_decide',
         'roster_export', 'roster_centres', 'member_notes', 'member_note_add', 'member_note_delete', 'member_activity', 'member_message',
         'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
@@ -1347,6 +1347,13 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = Approvals::withdraw((int) ($body['id'] ?? 0), av_admin_actor());
             json_out($r, $r['ok'] ? 200 : 404);
+        /* ── What members ask for from their own portal (lib/MemberRequests.php) ── */
+        case 'member_requests_list':
+            json_out(MemberRequests::queue((string) ($_GET['status'] ?? 'pending')));
+        case 'member_request_decide':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberRequests::decide((int) ($body['id'] ?? 0), (string) ($body['decision'] ?? ''), (string) ($body['reason'] ?? ''), av_admin_actor(), $memberCtx());
+            json_out($r, $r['ok'] ? 200 : 409);
         /* ── Centres, one list with codes (lib/Centres.php) ── */
         case 'centres_list':
             json_out(['ok' => true, 'centres' => Centres::all()]);

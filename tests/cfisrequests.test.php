@@ -106,9 +106,10 @@ ck('and no category list is invented while finance cannot be asked for one '
 ck('the portal has an endpoint for it',
    is_file(AV_ROOT . '/portal/money-requests.php'));
 
-$card = (string) @file_get_contents(AV_ROOT . '/portal/views/today.php');
-ck('and the card is on Today, which is the page a member lands on',
-   str_contains($card, 'id="moneyRequests"'));
+$card = (string) @file_get_contents(AV_ROOT . '/portal/views/requests.php');
+ck('and the card is on Requests, the member\'s own page for asking — Today points to it',
+   str_contains($card, 'id="moneyRequests"')
+   && str_contains((string) @file_get_contents(AV_ROOT . '/portal/views/today.php'), 'data-goto="requests"'));
 ck('exactly once across every view — all of them render into one document, '
  . 'so a second copy would be a duplicate id and the script would drive '
  . 'whichever came first',
@@ -121,7 +122,7 @@ ck('exactly once across every view — all of them render into one document, '
    })());
 ck('and the membership view points at it rather than repeating it',
    str_contains((string) @file_get_contents(AV_ROOT . '/portal/views/membership.php'),
-                'Ask finance for money on Today'));
+                'Ask finance for money in Requests'));
 ck('whose script the portal loads',
    str_contains((string) @file_get_contents(AV_ROOT . '/portal/index.php'), 'money-requests.js'));
 ck('the card is not inside the org-only dues block — a facilitator who paid '

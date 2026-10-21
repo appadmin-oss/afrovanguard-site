@@ -489,3 +489,8 @@ body.avp a:hover { color: var(--avp-gold-tx); }
   .avp .avp-head-link, .avp .pcard-link { display: inline-flex; align-items: center; min-height: 44px; }
   .avp details > summary { min-height: 44px; display: flex; align-items: center; }
 }
+
+/* Requests (views/requests.php) */
+.avp-req-intro { margin: 0 0 16px; color: var(--avp-muted, #5b6472); max-width: 62ch; }
+.avp-req-h3 { margin: 18px 0 8px; font-size: 15px; }
+.avp-today-ask { margin: 0 0 16px; }

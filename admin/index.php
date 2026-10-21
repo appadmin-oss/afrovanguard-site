@@ -604,6 +604,10 @@
     <section class="mem-pane" data-pane="approvals" hidden>
       <p class="muted">An admin's acts that take somebody's access away — suspending members, or ending dues for several at once — wait here for a second person, as NGG's do. A Super Admin or another admin approves or rejects them; nobody decides their own. Approved, the request runs exactly as it was asked, as the person who asked. A request nobody decides in 14 days expires.</p>
       <label class="fld appr-filter"><span>Show</span><select id="apprStatus"><option value="pending">Waiting</option><option value="approved">Approved</option><option value="rejected">Not approved</option><option value="failed">Could not run</option><option value="withdrawn">Withdrawn</option><option value="expired">Expired</option><option value="all">Everything</option></select></label>
+      <h3 class="appr-h3">From members</h3>
+      <p class="muted tiny">What members ask for from their own portal → Requests: another centre, corrected details, pausing or leaving. Approved, a change of centre or details is applied to their record at once; anything else is answered, and you act on it.</p>
+      <div id="mreqList" aria-live="polite"><p class="muted">Loading…</p></div>
+      <h3 class="appr-h3">From admins</h3>
       <div id="apprList" aria-live="polite"><p class="muted">Loading…</p></div>
     </section>
 

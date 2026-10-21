@@ -106,7 +106,7 @@ declare(strict_types=1);
                same document here, so a second copy would be a duplicate
                id and the script would drive whichever came first. -->
           <p class="pcard-note">Paid for something, or need something bought?
-            <a href="#overview" data-goto="overview">Ask finance for money on Today →</a></p>
+            <a href="#requests" data-goto="requests">Ask finance for money in Requests →</a></p>
 
 
 <?php if ($isOrg): ?>

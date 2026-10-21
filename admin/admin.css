@@ -860,3 +860,4 @@ body.studio { --gold-deep: var(--av-gold-text); }
 .appr-sum { font-weight: 600; overflow-wrap: anywhere; }
 .appr-ops { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .mem-queued { color: var(--ink); }
+.appr-h3 { margin: 18px 0 4px; font-size: 15px; }

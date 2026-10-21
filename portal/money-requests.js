@@ -21,7 +21,7 @@
   'use strict';
 
   var card = document.getElementById('moneyRequests');
-  if (!card) return;                                   // not the portal home
+  if (!card) return;                                   // not the portal (Requests view)
 
   var API  = '/portal/money-requests.php';
   var CSRF = card.getAttribute('data-csrf') || '';
@@ -64,8 +64,11 @@
     });
 
     var reachable = !!data.finance_reachable;
+    /* Not set up, or set up and not answering: two different sentences. */
+    var off = data.finance_configured === false;
     form.hidden = !reachable;
-    card.querySelector('[data-mr-down]').hidden = reachable;
+    card.querySelector('[data-mr-down]').hidden = reachable || off;
+    var offNote = card.querySelector('[data-mr-off]'); if (offNote) offNote.hidden = !off;
     /* The intro describes the form. With finance unreachable the form is not
        there, so the intro sat above the outage note describing a control
        nobody could see. One note at a time. */
