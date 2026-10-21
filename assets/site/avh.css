@@ -420,6 +420,40 @@ html.av-si body.avh.is-member .avh-member{display:none}
 @keyframes avh-prog{to{transform:scaleX(1)}}
 @media (max-width:639px){.avh-dots{display:none}}
 
+/* ===== Hero on phones =====
+   Portrait: the words get the full width (the controls sat beside them and
+   squeezed the headline to four lines), the hero fills the screen under the
+   nav without running past it (svh: the height without the browser's bars,
+   so it does not jump as they slide away), and next/play sit in their own row
+   on the left, clear of the Chioma button in the bottom-right corner. */
+@media (max-width:639px){
+  .avh-hero{height:auto;min-height:min(calc(100vh - 69px),720px);min-height:min(calc(100svh - 69px),720px)}
+  .avh-hero-in{flex-direction:column;align-items:stretch;justify-content:flex-end;gap:18px;padding-top:96px;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+  .avh-hero-link{max-width:none;gap:8px}
+  .avh-hero-eyebrow{font-size:11px;letter-spacing:.12em}
+  .avh-hero h1{font-size:clamp(30px,8.8vw,40px);line-height:1.06}
+  .avh-hero-sub{font-size:15px;max-width:none}
+  .avh-hero-shade{background:linear-gradient(180deg,rgba(0,0,0,0) 28%,rgba(0,0,0,.45) 52%,rgba(0,0,0,.82) 100%)}
+  .avh-hero-ctrl{padding-bottom:0;gap:10px}
+  .avh-hero-ctrl button{width:44px;height:44px;font-size:18px}
+}
+/* A phone turned sideways: about 390px of height. The hero used to keep a
+   520px minimum and put the headline below the bottom of the screen. It now
+   fits the screen under the nav, with a smaller headline and a two-line
+   sentence, and keeps clear of a notch on either side. */
+@media (orientation:landscape) and (max-height:500px){
+  .avh-hero{height:auto;min-height:calc(100vh - 69px);min-height:calc(100svh - 69px)}
+  .avh-hero-in{align-items:flex-end;padding-top:24px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));
+    padding-left:max(clamp(20px,3vw,32px),env(safe-area-inset-left,0px));padding-right:max(clamp(20px,3vw,32px),env(safe-area-inset-right,0px))}
+  .avh-hero-link{gap:6px;max-width:min(560px,62vw)}
+  .avh-hero-eyebrow{font-size:11px}
+  .avh-hero h1{font-size:clamp(26px,4.2vw,34px)}
+  .avh-hero-sub{font-size:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .avh-hero-ctrl .avh-dot{width:20px}
+  /* Clear of the Chioma button, which sits in the bottom-right corner. */
+  .avh-hero-ctrl{margin-right:76px}
+}
+
 /* ===== Motion: reveal on scroll, card lift ===== */
 .js [data-avh-reveal]{opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
 .js [data-avh-reveal].is-in{opacity:1;transform:none}
