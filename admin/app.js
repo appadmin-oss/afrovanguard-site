@@ -3228,6 +3228,7 @@
     if (which === 'roster') loadMemRoster();
     if (which === 'roles') loadMemRoles();
     if (which === 'centres') loadMemCentres();
+    if (which === 'approvals') loadApprovals();
     if (which === 'import') loadMemFormats();
     if (which === 'dups') loadMemDups();
     if (which === 'volunteers') { loadVolProjects(); vsStatus(); }
@@ -3373,6 +3374,39 @@
     sel.value = current || '';
   }
 
+  /* ── Approvals: an admin's sensitive acts, waiting for a second person ── */
+  function approvalsBadge() {
+    return api('approvals_list&status=pending').then(function (r) {
+      var n = (r.data && r.data.pending) || 0, b = $('#apprBadge');
+      if (b) { b.hidden = !n; b.textContent = n; }
+    }).catch(function () {});
+  }
+  var APPR_WORDS = { pending: 'Waiting', approved: 'Approved', rejected: 'Not approved', failed: 'Approved, could not run', withdrawn: 'Withdrawn', expired: 'Expired', running: 'Running' };
+  function loadApprovals() {
+    var box = $('#apprList'); if (!box) return;
+    var st = ($('#apprStatus') || {}).value || 'pending';
+    box.innerHTML = '<p class="muted">Loading…</p>';
+    api('approvals_list&status=' + encodeURIComponent(st)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load the requests. <button type="button" class="btn btn-outline btn-sm" data-appr-retry>Try again</button></p>'; return; }
+      var b = $('#apprBadge'); if (b) { b.hidden = !d.pending; b.textContent = d.pending; }
+      var rows = d.approvals || [];
+      box.innerHTML = rows.length ? rows.map(function (a) {
+        return '<div class="appr-row" data-id="' + a.id + '">'
+          + '<div class="appr-main"><div class="appr-sum">' + escapeHtml(a.summary) + '</div>'
+          + '<div class="muted tiny">Asked by ' + escapeHtml(a.mine ? 'you' : a.requester) + ' · ' + escapeHtml(String(a.created_at).slice(0, 16)) + ' UTC'
+          + (a.decided_by && a.status !== 'pending' ? ' · ' + escapeHtml(APPR_WORDS[a.status] || a.status) + ' by ' + escapeHtml(a.decided_by) : '') + '</div>'
+          + (a.reason ? '<div class="muted tiny">Why: ' + escapeHtml(a.reason) + '</div>' : '')
+          + (a.outcome ? '<div class="muted tiny">' + escapeHtml(a.outcome) + '</div>' : '') + '</div>'
+          + '<div class="appr-ops"><span class="badge ' + (a.status === 'pending' ? 'draft' : a.status === 'approved' ? 'published' : '') + '">' + escapeHtml(APPR_WORDS[a.status] || a.status) + '</span>'
+          + (a.can_decide ? '<button type="button" class="btn btn-primary btn-sm" data-appr="approve">Approve</button><button type="button" class="btn btn-outline btn-sm" data-appr="reject">Reject</button>' : '')
+          + (a.mine && a.status === 'pending' ? '<button type="button" class="btn btn-outline btn-sm" data-appr="withdraw">Withdraw</button>' : '')
+          + (a.mine && a.status === 'pending' ? '<span class="muted tiny">Waiting for a second admin</span>' : '')
+          + '</div></div>';
+      }).join('') : '<p class="muted">' + (st === 'pending' ? 'Nothing is waiting for approval.' : 'No requests here.') + '</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the requests. <button type="button" class="btn btn-outline btn-sm" data-appr-retry>Try again</button></p>'; });
+  }
+
   function centreSaid(t, bad) { var m = $('#centreMsg'); if (m) { m.textContent = t || ''; m.classList.toggle('is-bad', !!bad); } }
   function loadMemCentres() {
     var box = $('#memCentresList'); if (!box) return;
@@ -3456,11 +3490,13 @@
     if (id.indexOf('status:') === 0) { action = 'status'; v = { status: id.slice(7) }; }
     return post('roster_bulk', { ids: ids, action: action, value: v }).then(function (r) {
       var d = r.data || {};
+      if (d.code === 'approval_pending') { approvalsBadge(); return { ran: false, queued: true, ok: 0, failed: 0, error: d.error, summary: d.summary, results: [] }; }
       if (!d.ok) return { ran: false, ok: 0, failed: ids.length, error: d.error || 'Refused.', results: [] };
       return { ran: true, ok: d.applied, unchanged: d.unchanged, failed: d.refused, partial: !!d.partial, results: d.results || [] };
     }).catch(function () { return { ran: false, ok: 0, failed: ids.length, error: 'Network error — nothing was changed.', results: [] }; });
   }
   function memRunSummary(res) {
+    if (res.queued) return '<p class="mem-bulk-sum mem-queued"><b>Sent for approval</b> — ' + escapeHtml(res.summary || '') + '. Nothing changes until a second admin approves it in Approvals.</p>';
     if (!res.ran) return '<div class="mem-errors">' + escapeHtml(res.error) + '</div>';
     var refused = res.results.filter(function (x) { return x.outcome === 'refused'; });
     return '<p class="mem-bulk-sum"><b>' + (res.partial ? 'Partly done' : 'Done') + '</b> — ' + res.ok + ' changed · ' + (res.unchanged || 0) + ' already so · ' + res.failed + ' refused</p>'
@@ -3509,7 +3545,8 @@
     memRunAction(decl.id, [id]).then(function (res) {
       s.disabled = false;
       var one = res.results[0] || {};
-      if (!res.ran) toast(res.error);
+      if (res.queued) toast(res.error);
+      else if (!res.ran) toast(res.error);
       else if (one.outcome === 'refused') toast(one.error || 'Refused.');
       else { toast(one.outcome === 'unchanged' ? 'Already so.' : 'Done.'); loadMemRoster(); }
     });
@@ -4091,6 +4128,29 @@
     });
     rolesGet().catch(function () {});
 
+    $('#apprStatus').addEventListener('change', loadApprovals);
+    $('#apprList').addEventListener('click', function (e) {
+      if (e.target.closest('[data-appr-retry]')) { loadApprovals(); return; }
+      var b = e.target.closest('[data-appr]'); if (!b) return;
+      var id = +b.closest('.appr-row').getAttribute('data-id'), what = b.getAttribute('data-appr');
+      var sum = b.closest('.appr-row').querySelector('.appr-sum').textContent;
+      if (what === 'withdraw') {
+        if (!confirm('Withdraw this request? Nothing will happen.')) return;
+        post('approval_withdraw', { id: id }).then(function (r) { var d = r.data || {}; toast(d.ok ? 'Withdrawn.' : (d.error || 'That did not go through.')); loadApprovals(); });
+        return;
+      }
+      var reason = '';
+      if (what === 'reject') { reason = prompt('Why not? The person who asked is told.'); if (reason === null) return; if (!reason.trim()) { toast('Say why, so they know.'); return; } }
+      else if (!confirm('Approve and run it now?\n\n' + sum)) return;
+      b.disabled = true;
+      post('approval_decide', { id: id, decision: what, reason: reason }).then(function (r) {
+        var d = r.data || {};
+        toast(d.ok ? (d.status === 'approved' ? 'Approved and done — ' + d.outcome : d.status === 'failed' ? 'Approved, but it could not run: ' + d.outcome : 'Not approved. They are told why.') : (d.error || 'That did not go through.'));
+        loadApprovals(); if (d.ok && d.status === 'approved') loadMemRoster();
+      });
+    });
+    approvalsBadge();
+
     $('#centreNew').addEventListener('submit', function (e) {
       e.preventDefault();
       post('centre_save', { id: 0, name: $('#centreNewName').value.trim(), code: $('#centreNewCode').value.trim() }).then(function (r) {
@@ -4144,7 +4204,12 @@
     $('#mdSuspend').addEventListener('click', function () {
       var to = this.getAttribute('data-to');
       if (to === 'suspended' && !confirm('Suspend this member? They are signed out, and their gate pass and card stop at the door.')) return;
-      post('roster_update', { id: memOpen, status: to }).then(function (r) { if (r.data && r.data.ok) { toast(to === 'suspended' ? 'Member suspended.' : 'Member reactivated.'); closeMember(); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.'); });
+      post('roster_update', { id: memOpen, status: to }).then(function (r) {
+        var d = r.data || {};
+        /* An admin's suspension waits for a second person (lib/Approvals.php). */
+        if (d.code === 'approval_pending') { toast(d.error); closeMember(); approvalsBadge(); return; }
+        if (d.ok) { toast(to === 'suspended' ? 'Member suspended.' : 'Member reactivated.'); closeMember(); loadMembers(); } else toast(d.error || 'Refused.');
+      });
     });
     function reissue(voidPrinted) {
       if (!confirm(voidPrinted ? 'Retire the old printed card and issue a new secure one? Both old cards stop at the gate now.' : 'Issue a new secure card? The current one stops at the gate now.')) return;

@@ -309,7 +309,8 @@ require_once __DIR__ . '/MemberCards.php';      /* the secure and printed cards 
 require_once __DIR__ . '/NgvCard.php';          /* the NGV ID card and the one standing it prints */
 require_once __DIR__ . '/MemberRoster.php';     /* the member desk: create, manage, import */
 require_once __DIR__ . '/MemberDesk.php';       /* notes, activity, export and messages on the member desk */
-require_once __DIR__ . '/Centres.php';          /* the centres members belong to, one list with codes (as NGG keeps them) */
+require_once __DIR__ . '/Centres.php';
+require_once __DIR__ . '/Approvals.php';        /* an admin's sensitive member acts wait for a second person (as NGG's do) */          /* the centres members belong to, one list with codes (as NGG keeps them) */
 require_once __DIR__ . '/MemberRoles.php';      /* the work roles members hold, kept as one list with descriptions */
 require_once __DIR__ . '/Membership.php';       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited once the receipt is verified */

@@ -438,6 +438,7 @@
       <button class="subtab" data-mv="roster" role="tab">Roster</button>
       <button class="subtab" data-mv="roles" role="tab">Roles</button>
       <button class="subtab" data-mv="centres" role="tab">Centres</button>
+      <button class="subtab" data-mv="approvals" role="tab">Approvals <span class="badge draft" id="apprBadge" hidden></span></button>
       <button class="subtab" data-mv="import" role="tab">Import</button>
       <button class="subtab" data-mv="volunteers" role="tab">Volunteers</button>
       <button class="subtab" data-mv="dups" role="tab">Duplicates</button>
@@ -598,6 +599,12 @@
       </form>
       <p class="muted tiny" id="roleMsg" role="status" aria-live="polite"></p>
       <div id="memRolesList"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section class="mem-pane" data-pane="approvals" hidden>
+      <p class="muted">An admin's acts that take somebody's access away — suspending members, or ending dues for several at once — wait here for a second person, as NGG's do. A Super Admin or another admin approves or rejects them; nobody decides their own. Approved, the request runs exactly as it was asked, as the person who asked. A request nobody decides in 14 days expires.</p>
+      <label class="fld appr-filter"><span>Show</span><select id="apprStatus"><option value="pending">Waiting</option><option value="approved">Approved</option><option value="rejected">Not approved</option><option value="failed">Could not run</option><option value="withdrawn">Withdrawn</option><option value="expired">Expired</option><option value="all">Everything</option></select></label>
+      <div id="apprList" aria-live="polite"><p class="muted">Loading…</p></div>
     </section>
 
     <section class="mem-pane" data-pane="centres" hidden>

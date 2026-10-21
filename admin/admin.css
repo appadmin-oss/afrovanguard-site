@@ -852,3 +852,11 @@ body.studio { --gold-deep: var(--av-gold-text); }
 .mem-centre-ops { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 /* A roster row's action menu (drawn from MEMBER_ACTIONS, like the bulk bar). */
 .entry-ops .mem-row-act { width: auto; max-width: 12rem; min-height: 32px; padding: 4px 8px; font-size: 13px; }
+
+/* Members → Approvals */
+.appr-filter { max-width: 14rem; margin: 10px 0; }
+.appr-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--divider); }
+.appr-main { min-width: 0; flex: 1 1 20rem; }
+.appr-sum { font-weight: 600; overflow-wrap: anywhere; }
+.appr-ops { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mem-queued { color: var(--ink); }

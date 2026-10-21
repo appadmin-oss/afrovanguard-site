@@ -104,6 +104,7 @@ try {
         'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
         'roles_list', 'role_save', 'role_delete',
         'centres_list', 'centre_save', 'centre_status', 'centre_delete',
+        'approvals_list', 'approval_decide', 'approval_withdraw',
         'roster_export', 'roster_centres', 'member_notes', 'member_note_add', 'member_note_delete', 'member_activity', 'member_message',
         'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
@@ -156,6 +157,22 @@ try {
         $me = class_exists('LmsAuth') ? LmsAuth::user() : null;
         return ['studio_role' => $role, 'self_id' => (int) ($me['id'] ?? 0)];
     };
+
+    /* The member-desk writes a second person may have to approve, run one way
+       whether they come straight from the screen or out of the queue. */
+    $runMemberOp = static function (string $op, array $args, string $actor, array $ctx): array {
+        if ($op === 'roster_bulk') return MemberRoster::bulk((array) ($args['ids'] ?? []), (string) ($args['action'] ?? ''), (array) ($args['value'] ?? []), $actor, $ctx);
+        if ($op === 'roster_update') {
+            $patch = array_intersect_key($args, array_flip(['name', 'email', 'phone', 'centre', 'role', 'status', 'level', 'birthday', 'joined_on', 'notes', 'work_roles', 'about']));
+            return MemberRoster::update((int) ($args['id'] ?? 0), $patch, $actor, $ctx);
+        }
+        return ['ok' => false, 'error' => 'Unknown action.'];
+    };
+    /* One seam: an admin's sensitive member act is kept for a second person
+       (lib/Approvals.php) before any screen's handler can run it. */
+    if ($method === 'POST' && in_array($action, ['roster_bulk', 'roster_update'], true)) {
+        if ($held = Approvals::intercept($action, $body, $memberCtx(), av_admin_actor())) json_out($held, 202);
+    }
 
     // Enterprise audit trail: record EVERY state-changing admin action centrally
     // (actor + proxy-validated client IP + action + best-effort target). This is
@@ -1319,6 +1336,17 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = MemberRoles::delete((int) ($body['id'] ?? 0), av_admin_actor());
             json_out($r, $r['ok'] ? 200 : 404);
+        /* ── Approvals: an admin's sensitive acts, kept for a second person (lib/Approvals.php) ── */
+        case 'approvals_list':
+            json_out(Approvals::list((string) ($_GET['status'] ?? 'pending'), av_admin_actor()));
+        case 'approval_decide':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Approvals::decide((int) ($body['id'] ?? 0), (string) ($body['decision'] ?? ''), (string) ($body['reason'] ?? ''), av_admin_actor(), $runMemberOp);
+            json_out($r, $r['ok'] ? 200 : (($r['code'] ?? '') === 'own_request' ? 403 : 409));
+        case 'approval_withdraw':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Approvals::withdraw((int) ($body['id'] ?? 0), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 404);
         /* ── Centres, one list with codes (lib/Centres.php) ── */
         case 'centres_list':
             json_out(['ok' => true, 'centres' => Centres::all()]);
@@ -1352,7 +1380,7 @@ try {
         case 'roster_update':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $patch = array_intersect_key($body, array_flip(['name', 'email', 'phone', 'centre', 'role', 'status', 'level', 'birthday', 'joined_on', 'notes', 'work_roles', 'about']));
-            $r = MemberRoster::update((int) ($body['id'] ?? 0), $patch, av_admin_actor(), $memberCtx());
+            $r = $runMemberOp('roster_update', ['id' => $body['id'] ?? 0] + $patch, av_admin_actor(), $memberCtx());
             json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['own_account', 'staff_account', 'role_ceiling', 'admin_email', 'org_email'], true) ? 403 : 422));
         /* ── Dues membership (lib/Membership.php) ── */
         case 'roster_membership':
@@ -1444,7 +1472,7 @@ try {
             json_out(['ok' => true] + MemberRoster::ids(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'work_role']))));
         case 'roster_bulk':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            $r = MemberRoster::bulk((array) ($body['ids'] ?? []), (string) ($body['action'] ?? ''), (array) ($body['value'] ?? []), av_admin_actor(), $memberCtx());
+            $r = $runMemberOp('roster_bulk', $body, av_admin_actor(), $memberCtx());
             json_out($r, $r['ok'] ? 200 : 422);
         case 'roster_timeline':
             json_out(['ok' => true, 'events' => MemberRoster::timeline((int) ($_GET['id'] ?? 0))]);
