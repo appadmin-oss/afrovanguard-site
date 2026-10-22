@@ -216,7 +216,10 @@ $embeds = [];
 $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(AV_ROOT, FilesystemIterator::SKIP_DOTS));
 foreach ($it as $f) {
     $p = $f->getPathname();
-    if (!preg_match('~\.(html|php|js)$~', $p) || preg_match('~/(vendor|node_modules|tests|\.git)/~', $p)) continue;
+    /* The site's own files only: .claude holds an editor's scratch copies
+       of the whole site (git-ignored), and scanning them failed this check
+       on every run for code that is not deployed. */
+    if (!preg_match('~\.(html|php|js)$~', $p) || preg_match('~/(vendor|node_modules|tests|\.git|\.claude)/~', $p)) continue;
     $src = (string) @file_get_contents($p);
     if (stripos($src, '.pdf') === false) continue;
     if (preg_match('~<(iframe|object|embed)\b[^>]*\.pdf~i', $src)) $embeds[] = substr($p, strlen(AV_ROOT) + 1);
