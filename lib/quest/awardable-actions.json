@@ -1,0 +1,54 @@
+{
+    "$schema": "schema/awardable-actions.schema.json",
+    "source": [
+        "afrovanguard-site lib/Conduct.php",
+        "The owner's brief, 21 October 2026"
+    ],
+    "currency": "points",
+    "max_per_award": 50,
+    "gap": "These are REASONS, not priced actions. A mentor types a number today, so two mentors award different points for the same deed and the rank table above them means different things for different members. The official priced catalogue has not been supplied.",
+    "actions": [
+        {
+            "id": "values",
+            "label": "Living the values",
+            "points": null,
+            "note": "A value demonstrated plainly enough that a mentor can name what was seen."
+        },
+        {
+            "id": "leadership",
+            "label": "Leadership",
+            "points": null,
+            "note": "Carried a group, a session or a decision."
+        },
+        {
+            "id": "service",
+            "label": "Service to others",
+            "points": null,
+            "note": "Gave time, skill or presence to somebody else’s problem."
+        },
+        {
+            "id": "excellence",
+            "label": "Excellent work",
+            "points": null,
+            "note": "Work finished to a standard above what was asked."
+        },
+        {
+            "id": "growth",
+            "label": "Growth",
+            "points": null,
+            "note": "Measurable change in the member themselves."
+        },
+        {
+            "id": "mentorship",
+            "label": "Mentorship",
+            "points": null,
+            "note": "Mentoring — and in particular a mentee rising to the next rank."
+        },
+        {
+            "id": "other",
+            "label": "Other",
+            "points": null,
+            "note": "Anything else. The proposal must say why."
+        }
+    ]
+}

@@ -36,7 +36,7 @@ declare(strict_types=1);
 
 final class Conduct
 {
-    public const KINDS = ['fine', 'award'];
+    public const KINDS = ['fine', 'award', 'challenge'];
     public const MENTOR_KINDS = ['academy' => 'Academy mentor', 'vquest' => 'Vanguard Quest mentor'];
     /** What a mentor may fine for. A subset of NgvLedger::FINE_REASONS: lateness and absence are the gate's. */
     public const FINE_REASONS = ['conduct' => 'Conduct', 'uniform' => 'Uniform or ID card', 'equipment' => 'Equipment lost or damaged', 'other' => 'Other (say why)'];
@@ -82,6 +82,19 @@ final class Conduct
             added_by VARCHAR(190) NOT NULL DEFAULT '',
             created_at VARCHAR(32) NOT NULL
         )");
+        /* A challenge sign-off names one of the seventy. Added with the kind
+           column widened in the same breath, because 'challenge' does not fit
+           the VARCHAR(8) the table shipped with and MySQL and Postgres enforce
+           that where SQLite does not. Once only: if the column is there, the
+           widening already happened. */
+        if (!Database::columnExists('conduct_cases', 'challenge_id')) {
+            $drv = Database::driver();
+            $widen = $drv === 'mysql' ? 'ALTER TABLE conduct_cases MODIFY kind VARCHAR(16) NOT NULL'
+                   : ($drv === 'pgsql' ? 'ALTER TABLE conduct_cases ALTER COLUMN kind TYPE VARCHAR(16)' : '');
+            if ($widen !== '') { try { $db->exec($widen); } catch (Throwable $e) { error_log('[conduct] widen kind: ' . $e->getMessage()); } }
+            try { $db->exec("ALTER TABLE conduct_cases ADD COLUMN challenge_id VARCHAR(40) NOT NULL DEFAULT ''"); }
+            catch (Throwable $e) { /* raced */ }
+        }
         if (class_exists('Mentorship')) Mentorship::ensure();
         if (!Database::columnExists('mentorships', 'kind')) {
             try { $db->exec("ALTER TABLE mentorships ADD COLUMN kind VARCHAR(12) NOT NULL DEFAULT 'academy'"); } catch (Throwable $e) { /* raced */ }
@@ -127,10 +140,28 @@ final class Conduct
         if ($menteeId === $mentorUid) return ['ok' => false, 'error' => 'You cannot fine or reward yourself.'];
 
         $kind = (string) ($in['kind'] ?? '');
-        if (!in_array($kind, self::KINDS, true)) return ['ok' => false, 'error' => 'Choose a fine or an award.'];
-        $reasons = $kind === 'fine' ? self::FINE_REASONS : self::AWARD_REASONS;
-        $reason = (string) ($in['reason'] ?? '');
-        if (!isset($reasons[$reason])) return ['ok' => false, 'error' => 'Choose what it is for.'];
+        if (!in_array($kind, self::KINDS, true)) return ['ok' => false, 'error' => 'Choose a fine, an award or a challenge.'];
+
+        /* A challenge sign-off is not priced by the mentor: it is one of the
+           seventy, it is worth what the registry says, and it is proved once
+           ever. The reason it records is the value it belongs to. */
+        $challengeId = '';
+        if ($kind === 'challenge') {
+            $challengeId = trim((string) ($in['challenge_id'] ?? ''));
+            $ch = Quest::challenge($challengeId);
+            if (!$ch) return ['ok' => false, 'error' => 'That is not one of the seventy challenges.'];
+            if (!Quest::isOfficial($challengeId)) {
+                return ['ok' => false, 'error' => 'That challenge has no official wording yet, so nothing can be signed off against it.'];
+            }
+            if (QuestPoints::granted($menteeId, 'challenge:' . $menteeId . ':' . $challengeId)) {
+                return ['ok' => false, 'error' => $p['mentee_name'] . ' has already proved that one. A challenge is proved once, ever.'];
+            }
+            $reason = Quest::valueOf($challengeId);
+        } else {
+            $reasons = $kind === 'fine' ? self::FINE_REASONS : self::AWARD_REASONS;
+            $reason = (string) ($in['reason'] ?? '');
+            if (!isset($reasons[$reason])) return ['ok' => false, 'error' => 'Choose what it is for.'];
+        }
         $title = mb_substr(trim((string) ($in['title'] ?? '')), 0, 160);
         if ($reason === 'other' && $title === '') return ['ok' => false, 'error' => 'Say in a few words what it is for.'];
 
@@ -148,7 +179,13 @@ final class Conduct
         }
 
         $amount = 0; $points = 0;
-        if ($kind === 'fine') {
+        if ($kind === 'challenge') {
+            $points = (int) (Quest::challenge($challengeId)['points'] ?? 1);
+            $db0 = Database::pdo();
+            $openCh = $db0->prepare("SELECT 1 FROM conduct_cases WHERE mentee_id = ? AND challenge_id = ? AND status IN ('proposed','approved')");
+            $openCh->execute([$menteeId, $challengeId]);
+            if ($openCh->fetchColumn()) return ['ok' => false, 'error' => 'That challenge is already put forward for ' . $p['mentee_name'] . '.'];
+        } elseif ($kind === 'fine') {
             if (!self::fineable($menteeId)) {
                 return ['ok' => false, 'error' => $p['mentee_name'] . ' has no NextGen Vanguard account, so there is nothing a fine could be owed on. Propose an award, or raise the behaviour with the office.'];
             }
@@ -169,12 +206,13 @@ final class Conduct
         $dup->execute([$mentorUid, $menteeId, $kind, $reason, $on]);
         if ($dup->fetchColumn()) return ['ok' => false, 'error' => 'You have already put this forward for that day.'];
 
-        $db->prepare('INSERT INTO conduct_cases (kind, mentee_id, mentor_id, mentorship_id, mentor_kind, reason, title, amount, points, occurred_on, evidence, status, created_at)
-                      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        $db->prepare('INSERT INTO conduct_cases (kind, mentee_id, mentor_id, mentorship_id, mentor_kind, reason, title, amount, points, challenge_id, occurred_on, evidence, status, created_at)
+                      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
            ->execute([$kind, $menteeId, $mentorUid, (int) $p['id'], isset(self::MENTOR_KINDS[(string) ($p['kind'] ?? '')]) ? (string) $p['kind'] : 'academy',
-                      $reason, $title, $amount, $points, $on, $evidence, 'proposed', self::now()]);
+                      $reason, $title, $amount, $points, $challengeId, $on, $evidence, 'proposed', self::now()]);
         $id = (int) $db->lastInsertId();
-        self::audit('propose', $id, $kind . ' for member #' . $menteeId . ($kind === 'fine' ? ' ₦' . $amount : ' ' . $points . ' pts'), $mentorUid);
+        $what = $kind === 'fine' ? ' ₦' . $amount : ($kind === 'challenge' ? ' ' . $challengeId : ' ' . $points . ' pts');
+        self::audit('propose', $id, $kind . ' for member #' . $menteeId . $what, $mentorUid);
         self::tellDeciders($id);
         return ['ok' => true, 'id' => $id];
     }
@@ -257,6 +295,18 @@ final class Conduct
                 return ['ok' => false, 'error' => 'Approved, but the fine could not be posted: ' . ($r['error'] ?? 'unknown') . ' It is still waiting.'];
             }
             $outcome = 'ngv_charge:' . (int) ($r['entryId'] ?? 0);
+        } elseif ($c['kind'] === 'challenge') {
+            $cid = (string) $c['challenge_id'];
+            $vals = Quest::values();
+            $label = (string) ($vals[(string) $c['reason']]['name'] ?? 'Challenge');
+            $text  = (string) (Quest::challenge($cid)['text'] ?? $cid);
+            QuestPoints::grant((int) $c['mentee_id'], (int) $c['points'], 'challenge:' . (int) $c['mentee_id'] . ':' . $cid,
+                'challenge', $label . ' — ' . mb_substr($text, 0, 120), $aid, (string) $c['occurred_on'], (string) $c['reason']);
+            $outcome = 'challenge:' . $cid;
+            if (class_exists('Notifications')) {
+                Notifications::push((int) $c['mentee_id'], 'award', 'Challenge proved: ' . mb_substr($text, 0, 90),
+                    $label . '. Signed off by your mentor and confirmed by the compliance committee.', '/portal/', 'challenge:' . $cid);
+            }
         } else {
             $label = self::AWARD_REASONS[$c['reason']] ?? 'Award';
             QuestPoints::grant((int) $c['mentee_id'], (int) $c['points'], 'award:' . $caseId, (string) $c['reason'],

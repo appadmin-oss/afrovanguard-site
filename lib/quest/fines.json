@@ -1,0 +1,42 @@
+{
+    "$schema": "schema/fines.schema.json",
+    "source": [
+        "afrovanguard-site lib/NgvFines.php"
+    ],
+    "currency": "NGN",
+    "max_per_fine": 20000,
+    "note": "Mirrors the live defaults in NgvFines::catalogue(). The office edits the real amounts in site settings, not here; this file records what the Quest says a reason is worth so the two can be compared. A null amount is priced each time.",
+    "requires_account": "A fine is money owed and needs an NGV account to be owed against. A member outside NGV cannot be fined.",
+    "fines": [
+        {
+            "id": "late",
+            "label": "Lateness",
+            "amount": 1000
+        },
+        {
+            "id": "absent",
+            "label": "Absence",
+            "amount": 2000
+        },
+        {
+            "id": "uniform",
+            "label": "Uniform or ID card",
+            "amount": 500
+        },
+        {
+            "id": "equipment",
+            "label": "Equipment lost or damaged",
+            "amount": null
+        },
+        {
+            "id": "conduct",
+            "label": "Conduct",
+            "amount": 2000
+        },
+        {
+            "id": "other",
+            "label": "Other",
+            "amount": null
+        }
+    ]
+}
