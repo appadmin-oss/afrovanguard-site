@@ -143,6 +143,47 @@ final class Quest
         return $out;
     }
 
+    /** @return array<string,array> deductions, keyed by id — points taken away through the desk */
+    public static function deductions(): array
+    {
+        $out = [];
+        foreach (self::load('deductions')['deductions'] ?? [] as $d) $out[(string) $d['id']] = $d;
+        return $out;
+    }
+
+    /** @return array<string,string> group id => label, in order, for 'awardable-actions' or 'fines' */
+    public static function groups(string $registry): array
+    {
+        $out = [];
+        foreach (self::load($registry)['groups'] ?? [] as $g) $out[(string) $g['id']] = (string) $g['label'];
+        return $out;
+    }
+
+    /** One rank by its letter, or null. */
+    public static function rank(string $id): ?array
+    {
+        foreach (self::ranks() as $r) if ((string) $r['id'] === $id) return $r;
+        return null;
+    }
+
+    /**
+     * The highest rank whose point floor AND mentee floor are both met.
+     * Arithmetic only: what a member QUALIFIES for, never what they hold —
+     * holding a rank is a decision (Levels::set), recorded by a person.
+     */
+    public static function rankFor(int $points, int $activeMentees): string
+    {
+        $best = '';
+        foreach (self::ranks() as $r) {
+            if ($points < (int) $r['points']['min']) break;
+            /* The quota binds from Becoming upward (binding_mentees); below
+               that a mentee floor is something to aim for, not a gate. */
+            if (!empty($r['binding_mentees']) && $activeMentees < (int) $r['mentees']['min']) break;
+            $best = (string) $r['id'];
+        }
+        return $best !== '' ? $best : (string) (self::ranks()[0]['id'] ?? 'O');
+    }
+
     /** @return array<string,array> the fines registry, keyed by id */
     public static function fines(): array
     {

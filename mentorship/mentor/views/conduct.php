@@ -1,5 +1,5 @@
 <?php
-/** A fine or an award for one mentee: put forward here, decided by the compliance committee. */
+/** An award, a deduction or a fine for one mentee, from the Quest's priced catalogue: put forward here, decided by the compliance committee. */
 $cp = Conduct::pairing($uid, $id);
 $flash = (string) ($_GET['done'] ?? '');
 $err = (string) ($_GET['err'] ?? '');
@@ -19,8 +19,40 @@ if (!$cp):
 <?php return; endif;
 $fineable = Conduct::fineable((int) $cp['mentee_id']);
 $mine = Conduct::forPairing($uid, (int) $cp['id']);
-$kindNow = (string) ($_GET['kind'] ?? ($fineable ? 'fine' : 'award'));
-if (!in_array($kindNow, Conduct::KINDS, true)) $kindNow = 'award';
+$awardsOn = AvRules::bool('quest.awards_enabled');
+$customOn = AvRules::bool('quest.awards_custom');
+$kindTabs = ['award' => 'Award'];
+if (AvRules::bool('quest.deductions_enabled')) $kindTabs['deduction'] = 'Deduction';
+$kindTabs['fine'] = 'Fine';
+$kindNow = (string) ($_GET['kind'] ?? 'award');
+if (!isset($kindTabs[$kindNow])) $kindNow = 'award';
+$kindIntro = [
+    'award'     => 'Pick the deed from the catalogue. The committee confirms it; then the points are theirs.',
+    'deduction' => 'Points taken away for the manual\'s breaches. The committee confirms it like an award; it never costs anybody their level by itself.',
+    'fine'      => 'Money owed on their NGV account, at the manual\'s price.',
+];
+/* The picker: catalogue lines by group, price in the label, switched-off
+   lines left out; the old reasons only where a switch allows them. */
+$picker = [];
+if ($kindNow === 'award') {
+    $groups = Quest::groups('awardable-actions');
+    foreach (QuestRules::items('award') as $aid => $a) {
+        if (!$a['enabled'] || $aid === 'mentee_rises') continue;
+        $picker[$groups[$a['group']] ?? 'Other'][$aid] = '+' . (int) $a['value'] . ' · ' . $a['label'];
+    }
+    if ($customOn) $picker['Not in the catalogue']['reason:other'] = 'Other — say what, and give the points';
+} elseif ($kindNow === 'deduction') {
+    foreach (QuestRules::items('deduction') as $did => $d) {
+        if ($d['enabled']) $picker['Deductions'][$did] = '−' . (int) $d['value'] . ' · ' . $d['label'];
+    }
+} else {
+    $groups = Quest::groups('fines');
+    foreach (QuestRules::items('fine') as $fid => $f) {
+        if (!$f['enabled']) continue;
+        $picker[$groups[$f['group']] ?? 'Other'][$fid] = ($f['value'] === null ? 'priced each time' : '₦' . number_format((int) $f['value'])) . ' · ' . $f['label'];
+    }
+    foreach (Conduct::FINE_REASONS as $k => $l) $picker['Not in the catalogue']['reason:' . $k] = $l;
+}
 $today = date('Y-m-d');
 ?>
       <div class="avm-casebar">
@@ -38,32 +70,41 @@ $today = date('Y-m-d');
 
       <section class="avm-panel avcd" aria-labelledby="avcd-h">
         <h2 id="avcd-h">Put something forward for <?= e($cp['mentee_name']) ?></h2>
-        <div class="avcd-switch" role="group" aria-label="Fine or award">
-          <a href="?v=conduct&amp;id=<?= (int) $cp['id'] ?>&amp;kind=award" class="avcd-tab<?= $kindNow === 'award' ? ' is-on' : '' ?>"<?= $kindNow === 'award' ? ' aria-current="true"' : '' ?>>Award</a>
-          <a href="?v=conduct&amp;id=<?= (int) $cp['id'] ?>&amp;kind=fine" class="avcd-tab<?= $kindNow === 'fine' ? ' is-on' : '' ?>"<?= $kindNow === 'fine' ? ' aria-current="true"' : '' ?>>Fine</a>
+        <div class="avcd-switch" role="group" aria-label="Award, deduction or fine">
+<?php foreach ($kindTabs as $k => $word): ?>
+          <a href="?v=conduct&amp;id=<?= (int) $cp['id'] ?>&amp;kind=<?= e($k) ?>" class="avcd-tab<?= $kindNow === $k ? ' is-on' : '' ?>"<?= $kindNow === $k ? ' aria-current="true"' : '' ?>><?= e($word) ?></a>
+<?php endforeach; ?>
         </div>
 
 <?php if ($kindNow === 'fine' && !$fineable): ?>
         <p class="avcd-p"><?= e($cp['mentee_name']) ?> has no NextGen Vanguard account, so there is nothing a fine could be owed on. Put an award forward instead, or raise the behaviour with your coordinator.</p>
+<?php elseif ($kindNow === 'award' && !$awardsOn): ?>
+        <p class="avcd-p">Awards are switched off for now.</p>
 <?php else: ?>
+        <p class="avcd-p"><?= e($kindIntro[$kindNow] ?? '') ?></p>
         <form class="avcd-form" method="post" action="/mentorship/conduct.php">
           <input type="hidden" name="csrf" value="<?= e(av_csrf_token()) ?>">
           <input type="hidden" name="op" value="propose">
           <input type="hidden" name="kind" value="<?= e($kindNow) ?>">
           <input type="hidden" name="pairing_id" value="<?= (int) $cp['id'] ?>">
-          <label>What is it for?
-            <select class="avm-select" name="reason" required>
+          <label class="avcd-span">What is it for?
+            <select class="avm-select" name="action" required>
               <option value="">Choose</option>
-<?php foreach ($kindNow === 'fine' ? Conduct::FINE_REASONS : Conduct::AWARD_REASONS as $k => $l): ?>
-              <option value="<?= e($k) ?>"><?= e($l) ?></option>
+<?php foreach ($picker as $groupLabel => $opts): ?>
+              <optgroup label="<?= e($groupLabel) ?>">
+<?php foreach ($opts as $val => $word): ?>
+                <option value="<?= e($val) ?>"><?= e($word) ?></option>
+<?php endforeach; ?>
+              </optgroup>
 <?php endforeach; ?>
             </select>
+            <small><?= $kindNow === 'fine' ? 'The amount is the catalogue\'s; type one only for a fine it prices each time, or for Other.' : 'The points are the catalogue\'s, not yours — so the same deed is worth the same for everyone.' ?></small>
           </label>
-          <label>In a few words<input class="avm-input" type="text" name="title" maxlength="160" placeholder="<?= $kindNow === 'fine' ? 'e.g. Disrespected a facilitator' : 'e.g. Led the Saturday clean-up' ?>"></label>
+          <label>In a few words<input class="avm-input" type="text" name="title" maxlength="160" placeholder="<?= $kindNow === 'award' ? 'e.g. Led the Saturday clean-up' : 'e.g. Missed Tuesday\'s meeting without word' ?>"></label>
 <?php if ($kindNow === 'fine'): ?>
-          <label>Amount (₦)<input class="avm-input" type="text" name="amount" inputmode="numeric" required placeholder="2000"><small>Up to ₦<?= number_format(Conduct::FINE_MAX) ?>. It is posted to their NGV account only once approved.</small></label>
-<?php else: ?>
-          <label>Points<input class="avm-input" type="number" name="points" min="1" max="<?= Conduct::POINTS_MAX ?>" required value="5"><small>Up to <?= Conduct::POINTS_MAX ?>, added to their points once approved.</small></label>
+          <label>Amount (₦), only if asked<input class="avm-input" type="text" name="amount" inputmode="numeric" placeholder="2000"><small>Up to ₦<?= number_format(Conduct::FINE_MAX) ?>. Posted to their NGV account only once approved.</small></label>
+<?php elseif ($kindNow === 'award' && $customOn): ?>
+          <label>Points, only for Other<input class="avm-input" type="number" name="points" min="1" max="<?= Conduct::POINTS_MAX ?>"><small>Up to <?= Conduct::POINTS_MAX ?>. A catalogue action ignores this.</small></label>
 <?php endif; ?>
           <label>The day it happened<input class="avm-input" type="date" name="occurred_on" required max="<?= e($today) ?>" value="<?= e($today) ?>"></label>
           <label class="avcd-span">What you saw
@@ -82,8 +123,8 @@ $today = date('Y-m-d');
         <ul class="avcd-cases">
 <?php foreach ($mine as $r): ?>
           <li>
-            <span class="avcd-what"><b><?= $r['kind'] === 'fine' ? 'Fine ₦' . number_format((int) $r['amount']) : 'Award · ' . (int) $r['points'] . ' points' ?></b>
-              <span><?= e($r['title'] !== '' ? $r['title'] : (($r['kind'] === 'fine' ? Conduct::FINE_REASONS : Conduct::AWARD_REASONS)[$r['reason']] ?? $r['reason'])) ?> · <?= e($r['occurred_on']) ?></span>
+            <span class="avcd-what"><b><?= $r['kind'] === 'fine' ? 'Fine ₦' . number_format((int) $r['amount']) : ($r['kind'] === 'deduction' ? 'Deduction · −' . (int) $r['points'] . ' points' : 'Award · ' . (int) $r['points'] . ' points') ?></b>
+              <span><?= e($r['title'] !== '' ? $r['title'] : Conduct::caseLabel($r)) ?> · <?= e($r['occurred_on']) ?></span>
 <?php if ($r['status'] === 'rejected' && trim((string) $r['decision_note']) !== ''): ?>              <span>Why: <?= e((string) $r['decision_note']) ?></span>
 <?php endif; ?>
             </span>

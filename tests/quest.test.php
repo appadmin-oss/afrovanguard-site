@@ -47,6 +47,31 @@ ck('quest: eight ranks, bands meeting with no gap and no overlap', (function () 
     return $ranks[7]['points']['max'] === null;
 })());
 
+/* ── the Pyramid Manual's catalogue, deductions and fines (22 Oct 2026) ── */
+
+$aw = Quest::awards();
+ck('quest: the catalogue is priced — every action carries the manual\'s points',
+   count($aw) >= 16 && !array_filter($aw, static fn($a) => !is_int($a['points']) || $a['points'] < 1));
+ck('quest: the catalogue\'s prices are the manual\'s', $aw['punctuality']['points'] === 30
+   && $aw['exceeded_target']['points'] === 100 && $aw['mentee_rises']['points'] === 50);
+ck('quest: every action sits in a group that exists',
+   !array_diff(array_unique(array_column($aw, 'group')), array_keys(Quest::groups('awardable-actions'))));
+$de = Quest::deductions();
+ck('quest: seven deductions, each a positive number of points to take away',
+   count($de) === 7 && !array_filter($de, static fn($d) => (int) $d['points'] < 1));
+ck('quest: only inactivity suggests a demotion, and only suggests it',
+   array_keys(array_filter($de, static fn($d) => ($d['suggests'] ?? '') === 'demotion')) === ['inactive_month']);
+$fi = Quest::fines();
+ck('quest: every fine names the NGV ledger reason it is charged under',
+   count($fi) >= 31 && !array_filter($fi, static fn($f) => !in_array($f['ledger_reason'] ?? '', ['late', 'absent', 'uniform', 'equipment', 'conduct', 'other'], true)));
+ck('quest: a rank carries its earning share, colour and ceiling',
+   Quest::rank('G')['earning']['cap_pct'] === 50 && Quest::rank('D')['colour'] === 'black' && Quest::rank('C')['monthly_ceiling'] === 499
+   && Quest::rank('F')['monthly_ceiling'] === null);
+ck('quest: rankFor is arithmetic on both floors — points alone do not lift a rank',
+   Quest::rankFor(0, 0) === 'O' && Quest::rankFor(400, 2) === 'B' && Quest::rankFor(400, 3) === 'C'
+   && Quest::rankFor(5000, 0) === 'A' && Quest::rankFor(5000, 1) === 'A' && Quest::rankFor(60, 0) === 'A'
+   && Quest::rankFor(2000, 9) === 'G');
+
 $j = Quest::journey();
 ck('quest: five journey levels, Visitor at zero', count($j) === 5
    && $j[0]['id'] === 'visitor' && $j[0]['order'] === 0 && $j[4]['id'] === 'vanguard');
