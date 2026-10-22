@@ -24,6 +24,7 @@ final class QuestDesk
     public const SECTIONS = [
         'overview'    => ['Desk',     'Overview',          'The Vanguard Quest',             'decide'],
         'cases'       => ['Desk',     'Cases',             'Waiting for a decision',         'decide'],
+        'appeals'     => ['Desk',     'Appeals',           'Heard by somebody new',          'decide'],
         'suggestions' => ['Desk',     'Suggestions',       'What the manual calls for',      'decide'],
         'promotions'  => ['Desk',     'Promotions',        'Ready for the next level',       'decide'],
         'members'     => ['Register', 'Members',           'Everybody in the Quest',         'decide'],
@@ -59,6 +60,7 @@ final class QuestDesk
         return [
             'waiting'      => $one("SELECT COUNT(*) FROM conduct_cases WHERE status = 'proposed'"),
             'suggestions'  => $one("SELECT COUNT(*) FROM quest_suggestions WHERE status = 'open'"),
+            'appeals'      => $one("SELECT COUNT(*) FROM conduct_appeals WHERE status = 'open'"),
             'awarded'      => $one('SELECT COALESCE(SUM(points), 0) FROM quest_points WHERE points > 0 AND day LIKE ?', [$month . '-%']),
             'deducted'     => -$one('SELECT COALESCE(SUM(points), 0) FROM quest_points WHERE points < 0 AND day LIKE ?', [$month . '-%']),
             'members_pts'  => $one('SELECT COUNT(DISTINCT member_id) FROM quest_points'),

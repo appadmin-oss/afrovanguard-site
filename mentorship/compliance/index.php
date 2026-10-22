@@ -80,7 +80,7 @@ if ($partial !== '') {
 }
 $active = (string) ($_GET['s'] ?? '');
 if (!isset($sections[$active])) $active = isset($_GET['member']) ? 'members' : 'overview';
-$badge = ['cases' => $ov['waiting'], 'suggestions' => $ov['suggestions']];
+$badge = ['cases' => $ov['waiting'], 'appeals' => $ov['appeals'], 'suggestions' => $ov['suggestions']];
 $groups = [];
 foreach ($sections as $id => $s) $groups[$s['group']][$id] = $s;
 $icons = [
@@ -88,6 +88,7 @@ $icons = [
     'cases' => 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
     'suggestions' => 'M12 2a7 7 0 0 0-4 12.7V18h8v-3.3A7 7 0 0 0 12 2zM9 22h6',
     'promotions' => 'M12 19V5M5 12l7-7 7 7',
+    'appeals'    => 'M12 3v18M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z',
     'members' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
     'money' => 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
     'catalogue' => 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5',

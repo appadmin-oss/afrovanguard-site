@@ -28,6 +28,8 @@ $db->prepare("INSERT INTO mentorships (id, mentor_id, mentee_id, status, created
 $db->prepare("INSERT INTO mentorships (id, mentor_id, mentee_id, status, created_at, updated_at) VALUES (93002, 9301, 9303, 'active', ?, ?)")->execute([$now, $now]);
 $db->prepare("INSERT INTO mentorships (id, mentor_id, mentee_id, status, created_at, updated_at) VALUES (93003, 9306, 9303, 'ended', ?, ?)")->execute([$now, $now]);
 AdminRoles::add('eze.cd@afrovanguard.org.ng', 'superadmin', 'test');
+/* These tests pin the decision itself; the member's notice period is tests/questappeals.test.php's. */
+AvRules::save(['quest.notice_days' => '0'], 'test');
 $U = static fn(int $id): array => ['id' => $id, 'name' => $people[$id][0], 'email' => $people[$id][1]];
 $today = date('Y-m-d');
 $ev = 'Arrived and shouted at a facilitator in front of the group on Saturday morning.';
@@ -37,7 +39,7 @@ ck('conduct: a mentor cannot propose for somebody else\'s mentee', !Conduct::pro
 ck('conduct: an ended pairing cannot be used', !Conduct::propose(9306, 93003, ['kind' => 'award', 'reason' => 'growth', 'points' => 5, 'occurred_on' => $today, 'evidence' => $ev])['ok']);
 $r = Conduct::propose(9301, 93001, ['kind' => 'fine', 'reason' => 'conduct', 'amount' => '2,000', 'occurred_on' => $today, 'evidence' => 'Was rude.']);
 ck('conduct: evidence of a sentence or two is required', !$r['ok']);
-$r = Conduct::propose(9301, 93001, ['kind' => 'fine', 'reason' => 'conduct', 'amount' => '2,000', 'occurred_on' => date('Y-m-d', strtotime('+1 day')), 'evidence' => $ev]);
+$r = Conduct::propose(9301, 93001, ['kind' => 'fine', 'reason' => 'conduct', 'amount' => '2,000', 'occurred_on' => date('Y-m-d', strtotime('+2 days')), 'evidence' => $ev]);
 ck('conduct: a future day is refused', !$r['ok']);
 $r = Conduct::propose(9301, 93001, ['kind' => 'fine', 'reason' => 'conduct', 'amount' => '999999', 'occurred_on' => $today, 'evidence' => $ev]);
 ck('conduct: a fine above the cap is refused', !$r['ok']);
@@ -110,3 +112,4 @@ ck('conduct css: tokens only', !preg_match('/#[0-9a-fA-F]{3,8}\b/', (string) fil
 
 $db->exec('DELETE FROM conduct_cases'); $db->exec('DELETE FROM compliance_members');
 $db->exec("DELETE FROM admin_users WHERE email = 'eze.cd@afrovanguard.org.ng'");
+AvRules::reset('quest.notice_days', 'test');

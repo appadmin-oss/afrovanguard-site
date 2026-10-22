@@ -216,7 +216,7 @@ Tests: `questrules`, `questdesk`, `questpyramid`, `questmoney`, `questadvisor`,
 | What counts as an integrity finding | `FINDING_KINDS` is still a guess; the manual's theft and dishonesty row is the best candidate |
 | The Reward Pool's percentage | 0 until leadership sets it |
 
-## The member's page — Portal → You → The Quest
+## The member's page — Portal → Vanguard Quest → The Quest
 
 `portal/views/quest.php`, in every account's menu, because everybody is a part
 of the Quest. It reads `QuestRecord::of()` and nothing else decides anything.
@@ -235,6 +235,35 @@ points and mentees met, and this month against the level's ceiling.
 
 `tests/questview.test.php` holds the order, the absent rank, and the finding's
 visibility (fixtures 9800–9899).
+
+## Bills and appeals — Portal → Vanguard Quest → Bills & appeals
+
+*The owner, 22 October 2026: members can fine themselves; fines are proposed
+like bills, approved by a committee, and can be appealed. Doctrine:
+`van-quest/doctrine/06-awards-and-fines.md`.*
+
+| Stage | Where | Code |
+| --- | --- | --- |
+| A mentor proposes a fine or deduction; the member is told at once | Mentor portal → Conduct | `Conduct::propose()` → `tellMember()` |
+| The member accepts it or contests it with their side | `portal/views/bills.php` | `Conduct::respond()` |
+| The committee decides; not before an answer or `quest.notice_days`; reject any time | Desk → Cases (shows the answer and their side) | `Conduct::decide()`, `noticeLeft()` |
+| The member appeals once, within `quest.appeal_days`, on grounds | `portal/views/bills.php` | `Conduct::appeal()` |
+| Somebody with no part in it hears it: upheld, overturned, reduced | Desk → Appeals | `Conduct::hearAppeal()` |
+| A member reports themselves, from the catalogue, at its price | `portal/views/bills.php` | `Conduct::selfReport()` |
+
+- Overturning a fine voids its NGV charge (`NgvFines::voidOne`); reducing voids
+  it and issues the smaller one. Overturning a deduction removes its row
+  (`QuestPoints::revoke`) and dismisses a demotion suggestion it raised;
+  reducing re-posts it at the new size. Nothing is raised on appeal.
+- A self-report is accepted on arrival, decided by somebody else, and not
+  appealable. It cannot be an award.
+- An open appeal holds the overdue-balance suspension and fine
+  (`QuestMoney::sweep`).
+- Switches, in Rules: `quest.self_report`, `quest.notice_days` (2),
+  `quest.appeals_enabled`, `quest.appeal_days` (14).
+- Tables: `conduct_cases` gains `response`, `response_note`, `responded_at`;
+  `conduct_appeals` holds one appeal per case.
+- `tests/questappeals.test.php` (fixtures 8700–8799).
 
 ## Screens still showing the gate's number
 

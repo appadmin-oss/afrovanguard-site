@@ -31,13 +31,39 @@
  *   A member of the compliance committee (compliance_members, kept by
  *   superadmins) or a superadmin — and never the mentor who proposed it or the
  *   mentee it is about. Rejecting needs a reason; the mentor is told either way.
+ *
+ * A FINE IS PROPOSED LIKE A BILL (owner, 2026-10-22)
+ *   A fine or a deduction is no longer kept from the member until it is
+ *   decided. It is put to them the day it is proposed, with what the mentor
+ *   saw, and they answer it: accept it, or contest it and give their side.
+ *   The committee reads the answer beside the evidence, and may not approve
+ *   before the member has answered or quest.notice_days has passed — it may
+ *   always reject. Awards and challenges stay unseen until approved: a
+ *   recognition is not a bill.
+ *
+ *   A member may also report themselves (selfReport): a fine or a deduction
+ *   from the catalogue, against their own record. It is proposed and decided
+ *   like any other, already accepted, and a different person decides it.
+ *
+ * APPEALS
+ *   An approved fine or deduction may be appealed by the member it is about,
+ *   once, within quest.appeal_days, on written grounds. It is heard by somebody
+ *   who had no part in it — not the proposer, not the member, and not the
+ *   person who approved it. The hearing upholds it, overturns it (the fine is
+ *   voided, the deduction taken off the record, a demotion it raised is
+ *   dismissed) or reduces it. While an appeal is open, an overdue balance does
+ *   not raise a suspension (QuestMoney::sweep).
  */
 declare(strict_types=1);
 
 final class Conduct
 {
     public const KINDS = ['fine', 'award', 'challenge', 'deduction'];
-    public const MENTOR_KINDS = ['academy' => 'Academy mentor', 'vquest' => 'Vanguard Quest mentor'];
+    public const MENTOR_KINDS = ['academy' => 'Academy mentor', 'vquest' => 'Vanguard Quest mentor', 'self' => 'Self-reported'];
+    /** The kinds that cost the member something: put to them as a bill, and appealable. */
+    public const ADVERSE = ['fine', 'deduction'];
+    public const RESPONSES = ['accepted' => 'Accepted', 'contested' => 'Contested'];
+    public const APPEAL_OUTCOMES = ['upheld' => 'Upheld', 'overturned' => 'Overturned', 'reduced' => 'Reduced'];
     /** What a mentor may fine for. A subset of NgvLedger::FINE_REASONS: lateness and absence are the gate's. */
     public const FINE_REASONS = ['conduct' => 'Conduct', 'uniform' => 'Uniform or ID card', 'equipment' => 'Equipment lost or damaged', 'other' => 'Other (say why)'];
     /** What an award is for: the values a mentor already observes (MentorPortal::VALUES), and work. */
@@ -102,6 +128,28 @@ final class Conduct
             try { $db->exec("ALTER TABLE conduct_cases ADD COLUMN action_id VARCHAR(40) NOT NULL DEFAULT ''"); }
             catch (Throwable $e) { /* raced */ }
         }
+        /* The member's answer to a bill: accepted or contested, in their words. */
+        if (!Database::columnExists('conduct_cases', 'response')) {
+            foreach (["response VARCHAR(12) NOT NULL DEFAULT ''", 'response_note TEXT', "responded_at VARCHAR(32) NOT NULL DEFAULT ''"] as $col) {
+                try { $db->exec('ALTER TABLE conduct_cases ADD COLUMN ' . $col); } catch (Throwable $e) { /* raced */ }
+            }
+        }
+        /* One appeal per case, ever. */
+        Database::execSchema($db, "CREATE TABLE IF NOT EXISTS conduct_appeals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            case_id INTEGER NOT NULL UNIQUE,
+            member_id INTEGER NOT NULL,
+            grounds TEXT NOT NULL,
+            status VARCHAR(12) NOT NULL DEFAULT 'open',
+            heard_by INTEGER NOT NULL DEFAULT 0,
+            heard_at VARCHAR(32) NOT NULL DEFAULT '',
+            hearing_note TEXT,
+            new_value INTEGER NOT NULL DEFAULT 0,
+            outcome VARCHAR(64) NOT NULL DEFAULT '',
+            created_at VARCHAR(32) NOT NULL
+        )");
+        Database::ensureIndex($db, 'idx_conduct_appeal_status', 'conduct_appeals', 'status, created_at');
+        Database::ensureIndex($db, 'idx_conduct_appeal_member', 'conduct_appeals', 'member_id, status');
         if (class_exists('Mentorship')) Mentorship::ensure();
         if (!Database::columnExists('mentorships', 'kind')) {
             try { $db->exec("ALTER TABLE mentorships ADD COLUMN kind VARCHAR(12) NOT NULL DEFAULT 'academy'"); } catch (Throwable $e) { /* raced */ }
@@ -145,6 +193,40 @@ final class Conduct
         if (!$p) return ['ok' => false, 'error' => 'Not your mentee.'];
         $menteeId = (int) $p['mentee_id'];
         if ($menteeId === $mentorUid) return ['ok' => false, 'error' => 'You cannot fine or reward yourself.'];
+        return self::file($mentorUid, $menteeId, (string) $p['mentee_name'], (int) $p['id'],
+            isset(self::MENTOR_KINDS[(string) ($p['kind'] ?? '')]) && $p['kind'] !== 'self' ? (string) $p['kind'] : 'academy', $in);
+    }
+
+    /**
+     * A member reports themselves: a fine or a deduction from the catalogue,
+     * against their own record. Proposed and decided like any other case, by
+     * somebody else; it arrives already accepted, so nobody waits on a notice.
+     */
+    public static function selfReport(int $uid, array $in): array
+    {
+        self::ensure();
+        if (!AvRules::bool('quest.self_report')) return ['ok' => false, 'error' => 'Reporting yourself is switched off.'];
+        /* One picker carries both: "<kind>:<catalogue id>". */
+        [$kind, $action] = array_pad(explode(':', trim((string) ($in['action'] ?? '')), 2), 2, '');
+        if (!in_array($kind, self::ADVERSE, true)) return ['ok' => false, 'error' => 'You can report a fine or a deduction against yourself — not an award.'];
+        if ($action === '') return ['ok' => false, 'error' => 'Choose what it is from the list.'];
+        $in['kind'] = $kind; $in['action'] = $action;
+        /* Priced by the catalogue, never by the member. */
+        $line = QuestRules::usable($kind, $action);
+        if ($kind === 'fine' && $line !== null && $line['value'] === null) return ['ok' => false, 'error' => 'That fine is priced each time; the office raises it.'];
+        unset($in['amount'], $in['points'], $in['reason']);
+        $st = Database::pdo()->prepare('SELECT name FROM lms_users WHERE id = ?');
+        $st->execute([$uid]);
+        $name = (string) ($st->fetchColumn() ?: '');
+        if ($name === '') return ['ok' => false, 'error' => 'Sign in again.'];
+        return self::file($uid, $uid, $name, 0, 'self', $in);
+    }
+
+    /** The checks and the write every proposal shares, whoever proposes it. */
+    private static function file(int $mentorUid, int $menteeId, string $menteeName, int $pairingId, string $mentorKind, array $in): array
+    {
+        $p = ['mentee_name' => $menteeName === '' ? 'This member' : $menteeName];
+        $self = $mentorKind === 'self';
 
         $kind = (string) ($in['kind'] ?? '');
         if (!in_array($kind, self::KINDS, true)) return ['ok' => false, 'error' => 'Choose a fine, an award, a deduction or a challenge.'];
@@ -205,7 +287,9 @@ final class Conduct
 
         $evidence = trim((string) ($in['evidence'] ?? ''));
         if (mb_strlen($evidence) < self::EVIDENCE_MIN) {
-            return ['ok' => false, 'error' => 'Write what you saw — when, where, and what was said or done. The committee decides on this, and so may the mentee if they query it.'];
+            return ['ok' => false, 'error' => $self
+                ? 'Say what happened — when, where, and what you did. The committee decides on this.'
+                : 'Write what you saw — when, where, and what was said or done. The committee decides on this, and the member reads it.'];
         }
         $evidence = mb_substr($evidence, 0, 3000);
 
@@ -227,7 +311,9 @@ final class Conduct
             $points = (int) $line['value'];
         } elseif ($kind === 'fine') {
             if (!self::fineable($menteeId)) {
-                return ['ok' => false, 'error' => $p['mentee_name'] . ' has no NextGen Vanguard account, so there is nothing a fine could be owed on. Propose an award, or raise the behaviour with the office.'];
+                return ['ok' => false, 'error' => $self
+                    ? 'You have no NextGen Vanguard account, so there is nothing a fine could be owed on. Report a deduction instead.'
+                    : $p['mentee_name'] . ' has no NextGen Vanguard account, so there is nothing a fine could be owed on. Propose an award, or raise the behaviour with the office.'];
             }
             if ($line !== null && $line['value'] !== null) {
                 /* The manual's price, scaled to the member's income bracket
@@ -249,20 +335,23 @@ final class Conduct
         $open = $db->prepare("SELECT COUNT(*) FROM conduct_cases WHERE mentor_id = ? AND mentee_id = ? AND status = 'proposed'");
         $open->execute([$mentorUid, $menteeId]);
         if ((int) $open->fetchColumn() >= self::OPEN_PER_MENTEE) {
-            return ['ok' => false, 'error' => 'You already have ' . self::OPEN_PER_MENTEE . ' proposals waiting for this mentee. Let the committee catch up.'];
+            return ['ok' => false, 'error' => $self ? 'You already have ' . self::OPEN_PER_MENTEE . ' reports waiting. Let the committee catch up.'
+                : 'You already have ' . self::OPEN_PER_MENTEE . ' proposals waiting for this mentee. Let the committee catch up.'];
         }
         $dup = $db->prepare("SELECT 1 FROM conduct_cases WHERE mentor_id = ? AND mentee_id = ? AND kind = ? AND reason = ? AND action_id = ? AND occurred_on = ? AND status IN ('proposed','approved')");
         $dup->execute([$mentorUid, $menteeId, $kind, $reason, $actionId, $on]);
         if ($dup->fetchColumn()) return ['ok' => false, 'error' => 'You have already put this forward for that day.'];
 
-        $db->prepare('INSERT INTO conduct_cases (kind, mentee_id, mentor_id, mentorship_id, mentor_kind, reason, action_id, title, amount, points, challenge_id, occurred_on, evidence, status, created_at)
-                      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-           ->execute([$kind, $menteeId, $mentorUid, (int) $p['id'], isset(self::MENTOR_KINDS[(string) ($p['kind'] ?? '')]) ? (string) $p['kind'] : 'academy',
-                      $reason, $line !== null ? $actionId : '', $title, $amount, $points, $challengeId, $on, $evidence, 'proposed', self::now()]);
+        $db->prepare('INSERT INTO conduct_cases (kind, mentee_id, mentor_id, mentorship_id, mentor_kind, reason, action_id, title, amount, points, challenge_id, occurred_on, evidence, status, response, responded_at, created_at)
+                      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+           ->execute([$kind, $menteeId, $mentorUid, $pairingId, $mentorKind,
+                      $reason, $line !== null ? $actionId : '', $title, $amount, $points, $challengeId, $on, $evidence, 'proposed',
+                      $self ? 'accepted' : '', $self ? self::now() : '', self::now()]);
         $id = (int) $db->lastInsertId();
         $what = $kind === 'fine' ? ' ₦' . $amount : ($kind === 'challenge' ? ' ' . $challengeId : ($kind === 'deduction' ? ' −' : ' ') . $points . ' pts');
-        self::audit('propose', $id, $kind . ' for member #' . $menteeId . $what, $mentorUid);
+        self::audit($self ? 'self_report' : 'propose', $id, $kind . ' for member #' . $menteeId . $what, $mentorUid);
         self::tellDeciders($id);
+        if (!$self && in_array($kind, self::ADVERSE, true)) self::tellMember($id, $kind, $kind === 'fine' ? '₦' . number_format($amount) : $points . ' points');
         return ['ok' => true, 'id' => $id];
     }
 
@@ -275,6 +364,217 @@ final class Conduct
         if ($st->rowCount() !== 1) return ['ok' => false, 'error' => 'Only a proposal of yours that is still waiting can be withdrawn.'];
         self::audit('withdraw', $caseId, '', $mentorUid);
         return ['ok' => true];
+    }
+
+    /* ── The bill: the member answers ─────────────────────────────────── */
+
+    /**
+     * The day the member's notice runs to, if it is still running on a case
+     * that has not been answered; '' when the committee may approve.
+     */
+    public static function noticeLeft(array $c): string
+    {
+        if (!in_array((string) $c['kind'], self::ADVERSE, true) || (string) ($c['response'] ?? '') !== '') return '';
+        $days = AvRules::int('quest.notice_days');
+        if ($days <= 0) return '';
+        $until = strtotime((string) $c['created_at'] . ' UTC +' . $days . ' days');
+        return $until !== false && $until > time() ? gmdate('Y-m-d H:i', $until) . ' UTC' : '';
+    }
+
+    /** The member answers a fine or deduction proposed against them, before it is decided. */
+    public static function respond(int $uid, int $caseId, string $answer, string $note): array
+    {
+        self::ensure();
+        $c = self::find($caseId);
+        if (!$c || (int) $c['mentee_id'] !== $uid || !in_array((string) $c['kind'], self::ADVERSE, true)) return ['ok' => false, 'error' => 'That is not a bill of yours.'];
+        if ($c['status'] !== 'proposed') return ['ok' => false, 'error' => 'This was already ' . $c['status'] . '. ' . ($c['status'] === 'approved' ? 'You may appeal it instead.' : '')];
+        if (!isset(self::RESPONSES[$answer])) return ['ok' => false, 'error' => 'Accept it, or contest it.'];
+        $note = mb_substr(trim($note), 0, 2000);
+        if ($answer === 'contested' && mb_strlen($note) < self::EVIDENCE_MIN) {
+            return ['ok' => false, 'error' => 'Give your side — what happened, as you saw it. The committee reads it beside the mentor\'s.'];
+        }
+        $st = Database::pdo()->prepare("UPDATE conduct_cases SET response = ?, response_note = ?, responded_at = ? WHERE id = ? AND status = 'proposed'");
+        $st->execute([$answer, $note, self::now(), $caseId]);
+        if ($st->rowCount() !== 1) return ['ok' => false, 'error' => 'It was decided a moment ago.'];
+        self::audit('respond', $caseId, $answer, $uid);
+        return ['ok' => true, 'response' => $answer];
+    }
+
+    /* ── Appeals ──────────────────────────────────────────────────────── */
+
+    /** Until when this case may be appealed; '' if it cannot be (not adverse, not approved, self-reported, switched off, late). */
+    public static function appealOpenUntil(array $c): string
+    {
+        if (!AvRules::bool('quest.appeals_enabled')) return '';
+        if (!in_array((string) $c['kind'], self::ADVERSE, true) || (string) $c['status'] !== 'approved' || (string) $c['mentor_kind'] === 'self') return '';
+        $until = strtotime((string) $c['decided_at'] . ' UTC +' . max(1, AvRules::int('quest.appeal_days')) . ' days');
+        return $until !== false && $until > time() ? gmdate('Y-m-d', $until) : '';
+    }
+
+    public static function appealOf(int $caseId): ?array
+    {
+        self::ensure();
+        $st = Database::pdo()->prepare('SELECT * FROM conduct_appeals WHERE case_id = ?');
+        $st->execute([$caseId]);
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public static function findAppeal(int $id): ?array
+    {
+        self::ensure();
+        $st = Database::pdo()->prepare('SELECT * FROM conduct_appeals WHERE id = ?');
+        $st->execute([$id]);
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public static function hasOpenAppeal(int $memberId): bool
+    {
+        self::ensure();
+        $st = Database::pdo()->prepare("SELECT 1 FROM conduct_appeals WHERE member_id = ? AND status = 'open'");
+        $st->execute([$memberId]);
+        return (bool) $st->fetchColumn();
+    }
+
+    /** The member appeals an approved fine or deduction: once, in time, on grounds. */
+    public static function appeal(int $uid, int $caseId, string $grounds): array
+    {
+        self::ensure();
+        $c = self::find($caseId);
+        if (!$c || (int) $c['mentee_id'] !== $uid) return ['ok' => false, 'error' => 'That is not a case of yours.'];
+        if (!AvRules::bool('quest.appeals_enabled')) return ['ok' => false, 'error' => 'Appeals are switched off.'];
+        if ((string) $c['mentor_kind'] === 'self') return ['ok' => false, 'error' => 'You reported this yourself, so there is nothing to appeal. Speak to the committee if it was priced wrongly.'];
+        if (self::appealOf($caseId)) return ['ok' => false, 'error' => 'This has been appealed already. A case is appealed once.'];
+        if (self::appealOpenUntil($c) === '') {
+            return ['ok' => false, 'error' => $c['status'] === 'approved' ? 'The ' . AvRules::int('quest.appeal_days') . ' days to appeal this have passed.' : 'Only an approved fine or deduction can be appealed.'];
+        }
+        $grounds = mb_substr(trim($grounds), 0, 3000);
+        if (mb_strlen($grounds) < self::EVIDENCE_MIN) return ['ok' => false, 'error' => 'Give your grounds — why the decision is wrong, or the price too high. Somebody new hears it.'];
+        $db = Database::pdo();
+        try {
+            $db->prepare('INSERT INTO conduct_appeals (case_id, member_id, grounds, status, created_at) VALUES (?,?,?,?,?)')
+               ->execute([$caseId, $uid, $grounds, 'open', self::now()]);
+        } catch (Throwable $e) { return ['ok' => false, 'error' => 'This has been appealed already. A case is appealed once.']; }
+        $id = (int) $db->lastInsertId();
+        self::audit('appeal', $caseId, 'appeal #' . $id, $uid);
+        if (class_exists('Notifications')) {
+            foreach (self::members() as $m) {
+                if (in_array((int) $m['user_id'], [(int) $c['mentor_id'], (int) $c['mentee_id'], (int) $c['decided_by']], true)) continue;
+                try { Notifications::push((int) $m['user_id'], 'conduct', 'An appeal is waiting to be heard', '', '/mentorship/compliance/?s=appeals#appeals', 'appeal:' . $id . ':' . $m['user_id']); }
+                catch (Throwable $e) { /* best-effort */ }
+            }
+        }
+        return ['ok' => true, 'id' => $id];
+    }
+
+    /**
+     * Hear an appeal. Somebody who had no part in the case: not the member,
+     * not the proposer, not the person who approved it. A reduction is below
+     * the original, never above it; nothing is raised on appeal.
+     */
+    public static function hearAppeal(int $appealId, array $by, string $outcome, string $note, int $newValue = 0): array
+    {
+        self::ensure();
+        if (!self::canDecide($by)) return ['ok' => false, 'error' => 'Only the compliance committee or a superadmin hears appeals.'];
+        $a = self::findAppeal($appealId);
+        if (!$a) return ['ok' => false, 'error' => 'That appeal does not exist.'];
+        if ($a['status'] !== 'open') return ['ok' => false, 'error' => 'This appeal was already heard: ' . $a['status'] . '.'];
+        $c = self::find((int) $a['case_id']);
+        if (!$c) return ['ok' => false, 'error' => 'The case is gone.'];
+        $bid = (int) $by['id'];
+        if ($bid === (int) $c['mentee_id']) return ['ok' => false, 'error' => 'This is your own appeal, so somebody else must hear it.'];
+        if ($bid === (int) $c['mentor_id']) return ['ok' => false, 'error' => 'You proposed this, so somebody else must hear the appeal.'];
+        if ($bid === (int) $c['decided_by']) return ['ok' => false, 'error' => 'You approved this, so somebody else must hear the appeal.'];
+        if (!isset(self::APPEAL_OUTCOMES[$outcome])) return ['ok' => false, 'error' => 'Uphold it, overturn it, or reduce it.'];
+        $note = mb_substr(trim($note), 0, 2000);
+        if ($note === '') return ['ok' => false, 'error' => 'Give the reason for the decision — the member reads it.'];
+        $fine = $c['kind'] === 'fine';
+        $was = $fine ? (int) $c['amount'] : (int) $c['points'];
+        if ($outcome === 'reduced' && ($newValue <= 0 || $newValue >= $was)) {
+            return ['ok' => false, 'error' => 'A reduction is more than nothing and less than the ' . ($fine ? '₦' . number_format($was) : $was . ' points') . ' it was.'];
+        }
+
+        $db = Database::pdo();
+        $claim = $db->prepare("UPDATE conduct_appeals SET status = ?, heard_by = ?, heard_at = ?, hearing_note = ?, new_value = ? WHERE id = ? AND status = 'open'");
+        $claim->execute([$outcome, $bid, self::now(), $note, $outcome === 'reduced' ? $newValue : 0, $appealId]);
+        if ($claim->rowCount() !== 1) return ['ok' => false, 'error' => 'Somebody else heard this a moment ago.'];
+
+        $mid = (int) $c['mentee_id'];
+        $result = 'upheld';
+        if ($outcome !== 'upheld') {
+            /* Undo what the approval did, then — for a reduction — do it again at the new size. */
+            if ($fine) {
+                $charge = preg_match('/^ngv_charge:(\d+)/', (string) $c['outcome'], $m) ? (int) $m[1] : 0;
+                $v = $charge > 0 ? NgvFines::voidOne($charge, 'Appeal #' . $appealId . ' ' . $outcome . ': ' . $note, $bid) : ['ok' => false, 'error' => 'no charge recorded'];
+                if (empty($v['ok'])) {
+                    $db->prepare("UPDATE conduct_appeals SET status = 'open', heard_by = 0, heard_at = '', hearing_note = NULL, new_value = 0 WHERE id = ?")->execute([$appealId]);
+                    return ['ok' => false, 'error' => 'The fine could not be voided: ' . ($v['error'] ?? 'unknown') . ' The appeal is still open.'];
+                }
+                $result = 'voided:' . $charge;
+                if ($outcome === 'reduced') {
+                    $r = NgvFines::issue($mid, (string) $c['reason'], $newValue, 'Reduced on appeal #' . $appealId . ' from ₦' . number_format($was) . ': ' . self::caseLabel($c), (string) $c['occurred_on'], true, $bid);
+                    $result .= empty($r['ok']) ? ' reissue-failed' : ' ngv_charge:' . (int) ($r['entryId'] ?? 0);
+                }
+            } else {
+                QuestPoints::revoke($mid, 'deduction:' . (int) $c['id']);
+                $result = 'restored:' . $was;
+                if ($outcome === 'reduced') {
+                    QuestPoints::deduct($mid, $newValue, 'deduction:' . (int) $c['id'] . ':appeal', (string) $c['action_id'],
+                        'Deduction, reduced on appeal: ' . self::caseLabel($c), $bid, (string) $c['occurred_on']);
+                    $result = 'deducted:' . $newValue;
+                }
+                /* The loss of level the deduction raised goes with it when it is overturned. */
+                if ($outcome === 'overturned' && class_exists('QuestLadder')) {
+                    QuestLadder::ensure();
+                    $st = $db->prepare("SELECT id FROM quest_suggestions WHERE member_id = ? AND source = ? AND status = 'open'");
+                    $st->execute([$mid, 'deduction:' . (int) $c['id']]);
+                    $sid = (int) $st->fetchColumn();
+                    if ($sid > 0) QuestLadder::dismiss($sid, $by, 'The deduction behind it was overturned on appeal #' . $appealId . '.');
+                }
+            }
+        }
+        $db->prepare('UPDATE conduct_appeals SET outcome = ? WHERE id = ?')->execute([$result, $appealId]);
+        self::audit('appeal_' . $outcome, (int) $c['id'], 'appeal #' . $appealId . ' ' . $result, $bid);
+        if (class_exists('Notifications')) {
+            $verdict = ['upheld' => 'was upheld', 'overturned' => 'succeeded — it is cancelled', 'reduced' => 'reduced it to ' . ($fine ? '₦' . number_format($newValue) : $newValue . ' points')][$outcome];
+            try { Notifications::push($mid, 'conduct', 'Your appeal ' . $verdict, $note, '/portal/#bills', 'appeal-heard:' . $appealId); }
+            catch (Throwable $e) { /* best-effort */ }
+        }
+        return ['ok' => true, 'status' => $outcome, 'outcome' => $result];
+    }
+
+    /** Appeals waiting, oldest first, with the case and the names — one query. */
+    public static function appeals(string $status = 'open', int $limit = 200): array
+    {
+        self::ensure();
+        $st = Database::pdo()->prepare("SELECT a.*, c.kind, c.reason, c.action_id, c.title, c.amount, c.points, c.occurred_on, c.evidence,
+                c.mentor_id, c.mentor_kind, c.mentee_id, c.decided_by, c.decided_at, c.decision_note, c.response, c.response_note, c.challenge_id,
+                me.name AS mentee_name, mt.name AS mentor_name, d.name AS decider_name, h.name AS hearer_name
+            FROM conduct_appeals a JOIN conduct_cases c ON c.id = a.case_id
+            LEFT JOIN lms_users me ON me.id = c.mentee_id
+            LEFT JOIN lms_users mt ON mt.id = c.mentor_id
+            LEFT JOIN lms_users d ON d.id = c.decided_by
+            LEFT JOIN lms_users h ON h.id = a.heard_by
+            WHERE " . ($status === 'heard' ? "a.status <> 'open'" : 'a.status = ?') . ' ORDER BY ' . ($status === 'open' ? 'a.id ASC' : 'a.heard_at DESC') . ' LIMIT ' . max(1, min(500, $limit)));
+        $st->execute($status === 'heard' ? [] : [$status]);
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * A member's bills: every fine and deduction proposed against them or
+     * reported by them, with its appeal — newest first, one query.
+     */
+    public static function billsFor(int $memberId, int $limit = 50): array
+    {
+        self::ensure();
+        $st = Database::pdo()->prepare("SELECT c.*, mt.name AS mentor_name, a.id AS appeal_id, a.status AS appeal_status, a.grounds AS appeal_grounds,
+                a.hearing_note AS appeal_note, a.new_value AS appeal_value, a.heard_at AS appeal_heard_at
+            FROM conduct_cases c
+            LEFT JOIN lms_users mt ON mt.id = c.mentor_id
+            LEFT JOIN conduct_appeals a ON a.case_id = c.id
+            WHERE c.mentee_id = ? AND c.kind IN ('fine','deduction') AND c.status <> 'withdrawn'
+            ORDER BY c.id DESC LIMIT " . max(1, min(200, $limit)));
+        $st->execute([$memberId]);
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     /* ── Who decides ──────────────────────────────────────────────────── */
@@ -315,6 +615,9 @@ final class Conduct
         if ($aid === (int) $c['mentee_id']) return ['ok' => false, 'error' => 'This is about you, so somebody else must decide it.'];
         $note = mb_substr(trim($note), 0, 1000);
         if (!$approve && $note === '') return ['ok' => false, 'error' => 'Say why it is rejected — the mentor is told.'];
+        if ($approve && ($wait = self::noticeLeft($c)) !== '') {
+            return ['ok' => false, 'error' => 'The member has until ' . $wait . ' to answer this. It can be approved once they have, or then — or rejected now.'];
+        }
 
         /* Claim it first, so two deciders pressing at once cannot both act. */
         $db = Database::pdo();
@@ -336,7 +639,7 @@ final class Conduct
             }
             $label = self::caseLabel($c);
             $r = NgvFines::issue((int) $c['mentee_id'], $c['reason'], (int) $c['amount'],
-                'Mentor fine (' . (self::MENTOR_KINDS[$c['mentor_kind']] ?? 'mentor') . '), approved by compliance: '
+                ($c['mentor_kind'] === 'self' ? 'Self-reported fine, approved by compliance: ' : 'Mentor fine (' . (self::MENTOR_KINDS[$c['mentor_kind']] ?? 'mentor') . '), approved by compliance: ')
                 . ($c['title'] !== '' ? $c['title'] . ' — ' : $label . ' — ') . mb_substr((string) $c['evidence'], 0, 300),
                 (string) $c['occurred_on'], true, $aid);
             if (empty($r['ok'])) {
@@ -363,7 +666,8 @@ final class Conduct
             $outcome = 'deducted:' . (int) $c['points'];
             if (class_exists('Notifications')) {
                 Notifications::push((int) $c['mentee_id'], 'award', 'Points deducted: ' . $label,
-                    (int) $c['points'] . ' points, proposed by your mentor and confirmed by the compliance committee.', '/portal/#quest', 'deduction:' . $caseId);
+                    (int) $c['points'] . ' points, ' . ($c['mentor_kind'] === 'self' ? 'which you reported' : 'proposed by your mentor') . ' and confirmed by the compliance committee.'
+                    . (self::appealOpenUntil(['status' => 'approved', 'decided_at' => self::now()] + $c) !== '' ? ' You may appeal it.' : ''), '/portal/#bills', 'deduction:' . $caseId);
             }
             /* "Loss of current level" is the manual's; here it is only ever a
                suggestion for a person to decide. */
@@ -505,7 +809,7 @@ final class Conduct
     {
         self::ensure();
         if (!self::canDecide($by)) return ['ok' => false, 'error' => 'Only the compliance committee or a superadmin sets this.'];
-        if (!isset(self::MENTOR_KINDS[$kind])) return ['ok' => false, 'error' => 'A pairing is an Academy or a Vanguard Quest mentorship.'];
+        if (!isset(self::MENTOR_KINDS[$kind]) || $kind === 'self') return ['ok' => false, 'error' => 'A pairing is an Academy or a Vanguard Quest mentorship.'];
         $st = Database::pdo()->prepare('UPDATE mentorships SET kind = ? WHERE id = ?');
         $st->execute([$kind, $pairingId]);
         if ($st->rowCount() < 1) return ['ok' => false, 'error' => 'That pairing does not exist, or is already that kind.'];
@@ -524,9 +828,30 @@ final class Conduct
         }
     }
 
+    /** A bill is put to the member the day it is proposed. */
+    private static function tellMember(int $caseId, string $kind, string $what): void
+    {
+        if (!class_exists('Notifications')) return;
+        $c = self::find($caseId);
+        if (!$c) return;
+        $days = AvRules::int('quest.notice_days');
+        try {
+            Notifications::push((int) $c['mentee_id'], 'conduct', ($kind === 'fine' ? 'A fine of ' : 'A deduction of ') . $what . ' has been proposed',
+                self::caseLabel($c) . '. Read what was seen, then accept it or give your side'
+                . ($days > 0 ? ' within ' . $days . ' day' . ($days === 1 ? '' : 's') : '') . '. The compliance committee decides.', '/portal/#bills', 'bill:' . $caseId);
+        } catch (Throwable $e) { error_log('[conduct] notify member: ' . $e->getMessage()); }
+    }
+
     private static function tellMentor(array $c, bool $approved, string $note): void
     {
         if (!class_exists('Notifications')) return;
+        if ((string) $c['mentor_kind'] === 'self') {
+            try {
+                Notifications::push((int) $c['mentor_id'], 'conduct', 'What you reported was ' . ($approved ? 'confirmed' : 'not taken forward'),
+                    $note, '/portal/#bills', 'conduct-decided:' . (int) $c['id']);
+            } catch (Throwable $e) { error_log('[conduct] notify self: ' . $e->getMessage()); }
+            return;
+        }
         /* Name the mentee: "Your award was approved" reads as an award TO the
            mentor, not one they proposed. */
         $who = 'your mentee';

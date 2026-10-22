@@ -173,6 +173,7 @@ $mreqWaiting = class_exists('MemberRequests') ? count(array_filter(MemberRequest
 $portalCtx = ['org' => $isOrg, 'ngv' => $isNgv, 'vol' => $isVol, 'gate' => $hasGate, 'inventory' => $isOrg && CacSso::ready()];
 /* Quest: the month's points against the level's ceiling, when it is on. */
 $questMonth = QuestPoints::earnedInMonth((int) $u['id'], gmdate('Y-m'));
+$billsWaiting = count(array_filter(Conduct::billsFor((int) $u['id']), static fn($c) => $c['status'] === 'proposed' && (string) $c['response'] === ''));
 /* id => [dot colour, badge]. A section not named here is a grey dot, no badge. */
 $navBadges = [
     'overview'    => ['gold', ($tasksDue || $nextSession) ? (string) (count($tasksDue) + ($nextSession ? 1 : 0)) : ''],
@@ -181,6 +182,8 @@ $navBadges = [
     'tasks'       => ['gold', ($openTasks + $cacOpen) ? (string) ($openTasks + $cacOpen) : ''],
     'chat'        => ['green', ''],
     'quest'       => ['gold', $questMonth > 0 ? '+' . $questMonth : ''],
+    /* A bill nobody has answered is the one thing on the Quest that waits on the member. */
+    'bills'       => [$billsWaiting ? 'gold' : 'gray', $billsWaiting ? (string) $billsWaiting : ''],
     'mentorship'  => ['gray', $mentorStats['attended'] ? (string) (int) $mentorStats['attended'] : ''],
     'attendance'  => ['gray', $gateSum && $gateSum['counted'] ? (int) $gateSum['rate'] . '%' : ''],
     'learning'    => ['gray', $courses ? (string) count($courses) : ''],

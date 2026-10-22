@@ -112,6 +112,14 @@ a.qd-kpi:focus-visible { outline: 2px solid var(--avp-gold); outline-offset: 2px
 /* ── Inline forms ──────────────────────────────────────────────────────── */
 .qd-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
 .qd-inline label { margin: 0; }
+.qd .qd-inline input.qd-appeal-in, .qd .qd-appeal-to input { width: 150px; }
+.qd-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0 0 14px; font-size: 14px; }
+.qd-facts dt { font-weight: 600; color: var(--avp-muted); }
+.qd-facts dd { margin: 0; white-space: pre-wrap; }
+.qd-answer { display: block; margin-top: 4px; font-size: 13px; }
+.qd-answer[data-answer="contested"] { color: var(--avp-red-tx); }
+.qd-answer[data-answer="accepted"] { color: var(--avp-green-tx); }
+@container (max-width: 640px) { .qd-facts { grid-template-columns: 1fr; } .qd-facts dd { margin-bottom: 6px; } }
 .qd-grow { flex: 1 1 200px; }
 .qd-sug .avp-card-head h2, .qd-prom .avp-card-head h3 { margin: 0; font-size: 16px; font-family: var(--av-sans); }
 .qd-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 20px; border-top: 1px solid var(--avp-line-2); }

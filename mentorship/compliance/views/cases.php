@@ -57,7 +57,15 @@ $what = static function (array $c): string {
                   <td><b><?= e((string) $c['mentee_name']) ?></b></td>
                   <td><span class="qd-kindtag" data-kind="<?= e((string) $c['kind']) ?>"><?= e($what($c)) ?></span></td>
                   <td><?= e($c['title'] !== '' ? (string) $c['title'] : Conduct::caseLabel($c)) ?>
-                    <details class="qd-ev"><summary>What the mentor saw</summary><p><?= e((string) $c['evidence']) ?></p></details></td>
+                    <details class="qd-ev"><summary><?= $c['mentor_kind'] === 'self' ? 'What they reported' : 'What the mentor saw' ?></summary><p><?= e((string) $c['evidence']) ?></p></details>
+<?php if (in_array((string) $c['kind'], Conduct::ADVERSE, true)): $left = Conduct::noticeLeft($c); ?>
+                    <span class="qd-answer" data-answer="<?= e((string) $c['response'] ?: 'none') ?>"><?= (string) $c['response'] !== ''
+                        ? e(Conduct::RESPONSES[(string) $c['response']] ?? '') . ($c['mentor_kind'] === 'self' ? ' — self-reported' : '')
+                        : 'No answer yet' . ($left !== '' ? ' — may be approved after ' . e($left) : '') ?></span>
+<?php if ((string) $c['response'] === 'contested' && trim((string) $c['response_note']) !== ''): ?>
+                    <details class="qd-ev"><summary>Their side</summary><p><?= e((string) $c['response_note']) ?></p></details>
+<?php endif; ?>
+<?php endif; ?></td>
                   <td><?= e((string) $c['mentor_name']) ?><span class="qd-cell-sub"><?= e(Conduct::MENTOR_KINDS[$c['mentor_kind']] ?? 'mentor') ?></span></td>
                   <td class="qd-c-num av-num"><?= e((string) $c['occurred_on']) ?></td>
                   <td class="qd-c-act">

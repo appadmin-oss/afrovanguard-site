@@ -39,6 +39,7 @@ $qCeil    = AvRules::bool('quest.monthly_ceiling') ? ($qRank['monthly_ceiling'] 
 $qCtx     = $portalCtx ?? null;
 $qLinks   = [];
 if ($qCtx !== null) {
+    $qLinks[] = ['bills', 'Bills & appeals', 'A fine or deduction is put to you before it is decided; you answer it, and may appeal the decision.'];
     $qLinks[] = ['mentorship', 'Mentorship', 'Direct mentees you actually meet count toward every level above the first.'];
     if (PortalNav::visible('attendance', $qCtx)) $qLinks[] = ['attendance', 'Attendance & pass', 'Turning up, and on time, earns points.'];
     if (PortalNav::visible('ngv-fines', $qCtx)) $qLinks[] = ['ngv-fines', 'Fines', QuestMoney::ready()

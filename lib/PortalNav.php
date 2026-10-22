@@ -13,7 +13,8 @@
  * gate pass, inventory bridge — and passed in as $ctx.
  *
  * The Vanguard Quest is a group of its own because everybody is a part of it
- * and four sections feed it: the Quest record itself; mentorship, because
+ * and these sections feed it: the Quest record itself; bills and appeals,
+ * where a fine or deduction is put to the member and answered; mentorship, because
  * direct mentees actually met are a promotion criterion; attendance, because
  * turning up on time earns points; and fines, because the Pyramid Manual sets
  * points against them.
@@ -41,6 +42,7 @@ final class PortalNav
         'inventory'   => ['group' => 'Work', 'label' => 'Inventory', 'for' => ['inventory'], 'view' => 'inventory'],
 
         'quest'       => ['group' => 'Vanguard Quest', 'label' => 'The Quest', 'for' => ['all'], 'view' => 'quest'],
+        'bills'       => ['group' => 'Vanguard Quest', 'label' => 'Bills & appeals', 'for' => ['all'], 'view' => 'bills'],
         'mentorship'  => ['group' => 'Vanguard Quest', 'label' => 'Mentorship', 'for' => ['all'], 'view' => 'mentorship'],
         'attendance'  => ['group' => 'Vanguard Quest', 'label' => 'Attendance & pass', 'for' => ['gate', 'ngv'], 'view' => 'attendance'],
         'ngv-fines'   => ['group' => 'Vanguard Quest', 'label' => 'Fines', 'for' => ['ngv'], 'view' => 'ngv'],

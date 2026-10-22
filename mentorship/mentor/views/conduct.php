@@ -61,7 +61,7 @@ $today = date('Y-m-d');
       </div>
 
 <?php if ($flash === 'proposed'): ?>
-      <p class="avcd-note is-ok" role="status">Put forward. The compliance committee has been told; you will hear when they decide. Until then nothing is owed and nothing is granted, and <?= e($cp['mentee_name']) ?> does not see it.</p>
+      <p class="avcd-note is-ok" role="status">Put forward. The compliance committee has been told; you will hear when they decide. Until then nothing is owed and nothing is granted. <?= in_array($kindNow, Conduct::ADVERSE, true) ? e($cp['mentee_name']) . ' is shown it now, like a bill, and may accept it or give their side; the committee reads both.' : e($cp['mentee_name']) . ' does not see it.' ?></p>
 <?php elseif ($flash === 'withdrawn'): ?>
       <p class="avcd-note is-ok" role="status">Withdrawn.</p>
 <?php elseif ($err !== ''): ?>

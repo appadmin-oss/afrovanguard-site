@@ -16,7 +16,7 @@ $driftN = array_sum(array_map(static fn($d) => $d['off'] + $d['repriced'], $drif
           <a class="avp-kpi qd-kpi" href="?s=cases#cases" data-goto="cases">
             <div class="avp-kpi-top"><span class="avp-kpi-l">Waiting for a decision</span><span class="avp-chip avp-chip--sm avp-chip--<?= $ov['waiting'] ? 'gold' : 'green' ?>"><?= $ov['waiting'] ? 'Needs you' : 'Clear' ?></span></div>
             <div class="avp-kpi-v av-num"><?= (int) $ov['waiting'] ?></div>
-            <div class="avp-kpi-s"><?= (int) $ov['decided_30'] ?> decided in the last 30 days</div>
+            <div class="avp-kpi-s"><?= (int) $ov['decided_30'] ?> decided in the last 30 days<?= $ov['appeals'] ? ' · ' . (int) $ov['appeals'] . ' appeal' . ($ov['appeals'] === 1 ? '' : 's') . ' open' : '' ?></div>
           </a>
           <a class="avp-kpi qd-kpi" href="?s=suggestions#suggestions" data-goto="suggestions">
             <div class="avp-kpi-top"><span class="avp-kpi-l">Suggestions open</span><span class="avp-chip avp-chip--sm avp-chip--indigo">Suggested only</span></div>

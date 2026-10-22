@@ -385,6 +385,8 @@ final class QuestMoney
         foreach ($rows as $r) {
             $m = (int) $r['member_id'];
             $still = class_exists('NgvFines') ? (int) NgvFines::forMember($m)['owing'] : 0;
+            /* An appeal that could change what is owed holds the consequences until it is heard. */
+            if ($still > 0 && class_exists('Conduct') && Conduct::hasOpenAppeal($m)) continue;
             if ($still <= 0) {
                 $db->prepare("UPDATE quest_reconciliations SET status = 'settled', closed_at = ? WHERE id = ?")->execute([gmdate('Y-m-d H:i:s'), (int) $r['id']]);
                 $settled++;

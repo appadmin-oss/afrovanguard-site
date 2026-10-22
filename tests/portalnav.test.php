@@ -44,12 +44,12 @@ $guest = ['org' => false, 'ngv' => false, 'vol' => false, 'gate' => false, 'inve
 $all   = ['org' => true, 'ngv' => true, 'vol' => true, 'gate' => true, 'inventory' => true];
 $ids = static fn(array $ctx): array => array_merge(...array_map(static fn($g) => array_column($g, 0), array_values(PortalNav::groups($ctx))));
 ck('portal nav: a learner sees the Quest, mentorship, learning and their account — not Work, the programme or the gate',
-   array_intersect(['quest', 'mentorship', 'learning', 'membership'], $ids($guest)) === ['quest', 'mentorship', 'learning', 'membership']
+   array_values(array_intersect(['quest', 'bills', 'mentorship', 'learning', 'membership'], $ids($guest))) === ['quest', 'bills', 'mentorship', 'learning', 'membership']
    && !array_intersect(['tasks', 'chat', 'ngv', 'ngv-fines', 'attendance', 'volunteer', 'inventory'], $ids($guest))
    && PortalNav::label('membership', $guest) === 'Account');
 ck('portal nav: everything the account opens is listed exactly once', count($ids($all)) === count(PortalNav::SECTIONS) && count(array_unique($ids($all))) === count($ids($all)));
-ck('portal nav: the Vanguard Quest groups the Quest with what feeds it — mentorship, attendance, fines',
-   array_column(PortalNav::groups($all)['Vanguard Quest'], 0) === ['quest', 'mentorship', 'attendance', 'ngv-fines']);
+ck('portal nav: the Vanguard Quest groups the Quest with what feeds it — bills, mentorship, attendance, fines',
+   array_column(PortalNav::groups($all)['Vanguard Quest'], 0) === ['quest', 'bills', 'mentorship', 'attendance', 'ngv-fines']);
 ck('portal nav: the gate is open to a gate-pass holder or a vanguard, and to nobody else',
    PortalNav::visible('attendance', ['gate' => true] + $guest) && PortalNav::visible('attendance', ['ngv' => true] + $guest) && !PortalNav::visible('attendance', $guest));
 ck('portal nav: each view file is drawn once, Today first', PortalNav::views($all)[0] === 'today' && count(PortalNav::views($all)) === count(array_unique(PortalNav::views($all))));

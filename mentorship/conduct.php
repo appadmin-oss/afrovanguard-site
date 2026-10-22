@@ -5,7 +5,8 @@
  * without JavaScript:
  *
  *   mentor     propose | withdraw                    → back to the mentor portal
- *   committee  approve | reject | bulk_* | kind | suggestions | promote | defer
+ *   member     self_report | respond | appeal | self_withdraw → back to the portal (#bills)
+ *   committee  approve | reject | bulk_* | kind | suggestions | promote | defer | appeal_hear
  *              journey | findings | brackets | money_apply  → the Quest desk
  *   superadmin member_add | member_remove | rule_item | rule_reset | rules_save
  *              advisor_ask | advisor_apply                    → the Quest desk
@@ -25,7 +26,7 @@ $u = LmsAuth::user();
 if (!$u) { header('Location: /login/?next=' . rawurlencode('/mentorship/')); exit; }
 if (!av_csrf_valid((string) ($_POST['csrf'] ?? ''))) { http_response_code(403); exit('This page has been open a while — go back, reload and try again.'); }
 /* A mentor proposes a handful; the desk toggles and decides many. */
-$isMentorOp = in_array((string) ($_POST['op'] ?? ''), ['propose', 'withdraw'], true);
+$isMentorOp = in_array((string) ($_POST['op'] ?? ''), ['propose', 'withdraw', 'self_report', 'respond', 'appeal', 'self_withdraw'], true);
 if (!av_rate_ok('conduct_' . (int) $u['id'], $isMentorOp ? 60 : 400, 600)) { http_response_code(429); exit('That is a lot at once. Give it a moment.'); }
 
 $uid = (int) $u['id'];
@@ -55,6 +56,19 @@ if ($op === 'propose' || $op === 'withdraw') {
         ? Conduct::propose($uid, $pid, $_POST)
         : Conduct::withdraw($uid, (int) ($_POST['case_id'] ?? 0));
     $back($to, empty($r['ok']) ? ['err' => (string) ($r['error'] ?? 'Not saved.')] : ['done' => $op === 'propose' ? 'proposed' : 'withdrawn']);
+}
+
+/* A member's own bills: report yourself, answer a bill, appeal a decision.
+   Every check — whose case, how late, whether it is switched on — is Conduct's. */
+if (in_array($op, ['self_report', 'respond', 'appeal', 'self_withdraw'], true)) {
+    $to = '/portal/#bills';
+    $r = match ($op) {
+        'self_report'   => Conduct::selfReport($uid, $_POST),
+        'respond'       => Conduct::respond($uid, (int) ($_POST['case_id'] ?? 0), (string) ($_POST['answer'] ?? ''), (string) ($_POST['note'] ?? '')),
+        'appeal'        => Conduct::appeal($uid, (int) ($_POST['case_id'] ?? 0), (string) ($_POST['grounds'] ?? '')),
+        'self_withdraw' => Conduct::withdraw($uid, (int) ($_POST['case_id'] ?? 0)),
+    };
+    $back($to, $res($r, $op));
 }
 
 $desk = '/mentorship/compliance/';
@@ -163,6 +177,12 @@ switch ($op) {
     case 'money_apply':
         $r = QuestMoney::apply((string) ($_POST['month'] ?? ''), $u);
         $back($desk . '#money', empty($r['ok']) ? ['err' => (string) $r['error']] : ['done' => 'month', 'ran' => (int) $r['ran'], 'offset' => (int) $r['offset']]);
+
+    /* ── Appeals: heard by somebody who had no part in the case ── */
+    case 'appeal_hear':
+        $r = Conduct::hearAppeal((int) ($_POST['appeal_id'] ?? 0), $u, (string) ($_POST['outcome'] ?? ''), (string) ($_POST['note'] ?? ''),
+            (int) preg_replace('/\D+/', '', (string) ($_POST['new_value'] ?? '')));
+        $back($desk . '#appeals', $res($r, 'heard'));
 
     /* ── The advisor ── */
     case 'advisor_ask':

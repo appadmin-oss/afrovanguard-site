@@ -250,6 +250,26 @@ final class AvRules
             'label' => 'Reward Pool share of fines (%)',
             'help'  => 'Section 3.8: "a percentage of all collected fines is reserved for the Reward Pool". The manual does not say how much; 0 until leadership does.',
         ],
+        'quest.self_report' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
+            'label' => 'Members may report themselves',
+            'help'  => 'A member reports a fine or a deduction against their own record, from the catalogue. It is decided like any other case, by somebody else.',
+        ],
+        'quest.notice_days' => [
+            'type' => 'int', 'default' => 2, 'min' => 0, 'max' => 14, 'group' => 'Vanguard Quest',
+            'label' => 'Days a member has to answer a fine',
+            'help'  => 'A proposed fine or deduction is put to the member like a bill: they accept it or give their side. The committee may not approve it before they answer or this many days pass; it may always reject. 0: no wait.',
+        ],
+        'quest.appeals_enabled' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
+            'label' => 'Appeals',
+            'help'  => 'A member may appeal an approved fine or deduction once. Somebody who had no part in it hears the appeal, and may uphold, overturn or reduce it.',
+        ],
+        'quest.appeal_days' => [
+            'type' => 'int', 'default' => 14, 'min' => 1, 'max' => 90, 'group' => 'Vanguard Quest',
+            'label' => 'Days to appeal',
+            'help'  => 'How long after the decision an appeal may be lodged.',
+        ],
         'quest.ai_advisor' => [
             'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
             'label' => 'AI advisor on the catalogue',

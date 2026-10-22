@@ -28,7 +28,9 @@ $clean();
 AvRules::resetAll('test');
 /* Isolate the manual's floors from the older criteria, which rules.test pins. */
 AvRules::save(['levels.min_days_at_level' => '0', 'levels.min_attendance_pct' => '0', 'levels.min_commitment_pct' => '0',
-               'levels.require_multiplication' => '0', 'quest.promotion_monthly_points' => '0'], 'test');
+               'levels.require_multiplication' => '0', 'quest.promotion_monthly_points' => '0',
+               /* The member's notice period is questappeals.test's; these decide at once. */
+               'quest.notice_days' => '0'], 'test');
 
 reset_users();
 $now = gmdate('Y-m-d H:i:s');

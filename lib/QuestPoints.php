@@ -121,6 +121,25 @@ final class QuestPoints
     }
 
     /**
+     * Take a deduction off the record — an appeal overturned it. Only a
+     * deduction (a negative row), only by its exact period; the case and the
+     * appeal keep the history of why.
+     */
+    public static function revoke(int $memberId, string $period): bool
+    {
+        if ($memberId <= 0 || trim($period) === '') return false;
+        self::ensure();
+        try {
+            $st = Database::pdo()->prepare('DELETE FROM quest_points WHERE member_id = ? AND period = ? AND points < 0');
+            $st->execute([$memberId, $period]);
+            return $st->rowCount() > 0;
+        } catch (Throwable $e) {
+            error_log('[questpoints] revoke: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Points EARNED (positive rows only) in one calendar month, 'YYYY-MM'.
      * What the manual's monthly ceiling caps, and what its "150 a month"
      * promotion criterion reads: a deduction takes from the total, not from

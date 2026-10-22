@@ -47,6 +47,8 @@ $a = $propose(['kind' => 'award', 'action' => 'conflict_resolved', 'points' => 1
 ck('questdesk: an award proposes at the catalogue\'s price, whatever the form said',
    $a['ok'] && (int) Conduct::find($a['id'])['points'] === 50 && Conduct::find($a['id'])['reason'] === 'leadership');
 ck('questdesk: an action not in the catalogue is refused', !$propose(['kind' => 'award', 'action' => 'bribery'])['ok']);
+/* The member's notice period is questappeals.test's; these decide at once. */
+AvRules::save(['quest.notice_days' => '0'], 'test');
 ck('questdesk: "mentee rises" is the system\'s to give, not a mentor\'s', !$propose(['kind' => 'award', 'action' => 'mentee_rises'])['ok']);
 
 QuestRules::set('award', 'team_harmony', ['enabled' => false], $U(8154));
@@ -114,3 +116,4 @@ $db->exec("DELETE FROM admin_users WHERE email = 'boss.qd@afrovanguard.org.ng'")
 $nf->exec('DELETE FROM ngv_charges WHERE member_id BETWEEN 8150 AND 8199');
 $nf->exec('DELETE FROM ngv_participants WHERE member_id BETWEEN 8150 AND 8199');
 QuestRules::forget();
+AvRules::reset('quest.notice_days', 'test');
