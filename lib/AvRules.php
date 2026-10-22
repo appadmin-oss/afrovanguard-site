@@ -175,6 +175,11 @@ final class AvRules
             'label' => 'Use the manual\'s level titles',
             'help'  => 'On: levels are named as in the Pyramid Manual (Ordinary Member … Grandfather). Off: the older ladder names.',
         ],
+        'levels.quest_titles_on_card' => [
+            'type' => 'bool', 'default' => false, 'group' => 'Vanguard Quest',
+            'label' => 'Print the manual\'s titles on ID cards',
+            'help'  => 'Off: the ID card keeps the level names already printed in members\' wallets ("Senior Multiplier"), whatever the screens say. On: new cards print the manual\'s ("Excellent Member"). A card already printed is never reissued for this.',
+        ],
         'quest.awards_enabled' => [
             'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
             'label' => 'Awards from the catalogue',

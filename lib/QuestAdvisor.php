@@ -163,11 +163,11 @@ final class QuestAdvisor
         $u = $usage ?? self::usage();
         $out = [];
         $anyUse = $u['totals']['proposed'] > 0;
+        $unused = [];
         foreach ($u['lines'] as $l) {
             if (!$l['enabled']) continue;
             if ($anyUse && $l['proposed'] === 0 && $l['kind'] !== 'fine' && $l['id'] !== 'mentee_rises') {
-                $out[] = ['level' => 'info', 'kind' => $l['kind'], 'id' => $l['id'],
-                    'text' => '"' . $l['label'] . '" has not been put forward once in ' . $u['days'] . ' days.', 'proposal' => null];
+                $unused[] = '"' . $l['label'] . '"';
             }
             if ($l['proposed'] >= 6 && $l['rejected'] / max(1, $l['proposed']) >= 0.4) {
                 $out[] = ['level' => 'warn', 'kind' => $l['kind'], 'id' => $l['id'],
@@ -184,6 +184,13 @@ final class QuestAdvisor
                     'text' => '"' . $l['label'] . '" is clipped by the monthly ceiling in ' . $l['clipped'] . ' of ' . $l['approved'] . ' approvals: members earning it are already at their cap.',
                     'proposal' => ['kind' => 'award', 'id' => $l['id'], 'enabled' => null, 'value' => $to, 'why' => 'Clipped by the ceiling in ' . $l['clipped'] . ' of ' . $l['approved'] . ' approvals.']];
             }
+        }
+        /* One line for every deed nobody has used, not one line each — a list
+           of twenty "never used" would bury what actually needs reading. */
+        if ($unused) {
+            $out[] = ['level' => 'info', 'kind' => '', 'id' => '',
+                'text' => count($unused) . ' line(s) have not been put forward once in ' . $u['days'] . ' days: ' . implode(', ', array_slice($unused, 0, 8))
+                        . (count($unused) > 8 ? ' and ' . (count($unused) - 8) . ' more' : '') . '.', 'proposal' => null];
         }
         $lad = $u['ladder'] ?? [];
         if (($lad['qualifies_above_held'] ?? 0) > 0) {

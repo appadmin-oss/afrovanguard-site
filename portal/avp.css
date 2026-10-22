@@ -510,3 +510,8 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 .avp-quest-list:last-child { margin-bottom: 0; }
 .avp-quest-pts { font-weight: 700; color: var(--avp-green-tx); }
 .avp-quest-when { font-size: 12.5px; color: var(--avp-muted); }
+.avp-quest-pts.is-minus { color: var(--avp-red-tx); }
+.avp-quest-ceiling { margin: 12px 0 0; font-size: 13.5px; color: var(--avp-muted); }
+.avp-quest-colour[data-colour="white"] { background: var(--avp-pill); color: var(--avp-ink); }
+.avp-quest-colour[data-colour="black"] { background: var(--avp-primary); color: var(--avp-on-primary); }
+.avp-quest-colour[data-colour="gold"] { background: var(--avp-gold); color: var(--av-ink); }

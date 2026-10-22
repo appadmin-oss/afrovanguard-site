@@ -55,7 +55,7 @@ $sig = QuestAdvisor::signals($u);
 $has = static fn(string $id, string $word) => (bool) array_filter($sig, static fn($s) => $s['id'] === $id && str_contains($s['text'], $word));
 ck('advisor: a line rejected 40% of the time or more is flagged', $has('punctuality', 'rejected 50%'));
 ck('advisor: one mentor\'s habit is flagged', $has('punctuality', 'One mentor accounts for 100%'));
-ck('advisor: a line never put forward is flagged', $has('team_harmony', 'has not been put forward'));
+ck('advisor: lines never put forward are flagged together, by name', $has('', 'have not been put forward') && $has('', '"Promoting harmony and team cohesion"'));
 $clip = current(array_filter($sig, static fn($s) => $s['id'] === 'exceeded_target'));
 ck('advisor: a line the ceiling keeps clipping is flagged, with a concrete price to try',
    $clip && $clip['proposal'] && $clip['proposal']['value'] === 75);

@@ -7,11 +7,11 @@
  * at zero points for a long time, and a page that opens on "0 points" tells
  * them the Quest is not about them (van-quest doctrine/04-journey.md).
  *
- * There is no rank on this page, on purpose. Which ladder a member climbs is
- * an open question with the owner (van-quest proposal, question 14), and the
- * letter on the member's ID card (lib/Levels.php, shown on Today) is a
- * different ladder on different criteria. Showing either here as "your Quest
- * rank" would answer the question by accident.
+ * The level sits BESIDE the journey, second. The owner's Pyramid Manual
+ * (22 October 2026) settled which ladder stands: the eight levels O–G, on
+ * Quest points and direct mentees actually met, held through Levels — the same
+ * letter as the ID card. The card shows the level held (a decision), what the
+ * next one asks, and this month against the level's ceiling.
  *
  * Everything comes from QuestRecord / Quest / QuestPoints. Nothing here
  * restates a registry number.
@@ -28,10 +28,16 @@ $qByValue = Quest::progressByValue($qId);
 $qWritten = array_sum(array_column($qByValue, 'written'));
 $qRecent  = QuestPoints::recent($qId, 6);
 $qOpen    = $qRec['integrity'] ? [] : QuestRecord::findings($qId, true);
+$qHeld    = Levels::of($qId);
+$qRank    = Quest::rank($qHeld) ?? [];
+$qNext    = Levels::nextOf($qHeld);
+$qNextR   = $qNext !== null ? (Quest::rank($qNext) ?? null) : null;
+$qMonth   = QuestPoints::earnedInMonth($qId, gmdate('Y-m'));
+$qCeil    = AvRules::bool('quest.monthly_ceiling') ? ($qRank['monthly_ceiling'] ?? null) : null;
 ?>
       <section class="pview avp-view avp-quest" id="view-quest" data-view="quest" hidden aria-labelledby="avpQuestH">
         <div class="avp-view-head"><h1 class="avp-h1" id="avpQuestH">The Quest</h1></div>
-        <p class="avp-note avp-quest-intro">Seven values, practised until they show. Points come only from evidence that somebody has changed, seen by one person and approved by another — never for turning up, knowing the words or talking about it.</p>
+        <p class="avp-note avp-quest-intro">Seven values, practised until they show. Points come from what somebody saw you do — turning up on time included — put forward by one person and approved by another. Points and the people you actually mentor carry you up the levels; a person confirms every step.</p>
 
         <div class="avp-stack">
           <section class="avp-card" aria-labelledby="avpQJourneyH">
@@ -47,6 +53,24 @@ $qOpen    = $qRec['integrity'] ? [] : QuestRecord::findings($qId, true);
                 Everybody starts here, from the first day they meet the culture.
 <?php endif; ?>
                 A person moves you along the journey when they see it in you; no count of points or sessions does.</p>
+            </div>
+          </section>
+
+          <section class="avp-card" aria-labelledby="avpQLevelH">
+            <div class="avp-card-head"><h2 id="avpQLevelH">Your level</h2><span class="avp-chip avp-chip--sm avp-quest-colour" data-colour="<?= e((string) ($qRank['colour'] ?? 'white')) ?>"><?= e($qHeld) ?> · <?= e(Levels::labelOf($qHeld)) ?></span></div>
+            <div class="avp-card-body">
+<?php if ($qNextR): $needP = (int) $qNextR['points']['min']; $needM = (int) $qNextR['mentees']['min']; ?>
+              <div class="avp-progress">
+                <div class="avp-bar" role="progressbar" aria-label="Quest points toward <?= e(Levels::labelOf((string) $qNext)) ?>" aria-valuemin="0" aria-valuemax="<?= $needP ?>" aria-valuenow="<?= min($needP, max(0, (int) $qRec['points'])) ?>"><span style="width:<?= $needP > 0 ? min(100, (int) round(100 * max(0, (int) $qRec['points']) / $needP)) : 100 ?>%"></span></div>
+                <span class="avp-progress-n av-num"><?= number_format(max(0, (int) $qRec['points'])) ?> / <?= number_format($needP) ?> points</span>
+              </div>
+              <p class="avp-note"><strong><?= e(Levels::labelOf((string) $qNext)) ?></strong> starts at <?= number_format($needP) ?> points<?= !empty($qNextR['binding_mentees']) ? ' and ' . $needM . ' direct mentee' . ($needM === 1 ? '' : 's') . ' you actually meet — you have ' . (int) $qRec['mentees_active'] . '. Points alone do not promote' : '' ?>. The committee confirms every promotion.</p>
+<?php else: ?>
+              <p class="avp-note">The top of the pyramid.</p>
+<?php endif; ?>
+<?php if ($qCeil !== null): ?>
+              <p class="avp-quest-ceiling">This month <span class="av-num"><?= number_format($qMonth) ?> / <?= number_format((int) $qCeil) ?></span> — the most your level can earn in a month.</p>
+<?php endif; ?>
             </div>
           </section>
 
@@ -114,7 +138,7 @@ $qOpen    = $qRec['integrity'] ? [] : QuestRecord::findings($qId, true);
 <?php else: ?>
               <ul class="avp-quest-list">
 <?php foreach ($qRecent as $r): ?>
-                <li><span class="av-num avp-quest-pts">+<?= (int) $r['points'] ?></span> <?= e((string) ($r['note'] !== '' ? $r['note'] : $r['reason'])) ?><?php if ((string) $r['day'] !== ''): ?> <span class="avp-quest-when"><?= e((string) $r['day']) ?></span><?php endif; ?></li>
+                <li><span class="av-num avp-quest-pts<?= (int) $r['points'] < 0 ? ' is-minus' : '' ?>"><?= (int) $r['points'] < 0 ? '−' . abs((int) $r['points']) : '+' . (int) $r['points'] ?></span> <?= e((string) ($r['note'] !== '' ? $r['note'] : $r['reason'])) ?><?php if ((string) $r['day'] !== ''): ?> <span class="avp-quest-when"><?= e((string) $r['day']) ?></span><?php endif; ?></li>
 <?php endforeach; ?>
               </ul>
 <?php endif; ?>

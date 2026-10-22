@@ -71,6 +71,13 @@ final class Levels
         return self::ORDER;
     }
 
+    /** The older ladder's name, whatever levels.quest_titles says — for what is printed. */
+    public static function printedLabelOf(string $code): string
+    {
+        if (class_exists('AvRules') && AvRules::bool('levels.quest_titles_on_card')) return self::labelOf($code);
+        return (string) (self::LADDER[$code]['label'] ?? ('Level ' . $code));
+    }
+
     public static function labelOf(string $code): string
     {
         /* The Pyramid Manual names the same eight letters (Ordinary Member …

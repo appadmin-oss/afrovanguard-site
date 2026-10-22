@@ -220,6 +220,11 @@ $knownMetaKeys = [
     // needs "replace what is there", which empties it and starts over —
     // slower, never wrong.
     'db_migrate_job',
+    // The Quest's two once-a-day sweeps (QuestLadder, QuestMoney): the day
+    // each last ran, so a five-minute cron sweeps once. Losing one runs the
+    // sweep again that day, and both are idempotent by source key.
+    'quest_ladder_sweep_day',
+    'quest_money_sweep_day',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {

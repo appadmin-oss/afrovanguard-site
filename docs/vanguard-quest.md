@@ -166,21 +166,55 @@ finding stays on the record; it stops standing.
 `FINDING_KINDS` is a starting list, not a policy. The owner has not settled
 what counts.
 
-## Open questions this code is waiting on
+## The Pyramid Manual, 22 October 2026
+
+The owner supplied the *Afrovanguard Leadership & Earning Pyramid Manual* and
+decided where it contradicted the earlier brief (van-quest
+`inventory/pyramid-manual.md`):
+
+| Decision | What runs |
+| --- | --- |
+| Attendance counts | Punctuality and workshops are priced catalogue actions, decided at the desk like any other |
+| Section 2 is the catalogue | `lib/quest/awardable-actions.json`; a mentor picks the deed, the catalogue prices it |
+| Deduct, don't demote | Deductions (Scoring Board §3) post negative points through the desk; "loss of current level" is a **suggestion** |
+| Build the money | Points against fines by income bracket, month by month (`QuestMoney`) |
+| Every rule toggleable | `QuestRules` per line, AvRules group "Vanguard Quest" for the rest |
+| AI to optimise the catalogue | `QuestAdvisor`, proposals a superadmin applies |
+
+### The classes
+
+| Class | Holds |
+| --- | --- |
+| `QuestRules` | Every catalogue line (awards, deductions, fines) switchable and re-priceable by a superadmin, logged, never losing the manual's price |
+| `Conduct` | Now four kinds: `award` (by catalogue action), `deduction`, `fine` (manual's list, ledger reason), `challenge`. `withinCeiling()` holds an award to the level's monthly ceiling |
+| `Levels` | With `levels.quest_pyramid` on, recommends on the next level's Quest points and direct mentees met (binding from B), 150 a month for 3 months, no open finding. Still only recommends. Titles follow the manual on screen (`levels.quest_titles`); the **ID card keeps its printed names** unless `levels.quest_titles_on_card` is switched on |
+| `QuestLadder` | Suggestions — demotion, suspension, fine — accepted or dismissed by the committee; daily inactivity sweep; "mentee rises" +50 to the mentor on a recorded promotion |
+| `QuestMoney` | Income brackets (₦ per point, fine scale); monthly preview and apply (offset posted as an NGV **waiver**); overdue sweep suggests suspension and the ₦2,000 fine; Reward Pool share of fines paid. Inert until `quest.money_enabled` and a bracket values a point |
+| `QuestAdvisor` | Usage figures and signals in grouped queries; the model in four modes (prompt `quest.advisor`); proposals validated against the catalogue and applied only by a superadmin |
+| `QuestDesk` | The desk's read model: one section registry, overview figures, the grouped register, promotion |
+
+### The desk — /mentorship/compliance/
+
+The portal's shell (avp.css/avp.js), one registry of sections
+(`QuestDesk::SECTIONS`), a view file each under `mentorship/compliance/views/`:
+Overview · Cases (one at a time or in bulk, count confirmed by a second press,
+cap 200, per-case verdicts) · Suggestions · Promotions · Members (drawer:
+journey, bracket, findings) · Money · Catalogue · Rules · AI advisor ·
+Committee & kinds. Rules and the advisor are superadmin sections. Every form
+is a plain post to `mentorship/conduct.php`; `desk.js` upgrades them in place.
+
+Tests: `questrules`, `questdesk`, `questpyramid`, `questmoney`, `questadvisor`,
+`questdeskui` (fixtures 8100–8599).
+
+### Still waiting
 
 | | |
 | --- | --- |
 | The seventy challenge texts | The sign-off path is inert without them |
-| What counts as an integrity finding | `FINDING_KINDS` is a guess |
-| Which ladder a member climbs | No rank engine until this is settled |
-| Who may move somebody along the journey | Compliance-only today, which may be too tight |
-
-## What is deliberately not here
-
-No rank engine. `QuestPoints` stores and totals; what a total means is the
-ladder's business, and the ladder is not built. `lib/Levels.php` runs a
-different ladder on different criteria — see `van-quest/inventory/conflicts.md`,
-finding 2 — and reconciling them is blocked on the owner.
+| Income brackets and the value of a point | Money stays off until they are set on the desk |
+| Earnings by level | The manual's share of CACENTRE service charges is recorded, not computed — the owner is sending more |
+| What counts as an integrity finding | `FINDING_KINDS` is still a guess; the manual's theft and dishonesty row is the best candidate |
+| The Reward Pool's percentage | 0 until leadership sets it |
 
 ## The member's page — Portal → You → The Quest
 
@@ -195,10 +229,9 @@ of the Quest. It reads `QuestRecord::of()` and nothing else decides anything.
 | The seven values | Points and challenges proved per value; says plainly that the challenge wording is not yet written |
 | Recently recorded | The last six grants, with an empty state |
 
-**No rank on it, on purpose.** Which ladder stands is still question 14. The
-letter on Today and on the ID card is `Levels`, a different ladder on different
-criteria; showing it here as "your Quest rank" would answer the question by
-accident. Add the rank beside the journey once the ladder is decided.
+**The level sits second, beside the journey** — the Pyramid Manual settled the
+ladder. The card shows the level held (a decision), what the next one asks in
+points and mentees met, and this month against the level's ceiling.
 
 `tests/questview.test.php` holds the order, the absent rank, and the finding's
 visibility (fixtures 9800–9899).

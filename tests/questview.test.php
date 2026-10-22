@@ -6,15 +6,15 @@
  * What this guards:
  *   · Quest::progress() was seventy queries per member. It is one now, and it
  *     must still count only slots that exist.
- *   · The page leads with the journey level, not a number, and shows no rank:
- *     which ladder a member climbs is still the owner's question (14).
+ *   · The page leads with the journey level, not a number; the level held
+ *     comes second, with what the next one asks and this month's ceiling.
  *   · An open integrity finding is visible while it stands, and only then.
  *
  * Run via tests/run.php (provides ck()). Fixtures: member ids 9800–9899.
  */
 declare(strict_types=1);
 
-QuestRecord::ensure(); QuestPoints::ensure();
+QuestRecord::ensure(); QuestPoints::ensure(); Conduct::ensure(); Levels::ensure();
 $db = Database::pdo();
 $db->exec("DELETE FROM quest_findings WHERE member_id BETWEEN 9800 AND 9899");
 $db->exec("DELETE FROM quest_journey  WHERE member_id BETWEEN 9800 AND 9899");
@@ -71,7 +71,10 @@ ck('questview: the page opens on the journey level, before any number',
 ck('questview: everybody is a Visitor until a person says otherwise',
    (bool) preg_match('~<li class="avp-level is-here" aria-current="step"><span class="avp-level-b">0</span>Visitor</li>~', $html));
 ck('questview: the five levels, numbered from zero', substr_count($html, '<li class="avp-level') === 5 && str_contains($html, '>4</span>Vanguard'));
-ck('questview: no rank on the page while the ladder is undecided', !preg_match('~\brank\b~i', strip_tags($html)));
+ck('questview: the level comes second, beside the journey — the Pyramid Manual settled the ladder',
+   (int) strpos($html, 'Your level') > (int) strpos($html, 'Your journey level') && str_contains($html, 'O · Ordinary Member'));
+ck('questview: what the next level asks, in points and in mentees actually met', str_contains($html, '/ 50 points') && str_contains($html, 'Active Member'));
+ck('questview: this month against the level\'s ceiling', str_contains($html, '/ 499'));
 ck('questview: the evidence total and the challenge count are the record\'s', str_contains($html, '<div class="avp-kpi-v av-num">8</div>') && str_contains($html, '2 / 70'));
 ck('questview: gate points are named as a different thing', str_contains($html, 'Separate from the points on your gate pass'));
 ck('questview: unwritten challenges are explained, not hidden', str_contains($html, 'still being written'));

@@ -354,7 +354,8 @@ require_once __DIR__ . '/Conduct.php';        // a mentor's fines and awards, ap
 require_once __DIR__ . '/QuestRecord.php';    // a member's Quest record
 require_once __DIR__ . '/QuestMoney.php';     // points against fines by income bracket, month by month
 require_once __DIR__ . '/QuestLadder.php';
-require_once __DIR__ . '/QuestAdvisor.php';   // figures and AI proposals on the catalogue; a person applies them    // demotions, suspensions and fines the manual calls for, suggested to a person
+require_once __DIR__ . '/QuestAdvisor.php';
+require_once __DIR__ . '/QuestDesk.php';      // the read model behind the Quest desk (/mentorship/compliance/)   // figures and AI proposals on the catalogue; a person applies them    // demotions, suspensions and fines the manual calls for, suggested to a person
 require_once __DIR__ . '/SiteHome.php';       // the homepage hero as content: draft, preview, publish, history
 require_once __DIR__ . '/Media.php';          // the Studio's media library: chunked upload, image edits
 require_once __DIR__ . '/SitePages.php';          // the Studio's Pages editor: every public page's words, links, pictures
