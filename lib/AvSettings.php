@@ -1131,9 +1131,22 @@ final class AvSettings
         if (!GoogleWorkspace::configured()) return ['ok' => false, 'detail' => GoogleWorkspace::whyNotConfigured()];
         $p = GoogleWorkspace::probe();
         if (empty($p['token_ok'])) {
-            return ['ok' => false, 'detail' => 'Google refused the service account: ' . (string) ($p['error'] ?? 'no reason given')
-                . (($p['subject'] ?? '') !== '' ? '. If this says unauthorized_client, domain-wide delegation has not been granted to client ID '
-                    . (string) ($p['client_id'] ?? '') . ' for these scopes in the Google Admin console.' : '')];
+            /* The cause, by name. "Google refused" was said for every failure —
+               including a key this server could not sign with, a server that
+               could not reach Google, and a clock Google would not accept —
+               and each of those is fixed somewhere different. */
+            $err = (string) ($p['error'] ?? '');
+            $who = 'Service account ' . (string) ($p['service_account'] ?? '?') . ' (client ID ' . (string) ($p['client_id'] ?? '?') . ')'
+                . ((string) ($p['subject'] ?? '') !== '' ? ', acting for ' . $p['subject'] : ', acting for nobody — set “Admin to act as”');
+            $clock = isset($p['clock_skew']) && $p['clock_skew'] !== null && abs((int) $p['clock_skew']) > 120
+                ? ' This server’s clock is ' . abs((int) $p['clock_skew']) . ' seconds ' . ((int) $p['clock_skew'] > 0 ? 'ahead of' : 'behind') . ' Google’s.' : '';
+            if (str_contains($err, 'unauthorized_client')) {
+                $fix = 'In the Google Admin console → Security → API controls → Domain-wide delegation, add client ID ' . (string) ($p['client_id'] ?? '')
+                    . ' with exactly these scopes: ' . GoogleWorkspace::delegationLine() . '. It can take a while to take effect.';
+            } else {
+                $fix = GoogleWorkspace::explain($err !== '' ? $err : 'no reason given');
+            }
+            return ['ok' => false, 'detail' => $who . ' — ' . ($err !== '' ? $err : 'no reason given') . '. ' . $fix . $clock];
         }
         $bits = ['signed in as ' . (string) $p['service_account'] . ((string) ($p['subject'] ?? '') !== '' ? ' acting for ' . $p['subject'] : '')];
         foreach (['calendar_read' => 'calendar', 'drive' => 'Drive folder', 'directory' => 'directory', 'groups' => 'groups'] as $k => $label) {

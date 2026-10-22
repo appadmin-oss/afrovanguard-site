@@ -48,7 +48,12 @@ final class GoogleWorkspace
     private static string $lastError = '';
     /** The scope the last refused token was asked for — the one to add to delegation. */
     private static string $lastScope = '';
+    /** curl's own words for the last call that got no answer at all — DNS, TLS, a firewall. */
+    private static string $lastTransport = '';
+    /** Seconds this server's clock is ahead of Google's (+) or behind (-), from Google's Date header; null = not known. */
+    private static ?int $clockSkew = null;
     public static function lastError(): string { return self::$lastError; }
+    public static function clockSkew(): ?int { return self::$clockSkew; }
 
     /** Tests only: forget minted tokens, so a scope refused later is asked for again. */
     public static function forgetTokens(): void { self::$tokens = []; self::$lastError = ''; self::$lastScope = ''; }
@@ -66,6 +71,11 @@ final class GoogleWorkspace
         $fix = match (true) {
             str_contains($err, 'unauthorized_client') => 'Domain-wide delegation does not grant ' . (self::$lastScope !== '' ? 'the scope ' . self::$lastScope : 'the scope this needs')
                 . ' — add it in the Admin console (Security → API controls → Domain-wide delegation). Studio → Rules & AI → Setup → Test Google Workspace lists every scope to grant.',
+            str_contains($err, 'could not sign') => 'The private key in the service account key cannot be used to sign. If the key is in config.php, paste the JSON exactly as Google gave it, in single quotes, without editing the \\n line breaks inside it.',
+            str_contains($err, 'Invalid JWT Signature') => 'Google does not recognise the key that signed this — it was deleted or disabled in Google Cloud, or belongs to another service account. Make a new JSON key for this service account and put it in place of the old one.',
+            str_contains($err, 'Invalid JWT') => 'Google refused the token’s times. This server’s clock is wrong' . (self::$clockSkew !== null ? ' — it is ' . abs(self::$clockSkew) . ' seconds ' . (self::$clockSkew > 0 ? 'ahead of' : 'behind') . ' Google' : '') . '. Ask the host to sync the server clock (NTP).',
+            str_contains($err, 'certificate') || str_contains($err, 'SSL') => 'This server cannot check Google’s certificate — its CA bundle is missing or out of date. Ask the host to update the CA certificates for PHP’s curl (curl.cainfo / openssl.cafile).',
+            str_contains($err, 'resolve host') || str_contains($err, 'Connection timed out') || str_contains($err, 'Failed to connect') => 'This server cannot reach Google — the host is blocking outgoing connections to googleapis.com. Ask the host to allow outgoing HTTPS to oauth2.googleapis.com and www.googleapis.com.',
             str_contains($err, 'invalid_grant') && (str_contains($err, 'account') || str_contains($err, 'email') || str_contains($err, 'sub')) => 'The “Admin to act as” address is not a user in your Workspace. Set it in Studio → Rules & AI → Setup to a real administrator.',
             str_contains($err, 'invalid_grant') => 'Google refused the service account key — it may have been deleted or rotated. Paste a fresh JSON key in Studio → Rules & AI → Setup.',
             str_contains($err, 'forbiddenForServiceAccounts') => 'A service account cannot invite people on its own. Set “Admin to act as” in Studio → Rules & AI → Setup, and grant it domain-wide delegation.',
@@ -81,7 +91,7 @@ final class GoogleWorkspace
     /** Google's error body → one line: "unauthorized_client: Client is unauthorized …". */
     private static function errorLine(?array $res): string
     {
-        if (!$res) return 'no response from Google (network or TLS)';
+        if (!$res) return 'no response from Google (network or TLS)' . (self::$lastTransport !== '' ? ': ' . self::$lastTransport : '');
         $j = $res['json'] ?? null;
         if (is_array($j)) {
             if (is_string($j['error'] ?? null)) return $j['error'] . (!empty($j['error_description']) ? ': ' . (string) $j['error_description'] : '');
@@ -281,10 +291,30 @@ final class GoogleWorkspace
     /** Admin to impersonate for delegated APIs (Directory). */
     private static function subject(): string
     {
-        return (string) (Config::get('AV_WS_SUBJECT', '') ?: Config::get('ADMIN_EMAIL', ''));
+        $s = trim((string) Config::get('AV_WS_SUBJECT', ''));
+        if ($s !== '') return $s;
+        /* ADMIN_EMAIL is where the site's mail goes, often a personal or a
+           shared mailbox outside Workspace. Impersonating one of those fails
+           with "invalid_grant: Invalid email or User ID"; it is only a sound
+           guess when it is an organisation address. */
+        $a = trim((string) Config::get('ADMIN_EMAIL', ''));
+        return ($a !== '' && class_exists('LmsAuth') && LmsAuth::isOrgEmail($a)) ? $a : '';
     }
 
     private static function b64url(string $s): string { return rtrim(strtr(base64_encode($s), '+/', '-_'), '='); }
+
+    /**
+     * The private key as openssl reads it. A key pasted into config.php with
+     * its "\n" escapes doubled arrives as one line with literal backslash-n
+     * in it, which no PEM reader accepts; those are put back as line breaks.
+     */
+    public static function privateKey(string $pem): ?string
+    {
+        $pem = trim($pem);
+        if (!str_contains($pem, "\n") && str_contains($pem, '\\n')) $pem = str_replace(['\\r\\n', '\\n'], "\n", $pem);
+        $pem = str_replace("\r\n", "\n", $pem);
+        return openssl_pkey_get_private($pem) !== false ? $pem : null;
+    }
 
     /**
      * Mint (per-request cache) an access token for one scope. $impersonate adds
@@ -302,12 +332,27 @@ final class GoogleWorkspace
         if (isset(self::$tokens[$key]) && self::$tokens[$key]['exp'] > time() + 30) return self::$tokens[$key]['v'];
 
         $now = time();
-        $claim = ['iss' => $c['client_email'], 'scope' => $scope, 'aud' => self::TOKEN_URL, 'iat' => $now, 'exp' => $now + 3600];
+        /* Issued a minute in the past, valid for the hour Google allows. A
+           shared host's clock a few seconds fast made every token "issued in
+           the future", and Google refuses those outright (invalid_grant:
+           Invalid JWT). Google's own clients allow for the same skew. */
+        $iat = $now - 60;
+        $claim = ['iss' => $c['client_email'], 'scope' => $scope, 'aud' => self::TOKEN_URL, 'iat' => $iat, 'exp' => $iat + 3600];
         if ($sub !== '') $claim['sub'] = $sub;
         $header = self::b64url(json_encode(['alg' => 'RS256', 'typ' => 'JWT']));
         $payload = self::b64url(json_encode($claim));
         $sig = '';
-        if (!openssl_sign($header . '.' . $payload, $sig, $c['private_key'], 'sha256WithRSAEncryption')) return null;
+        $pk = self::privateKey((string) $c['private_key']);
+        while (openssl_error_string() !== false) {}            // only this call's errors below
+        if ($pk === null || !openssl_sign($header . '.' . $payload, $sig, $pk, 'sha256WithRSAEncryption')) {
+            /* Said, not swallowed: this used to return with no reason at all,
+               and the test showed a failure nobody could act on. */
+            $why = (string) (openssl_error_string() ?: 'the key is not a PEM private key');
+            self::$lastError = 'could not sign with the service account’s private key (' . $why . ')';
+            self::$lastScope = $scope;
+            self::noteFailure();
+            return null;
+        }
         $assertion = $header . '.' . $payload . '.' . self::b64url($sig);
 
         $res = self::http('POST', self::tokenUrl(), null, http_build_query([
@@ -360,12 +405,25 @@ final class GoogleWorkspace
         } elseif ($method !== 'GET') {
             $opt[CURLOPT_CUSTOMREQUEST] = $method;
         }
+        /* Google's Date header: how far this server's clock is from Google's,
+           which is the whole story behind "Invalid JWT". */
+        $opt[CURLOPT_HEADERFUNCTION] = static function ($ch, string $h): int {
+            if (stripos($h, 'Date:') === 0 && ($t = strtotime(trim(substr($h, 5)))) !== false) self::$clockSkew = time() - $t;
+            return strlen($h);
+        };
         curl_setopt_array($ch, $opt);
         $body = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $err  = curl_error($ch);
         curl_close($ch);
-        if (!is_string($body)) { error_log('[workspace] transport: ' . $err); return null; }
+        if (!is_string($body)) {
+            error_log('[workspace] transport: ' . $err);
+            /* Kept for the screen too: "network or TLS" alone sends somebody
+               guessing; curl's sentence names DNS, the certificate or the firewall. */
+            self::$lastTransport = mb_substr($err, 0, 200);
+            return null;
+        }
+        self::$lastTransport = '';
         return ['code' => $code, 'body' => $body, 'json' => json_decode($body, true)];
     }
 
@@ -1344,6 +1402,7 @@ final class GoogleWorkspace
             'meet_organiser'  => self::organiser(), 'meet_capture' => self::artifactMode(),
             'meet_events'     => (string) Config::get('AV_MEET_PUBSUB_SUB', '') !== '',
             'scopes'          => self::subject() !== '' ? self::scopeCheck() : [],
+            'clock_skew'      => self::$clockSkew,
             'error'           => $err,
         ];
     }

@@ -412,3 +412,43 @@ Now:
   the Test button all say it.
 
 Tests: nine more in `tests/gwssetup.test.php`.
+
+## 11. Research, 2026-10-22 — what still fails once the key is found
+
+**Deployed state first.** On 2026-10-22 the live `admin/app.js` was byte-for-byte
+commit `5af9a8d` — so the config.php fixes (`e12ecab`) and everything after
+were NOT on the server when "still not functional" was reported. Re-check the
+same way before trusting any report: fetch `/admin/app.js` and
+`git log --find-object=$(git hash-object app.js)`.
+
+Code paths audited from the key to a token (`accessToken()`, `http()`), with
+four failure modes fixed — two of which failed with no reason at all:
+
+| Failure | Before | Now |
+|---|---|---|
+| Key's `\n` doubled when pasted into config.php | `openssl_sign` false → `return null`, lastError empty | `privateKey()` restores the line breaks; a key that still cannot sign says "could not sign … (openssl's reason)" |
+| Server cannot reach Google (CA bundle, DNS, firewall) | "no response (network or TLS)", curl's reason only in error_log | curl's own sentence on screen, with the host-side fix |
+| Server clock a few seconds fast | `iat = now` → Google: `invalid_grant: Invalid JWT …iat and exp`; explained as "key deleted" | `iat = now − 60`, `exp = iat + 3600` (Google's 1h limit); skew measured from Google's `Date` header and shown |
+| `AV_WS_SUBJECT` empty | fell back to `ADMIN_EMAIL`, often a non-Workspace mailbox → `invalid_grant: Invalid email or User ID` | falls back only to an organisation address |
+
+The Test button now names the service account, its client ID, who it acts
+for, Google's exact words, and the fix for that cause — not "Google refused
+the service account" for everything.
+
+`tests/wstoken.test.php` runs a stand-in for Google's token endpoint that
+verifies the RS256 signature against the key's public half, the audience and
+the times, exactly as Google does, and reproduces each failure above.
+
+**What only the Google side can fix** (documented causes):
+- `unauthorized_client` — the service account's numeric Client ID (the JSON's
+  `client_id`) is not in Admin console → Security → API controls → Domain-wide
+  delegation, or a scope is missing. Paste `GoogleWorkspace::delegationLine()`.
+- `invalid_grant: Invalid email or User ID` — "Admin to act as" is not an
+  active user in that Workspace.
+- `invalid_grant: Invalid JWT Signature` — the key was deleted/disabled in
+  Google Cloud, or belongs to a different service account.
+- `HTTP 403 … has not been used in project … or it is disabled` — enable the
+  API (Calendar, Drive, Admin SDK, Meet, Chat) in the SAME Cloud project as the
+  service account.
+- No key can be made at all — Cloud organisations created on/after 3 May 2024
+  enforce `iam.managed.disableServiceAccountKeyCreation` by default.
