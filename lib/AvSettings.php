@@ -1150,8 +1150,9 @@ final class AvSettings
         }
         $bits = ['signed in as ' . (string) $p['service_account'] . ((string) ($p['subject'] ?? '') !== '' ? ' acting for ' . $p['subject'] : '')];
         foreach (['calendar_read' => 'calendar', 'drive' => 'Drive folder', 'directory' => 'directory', 'groups' => 'groups'] as $k => $label) {
-            if (($p[$k] ?? null) === null) continue;
             $e = (string) ($p[$k === 'calendar_read' ? 'calendar_error' : $k . '_error'] ?? '');
+            if ($k === 'drive' && (string) ($p['drive_folder'] ?? '') === '') { $bits[] = 'Drive folder not set (optional — documents stay on this site)'; continue; }
+            if (($p[$k] ?? null) === null && $e === '') continue;
             $bits[] = $label . ($e !== '' ? ' ✗ ' . $e : ' ✓');
         }
         $bad = array_filter(['calendar_error', 'drive_error', 'directory_error', 'groups_error'], static fn($k) => (string) ($p[$k] ?? '') !== '');

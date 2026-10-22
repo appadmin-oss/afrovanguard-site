@@ -36,6 +36,23 @@ $now = time() + $skew;
 header('Date: ' . gmdate('D, d M Y H:i:s', $now) . ' GMT');
 header('Content-Type: application/json');
 $no = static function (string $e, string $d) { http_response_code(400); echo json_encode(['error' => $e, 'error_description' => $d]); exit; };
+/* The APIs, answering with whatever $dir/api says — Google's own error bodies. */
+$path = (string) parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+if ($path !== '/token') {
+    $mode = is_file("$dir/api") ? trim((string) file_get_contents("$dir/api")) : 'ok';
+    if ($mode === 'disabled' && str_starts_with($path, '/calendar/')) {
+        http_response_code(403);
+        echo json_encode(['error' => ['code' => 403, 'status' => 'PERMISSION_DENIED', 'message' => 'Google Calendar API has not been used in project 123456 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/calendar-json.googleapis.com/overview?project=123456 then retry.']]);
+        exit;
+    }
+    if ($mode === 'notadmin' && str_starts_with($path, '/admin/directory/')) {
+        http_response_code(403);
+        echo json_encode(['error' => ['code' => 403, 'message' => 'Not Authorized to access this resource/api', 'errors' => [['reason' => 'forbidden']]]]);
+        exit;
+    }
+    echo json_encode(['items' => [], 'files' => [], 'users' => [], 'groups' => []]);
+    exit;
+}
 parse_str((string) file_get_contents('php://input'), $f);
 if (($f['grant_type'] ?? '') !== 'urn:ietf:params:oauth:grant-type:jwt-bearer') $no('unsupported_grant_type', 'Invalid grant_type');
 $parts = explode('.', (string) ($f['assertion'] ?? ''));
@@ -122,6 +139,28 @@ putenv('AV_WS_TOKEN_URL=http://127.0.0.1:1/token');
 GoogleWorkspace::forgetTokens();
 ck('wstoken: no answer at all is reported with curl’s own reason, not only "network or TLS"', $token() === null
     && (bool) preg_match('/no response from Google \(network or TLS\): .{5,}/', GoogleWorkspace::lastError()));
+
+/* ── the APIs: Google's own refusals, named ────────────────────────────── */
+putenv("AV_WS_TOKEN_URL=http://127.0.0.1:$port/token");
+putenv("AV_REPORTS_BASE_URL=http://127.0.0.1:$port");
+file_put_contents("$dir/api", 'disabled');
+GoogleWorkspace::forgetTokens();
+$r = AvSettings::test('google_workspace');
+ck('wstoken: a Calendar API switched off in Google Cloud is named, with the page that turns it on',
+    !$r['ok'] && str_contains($r['detail'], 'has not been used in project') && str_contains(GoogleWorkspace::explain('GET /calendar — HTTP 403: Google Calendar API has not been used in project 1 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/calendar-json.googleapis.com/overview?project=1 then retry.'), 'https://console.developers.google.com/apis/api/calendar-json.googleapis.com/overview?project=1'));
+file_put_contents("$dir/api", 'notadmin');
+GoogleWorkspace::forgetTokens();
+$r = AvSettings::test('google_workspace');
+ck('wstoken: an "act as" account without the Admin API privilege is named as the cause of the directory refusal',
+    str_contains($r['detail'], 'directory ✗') && str_contains(GoogleWorkspace::explain('GET /admin/directory/v1/users — HTTP 403: Not Authorized to access this resource/api'), 'Admin API privilege'));
+file_put_contents("$dir/api", 'ok');
+GoogleWorkspace::forgetTokens();
+$r = AvSettings::test('google_workspace');
+ck('wstoken: with no Drive folder set, the test says so rather than ticking it', str_contains($r['detail'], 'Drive folder not set'));
+AvSettings::save(['AV_WS_SUBJECT' => ''], 'test'); AvSettings::flush(); AvSettings::apply(); GoogleWorkspace::forgetTokens();
+$r = AvSettings::test('google_workspace');
+ck('wstoken: with no calendar to read, the calendar is not ticked', !str_contains($r['detail'], 'calendar ✓'));
+putenv('AV_REPORTS_BASE_URL');
 
 /* ── the admin to act as ──────────────────────────────────────────────── */
 $subj = new ReflectionMethod(GoogleWorkspace::class, 'subject');

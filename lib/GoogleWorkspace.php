@@ -76,6 +76,13 @@ final class GoogleWorkspace
             str_contains($err, 'Invalid JWT') => 'Google refused the token’s times. This server’s clock is wrong' . (self::$clockSkew !== null ? ' — it is ' . abs(self::$clockSkew) . ' seconds ' . (self::$clockSkew > 0 ? 'ahead of' : 'behind') . ' Google' : '') . '. Ask the host to sync the server clock (NTP).',
             str_contains($err, 'certificate') || str_contains($err, 'SSL') => 'This server cannot check Google’s certificate — its CA bundle is missing or out of date. Ask the host to update the CA certificates for PHP’s curl (curl.cainfo / openssl.cafile).',
             str_contains($err, 'resolve host') || str_contains($err, 'Connection timed out') || str_contains($err, 'Failed to connect') => 'This server cannot reach Google — the host is blocking outgoing connections to googleapis.com. Ask the host to allow outgoing HTTPS to oauth2.googleapis.com and www.googleapis.com.',
+            /* Google names the API and the project, and gives the page that turns it on. */
+            str_contains($err, 'has not been used in project') || str_contains($err, 'SERVICE_DISABLED') || str_contains($err, 'is disabled') =>
+                'That Google API is switched off in the Google Cloud project the service account belongs to. Turn it on there'
+                . (preg_match('~https://console\.(?:developers|cloud)\.google\.com/\S+~', $err, $m) ? ': ' . rtrim($m[0], '.') : ' (APIs & Services → Library)')
+                . '. It can take a few minutes to apply.',
+            str_contains($err, 'Not Authorized to access this resource/api') => 'The “Admin to act as” account may not use the Admin APIs. It must be a Workspace administrator (a super admin, or a role with the Admin API privilege) who has signed in at least once and accepted the terms.',
+            str_contains($err, 'insufficient') && str_contains($err, 'scope') => 'The token was granted without the scope this needs — add it to the client ID’s scopes in Admin console → Security → API controls → Domain-wide delegation.',
             str_contains($err, 'invalid_grant') && (str_contains($err, 'account') || str_contains($err, 'email') || str_contains($err, 'sub')) => 'The “Admin to act as” address is not a user in your Workspace. Set it in Studio → Rules & AI → Setup to a real administrator.',
             str_contains($err, 'invalid_grant') => 'Google refused the service account key — it may have been deleted or rotated. Paste a fresh JSON key in Studio → Rules & AI → Setup.',
             str_contains($err, 'forbiddenForServiceAccounts') => 'A service account cannot invite people on its own. Set “Admin to act as” in Studio → Rules & AI → Setup, and grant it domain-wide delegation.',
@@ -1384,8 +1391,14 @@ final class GoogleWorkspace
             if (self::$lastError !== '' && $err === '') $err = self::$lastError;
             return ['n' => $n, 'error' => self::$lastError];
         };
-        $cal = $step(fn() => count(self::calendarEvents(null, 1)));
-        $drv = $step(fn() => count(self::driveFiles(null, 1)));
+        /* Nothing to read is not a pass: with no calendar or folder named, the
+           reads return nothing without asking Google, and the test said ✓. */
+        $calId = (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject());
+        $folder = (string) (Config::get('AV_WS_DRIVE_FOLDER_ID', '') ?: Config::get('AV_GDRIVE_FOLDER_ID', ''));
+        $cal = $calId !== '' ? $step(fn() => count(self::calendarEvents(null, 1)))
+            : ['n' => null, 'error' => 'no calendar to read — set “Shared calendar” or “Admin to act as”'];
+        $drv = $folder !== '' ? $step(fn() => count(self::driveFiles(null, 1)))
+            : ['n' => null, 'error' => ''];
         $dir = self::subject() !== '' ? $step(fn() => count(self::directoryUsers(1))) : ['n' => null, 'error' => ''];
         $grp = self::subject() !== '' ? $step(fn() => count(self::directoryGroups(1))) : ['n' => null, 'error' => ''];
         return [
@@ -1396,7 +1409,7 @@ final class GoogleWorkspace
             'token_ok'        => $tok !== null,
             'calendar_read'   => $cal['n'], 'calendar_error' => $cal['error'],
             'calendar_write'  => self::calendarWriteEnabled(),
-            'drive'           => $drv['n'], 'drive_error' => $drv['error'],
+            'drive'           => $drv['n'], 'drive_error' => $drv['error'], 'drive_folder' => $folder,
             'directory'       => $dir['n'], 'directory_error' => $dir['error'],
             'groups'          => $grp['n'], 'groups_error' => $grp['error'],
             'meet_organiser'  => self::organiser(), 'meet_capture' => self::artifactMode(),
