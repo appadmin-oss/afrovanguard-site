@@ -4,11 +4,13 @@
  *
  * Design: "Afrovanguard Portal v2" (prop `role`: Member / NextGen Vanguard /
  * Learner). The shell is this file plus portal/avp.css and portal/avp.js:
- * a sidebar grouped Home · Work · NextGen Vanguard · Learn · You · More, a
- * sticky header (crumb, who is online, notifications), a drawer under 960px
- * and a five-tab bar on a phone. Each view is one file in portal/views/ and
- * is shown one at a time by the hash (#tasks, #membership …), so rows 15 and
- * 16 replace a view file without touching the shell.
+ * a sidebar grouped Home · Work · Vanguard Quest · NextGen Vanguard · Learn ·
+ * You · More, a sticky header (crumb, who is online, notifications), a drawer
+ * under 960px and a five-tab bar on a phone. Each view is one file in
+ * portal/views/ and is shown one at a time by the hash (#tasks, #membership …).
+ * Which sections exist, their group and label, who sees them and which view
+ * draws them is lib/PortalNav.php — the sidebar, the views and the tab bar are
+ * all generated from it. Adding a section is one entry there and a view file.
  *
  * Today and Membership are rebuilt to the design (views/today.php,
  * views/membership.php). The other views kept their v1 markup and logic and
@@ -134,35 +136,10 @@ render_head([
     'chrome'     => 'app', /* its own shell and theme; not the Home chrome */
 ]);
 
-/* Nav model — grouped for flow (Home · Work · Learn · You), with dot colours
-   + optional live badges. Related productivity tools sit together. */
+/* What this account opens. The sections themselves — their group, label and
+   view — are lib/PortalNav.php; the shell only works out who is signed in and
+   what each badge says. */
 $postsToday = (int) ($cPulseToday['posts_today'] ?? 0);
-$nav = [
-    'Home' => [
-        ['overview', 'Today', 'gold', ($tasksDue || $nextSession) ? (string) (count($tasksDue) + ($nextSession ? 1 : 0)) : ''],
-        ['tools', 'Suite', 'indigo', ''],
-        ['community', 'Community', 'green', $postsToday > 0 ? (string) $postsToday : ''],
-    ],
-];
-if ($isOrg) {
-    // Team Chat is strictly for @afrovanguard members.
-    $nav['Work'] = [
-        ['tasks', 'Tasks', 'gold', ($openTasks + $cacOpen) ? (string) ($openTasks + $cacOpen) : ''],
-        ['chat', 'Team Chat', 'green', ''],
-        ['workspace', 'Workspace', 'gray', ''],
-    ];
-    /* The centre's register, read here rather than signed across to. It is
-       the same access a member already had — inventory is in the console's
-       MEMBER_PAGES — minus the journey, which is the whole point: looking up
-       where something is took four seconds and getting there took thirty, so
-       people stopped asking the system and started asking each other.
-
-       Only when the bridge is configured. A nav entry that leads to "the link
-       is not set up" is a worse answer than no entry. */
-    if (CacSso::ready()) {
-        $nav['Work'][] = ['inventory', 'Inventory', 'gray', ''];
-    }
-}
 /* NextGen Vanguard — the programme dashboard, here rather than a link away.
    For vanguards only (NgvMember::isVanguard: their NGV record or ID card,
    not their email). Its data and content are the same files the standalone
@@ -178,47 +155,50 @@ if ($isNgv) {
     })($u);
     $ngvOwed = (int) ($ngvVars['account']['payable'] ?? 0);
     $ngvA = $ngvVars['account'];
-    $nav['NextGen Vanguard'] = [
-        ['ngv', 'Programme', 'gold', $ngvVars['booksRead'] . '/' . $ngvVars['BOOKS_TOTAL']],
-        ['ngv-account', 'Fees & account', $ngvOwed > 0 ? 'gold' : 'green', $ngvOwed > 0 ? '₦' . number_format($ngvOwed) : ''],
-        ['ngv-fines', 'Fines', $ngvVars['myFines']['owing'] > 0 ? 'gold' : 'gray', $ngvVars['myFines']['owing'] > 0 ? '₦' . number_format((int) $ngvVars['myFines']['owing']) : ''],
-    ];
 }
-/* The gate, in the portal: the pass, the card, the days. For a vanguard it
-   sits with the programme it is part of; for anybody else, under "You". */
-/* Every member the gate takes — including one it is refusing today, who is
-   the person most in need of seeing why. */
+/* The gate, in the portal: the pass, the card, the days — for every member
+   the gate takes, including one it is refusing today, who is the person most
+   in need of seeing why. */
 $hasGate = GatePass::ready() && GatePass::roleAllowed($u);
 $gateWhy = $hasGate ? (GatePass::whyNot($u) ?? '') : '';
 $gateSum = $hasGate || $isNgv ? GateAttendance::summary((int) $u['id'], 30) : null;
-if ($isNgv) $nav['NextGen Vanguard'][] = ['attendance', 'Attendance & pass', 'gray', $gateSum && $gateSum['counted'] ? (int) $gateSum['rate'] . '%' : ''];
-$nav['Learn'] = [
-    ['learning', 'Learning', 'gray', $courses ? (string) count($courses) : ''],
-    ['mentorship', 'Mentorship', 'gray', $mentorStats['attended'] ? (string) (int) $mentorStats['attended'] : ''],
-];
 /* Volunteering — only for volunteers (lib/Volunteers: made one by an admin,
    on a team, an NGG volunteer, or on the People page) and the coordinators
-   who run them. Being a member is not being a volunteer. The badge counts
-   what is waiting on this person. */
+   who run them. Being a member is not being a volunteer. */
 $isVol = class_exists('Volunteers') && Volunteers::canOpenDashboard($u);
-if ($isVol) {
-    $volWaiting = Volunteers::waitingCount($u);
-    $nav['Volunteering'] = [['volunteer', 'Volunteer dashboard', $volWaiting > 0 ? 'gold' : 'green', $volWaiting > 0 ? (string) $volWaiting : '']];
-}
+$volWaiting = $isVol ? Volunteers::waitingCount($u) : 0;
 $mreqWaiting = class_exists('MemberRequests') ? count(array_filter(MemberRequests::mine((int) $u['id']), static fn($r) => $r['status'] === 'pending')) : 0;
-$nav['You'] = [
-    ['diary', 'Diary', 'gray', $myEntries ? (string) count($myEntries) : ''],
-    /* Everybody is a part of the Vanguard Quest, so everybody has this. */
-    ['quest', 'The Quest', 'gray', ''],
-    ['membership', ($isOrg ? 'Membership' : 'Account'), $mreqWaiting ? 'gold' : 'gray', $mreqWaiting ? (string) $mreqWaiting : ''],
-    ['requests', 'Finance requests', 'gray', ''],
+/* The register is read here only when the bridge is configured: a nav entry
+   that leads to "the link is not set up" is a worse answer than no entry. */
+$portalCtx = ['org' => $isOrg, 'ngv' => $isNgv, 'vol' => $isVol, 'gate' => $hasGate, 'inventory' => $isOrg && CacSso::ready()];
+/* Quest: the month's points against the level's ceiling, when it is on. */
+$questMonth = QuestPoints::earnedInMonth((int) $u['id'], gmdate('Y-m'));
+/* id => [dot colour, badge]. A section not named here is a grey dot, no badge. */
+$navBadges = [
+    'overview'    => ['gold', ($tasksDue || $nextSession) ? (string) (count($tasksDue) + ($nextSession ? 1 : 0)) : ''],
+    'tools'       => ['indigo', ''],
+    'community'   => ['green', $postsToday > 0 ? (string) $postsToday : ''],
+    'tasks'       => ['gold', ($openTasks + $cacOpen) ? (string) ($openTasks + $cacOpen) : ''],
+    'chat'        => ['green', ''],
+    'quest'       => ['gold', $questMonth > 0 ? '+' . $questMonth : ''],
+    'mentorship'  => ['gray', $mentorStats['attended'] ? (string) (int) $mentorStats['attended'] : ''],
+    'attendance'  => ['gray', $gateSum && $gateSum['counted'] ? (int) $gateSum['rate'] . '%' : ''],
+    'learning'    => ['gray', $courses ? (string) count($courses) : ''],
+    'volunteer'   => [$volWaiting > 0 ? 'gold' : 'green', $volWaiting > 0 ? (string) $volWaiting : ''],
+    'diary'       => ['gray', $myEntries ? (string) count($myEntries) : ''],
+    'membership'  => [$mreqWaiting ? 'gold' : 'gray', $mreqWaiting ? (string) $mreqWaiting : ''],
 ];
-if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gray', ''];
-/* The phone bar: five tabs, the design's choice for each role, "More" opens the drawer. */
-$tabs = [['overview', 'Today']];
-$tabs[] = $isOrg ? ['tasks', 'Tasks'] : ($isNgv ? ['ngv', 'Programme'] : ['learning', 'Learning']);
-$tabs[] = $isOrg ? ['chat', 'Chat'] : ['community', 'Community'];
-$tabs[] = ['diary', 'Diary'];
+if ($isNgv) {
+    $navBadges['ngv'] = ['gold', $ngvVars['booksRead'] . '/' . $ngvVars['BOOKS_TOTAL']];
+    $navBadges['ngv-account'] = [$ngvOwed > 0 ? 'gold' : 'green', $ngvOwed > 0 ? '₦' . number_format($ngvOwed) : ''];
+    $fOwing = (int) $ngvVars['myFines']['owing'];
+    $navBadges['ngv-fines'] = [$fOwing > 0 ? 'gold' : 'gray', $fOwing > 0 ? '₦' . number_format($fOwing) : ''];
+}
+$nav = [];
+foreach (PortalNav::groups($portalCtx) as $group => $items) {
+    foreach ($items as [$id, $label]) $nav[$group][] = [$id, $label, $navBadges[$id][0] ?? 'gray', $navBadges[$id][1] ?? ''];
+}
+$tabs = PortalNav::tabs($portalCtx);
 $avpIcons = [
     'overview'  => 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
     'tasks'     => 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
@@ -321,32 +301,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
         $jBase = class_exists('Levels') ? Levels::base() : 'O';
         $jNextLabel = (string) ($journey['next_label'] ?? 'the next level');
 
-        require __DIR__ . '/views/today.php';
-        require __DIR__ . '/views/tools.php';
-        if ($isOrg) {
-            require __DIR__ . '/views/tasks.php';
-            require __DIR__ . '/views/chat.php';
-        }
-        require __DIR__ . '/views/learning.php';
-        require __DIR__ . '/views/community.php';
-        require __DIR__ . '/views/mentorship.php';
-        if ($isOrg) {
-            if (CacSso::ready()) require __DIR__ . '/views/inventory.php';
-            require __DIR__ . '/views/workspace.php';
-        }
-        if ($isNgv) require __DIR__ . '/views/ngv.php';
-?>
-<?php if ($hasGate || $isNgv): ?>
-      <section class="pview avp-view" id="view-attendance" data-view="attendance" hidden>
-<?php require __DIR__ . '/_attendance.php'; ?>
-      </section>
-<?php endif; ?>
-<?php
-        require __DIR__ . '/views/quest.php';
-        require __DIR__ . '/views/membership.php';
-        require __DIR__ . '/views/requests.php';
-        require __DIR__ . '/views/diary.php';
-        if ($isVol) require __DIR__ . '/views/volunteer.php';
+        foreach (PortalNav::views($portalCtx) as $portalView) require __DIR__ . '/views/' . $portalView . '.php';
 ?>
       <footer class="avp-foot">
         <span>© 2026 Afrovanguard</span>

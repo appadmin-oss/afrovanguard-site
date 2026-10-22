@@ -244,11 +244,13 @@ $vp->exec('DELETE FROM gate_attendance WHERE member_id BETWEEN 9300 AND 9399');
 
 /* ── The portal: the member portal as it was; the dashboard for volunteers ── */
 $idx = (string) file_get_contents(AV_ROOT . '/portal/index.php');
+$pvAll = PortalNav::views(['org' => true, 'ngv' => true, 'vol' => true, 'gate' => true, 'inventory' => true]);
 ck('Portal: the member portal is intact — Today, Suite, Tasks, Learning, Diary, Membership',
-    preg_match_all("~views/(today|tools|tasks|learning|diary|membership)\.php~", $idx) >= 6);
+    !array_diff(['today', 'tools', 'tasks', 'learning', 'diary', 'membership'], $pvAll));
 ck('Portal: the Volunteer dashboard is drawn only for volunteers and those who run them',
-    str_contains($idx, '$isVol = class_exists(\'Volunteers\') && Volunteers::canOpenDashboard($u);') && str_contains($idx, "if (\$isVol) require __DIR__ . '/views/volunteer.php';"));
-ck('Portal: vanguards keep their programme', str_contains($idx, "if (\$isNgv) require __DIR__ . '/views/ngv.php';"));
+    str_contains($idx, '$isVol = class_exists(\'Volunteers\') && Volunteers::canOpenDashboard($u);') && str_contains($idx, "'vol' => \$isVol")
+    && PortalNav::SECTIONS['volunteer']['for'] === ['vol']);
+ck('Portal: vanguards keep their programme', in_array('ngv', $pvAll, true) && PortalNav::SECTIONS['ngv']['for'] === ['ngv'] && str_contains($idx, "'ngv' => \$isNgv"));
 
 /* ── The sweep ── */
 $vp->exec("DELETE FROM meeting_nudges");

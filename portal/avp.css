@@ -244,6 +244,12 @@ body.avp a:hover { color: var(--avp-gold-tx); }
    is set for "₦128,000"; "Foundation Member" at that size wrapped out of
    its own card. Same row, same weight, read as text. */
 .avp-kpi-v--text { font-size: 19px; line-height: 1.2; }
+/* A KPI that goes somewhere: the whole tile is the link, to the section
+   where the figure is explained. */
+a.avp-kpi--link { display: block; color: inherit; text-decoration: none; transition: border-color .15s ease; }
+a.avp-kpi--link:hover { border-color: var(--avp-ink); }
+a.avp-kpi--link:focus-visible { outline: 2px solid var(--avp-gold); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { a.avp-kpi--link { transition: none; } }
 .avp-cols { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
 .avp-col { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
 .avp-col--main { flex: 1 1 560px; }
@@ -508,6 +514,13 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 .avp-quest-values + .avp-note { margin-top: 14px; }
 .avp-quest-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14.5px; }
 .avp-quest-list:last-child { margin-bottom: 0; }
+.avp-quest-feeds { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.avp-quest-feeds:last-child { margin-bottom: 0; }
+.avp-quest-feeds a { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--avp-line); border-radius: 10px; color: inherit; text-decoration: none; }
+.avp-quest-feeds a:hover { border-color: var(--avp-ink); }
+.avp-quest-feeds a:focus-visible { outline: 2px solid var(--avp-gold); outline-offset: 2px; }
+.avp-quest-feeds b { font-size: 14.5px; font-weight: 600; }
+.avp-quest-feeds span { font-size: 13.5px; color: var(--avp-muted); }
 .avp-quest-pts { font-weight: 700; color: var(--avp-green-tx); }
 .avp-quest-when { font-size: 12.5px; color: var(--avp-muted); }
 .avp-quest-pts.is-minus { color: var(--avp-red-tx); }

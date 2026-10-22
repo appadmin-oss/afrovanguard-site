@@ -96,8 +96,8 @@ ck('questview: an empty record has an empty state, not a blank card', str_contai
 
 $portal = (string) file_get_contents(AV_ROOT . '/portal/index.php');
 ck('questview: everybody has it in the menu — the entry is not behind a role',
-   (bool) preg_match('~\$nav\[\'You\'\] = \[[^;]*\[\'quest\', \'The Quest\'~s', $portal)
-   && str_contains($portal, "require __DIR__ . '/views/quest.php';"));
+   PortalNav::SECTIONS['quest']['for'] === ['all'] && PortalNav::SECTIONS['quest']['view'] === 'quest'
+   && str_contains($portal, 'PortalNav::groups($portalCtx)'));
 
 $db->exec("DELETE FROM quest_findings WHERE member_id BETWEEN 9800 AND 9899");
 $db->exec("DELETE FROM quest_journey  WHERE member_id BETWEEN 9800 AND 9899");

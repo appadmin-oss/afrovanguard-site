@@ -83,7 +83,16 @@ if ($isOrg) {
     $kpis[] = ['label' => 'Tasks open', 'value' => (string) ($openTasks + $cacOpen), 'id' => 'kpiTasks',
        'sub' => $cacOpen ? 'here and in the console' : 'across your list', 'chip' => 'Active', 'tone' => 'gold'];
 }
-$kpis[] = ['label' => 'Your stage', 'value' => (string) ($journey['label'] ?? 'Member'), 'text' => true, 'sub' => ($stageCode === 'O' ? 'Level A up next' : 'Keep building'), 'chip' => 'Level ' . $stageCode, 'tone' => 'indigo'];
+/* The level is the Quest's (Levels, on the Pyramid Manual's floors): one
+   word for it everywhere, and the way to it is the Quest page. */
+$jNeedPts = $journey['next_points'] ?? null;
+$jHavePts = max(0, (int) ($journey['quest_points'] ?? 0));
+$kpis[] = ['label' => 'Your level', 'value' => (string) ($journey['label'] ?? 'Member'), 'text' => true, 'goto' => 'quest',
+    'sub' => $journey['next'] === null ? 'The top of the pyramid'
+        : ($jNeedPts === null ? $jNextLabel . ' up next'
+            : ($jHavePts >= (int) $jNeedPts ? 'Points reached for ' . $jNextLabel . '; mentees next'
+                : number_format((int) $jNeedPts - $jHavePts) . ' Quest points to ' . $jNextLabel)),
+    'chip' => 'Level ' . $stageCode, 'tone' => 'indigo'];
 $kpis[] = ['label' => 'Mentorship hours', 'value' => $mentorHoursLabel, 'sub' => ((int) $mentorStats['attended']) . ' session' . (((int) $mentorStats['attended']) === 1 ? '' : 's') . ' attended', 'chip' => 'Logged', 'tone' => 'gold'];
 if ($dues) {
     $duesOk = $duesState === 'active' || !empty($dues['lifetime']);
@@ -166,11 +175,12 @@ if ($isOrg && !$hasPlan):
 
         <div class="avp-kpis" aria-label="At a glance">
 <?php foreach ($kpis as $k): ?>
-          <div class="avp-kpi">
+<?php $kTag = isset($k['goto']) ? 'a' : 'div'; ?>
+          <<?= $kTag ?> class="avp-kpi<?= isset($k['goto']) ? ' avp-kpi--link' : '' ?>"<?= isset($k['goto']) ? ' href="#' . e($k['goto']) . '" data-goto="' . e($k['goto']) . '"' : '' ?>>
             <div class="avp-kpi-top"><span class="avp-kpi-l"><?= e($k['label']) ?></span><span class="avp-chip avp-chip--sm avp-chip--<?= e($k['tone']) ?>"><?= e($k['chip']) ?></span></div>
             <div class="avp-kpi-v<?= empty($k['text']) ? ' av-num' : ' avp-kpi-v--text' ?>"<?= isset($k['id']) ? ' id="' . e($k['id']) . '"' : '' ?>><?= e($k['value']) ?></div>
             <div class="avp-kpi-s"><?= e($k['sub']) ?></div>
-          </div>
+          </<?= $kTag ?>>
 <?php endforeach; ?>
         </div>
 
@@ -207,13 +217,19 @@ if ($isOrg && !$hasPlan):
             </section>
 <?php endif; ?>
             <section class="avp-card" aria-labelledby="avpJourneyH">
-              <div class="avp-card-head"><h2 id="avpJourneyH">Your journey</h2><a class="avp-head-link" href="/how-it-works">How progression works →</a></div>
+              <div class="avp-card-head"><h2 id="avpJourneyH">Your level</h2><a class="avp-head-link" href="#quest" data-goto="quest">The Quest →</a></div>
               <div class="avp-card-body avp-journey">
                 <ol class="avp-levels">
 <?php foreach ($jOrder as $i => $code): $st = $i === $jHere ? ' is-here' : ($i < $jHere ? ' is-done' : ''); ?>
                   <li class="avp-level<?= $st ?>"<?= $i === $jHere ? ' aria-current="step"' : '' ?>><span class="avp-level-b"><?= e($code) ?></span><?= e(Levels::labelOf($code)) ?></li>
 <?php endforeach; ?>
                 </ol>
+<?php if ($jNeedPts !== null && $journey['next'] !== null): $jPtsPct = (int) $jNeedPts > 0 ? min(100, (int) round(100 * $jHavePts / (int) $jNeedPts)) : 100; ?>
+                <div class="avp-progress">
+                  <div class="avp-bar" role="progressbar" aria-label="Quest points toward <?= e($jNextLabel) ?>" aria-valuemin="0" aria-valuemax="<?= (int) $jNeedPts ?>" aria-valuenow="<?= min((int) $jNeedPts, $jHavePts) ?>"><span style="width:<?= $jPtsPct ?>%"></span></div>
+                  <span class="avp-progress-n av-num"><?= number_format($jHavePts) ?> / <?= number_format((int) $jNeedPts) ?> Quest points</span>
+                </div>
+<?php endif; ?>
 <?php if ($journey['level'] === $jBase): ?>
                 <div class="avp-progress">
                   <div class="avp-bar" role="progressbar" aria-label="Actively mentored" aria-valuemin="0" aria-valuemax="<?= (int) ($journey['mentees_needed'] ?? 2) ?>" aria-valuenow="<?= (int) ($journey['active_mentees'] ?? 0) ?>"><span style="width:<?= $jPct ?>%"></span></div>

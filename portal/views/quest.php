@@ -34,6 +34,18 @@ $qNext    = Levels::nextOf($qHeld);
 $qNextR   = $qNext !== null ? (Quest::rank($qNext) ?? null) : null;
 $qMonth   = QuestPoints::earnedInMonth($qId, gmdate('Y-m'));
 $qCeil    = AvRules::bool('quest.monthly_ceiling') ? ($qRank['monthly_ceiling'] ?? null) : null;
+/* The sections that feed the Quest, as the shell decided this account sees
+   them (lib/PortalNav.php). Drawn outside the shell, nothing is linked. */
+$qCtx     = $portalCtx ?? null;
+$qLinks   = [];
+if ($qCtx !== null) {
+    $qLinks[] = ['mentorship', 'Mentorship', 'Direct mentees you actually meet count toward every level above the first.'];
+    if (PortalNav::visible('attendance', $qCtx)) $qLinks[] = ['attendance', 'Attendance & pass', 'Turning up, and on time, earns points.'];
+    if (PortalNav::visible('ngv-fines', $qCtx)) $qLinks[] = ['ngv-fines', 'Fines', QuestMoney::ready()
+        ? 'Each month, the points you earn are set against the fines you owe, at your income bracket\'s rate.'
+        : 'A fine is proposed by a mentor and decided by the committee, like an award.'];
+}
+$qMoney   = $qCtx !== null && QuestMoney::ready() ? (QuestMoney::forMember($qId)[0] ?? null) : null;
 ?>
       <section class="pview avp-view avp-quest" id="view-quest" data-view="quest" hidden aria-labelledby="avpQuestH">
         <div class="avp-view-head"><h1 class="avp-h1" id="avpQuestH">The Quest</h1></div>
@@ -57,7 +69,7 @@ $qCeil    = AvRules::bool('quest.monthly_ceiling') ? ($qRank['monthly_ceiling'] 
           </section>
 
           <section class="avp-card" aria-labelledby="avpQLevelH">
-            <div class="avp-card-head"><h2 id="avpQLevelH">Your level</h2><span class="avp-chip avp-chip--sm avp-quest-colour" data-colour="<?= e((string) ($qRank['colour'] ?? 'white')) ?>"><?= e($qHeld) ?> · <?= e(Levels::labelOf($qHeld)) ?></span></div>
+            <div class="avp-card-head"><h2 id="avpQLevelH">Your level on the pyramid</h2><span class="avp-chip avp-chip--sm avp-quest-colour" data-colour="<?= e((string) ($qRank['colour'] ?? 'white')) ?>"><?= e($qHeld) ?> · <?= e(Levels::labelOf($qHeld)) ?></span></div>
             <div class="avp-card-body">
 <?php if ($qNextR): $needP = (int) $qNextR['points']['min']; $needM = (int) $qNextR['mentees']['min']; ?>
               <div class="avp-progress">
@@ -85,14 +97,30 @@ $qCeil    = AvRules::bool('quest.monthly_ceiling') ? ($qRank['monthly_ceiling'] 
               <div class="avp-kpi-v av-num"><?= (int) $qRec['challenges']['done'] ?> / <?= (int) $qRec['challenges']['total'] ?></div>
               <div class="avp-kpi-s">Ten under each value.</div>
             </div>
-            <div class="avp-kpi">
+            <<?= $qLinks ? 'a href="#mentorship" data-goto="mentorship"' : 'div' ?> class="avp-kpi<?= $qLinks ? ' avp-kpi--link' : '' ?>">
               <div class="avp-kpi-top"><span class="avp-kpi-l">People you mentor</span><span class="avp-chip avp-chip--sm avp-chip--indigo">Active</span></div>
               <div class="avp-kpi-v av-num"><?= (int) $qRec['mentees_active'] ?></div>
               <div class="avp-kpi-s"><?= (int) $qRec['mentees_paired'] === (int) $qRec['mentees_active']
                 ? 'Only mentees you actually meet count.'
                 : (int) $qRec['mentees_paired'] . ' paired; only the ones you actually meet count.' ?></div>
-            </div>
+            </<?= $qLinks ? 'a' : 'div' ?>>
           </div>
+
+<?php if ($qLinks): ?>
+          <section class="avp-card" aria-labelledby="avpQFeedsH">
+            <div class="avp-card-head"><h2 id="avpQFeedsH">What feeds your Quest</h2></div>
+            <div class="avp-card-body">
+              <ul class="avp-quest-feeds">
+<?php foreach ($qLinks as [$lid, $ltitle, $lwhy]): ?>
+                <li><a href="#<?= e($lid) ?>" data-goto="<?= e($lid) ?>"><b><?= e($ltitle) ?> →</b><span><?= e($lwhy) ?></span></a></li>
+<?php endforeach; ?>
+              </ul>
+<?php if ($qMoney): ?>
+              <p class="avp-note">Last set against your fines: <?= e((string) $qMoney['month']) ?>.</p>
+<?php endif; ?>
+            </div>
+          </section>
+<?php endif; ?>
 
 <?php if ($qOpen): ?>
           <section class="avp-card avp-quest-integrity" aria-labelledby="avpQIntH">
