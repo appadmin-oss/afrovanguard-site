@@ -21,8 +21,11 @@
  *     like every other fine, and the mentee is told. A fine needs an account to
  *     be owed against: a mentee outside NGV cannot be fined money, and the form
  *     says so rather than recording a debt nothing can collect.
- *   · An award grants points (gate_points, period `award:<case>`, so it is
- *     granted once however often it is approved) and tells the mentee.
+ *   · An award grants QUEST points (lib/QuestPoints.php, period `award:<case>`,
+ *     so it is granted once however often it is approved) and tells the mentee.
+ *     Not gate_points: the gate's points are for arriving on time, and the
+ *     Quest's doctrine is that attendance is not evidence. Two currencies,
+ *     two ledgers.
  *
  * WHO MAY DECIDE
  *   A member of the compliance committee (compliance_members, kept by
@@ -256,8 +259,8 @@ final class Conduct
             $outcome = 'ngv_charge:' . (int) ($r['entryId'] ?? 0);
         } else {
             $label = self::AWARD_REASONS[$c['reason']] ?? 'Award';
-            GateAttendance::grant((int) $c['mentee_id'], (string) $c['occurred_on'], 'award:' . $caseId, (int) $c['points'],
-                'Award: ' . ($c['title'] !== '' ? $c['title'] : $label));
+            QuestPoints::grant((int) $c['mentee_id'], (int) $c['points'], 'award:' . $caseId, (string) $c['reason'],
+                'Award: ' . ($c['title'] !== '' ? $c['title'] : $label), $aid, (string) $c['occurred_on']);
             $outcome = 'points:' . (int) $c['points'];
             if (class_exists('Notifications')) {
                 Notifications::push((int) $c['mentee_id'], 'award', 'You have been recognised: ' . ($c['title'] !== '' ? $c['title'] : $label),

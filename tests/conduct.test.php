@@ -5,16 +5,17 @@
  * The promises: a mentor proposes only for their OWN active mentee; nothing
  * is owed or granted until the compliance committee or a superadmin approves;
  * nobody decides a case they proposed or one about themselves; a fine needs
- * an NGV account and lands on it through NgvFines; an award's points are
+ * an NGV account and lands on it through NgvFines; an award's QUEST points are
  * granted once; rejecting needs a reason.
  */
 declare(strict_types=1);
 $db = Database::pdo();
 $nf = NgvDb::pdo();
-Conduct::ensure(); MentorPortal::ensure(); GateAttendance::ensure();
+Conduct::ensure(); MentorPortal::ensure(); GateAttendance::ensure(); QuestPoints::ensure();
 foreach (['conduct_cases', 'compliance_members', 'mentorships'] as $t) { try { $db->exec('DELETE FROM ' . $t); } catch (Throwable $e) {} }
 $db->exec('DELETE FROM lms_users WHERE id BETWEEN 9300 AND 9399');
 $db->exec("DELETE FROM gate_points WHERE member_id BETWEEN 9300 AND 9399");
+$db->exec("DELETE FROM quest_points WHERE member_id BETWEEN 9300 AND 9399");
 foreach (['ngv_charges', 'ngv_fine_meta'] as $t) { try { $nf->exec("DELETE FROM $t WHERE " . ($t === 'ngv_charges' ? 'member_id' : 'charge_id') . ' > 0'); } catch (Throwable $e) {} }
 $nf->exec('DELETE FROM ngv_participants WHERE member_id BETWEEN 9300 AND 9399');
 
@@ -71,10 +72,11 @@ $d2 = Conduct::decide($award['id'], $U(9305), true, '');
 ck('conduct: a superadmin approves an award', $d2['ok']);
 $nt = (string) $db->query("SELECT title FROM user_notifications WHERE user_id = 9301 AND kind = 'conduct' ORDER BY id DESC LIMIT 1")->fetchColumn();
 ck('conduct: the mentor is told whose award was decided', $nt === 'The award you proposed for Mentee Chi was approved');
-$pts = (int) $db->query("SELECT SUM(points) FROM gate_points WHERE member_id = 9303")->fetchColumn();
-ck('conduct: an approved award grants its points', $pts === 10);
-GateAttendance::grant(9303, $today, 'award:' . $award['id'], 10, 'again');
-ck('conduct: an award\'s points are granted once', (int) $db->query("SELECT SUM(points) FROM gate_points WHERE member_id = 9303")->fetchColumn() === 10);
+ck('conduct: an approved award grants its points', QuestPoints::total(9303) === 10);
+ck('conduct: and grants them to the QUEST ledger, not the gate\'s',
+   (int) $db->query("SELECT COALESCE(SUM(points),0) FROM gate_points WHERE member_id = 9303")->fetchColumn() === 0);
+ck('conduct: an award\'s points are granted once',
+   !QuestPoints::grant(9303, 10, 'award:' . $award['id'], 'leadership', 'again') && QuestPoints::total(9303) === 10);
 ck('conduct: the mentee sees their award', count(Conduct::awardsFor(9303)) === 1 && Conduct::awardsFor(9302) === []);
 
 /* Nobody decides what they proposed or what is about them. */
