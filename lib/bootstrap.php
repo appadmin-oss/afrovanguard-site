@@ -349,7 +349,8 @@ require_once __DIR__ . '/MentorAcademy.php';  // what a mentor must know before 
 require_once __DIR__ . '/MentorPortal.php';   // the read model behind /mentorship/mentor/
 require_once __DIR__ . '/Quest.php';          // the Quest's rules, vendored from van-quest
 require_once __DIR__ . '/QuestPoints.php';    // the Quest's points, kept apart from the gate's
-require_once __DIR__ . '/Conduct.php';        // a mentor's fines and awards, approved by the compliance committee
+require_once __DIR__ . '/Conduct.php';
+require_once __DIR__ . '/QuestRecord.php';    // a member's Quest record, rank excepted        // a mentor's fines and awards, approved by the compliance committee
 require_once __DIR__ . '/SiteHome.php';       // the homepage hero as content: draft, preview, publish, history
 require_once __DIR__ . '/Media.php';          // the Studio's media library: chunked upload, image edits
 require_once __DIR__ . '/SitePages.php';          // the Studio's Pages editor: every public page's words, links, pictures

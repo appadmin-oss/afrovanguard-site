@@ -112,6 +112,62 @@ stable.
 
 `Quest::progress($memberId)` returns `['done' => n, 'total' => 70]`.
 
+## A member's record
+
+`QuestRecord::of($memberId)` assembles everything true of a member in the
+Quest **except their rank** — points, points by value, progress against the
+seventy, mentees, journey level and integrity standing. The rank is left out
+because which ladder a member climbs is not settled: `Levels` runs `O`–`G` on
+mentorship, tenure, attendance and commitment and uses no points at all, while
+the Quest's pyramid runs the same eight letters on points and active direct
+mentees.
+
+### Two senses of "mentee", and the Quest uses the stricter
+
+`Mentorship` already draws this line and it is the whole reason a quota is
+worth anything:
+
+| | Means | Gamed by |
+| --- | --- | --- |
+| `pairedMentees()` | A row with status `active` | Opening pairings |
+| `activeMentees()` | A pairing actually being mentored | — |
+
+Both count `vquest` pairings only. An Academy mentorship is valuable and is not
+the relationship the pyramid's quota is about.
+
+### The journey
+
+Everybody is a **Visitor** until somebody says otherwise. `setJourney()` is a
+person's decision, never arithmetic — the journey is a reading of how close
+somebody stands to the culture, and no counter expresses that. Compliance or a
+superadmin only, for now; see the open question below.
+
+### Integrity findings
+
+> A participant must not be able to compensate for serious integrity failures
+> simply by accumulating points elsewhere.
+
+`quest_findings` holds them, and `holdsIntegrity()` is a **gate, not a
+deduction** — a fifty-point penalty for dishonesty says dishonesty costs fifty
+points, and sets the price at which it is worth paying. Five hundred points do
+not clear a finding; only resolving it does.
+
+Resolving is reachable on purpose. A system nobody can recover from is not
+incorruptible, it is unforgiving, and it teaches people to hide things. The
+finding stays on the record; it stops standing.
+
+`FINDING_KINDS` is a starting list, not a policy. The owner has not settled
+what counts.
+
+## Open questions this code is waiting on
+
+| | |
+| --- | --- |
+| The seventy challenge texts | The sign-off path is inert without them |
+| What counts as an integrity finding | `FINDING_KINDS` is a guess |
+| Which ladder a member climbs | No rank engine until this is settled |
+| Who may move somebody along the journey | Compliance-only today, which may be too tight |
+
 ## What is deliberately not here
 
 No rank engine. `QuestPoints` stores and totals; what a total means is the
