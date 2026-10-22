@@ -208,6 +208,8 @@ if ($isVol) {
 $mreqWaiting = class_exists('MemberRequests') ? count(array_filter(MemberRequests::mine((int) $u['id']), static fn($r) => $r['status'] === 'pending')) : 0;
 $nav['You'] = [
     ['diary', 'Diary', 'gray', $myEntries ? (string) count($myEntries) : ''],
+    /* Everybody is a part of the Vanguard Quest, so everybody has this. */
+    ['quest', 'The Quest', 'gray', ''],
     ['membership', ($isOrg ? 'Membership' : 'Account'), $mreqWaiting ? 'gold' : 'gray', $mreqWaiting ? (string) $mreqWaiting : ''],
     ['requests', 'Finance requests', 'gray', ''],
 ];
@@ -340,6 +342,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
       </section>
 <?php endif; ?>
 <?php
+        require __DIR__ . '/views/quest.php';
         require __DIR__ . '/views/membership.php';
         require __DIR__ . '/views/requests.php';
         require __DIR__ . '/views/diary.php';

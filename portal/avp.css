@@ -494,3 +494,19 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 .avp-req-intro { margin: 0 0 16px; color: var(--avp-muted); max-width: 62ch; }
 .avp-req-h3 { margin: 18px 0 8px; font-size: 15px; }
 .avp-today-ask { margin: 0 0 16px; }
+
+/* The Quest (views/quest.php) */
+.avp-quest-intro { margin: 0 0 16px; color: var(--avp-muted); max-width: 62ch; }
+.avp-quest .avp-kpis { margin-bottom: 0; }
+.avp-quest-levels { margin-bottom: 14px; }
+.avp-quest-values { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.avp-quest-values th, .avp-quest-values td { padding: 9px 0; border-bottom: 1px solid var(--avp-line); text-align: left; }
+.avp-quest-values thead th { font-size: 12.5px; font-weight: 600; color: var(--avp-muted); }
+.avp-quest-values tbody th { font-weight: 600; color: var(--avp-ink); }
+.avp-quest-values td { text-align: right; }
+.avp-quest-values thead th:not(:first-child) { text-align: right; }
+.avp-quest-values + .avp-note { margin-top: 14px; }
+.avp-quest-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14.5px; }
+.avp-quest-list:last-child { margin-bottom: 0; }
+.avp-quest-pts { font-weight: 700; color: var(--avp-green-tx); }
+.avp-quest-when { font-size: 12.5px; color: var(--avp-muted); }

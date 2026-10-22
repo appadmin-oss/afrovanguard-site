@@ -75,7 +75,12 @@ final class Quest
     public static function isOfficial(string $id): bool
     {
         $c = self::challenge($id);
-        return $c !== null && ($c['status'] ?? '') === 'official' && trim((string) ($c['text'] ?? '')) !== '';
+        return $c !== null && self::written($c);
+    }
+
+    private static function written(array $c): bool
+    {
+        return ($c['status'] ?? '') === 'official' && trim((string) ($c['text'] ?? '')) !== '';
     }
 
     /** The value a challenge belongs to, or '' if there is no such challenge. */
@@ -90,17 +95,38 @@ final class Quest
         return array_filter(self::challenges(), static fn($c) => (string) $c['value'] === $valueId);
     }
 
-    /** How many of the seventy this member has signed off, and out of how many. */
+    /**
+     * How many of the seventy this member has signed off, and out of how many.
+     * One query: only ids that are still challenges count, so a grant under a
+     * slot the registry no longer has does not inflate the number.
+     */
     public static function progress(int $memberId): array
     {
         $all = self::challenges();
-        $done = 0;
-        if ($memberId > 0 && class_exists('QuestPoints')) {
-            foreach (array_keys($all) as $id) {
-                if (QuestPoints::granted($memberId, 'challenge:' . $memberId . ':' . $id)) $done++;
-            }
+        $done = class_exists('QuestPoints') ? QuestPoints::challengesDone($memberId) : [];
+        return ['done' => count(array_intersect_key($all, array_flip($done))), 'total' => count($all)];
+    }
+
+    /**
+     * The same, per value, for a member's page: the seven in order, each with
+     * its done and total, and whether any of its slots has been written yet.
+     * @return array<string,array{name:string,done:int,total:int,written:int}>
+     */
+    public static function progressByValue(int $memberId): array
+    {
+        $done = array_flip(class_exists('QuestPoints') ? QuestPoints::challengesDone($memberId) : []);
+        $out = [];
+        foreach (self::values() as $id => $v) {
+            $out[$id] = ['name' => (string) ($v['name'] ?? $id), 'done' => 0, 'total' => 0, 'written' => 0];
         }
-        return ['done' => $done, 'total' => count($all)];
+        foreach (self::challenges() as $id => $c) {
+            $v = (string) ($c['value'] ?? '');
+            if (!isset($out[$v])) continue;
+            $out[$v]['total']++;
+            if (isset($done[$id])) $out[$v]['done']++;
+            if (self::written($c)) $out[$v]['written']++;
+        }
+        return $out;
     }
 
     /** @return array<int,array> the ladder, lowest first */

@@ -118,6 +118,29 @@ final class QuestPoints
         } catch (Throwable $e) { return false; }
     }
 
+    /**
+     * The challenges this member has signed off, in one query. A sign-off is
+     * a grant under `challenge:<member>:<challenge>`, so the ledger already
+     * knows; asking it seventy times, once per slot, was the old way.
+     * @return string[] challenge ids, e.g. 'diligence.4'
+     */
+    public static function challengesDone(int $memberId): array
+    {
+        if ($memberId <= 0) return [];
+        self::ensure();
+        $prefix = 'challenge:' . $memberId . ':';
+        try {
+            $st = Database::pdo()->prepare('SELECT period FROM quest_points WHERE member_id = ? AND period LIKE ?');
+            $st->execute([$memberId, $prefix . '%']);
+            $out = [];
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $p) {
+                $p = (string) $p;
+                if (str_starts_with($p, $prefix)) $out[] = substr($p, strlen($prefix));
+            }
+            return $out;
+        } catch (Throwable $e) { return []; }
+    }
+
     /** @return array<int,array{day:string,points:int,reason:string,note:string}> newest first */
     public static function recent(int $memberId, int $limit = 10): array
     {

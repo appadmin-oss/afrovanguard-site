@@ -114,7 +114,10 @@ correct: it is built, tested end to end against a registry the test supplies,
 and will start working the moment the wording arrives — the ids are already
 stable.
 
-`Quest::progress($memberId)` returns `['done' => n, 'total' => 70]`.
+`Quest::progress($memberId)` returns `['done' => n, 'total' => 70]`, and
+`Quest::progressByValue($memberId)` the same per value. Both read
+`QuestPoints::challengesDone()` — **one query**, not one per slot — and count
+only ids the registry still has.
 
 ## A member's record
 
@@ -179,8 +182,29 @@ ladder's business, and the ladder is not built. `lib/Levels.php` runs a
 different ladder on different criteria — see `van-quest/inventory/conflicts.md`,
 finding 2 — and reconciling them is blocked on the owner.
 
+## The member's page — Portal → You → The Quest
+
+`portal/views/quest.php`, in every account's menu, because everybody is a part
+of the Quest. It reads `QuestRecord::of()` and nothing else decides anything.
+
+| In order | Why |
+| --- | --- |
+| Journey level, Visitor (0) to Vanguard (4) | It leads. Most of the register is at zero points for a long time, and a page that opens on a number tells them the Quest is not about them |
+| Quest points, challenges proved, people mentored | Quest points are named as separate from the gate pass's attendance points |
+| An open integrity finding | Only while one stands — the doctrine says it is visible while it stands. Its kind and date, never its detail |
+| The seven values | Points and challenges proved per value; says plainly that the challenge wording is not yet written |
+| Recently recorded | The last six grants, with an empty state |
+
+**No rank on it, on purpose.** Which ladder stands is still question 14. The
+letter on Today and on the ID card is `Levels`, a different ladder on different
+criteria; showing it here as "your Quest rank" would answer the question by
+accident. Add the rank beside the journey once the ladder is decided.
+
+`tests/questview.test.php` holds the order, the absent rank, and the finding's
+visibility (fixtures 9800–9899).
+
 ## Screens still showing the gate's number
 
 `gate-pass.php`, `portal/_attendance.php` and `Volunteers.php` read
 `GateAttendance::points()`. That is attendance, and on an attendance screen it
-is the right number. Nothing shows a Quest total yet.
+is the right number.
