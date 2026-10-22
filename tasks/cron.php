@@ -235,6 +235,11 @@ if (class_exists('Promotion')) {
 if (class_exists('QuestLadder')) {
     $result['quest_ladder'] = AiOps::run('quest_ladder', static fn() => QuestLadder::sweep());
 }
+/* The Pyramid Manual's Section 3: a balance past its day brings a suspension and
+   a fine — suggested, once a day, while the reconciliation is switched on. */
+if (class_exists('QuestMoney')) {
+    $result['quest_money'] = AiOps::run('quest_money', static fn() => QuestMoney::sweep());
+}
 
 // The leadership brief (report §21). Weekly and monthly, each self-limiting to
 // one per period, so a five-minute tick produces one brief a week — not 2,016.
