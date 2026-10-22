@@ -46,16 +46,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if ($act === 'import') {
         $rows = $in['rows'] ?? null;
         $cols = null; $unknown = [];
+        $readAs = '';
         if (!is_array($rows)) {
-            $p = NgvFines::parseCsv((string) ($in['csv'] ?? ''));
+            /* A workbook, a CSV with or without headings, or a typed list (NgvFines::parseAny). */
+            $p = NgvFines::parseAny((string) ($in['csv'] ?? ''), (string) ($in['xlsx'] ?? ''));
             if (!$p['ok']) json_out($p);
-            $rows = $p['rows']; $cols = $p['columns']; $unknown = $p['unknown_columns'];
+            $rows = $p['rows']; $cols = $p['columns']; $unknown = $p['unknown_columns']; $readAs = (string) ($p['read_as'] ?? '');
         }
         if (count($rows) > NgvFines::MAX_ROWS) json_out(['ok' => false, 'error' => 'Too many rows in one import.']);
         $rows = array_map(static fn($r) => array_intersect_key(array_merge(array_fill_keys(NgvFines::COLUMNS, ''), array_map('strval', (array) $r)), array_flip(NgvFines::COLUMNS)), array_values($rows));
         $r = NgvFines::import($rows, ['apply' => !empty($in['apply']), 'expect_digest' => (string) ($in['digest'] ?? ''), 'notify' => !empty($in['notify']),
                                       'by' => $by, 'source' => (string) ($in['source'] ?? '')]);
-        json_out($r + ['sheet' => $rows, 'columns' => $cols, 'unknown_columns' => $unknown]);
+        json_out($r + ['sheet' => $rows, 'columns' => $cols, 'unknown_columns' => $unknown, 'read_as' => $readAs]);
     }
     json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
 }
@@ -209,12 +211,12 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
   <section class="card" aria-labelledby="h-imp" id="import">
     <header><h2 id="h-imp">Import fines</h2><span class="sp"></span><a class="btn sm" id="tpl" href="#" download="ngv-fines.csv">Download a template</a></header>
     <div class="body">
-      <p class="sub" style="margin-top:0">A spreadsheet saved as CSV, one fine a row. Say who with any of <b>NGV ID</b>, <b>Email</b>, <b>Phone</b> or <b>Name</b> — each row is matched to the member it is for — any Afrovanguard member, NGV or not — close spellings included. A row that could be two people is never guessed: you choose. <b>Amount</b> blank takes the usual amount; <b>Reason</b> can be plain words (“came in late”, “no ID card”); <b>Date</b> blank is today. Nothing is charged until you have checked the sheet and press Import.</p>
+      <p class="sub" style="margin-top:0">An Excel workbook, a CSV, or a list pasted from anywhere — WhatsApp, a note, an email — one fine a line (“Tunde Bakare – late – 12 Oct – 2k”). Columns are read by their headings, or worked out from what is in them when there are none. Say who with any of <b>NGV ID</b>, <b>Email</b>, <b>Phone</b> or <b>Name</b> — each row is matched to the member it is for — any Afrovanguard member, NGV or not — close spellings included. A row that could be two people is never guessed: you choose. <b>Amount</b> blank takes the usual amount; <b>Reason</b> can be plain words (“came in late”, “no ID card”); <b>Date</b> blank is today. Nothing is charged until you have checked the sheet and press Import. A fine the gate or the desk already gave for the same thing that day is not charged twice; someone fined for the same thing often is pointed out; and when you choose who a row is for, the next sheet that says it the same way is matched for you.</p>
       <div class="row">
-        <label>File <input type="file" id="m_file" accept=".csv,text/csv,text/plain"></label>
+        <label>File <input type="file" id="m_file" accept=".xlsx,.csv,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
         <label class="check"><input type="checkbox" id="m_notify"> Tell each member (email and portal)</label>
       </div>
-      <details style="margin-top:10px"><summary class="sub" style="cursor:pointer">…or paste it</summary>
+      <details style="margin-top:10px"><summary class="sub" style="cursor:pointer">…or paste it — a sheet or a typed list</summary>
         <textarea id="m_csv" placeholder="Name,NGV ID,Amount,Reason,Date,Note&#10;Adebayo Bello,A-NGV-25-0001,,late,29/09/2026,"></textarea>
       </details>
       <div class="row" style="margin-top:10px"><button class="btn primary" id="m_check" type="button">Check the sheet</button><span class="sub" id="m_out" role="status"></span></div>
@@ -388,31 +390,38 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
 
   /* ── Import ── */
   var COLS = [['name', 'Name'], ['id', 'NGV ID'], ['email', 'Email'], ['phone', 'Phone'], ['amount', 'Amount'], ['reason', 'Reason'], ['date', 'Date'], ['note', 'Note']];
-  var sheet = null, report = null, digest = '', dirty = false, source = '', view = 'attention';
+  var sheet = null, report = null, digest = '', dirty = false, source = '', view = 'attention', xlsx = '';
   $('tpl').href = 'data:text/csv;charset=utf-8,' + encodeURIComponent('Name,NGV ID,Email,Phone,Amount,Reason,Date,Note\nAdebayo Bello,A-NGV-25-0001,,,,late,29/09/2026,Came in at 7:40\n');
   $('m_file').addEventListener('change', function () {
     var f = this.files && this.files[0]; if (!f) return;
     source = f.name;
+    /* A workbook goes as it is (base64); the server reads its first sheet. */
+    if (/\.xlsx$/i.test(f.name)) {
+      var rb = new FileReader(); rb.onload = function () { var u8 = new Uint8Array(rb.result), bin = ''; for (var i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); xlsx = btoa(bin); $('m_csv').value = ''; check(true); }; rb.readAsArrayBuffer(f);
+      return;
+    }
+    xlsx = '';
     var rd = new FileReader(); rd.onload = function () { $('m_csv').value = String(rd.result || ''); check(true); }; rd.readAsText(f);
   });
-  $('m_check').addEventListener('click', function () { if (!$('m_file').files.length) source = 'pasted'; check(true); });
+  $('m_check').addEventListener('click', function () { if (!$('m_file').files.length) { source = 'pasted'; xlsx = ''; } check(true); });
   $('m_recheck').addEventListener('click', function () { check(false); });
   function check(fromText) {
     $('m_out').textContent = 'Checking…';
     var body = { action: 'import', notify: $('m_notify').checked, source: source };
-    if (fromText || !sheet) body.csv = $('m_csv').value; else body.rows = sheet;
+    if (fromText || !sheet) { if (xlsx) body.xlsx = xlsx; else body.csv = $('m_csv').value; } else body.rows = sheet;
     post(body).then(function (r) {
       if (!r.ok) { $('m_out').textContent = r.error || 'Could not read it.'; return; }
       sheet = r.sheet; report = r; digest = r.digest; dirty = false;
       var c = r.counts;
       $('m_out').textContent = c.ready + ' ready to charge (' + money(r.total) + ')' + (c.ambiguous ? ' · ' + c.ambiguous + ' to choose' : '') + (c.unmatched ? ' · ' + c.unmatched + ' nobody found' : '')
         + (c.invalid ? ' · ' + c.invalid + ' to fix' : '') + (c.already ? ' · ' + c.already + ' already imported' : '') + (c.duplicate ? ' · ' + c.duplicate + ' repeated' : '')
-        + (r.unknown_columns && r.unknown_columns.length ? ' · ignored columns: ' + r.unknown_columns.join(', ') : '');
+        + (r.unknown_columns && r.unknown_columns.length ? ' · ignored columns: ' + r.unknown_columns.join(', ') : '')
+        + (r.read_as ? ' · read as ' + r.read_as : '');
       if (view === 'attention' && !(c.ambiguous + c.unmatched + c.invalid)) view = 'all';
       draw();
     });
   }
-  function counts() { var c = report.counts; return [['attention', 'Needs you', c.ambiguous + c.unmatched + c.invalid], ['ready', 'Ready', c.ready], ['all', 'All rows', sheet.length], ['already', 'Already imported', c.already + c.duplicate]]; }
+  function counts() { var c = report.counts; return [['attention', 'Needs you', c.ambiguous + c.unmatched + c.invalid], ['ready', 'Ready', c.ready], ['all', 'All rows', sheet.length], ['already', 'Already fined', c.already + c.duplicate]]; }
   function draw() {
     $('m_result').hidden = false;
     $('m_tabs').innerHTML = counts().map(function (t) { return '<a href="#" role="tab" aria-selected="' + (view === t[0]) + '" class="' + (view === t[0] ? 'on' : '') + '" data-view="' + t[0] + '">' + t[1] + ' · ' + t[2] + '</a>'; }).join('');

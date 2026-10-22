@@ -325,3 +325,25 @@ NEVER commit api/config.php; camera Permissions-Policy is camera=(self) in
   Vanguard.
 - Tests: `tests/finesanymember.test.php`.
 
+## 2026-10-22 — The fines import, smarter
+
+- **Reads what people have** (`NgvFines::parseAny`): an `.xlsx` workbook (first
+  sheet, read with ZipArchive + SimpleXML; Excel day numbers become dates), a
+  CSV with headings (as before), a CSV or tab sheet with NO headings (each
+  column typed by what most of its cells are: `kindOf()` — email, phone, NGV
+  ID, date, amount, reason, name, note), and a typed list, one fine a line
+  ("Tunde Bakare – late – 12 Oct – 2k"). Amounts read "2k", "₦1,500", "N2000".
+  A day with no year is the last one that has passed. The desk says how it read
+  the sheet (`read_as`).
+- **Remembers who people meant**: when a person picks who a row is for and the
+  import is applied, the row's name, email and phone are remembered for that
+  member (meta `ngv_fine_aliases`, at most 3000). The next sheet that says the
+  same is matched "by what you chose before" — unless that name now belongs
+  exactly to someone else, when it asks again.
+- **No double fines**: a row for a member already fined for the same reason on
+  the same day — by the CACENTRE gate (`late:`/`absent:`/`nocard:` periods), at
+  the desk, or by an earlier import — is "already fined", and says how.
+- **Repeat offences are pointed out**: "3rd late arrival fine in 30 days".
+  Nothing is escalated automatically; the amount is still the catalogue's.
+- Tests: `tests/finessmart.test.php`.
+

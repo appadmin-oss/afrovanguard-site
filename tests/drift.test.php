@@ -148,6 +148,7 @@ $knownMetaKeys = [
     // switched on, which under-charges rather than back-charging a roster.
     'ngv_fees',
     'ngv_fine_catalogue',   // NgvFines: the usual amount for each fine reason
+    'ngv_fine_aliases',     // NgvFines: who a name, email or phone on a fines sheet meant, as a person chose it
     // NGV accrual's place in the roster (NgvLedger::accrueAll). Reviewed: gates
     // no migration. Lost, the next run starts at the first participant again —
     // accrual is idempotent per (member, kind, period), so it charges nothing
