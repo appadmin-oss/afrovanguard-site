@@ -1,5 +1,9 @@
 # The Vanguard Quest — what this repository holds
 
+> **Picking this up fresh?** Read `HANDOFF.md` in `appadmin-oss/van-quest`
+> first — what is built, what is blocked, and four corrections already made
+> that should not be made again.
+
 The Quest's rules live in `appadmin-oss/van-quest`: the seven values, the
 seventy challenges, the ranks, the journey levels, the awardable actions and
 the fines registry, as documents and as JSON. This file covers only what runs
