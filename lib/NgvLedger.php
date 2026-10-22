@@ -1073,7 +1073,9 @@ final class NgvLedger
     private static function postCredit(int $memberId, string $creditKind, string $line, $amount, array $opt, int $byUid): array
     {
         $p = self::participantRow($memberId);
-        if (!$p) return ['ok' => false, 'error' => 'No such participant.'];
+        /* Fines are the one line a member outside NGV has (NgvFines): money
+           against a fine is taken for any active member. */
+        if (!$p && !($line === 'fine' && class_exists('NgvFines') && NgvFines::isMember($memberId))) return ['ok' => false, 'error' => 'No such participant.'];
         if (!in_array($creditKind, self::CREDIT_KINDS, true)) return ['ok' => false, 'error' => 'Unknown credit.'];
         if (!in_array($line, self::CREDIT_LINES, true)) $line = 'other';
         $amount = self::money($amount);
@@ -2048,6 +2050,11 @@ final class NgvLedger
         if (!$p) return null;
         if ((string) ($p['credit_kind'] ?? 'payment') !== 'payment') return null;
         $who = self::participantRow((int) $p['member_id']) ?: [];
+        /* A fine paid by a member outside NGV: their name and email are the portal's. */
+        if (!$who) {
+            try { $u = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?'); $u->execute([(int) $p['member_id']]); $who = $u->fetch(PDO::FETCH_ASSOC) ?: []; }
+            catch (Throwable $e) { $who = []; }
+        }
         return [
             'id' => (int) $p['id'],
             'no' => self::receiptNo($p),

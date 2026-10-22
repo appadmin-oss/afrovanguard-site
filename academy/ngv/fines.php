@@ -3,9 +3,9 @@
  * academy/ngv/fines.php — NextGen Vanguard fines, for staff.
  *
  * One desk for fines (lib/NgvFines.php): what is owing, every fine with where
- * it stands, issuing a fine to one vanguard or a whole group, the usual amount
+ * it stands, issuing a fine to one member or a whole group, the usual amount
  * for each reason, and importing fines from a spreadsheet — each row assigned
- * to the vanguard it is for, and any row that could be two people shown with
+ * to the member it is for — any Afrovanguard member, NGV or not (NgvFines) — and any row that could be two people shown with
  * the candidates for a person to choose. The import sheet can be corrected
  * right here, row by row, and checked again before anything is charged.
  *
@@ -37,6 +37,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     }
     if ($act === 'waive') json_out(NgvFines::waiveOne((int) ($in['id'] ?? 0), (string) ($in['why'] ?? ''), $by));
     if ($act === 'void') json_out(NgvFines::voidOne((int) ($in['id'] ?? 0), (string) ($in['why'] ?? ''), $by));
+    if ($act === 'pay') json_out(NgvFines::payOne((int) ($in['id'] ?? 0), $in['amount'] ?? '', (string) ($in['method'] ?? ''), (string) ($in['reference'] ?? ''), $by));
     if ($act === 'catalogue') {
         $r = NgvFines::saveCatalogue((array) ($in['amounts'] ?? []));
         if ($r['ok'] && class_exists('AdminAudit')) AdminAudit::log('ngv', 'ngv_fine_catalogue', 'ngv:fines', 'Usual fine amounts changed');
@@ -174,14 +175,14 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
 </header>
 <main class="wrap">
   <section class="stats" aria-label="Fines at a glance">
-    <div class="stat"><div class="k">Outstanding</div><div class="v"><?= $nm((int) $sum['outstanding']) ?></div><div class="s"><?= (int) $sum['owing_members'] ?> vanguard<?= (int) $sum['owing_members'] === 1 ? '' : 's' ?> owing</div></div>
+    <div class="stat"><div class="k">Outstanding</div><div class="v"><?= $nm((int) $sum['outstanding']) ?></div><div class="s"><?= (int) $sum['owing_members'] ?> member<?= (int) $sum['owing_members'] === 1 ? '' : 's' ?> owing</div></div>
     <div class="stat"><div class="k">This month</div><div class="v"><?= $nm((int) $sum['this_month']) ?></div><div class="s"><?= (int) $sum['this_month_n'] ?> fine<?= (int) $sum['this_month_n'] === 1 ? '' : 's' ?> issued</div></div>
     <div class="stat"><div class="k">Settled</div><div class="v"><?= (int) $sum['settled'] ?></div><div class="s">paid in full</div></div>
     <div class="stat"><div class="k">Waived</div><div class="v"><?= (int) $sum['waived'] ?></div><div class="s">set aside, kept on record</div></div>
   </section>
 
   <section class="card" aria-labelledby="h-issue" id="issue">
-    <header><h2 id="h-issue">Issue a fine</h2><span class="sp"></span><span class="sub">to one vanguard, or a whole group at once</span></header>
+    <header><h2 id="h-issue">Issue a fine</h2><span class="sp"></span><span class="sub">to one member, or a whole group at once — NGV or not</span></header>
     <div class="body">
       <div class="row">
         <div class="lbl picker">Who
@@ -208,10 +209,10 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
   <section class="card" aria-labelledby="h-imp" id="import">
     <header><h2 id="h-imp">Import fines</h2><span class="sp"></span><a class="btn sm" id="tpl" href="#" download="ngv-fines.csv">Download a template</a></header>
     <div class="body">
-      <p class="sub" style="margin-top:0">A spreadsheet saved as CSV, one fine a row. Say who with any of <b>NGV ID</b>, <b>Email</b>, <b>Phone</b> or <b>Name</b> — each row is matched to the vanguard it is for, close spellings included. A row that could be two people is never guessed: you choose. <b>Amount</b> blank takes the usual amount; <b>Reason</b> can be plain words (“came in late”, “no ID card”); <b>Date</b> blank is today. Nothing is charged until you have checked the sheet and press Import.</p>
+      <p class="sub" style="margin-top:0">A spreadsheet saved as CSV, one fine a row. Say who with any of <b>NGV ID</b>, <b>Email</b>, <b>Phone</b> or <b>Name</b> — each row is matched to the member it is for — any Afrovanguard member, NGV or not — close spellings included. A row that could be two people is never guessed: you choose. <b>Amount</b> blank takes the usual amount; <b>Reason</b> can be plain words (“came in late”, “no ID card”); <b>Date</b> blank is today. Nothing is charged until you have checked the sheet and press Import.</p>
       <div class="row">
         <label>File <input type="file" id="m_file" accept=".csv,text/csv,text/plain"></label>
-        <label class="check"><input type="checkbox" id="m_notify"> Tell each vanguard (email and portal)</label>
+        <label class="check"><input type="checkbox" id="m_notify"> Tell each member (email and portal)</label>
       </div>
       <details style="margin-top:10px"><summary class="sub" style="cursor:pointer">…or paste it</summary>
         <textarea id="m_csv" placeholder="Name,NGV ID,Amount,Reason,Date,Note&#10;Adebayo Bello,A-NGV-25-0001,,late,29/09/2026,"></textarea>
@@ -254,7 +255,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
       <div class="scroll" style="margin-top:12px">
       <?php if (!$list): ?><p class="sub"><?= $filtered ? 'No fine matches.' : 'No fines yet.' ?></p><?php else: ?>
       <table>
-        <thead><tr><th>Day</th><th>Vanguard</th><th>Reason</th><th class="num">Amount</th><th class="num">Owing</th><th>Standing</th><th></th></tr></thead>
+        <thead><tr><th>Day</th><th>Member</th><th>Reason</th><th class="num">Amount</th><th class="num">Owing</th><th>Standing</th><th></th></tr></thead>
         <tbody>
         <?php foreach ($shown as $r): $s = (string) $r['status']; $open = in_array($s, ['owing', 'part'], true); ?>
           <tr>
@@ -264,7 +265,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
             <td class="num"><?= $nm((int) $r['amount']) ?></td>
             <td class="num"><?= $open ? $nm((int) $r['owing']) : '—' ?></td>
             <td><span class="pill s-<?= $e($s) ?>"><?= $e($stLabel[$s] ?? $s) ?></span></td>
-            <td style="white-space:nowrap"><?php if ($open): ?><button class="btn sm" data-waive="<?= (int) $r['id'] ?>">Waive</button> <?php endif; ?><?php if ($s !== 'voided'): ?><button class="btn sm" data-void="<?= (int) $r['id'] ?>">Void</button><?php endif; ?></td>
+            <td style="white-space:nowrap"><?php if ($open): ?><button class="btn sm" data-pay="<?= (int) $r['id'] ?>" data-owing="<?= (int) $r['owing'] ?>">Record payment</button> <button class="btn sm" data-waive="<?= (int) $r['id'] ?>">Waive</button> <?php endif; ?><?php if ($s !== 'voided'): ?><button class="btn sm" data-void="<?= (int) $r['id'] ?>">Void</button><?php endif; ?></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
@@ -272,7 +273,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
       <?php if (count($list) > count($shown)): ?><p class="sub">Showing the newest <?= count($shown) ?>. Narrow the filters to see others.</p><?php endif; ?>
       <?php endif; ?>
       </div>
-      <p class="sub" style="margin-bottom:0"><b>Waive</b> sets aside what is left of a fine, with a reason — it stays on record. <b>Void</b> says it should never have been issued. A payment is recorded on the vanguard's account on the <a href="/academy/ngv/members.php">Vanguards</a> page.</p>
+      <p class="sub" style="margin-bottom:0"><b>Waive</b> sets aside what is left of a fine, with a reason — it stays on record. <b>Void</b> says it should never have been issued. <b>Record payment</b> takes money paid at the office or by transfer against a fine — for any member, NGV or not; a vanguard's payments can also be recorded on their account on the <a href="/academy/ngv/members.php">Vanguards</a> page.</p>
     </div>
   </section>
 
@@ -313,7 +314,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
         post({ action: 'people', q: q }).then(function (r) {
           if (mine !== seq) return;
           var list = (r && r.people) || [];
-          box.innerHTML = list.length ? list.map(function (p) { return '<button type="button" data-id="' + p.id + '" data-name="' + esc(p.name) + '">' + esc(p.name) + '<small>' + esc(p.detail) + '</small></button>'; }).join('') : '<div class="sub" style="padding:.5rem .7rem">No vanguard by that.</div>';
+          box.innerHTML = list.length ? list.map(function (p) { return '<button type="button" data-id="' + p.id + '" data-name="' + esc(p.name) + '">' + esc(p.name) + '<small>' + esc(p.detail) + '</small></button>'; }).join('') : '<div class="sub" style="padding:.5rem .7rem">Nobody by that.</div>';
           box.hidden = false;
         });
       }, 180);
@@ -332,7 +333,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
   function drawChips() {
     $('i_chips').innerHTML = chosen.length ? chosen.map(function (p, i) { return '<span class="chip">' + esc(p.name) + '<button type="button" aria-label="Remove ' + esc(p.name) + '" data-rm="' + i + '">×</button></span>'; }).join('') : '<span class="sub">Nobody chosen yet.</span>';
     $('i_go').disabled = !chosen.length;
-    $('i_go').textContent = chosen.length > 1 ? 'Fine ' + chosen.length + ' vanguards' : 'Issue fine';
+    $('i_go').textContent = chosen.length > 1 ? 'Fine ' + chosen.length + ' members' : 'Issue fine';
   }
   $('i_chips').addEventListener('click', function (ev) { var b = ev.target.closest('[data-rm]'); if (b) { chosen.splice(+b.getAttribute('data-rm'), 1); drawChips(); } });
   picker($('i_find'), $('i_found'), function (p) { if (!chosen.some(function (c) { return c.id === p.id; })) chosen.push(p); drawChips(); });
@@ -358,6 +359,22 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
       var why = prompt(waive ? 'Why is this fine waived? The reason is kept on the record.' : 'Why should this fine never have been issued?');
       if (why === null) return;
       post({ action: waive ? 'waive' : 'void', id: +b.getAttribute(waive ? 'data-waive' : 'data-void'), why: why }).then(function (r) {
+        if (r.ok) location.reload(); else toast(r.error || 'Not saved.', false);
+      });
+    });
+  });
+
+  /* ── A payment against one fine: at the office, by transfer ── */
+  document.querySelectorAll('[data-pay]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var owing = +b.getAttribute('data-owing');
+      var amt = prompt('How much was paid? (₦' + owing.toLocaleString() + ' is owing on this fine.) Like every payment, it comes off this member\'s oldest fine first.', String(owing));
+      if (amt === null) return;
+      var how = prompt('How was it paid? cash, transfer, pos or other', 'cash');
+      if (how === null) return;
+      var ref = prompt('A reference, if there is one (a transfer reference, a receipt book number). Leave it blank if not.', '');
+      if (ref === null) return;
+      post({ action: 'pay', id: +b.getAttribute('data-pay'), amount: amt.replace(/[^\d.]/g, ''), method: how.trim().toLowerCase(), reference: ref }).then(function (r) {
         if (r.ok) location.reload(); else toast(r.error || 'Not saved.', false);
       });
     });
@@ -411,7 +428,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
       if (r.member) who = '<b>' + esc(r.member.name) + '</b><div class="why">by ' + esc(r.how) + '</div>';
       else if (r.status === 'ambiguous') who = '<select data-assign="' + r.i + '" aria-label="Who row ' + (r.i + 2) + ' is for"><option value="">Choose who…</option>' + r.candidates.map(function (c) { return '<option value="' + c.id + '">' + esc(c.name) + ' (' + c.score + '%) ' + esc(c.detail) + '</option>'; }).join('') + '</select>';
       else who = '';
-      if (!r.member) who += '<div class="picker" style="min-width:9rem;margin-top:4px"><input data-find="' + r.i + '" placeholder="Find a vanguard" autocomplete="off"><div class="found" hidden></div></div>';
+      if (!r.member) who += '<div class="picker" style="min-width:9rem;margin-top:4px"><input data-find="' + r.i + '" placeholder="Find a member" autocomplete="off"><div class="found" hidden></div></div>';
       var notes = (r.errors || []).map(function (x) { return '<div class="why err">' + esc(x) + '</div>'; }).join('') + (r.warnings || []).map(function (x) { return '<div class="why">' + esc(x) + '</div>'; }).join('');
       var label = { ready: 'Ready', fined: 'Fined', ambiguous: 'Choose', unmatched: 'Nobody found', invalid: 'Fix', already: 'Already', duplicate: 'Repeated' }[r.status] || r.status;
       var extra = r.status === 'ready' || r.status === 'fined' ? '<div class="why">' + money(r.amount) + ' · ' + esc(r.reason_label) + ' · ' + esc(r.day) + '</div>' : '';
@@ -447,7 +464,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
   });
   $('m_apply').addEventListener('click', function () {
     var n = report.counts.ready, held = report.counts.ambiguous + report.counts.unmatched + report.counts.invalid;
-    if (!confirm('Charge ' + n + ' fine' + (n === 1 ? '' : 's') + ' (' + money(report.total) + ')?' + (held ? '\n\n' + held + ' row' + (held === 1 ? '' : 's') + ' that need you will NOT be charged.' : '') + ($('m_notify').checked ? '\n\nEach vanguard will be told.' : ''))) return;
+    if (!confirm('Charge ' + n + ' fine' + (n === 1 ? '' : 's') + ' (' + money(report.total) + ')?' + (held ? '\n\n' + held + ' row' + (held === 1 ? '' : 's') + ' that need you will NOT be charged.' : '') + ($('m_notify').checked ? '\n\nEach member will be told.' : ''))) return;
     var btn = this; btn.disabled = true; btn.textContent = 'Importing…';
     post({ action: 'import', rows: sheet, apply: true, digest: digest, notify: $('m_notify').checked, source: source }).then(function (r) {
       if (!r.ok) { $('m_out').textContent = r.error || 'Not imported.'; if (r.code === 'changed') check(false); else sync(); return; }

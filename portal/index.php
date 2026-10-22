@@ -212,6 +212,10 @@ $nav['You'] = [
     ['requests', 'Finance requests', 'gray', ''],
 ];
 if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gray', ''];
+/* Fines for a member outside NGV (a vanguard's are under NextGen Vanguard):
+   shown once they have had one. */
+$myFines = !$isNgv && class_exists('NgvFines') ? NgvFines::forMember((int) $u['id']) : ['fines' => [], 'owing' => 0, 'open' => 0];
+if ($myFines['fines']) $nav['You'][] = ['fines', 'Fines', $myFines['owing'] > 0 ? 'gold' : 'gray', $myFines['owing'] > 0 ? '₦' . number_format((int) $myFines['owing']) : ''];
 /* The phone bar: five tabs, the design's choice for each role, "More" opens the drawer. */
 $tabs = [['overview', 'Today']];
 $tabs[] = $isOrg ? ['tasks', 'Tasks'] : ($isNgv ? ['ngv', 'Programme'] : ['learning', 'Learning']);
@@ -342,6 +346,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
 <?php
         require __DIR__ . '/views/membership.php';
         require __DIR__ . '/views/requests.php';
+        if ($myFines['fines']) require __DIR__ . '/views/fines.php';
         require __DIR__ . '/views/diary.php';
         if ($isVol) require __DIR__ . '/views/volunteer.php';
 ?>

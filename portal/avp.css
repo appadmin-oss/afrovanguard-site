@@ -494,3 +494,20 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 .avp-req-intro { margin: 0 0 16px; color: var(--avp-muted); max-width: 62ch; }
 .avp-req-h3 { margin: 18px 0 8px; font-size: 15px; }
 .avp-today-ask { margin: 0 0 16px; }
+
+/* A member's own fines (views/fines.php), for a member outside NGV. */
+.avp-fines-intro { margin: 0 0 16px; color: var(--avp-text-2); }
+.avp-fines-total { font-weight: 600; color: var(--avp-text-2); }
+.avp-fines-list { list-style: none; margin: 0; padding: 0; }
+.avp-fine { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--avp-line-2); }
+.avp-fine:last-child { border-bottom: 0; }
+.avp-fine-what { display: flex; flex-direction: column; gap: 2px; }
+.avp-fine-what b { color: var(--avp-ink); }
+.avp-fine-what span { color: var(--avp-muted); font-size: 13px; }
+.avp-fine-amt { flex: 0 0 auto; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--avp-pill); color: var(--avp-ink); white-space: nowrap; }
+.avp-fine-amt.is-red { background: var(--avp-red-bg); color: var(--avp-red-tx); }
+.avp-fine-amt.is-gold { background: var(--avp-gold-bg); color: var(--avp-gold-tx); }
+.avp-fine-amt.is-green { background: var(--avp-green-bg); color: var(--avp-green-tx); }
+.avp-fine-amt.is-indigo { background: var(--avp-indigo-bg); color: var(--avp-indigo-tx); }
+.avp-fines-how { margin: 14px 0 0; color: var(--avp-text-2); font-size: 14px; }
+

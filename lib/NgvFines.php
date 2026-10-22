@@ -19,6 +19,13 @@
  *     spellings included — and a row that could be more than one person is
  *     never guessed at: it is shown with the candidates, and a person picks.
  *
+ * ANY MEMBER can be fined, not only NGV participants: every active portal
+ * member (MemberRoster::memberWhere) is on the roll. A member who is not in
+ * NGV has the same ledger line (ngv_charges, kind `fine`, keyed by their
+ * portal id — one id space for both), sees their fines under Fines in their
+ * own portal, and pays at the office: the desk records it (payOne). The NGV
+ * account's other lines — fees, Paystack, reminders — stay NGV-only.
+ *
  * An import is a dry run until the dry run that was read is applied, and a row
  * already imported is never charged twice (each row's identity is its member,
  * reason, amount, day and note, used as the ledger's idempotency key).
@@ -86,16 +93,18 @@ final class NgvFines
         }
         $note = trim($note);
         $dated = $day !== self::today() ? ($note !== '' ? $note . ' ' : '') . '(' . date('j M Y', (int) strtotime($day . 'T12:00:00')) . ')' : $note;
-        if ($key === '') {
+        $isNgv = (bool) NgvMember::participant($memberId);
+        if (!$isNgv && !self::isMember($memberId)) return ['ok' => false, 'status' => 'refused', 'error' => 'Not an active member.'];
+        if ($key === '' && $isNgv) {
             $r = NgvLedger::charge($memberId, 'fine', $n, $reason, $dated, $by);
             if (empty($r['ok'])) return ['ok' => false, 'status' => 'refused', 'error' => (string) ($r['error'] ?? 'Not posted.')];
             $id = (int) $r['entryId'];
         } else {
-            /* An imported fine: the same row the ledger's own charge() writes,
-               but under the row's identity, so a re-import is one fine. */
-            if (!NgvMember::participant($memberId)) return ['ok' => false, 'status' => 'refused', 'error' => 'Not an NGV participant.'];
+            /* An imported fine, or one for a member outside NGV: the same row
+               the ledger's own charge() writes. An import's is under the row's
+               identity, so a re-import is one fine. */
             $label = NgvLedger::FINE_REASONS[$reason];
-            $id = NgvLedger::postCharge($memberId, 'fine', $n, 'imp:' . $key,
+            $id = NgvLedger::postCharge($memberId, 'fine', $n, $key !== '' ? 'imp:' . $key : 'fine:' . bin2hex(random_bytes(5)),
                 ['reason' => $reason, 'note' => $dated !== '' ? $label . ' — ' . $dated : $label, 'source' => 'staff', 'by' => $by]);
             if ($id === null) return ['ok' => true, 'status' => 'already', 'amount' => $n];
             if (class_exists('AdminAudit')) {
@@ -106,6 +115,37 @@ final class NgvFines
         $pdo->prepare('INSERT INTO ngv_fine_meta (charge_id, occurred_on, import_run) VALUES (?, ?, ?)')->execute([$id, $day, mb_substr($importRun, 0, 64)]);
         if ($notify) self::tell($memberId, $id, $reason, $n, $note, $day);
         return ['ok' => true, 'status' => 'fined', 'entryId' => $id, 'amount' => $n, 'overCap' => !empty($r['overCap'])];
+    }
+
+    /** An active portal member, NGV or not: somebody a fine can be for. */
+    public static function isMember(int $memberId): bool
+    {
+        if ($memberId <= 0) return false;
+        try {
+            $where = class_exists('MemberRoster') ? ' AND ' . MemberRoster::memberWhere() : '';
+            $st = Database::pdo()->prepare("SELECT 1 FROM lms_users u WHERE u.id = ? AND u.status = 'active'{$where}");
+            $st->execute([$memberId]);
+            return (bool) $st->fetchColumn();
+        } catch (Throwable $e) { return false; }
+    }
+
+    /**
+     * Money received for a fine — at the office, by transfer — recorded on
+     * the member's fines line. Like every payment on the ledger it comes off
+     * their oldest fine (the first recorded) first, not necessarily the one
+     * clicked; capped at what is owing on the fine it was recorded from. Any
+     * member: this is how one outside NGV pays.
+     */
+    public static function payOne(int $chargeId, $amount, string $method, string $reference, int $by): array
+    {
+        $f = self::find($chargeId);
+        if (!$f) return ['ok' => false, 'error' => 'No such fine.'];
+        if ((int) $f['owing'] <= 0) return ['ok' => false, 'error' => 'Nothing is owing on this fine.'];
+        $n = NgvLedger::money($amount);
+        if ($n <= 0) $n = (int) $f['owing'];
+        if ($n > (int) $f['owing']) return ['ok' => false, 'error' => 'That is more than is owing on this fine (' . NgvLedger::money_text((int) $f['owing']) . ').'];
+        $method = in_array($method, ['cash', 'transfer', 'pos', 'other'], true) ? $method : 'cash';
+        return NgvLedger::payment((int) $f['member_id'], 'fine', $n, ['method' => $method, 'reference' => trim($reference), 'note' => 'Fine: ' . (string) $f['label']], $by);
     }
 
     /** Fine several members the same way. One result per member. */
@@ -128,21 +168,30 @@ final class NgvFines
         $p = NgvDb::pdo()->prepare('SELECT name, email FROM ngv_participants WHERE member_id = ?');
         $p->execute([$memberId]);
         $who = $p->fetch(PDO::FETCH_ASSOC) ?: [];
+        $ngv = (bool) $who;
+        if (!$who) {
+            $u = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?');
+            $u->execute([$memberId]);
+            $who = $u->fetch(PDO::FETCH_ASSOC) ?: [];
+        }
+        $where = $ngv ? 'NGV account' : 'Afrovanguard account';
+        $href = $ngv ? '/portal/#ngv-fines' : '/portal/#fines';
         $label = NgvLedger::FINE_REASONS[$reason] ?? 'Fine';
         $line = NgvLedger::money_text($amount) . ' — ' . $label . ($note !== '' ? ': ' . $note : '') . ', ' . date('j M Y', (int) strtotime($day . 'T12:00:00')) . '.';
         $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : '';
         if (class_exists('Mailer') && !empty($who['email'])) {
             $first = trim(explode(' ', trim((string) ($who['name'] ?? '')))[0]) ?: 'there';
             $esc = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-            $html = Mailer::shell('A fine on your NGV account', [
+            $html = Mailer::shell('A fine on your ' . $where, [
                 'Hi ' . $esc($first) . ',',
-                'A fine has been recorded on your NextGen Vanguard account: <b>' . $esc($line) . '</b>',
-                'You can see it, and everything else on your account, in your portal. If you think it is wrong, or this is a hard month, say so from there — a person will answer.',
-            ], ['url' => $site . '/portal/#ngv-fines', 'text' => 'See my fines'], $line);
-            try { @Mailer::send((string) $who['email'], 'A fine on your NGV account — ' . NgvLedger::money_text($amount), $html); } catch (Throwable $e) { error_log('[fines] mail: ' . $e->getMessage()); }
+                'A fine has been recorded on your ' . ($ngv ? 'NextGen Vanguard' : 'Afrovanguard') . ' account: <b>' . $esc($line) . '</b>',
+                $ngv ? 'You can see it, and everything else on your account, in your portal. If you think it is wrong, or this is a hard month, say so from there — a person will answer.'
+                     : 'You can see it in your portal, under Fines, with how to pay it. If you think it is wrong, tell the office — a person will answer.',
+            ], ['url' => $site . $href, 'text' => 'See my fines'], $line);
+            try { @Mailer::send((string) $who['email'], 'A fine on your ' . $where . ' — ' . NgvLedger::money_text($amount), $html); } catch (Throwable $e) { error_log('[fines] mail: ' . $e->getMessage()); }
         }
         if (class_exists('Notifications')) {
-            try { Notifications::push($memberId, 'ngv_fees', 'A fine on your NGV account', $line, '/portal/#ngv-fines'); } catch (Throwable $e) {}
+            try { Notifications::push($memberId, 'ngv_fees', 'A fine on your ' . $where, $line, $href); } catch (Throwable $e) {}
         }
         NgvDb::pdo()->prepare('UPDATE ngv_fine_meta SET notified_at = ' . NgvDb::nowExpr() . ' WHERE charge_id = ?')->execute([$chargeId]);
     }
@@ -167,6 +216,15 @@ final class NgvFines
                               WHERE c.kind = 'fine'" . ($one > 0 ? ' AND c.member_id = ?' : '') . " ORDER BY c.id ASC");
         $st->execute($one > 0 ? [$one] : []);
         $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+        /* A member outside NGV has no participant row: their name is the portal's. One query. */
+        $missing = array_values(array_unique(array_map(static fn($r) => (int) $r['member_id'], array_filter($rows, static fn($r) => (string) ($r['name'] ?? '') === ''))));
+        if ($missing) {
+            $names = [];
+            try { foreach (Database::pdo()->query('SELECT id, name, email FROM lms_users WHERE id IN (' . implode(',', $missing) . ')')->fetchAll(PDO::FETCH_ASSOC) as $u) $names[(int) $u['id']] = $u; }
+            catch (Throwable $e) { /* names stay blank */ }
+            foreach ($rows as &$r0) if ((string) ($r0['name'] ?? '') === '' && isset($names[(int) $r0['member_id']])) { $r0['name'] = (string) $names[(int) $r0['member_id']]['name']; $r0['email'] = (string) $names[(int) $r0['member_id']]['email']; }
+            unset($r0);
+        }
         $credits = [];
         $st = $pdo->prepare("SELECT member_id, credit_kind, SUM(amount) s FROM ngv_payments WHERE kind = 'fine' AND voided = 0" . ($one > 0 ? ' AND member_id = ?' : '') . " GROUP BY member_id, credit_kind");
         $st->execute($one > 0 ? [$one] : []);
@@ -376,8 +434,18 @@ final class NgvFines
         $pop = [];
         foreach (NgvDb::pdo()->query("SELECT member_id, name, email, status FROM ngv_participants")->fetchAll(PDO::FETCH_ASSOC) as $p) {
             $pop[(int) $p['member_id']] = ['id' => (int) $p['member_id'], 'name' => (string) $p['name'], 'email' => strtolower((string) $p['email']),
-                'status' => (string) $p['status'], 'phone' => '', 'cards' => [], 'emails' => array_filter([strtolower((string) $p['email'])])];
+                'status' => (string) $p['status'], 'phone' => '', 'cards' => [], 'emails' => array_filter([strtolower((string) $p['email'])]), 'ngv' => true];
         }
+        /* And every active portal member who is not in NGV: anybody can be fined. */
+        try {
+            $where = class_exists('MemberRoster') ? ' AND ' . MemberRoster::memberWhere() : '';
+            foreach (Database::pdo()->query("SELECT u.id, u.name, u.email FROM lms_users u WHERE u.status = 'active'{$where}")->fetchAll(PDO::FETCH_ASSOC) as $u) {
+                $id = (int) $u['id'];
+                if (isset($pop[$id])) continue;
+                $pop[$id] = ['id' => $id, 'name' => (string) $u['name'], 'email' => strtolower((string) $u['email']), 'status' => 'active',
+                    'phone' => '', 'cards' => [], 'emails' => array_filter([strtolower((string) $u['email'])]), 'ngv' => false];
+            }
+        } catch (Throwable $e) { error_log('[ngvfines] members: ' . $e->getMessage()); }
         if (!$pop) return self::$pop = $pop;
         $ids = implode(',', array_keys($pop));
         $main = Database::pdo();
@@ -403,7 +471,8 @@ final class NgvFines
     private static function shape(array $p, int $score = 100): array
     {
         $card = $p['cards'][0] ?? '';
-        return ['id' => $p['id'], 'name' => $p['name'], 'detail' => trim(implode(' · ', array_filter([$card, $p['emails'][0] ?? $p['email'], $p['status'] !== 'active' ? $p['status'] : '']))), 'score' => $score];
+        return ['id' => $p['id'], 'name' => $p['name'], 'ngv' => !empty($p['ngv']),
+                'detail' => trim(implode(' · ', array_filter([empty($p['ngv']) ? 'member' : 'NGV', $card, $p['emails'][0] ?? $p['email'], $p['status'] !== 'active' ? $p['status'] : '']))), 'score' => $score];
     }
 
     /**
@@ -549,10 +618,12 @@ final class NgvFines
     {
         $st = NgvDb::pdo()->prepare('SELECT name FROM ngv_participants WHERE member_id = ?');
         $st->execute([$mid]);
-        return (string) ($st->fetchColumn() ?: ('#' . $mid));
+        $n = (string) ($st->fetchColumn() ?: '');
+        if ($n === '') { $u = Database::pdo()->prepare('SELECT name FROM lms_users WHERE id = ?'); $u->execute([$mid]); $n = (string) ($u->fetchColumn() ?: ''); }
+        return $n !== '' ? $n : '#' . $mid;
     }
 
-    /** Vanguards by name, for "who is this fine for" pickers. */
+    /** Members by name — NGV or not — for "who is this fine for" pickers. */
     public static function people(string $q): array
     {
         $q = trim($q);

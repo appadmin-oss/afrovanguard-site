@@ -304,3 +304,24 @@ NEVER commit api/config.php; camera Permissions-Policy is camera=(self) in
   `tests/integration/gate-e2e.php` renames a location in CACENTRE and sees it
   arrive here through the real gate.
 
+## 2026-10-22 — Fines for any member, not only NGV participants
+
+- `NgvFines` fines any active portal member (`MemberRoster::memberWhere`), NGV
+  or not. The roll (`population()`) is the NGV participants plus every active
+  member, each marked `ngv`; the desk's picker and the spreadsheet import match
+  them the same way (NGV ID, card, email, phone, name).
+- Same ledger: a member outside NGV gets `ngv_charges` rows of kind `fine`
+  under their portal id (one id space). `issue()` posts directly for them
+  (`NgvLedger::charge()` stays participant-only for fees). `NgvLedger::postCredit`
+  accepts the `fine` line for any member, so a payment, waiver or void works;
+  `receiptFor()` takes name and email from `lms_users` when there is no
+  participant row. Fees, Paystack and reminders stay NGV-only.
+- The fines desk (`/academy/ngv/fines.php`) has **Record payment** on an open
+  fine (`NgvFines::payOne`: cash, transfer, POS or other, with a reference).
+  Like every payment it comes off the member's oldest fine first.
+- The portal: a member outside NGV who has had a fine gets **Fines** under You
+  (`portal/views/fines.php`); the email and notification say "Afrovanguard
+  account" and link there. A vanguard's fines are unchanged, under NextGen
+  Vanguard.
+- Tests: `tests/finesanymember.test.php`.
+
