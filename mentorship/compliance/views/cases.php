@@ -43,6 +43,7 @@ $what = static function (array $c): string {
             <button class="avp-btn avp-btn--sq qd-btn-danger" type="submit" name="op" value="bulk_reject">Reject</button>
           </div>
           <div class="qd-table-wrap">
+            <label class="qd-pickall"><input type="checkbox" data-qd-all> Select every case shown</label>
             <table class="qd-table qd-table--stack" id="qdCaseTable">
               <caption class="av-sr">Cases waiting for a decision</caption>
               <thead><tr>

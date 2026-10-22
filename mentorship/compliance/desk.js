@@ -21,6 +21,12 @@
   var page = document.querySelector('.qd-page');
   var CSRF = page ? page.getAttribute('data-csrf') : '';
 
+  /* Features that bind to elements register here, so a section fetched later
+     (desk sections load on first view) gets the same treatment. */
+  var initers = [];
+  function onRoot(fn) { initers.push(fn); }
+  function initRoot(root) { initers.forEach(function (f) { try { f(root); } catch (e) { if (window.console) console.warn('qd init', e); } }); }
+
   function run(name, fn) { try { fn(); } catch (e) { if (window.console) console.warn('qd ' + name, e); } }
   function $$(sel, root) { return [].slice.call((root || document).querySelectorAll(sel)); }
 
@@ -79,7 +85,7 @@
   /* ── filters ─────────────────────────────────────────────────────────── */
   var refilter = {};
   run('filters', function () {
-    $$('form[data-qd-filter]').forEach(function (form) {
+    onRoot(function (root) { $$('form[data-qd-filter]', root).forEach(function (form) {
       var table = document.getElementById(form.getAttribute('data-qd-filter'));
       if (!table) return;
       var q = form.querySelector('[data-qd-q]'), count = form.querySelector('[data-qd-count]');
@@ -107,7 +113,7 @@
       if (q) q.addEventListener('input', apply);
       cols.forEach(function (s) { s.addEventListener('change', apply); });
       refilter[table.id] = apply;
-    });
+    }); });
     /* "/" jumps to the open section's search, as in the Control Room. */
     document.addEventListener('keydown', function (e) {
       if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -121,10 +127,12 @@
 
   /* ── bulk ────────────────────────────────────────────────────────────── */
   run('bulk', function () {
-    $$('form[data-qd-bulk]').forEach(function (form) {
+    onRoot(function (root) { $$('form[data-qd-bulk]', root).forEach(function (form) {
       var table = document.getElementById(form.getAttribute('data-qd-bulk'));
       if (!table) return;
-      var all = form.querySelector('[data-qd-all]'), bar = form.querySelector('[data-qd-bulkbar]'), nEl = form.querySelector('[data-qd-n]');
+      /* Two select-alls: the column header's, and the one a narrow screen
+         shows when the header is folded away into cards. */
+      var alls = $$('[data-qd-all]', form), bar = form.querySelector('[data-qd-bulkbar]'), nEl = form.querySelector('[data-qd-n]');
       var noun = form.getAttribute('data-noun') || 'row';
       function boxes() { return $$('input[data-qd-row]', table).filter(function (b) { return !b.closest('tr').hidden; }); }
       function picked() { return $$('input[data-qd-row]:checked', table); }
@@ -133,14 +141,14 @@
         if (nEl) nEl.textContent = String(p.length);
         if (bar) bar.hidden = p.length === 0;
         $$('tbody tr', table).forEach(function (tr) { var b = tr.querySelector('input[data-qd-row]'); tr.classList.toggle('is-picked', !!(b && b.checked)); });
-        if (all) {
-          var on = v.filter(function (b) { return b.checked; }).length;
+        var on = v.filter(function (b) { return b.checked; }).length;
+        alls.forEach(function (all) {
           all.checked = v.length > 0 && on === v.length;
           all.indeterminate = on > 0 && on < v.length;
-        }
+        });
       }
-      table.addEventListener('change', function (e) {
-        if (e.target === all) boxes().forEach(function (b) { b.checked = all.checked; });
+      form.addEventListener('change', function (e) {
+        if (alls.indexOf(e.target) !== -1) boxes().forEach(function (b) { b.checked = e.target.checked; });
         sync();
       });
       var armed = null, armT = 0;
@@ -188,7 +196,7 @@
           .then(function () { btn.disabled = false; });
       });
       sync();
-    });
+    }); });
 
     /* One case at a time: the row's buttons post the row's own form. */
     document.addEventListener('click', function (e) {
@@ -279,7 +287,7 @@
 
   /* ── confirm by a second press ───────────────────────────────────────── */
   run('confirm', function () {
-    $$('form[data-qd-confirm]').forEach(function (form) {
+    onRoot(function (root) { $$('form[data-qd-confirm]', root).forEach(function (form) {
       var armed = false, t = 0;
       form.addEventListener('submit', function (e) {
         var btn = form.querySelector('button[type="submit"]');
@@ -292,14 +300,17 @@
         t = setTimeout(function () { armed = false; btn.textContent = label; }, 6000);
       });
     });
-    $$('form[data-qd-busy]').forEach(function (form) {
+    $$('form[data-qd-busy]', root).forEach(function (form) {
       form.addEventListener('submit', function () { form.setAttribute('aria-busy', 'true'); toast(form.getAttribute('data-qd-busy')); });
-    });
+    }); });
   });
 
   /* ── the member drawer ───────────────────────────────────────────────── */
-  var drawerEl = document.getElementById('qdMemberPanel'), opener = null, currentRow = null;
+  /* Looked up each time: the drawer arrives with the Members section. */
+  function drawerOf() { return document.getElementById('qdMemberPanel'); }
+  var opener = null, currentRow = null;
   function addFinding(id, fromForm) {
+    var drawerEl = drawerOf();
     var list = drawerEl && drawerEl.querySelector('[data-qd-findings]'), tpl = document.getElementById('qdFindingRow');
     if (!list || !tpl) return;
     var kindSel = fromForm.querySelector('select[name="finding_kind"]');
@@ -325,9 +336,12 @@
     currentRow.setAttribute('data-member', JSON.stringify(data));
   }
   run('drawer', function () {
-    if (!drawerEl) return;
-    var tpl = document.getElementById('qdFindingRow');
+    function focusables(el) {
+      return $$('a[href], button:not([disabled]), input:not([type="hidden"]), select, textarea', el).filter(function (x) { return x.offsetParent !== null; });
+    }
     function open(row, from) {
+      var drawerEl = drawerOf(), tpl = document.getElementById('qdFindingRow');
+      if (!drawerEl) return;
       var m = JSON.parse(row.getAttribute('data-member') || '{}');
       currentRow = row; opener = from || document.activeElement;
       drawerEl.querySelector('[data-qd-panel-name]').textContent = m.name || 'Member';
@@ -345,27 +359,41 @@
           list.appendChild(li);
         });
       }
+      drawerEl.setAttribute('role', 'dialog');
+      drawerEl.setAttribute('aria-modal', 'true');
       drawerEl.hidden = false;
       var first = drawerEl.querySelector('select, input:not([type="hidden"]), textarea, button');
       if (first) first.focus();
     }
     function close() {
-      if (drawerEl.hidden) return;
+      var drawerEl = drawerOf();
+      if (!drawerEl || drawerEl.hidden) return;
       drawerEl.hidden = true;
-      if (opener && opener.focus) opener.focus();
+      if (opener && opener.focus && opener.isConnected) opener.focus();
     }
     document.addEventListener('click', function (e) {
       var m = e.target.closest && e.target.closest('[data-qd-manage]');
       if (m) { e.preventDefault(); open(m.closest('tr'), m); return; }
       if (e.target.closest && e.target.closest('[data-qd-close]')) { e.preventDefault(); close(); }
     });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !drawerEl.hidden) { e.preventDefault(); close(); } });
+    document.addEventListener('keydown', function (e) {
+      var drawerEl = drawerOf();
+      if (!drawerEl || drawerEl.hidden) return;
+      if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+      /* A modal keeps focus inside it until it is closed. */
+      if (e.key === 'Tab') {
+        var f = focusables(drawerEl); if (!f.length) return;
+        var a = f[0], z = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); }
+        else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+      }
+    });
     document.addEventListener('portal:view', function () { close(); });
   });
 
   /* ── tabs ────────────────────────────────────────────────────────────── */
   run('tabs', function () {
-    $$('.qd-seg').forEach(function (seg) {
+    onRoot(function (root) { $$('.qd-seg', root).forEach(function (seg) {
       var tabs = $$('[data-qd-tab]', seg);
       function pick(t, focus) {
         tabs.forEach(function (x) {
@@ -387,6 +415,37 @@
           pick(tabs[(i + d + tabs.length) % tabs.length], true);
         });
       });
-    });
+    }); });
   });
+
+  /* ── sections that load on first view ────────────────────────────────── */
+  run('lazy', function () {
+    var loading = {};
+    function load(name) {
+      var ph = document.querySelector('[data-qd-lazy="' + name + '"]');
+      if (!ph || loading[name]) return;
+      loading[name] = true;
+      fetch('?partial=' + encodeURIComponent(name), { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
+        .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.text(); })
+        .then(function (html) {
+          var frag = document.createRange().createContextualFragment(html);
+          var sec = frag.querySelector('.pview[data-view="' + name + '"]');
+          if (!sec) throw new Error('no section');
+          sec.hidden = ph.hidden;
+          ph.replaceWith(sec);
+          initRoot(sec);
+        })
+        .catch(function () {
+          loading[name] = false;
+          ph.removeAttribute('aria-busy');
+          toast('That section did not load. Open it again, or reload the page.', true);
+        });
+    }
+    document.addEventListener('portal:view', function (e) { if (e.detail && e.detail.view) load(e.detail.view); });
+    /* The shell showed a view before this script listened. */
+    var open = document.querySelector('.pview:not([hidden])');
+    if (open) load(open.getAttribute('data-view'));
+  });
+
+  initRoot(document);
 })();

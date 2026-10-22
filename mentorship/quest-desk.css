@@ -199,7 +199,10 @@ form[aria-busy="true"] .qd-mode { opacity: .5; pointer-events: none; }
 
 /* A table that is a list of people or cases becomes a stack of cards when
    ITS box is narrow — the panel's width, not the window's. */
+.qd-pickall { display: none; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--avp-line-2); font-size: 14px; font-weight: 600; }
+.qd-pickall input { width: 18px; height: 18px; accent-color: var(--avp-ink); }
 @container (max-width: 640px) {
+  .qd-pickall { display: flex; }
   .qd-table--stack thead { display: none; }
   .qd-table--stack, .qd-table--stack tbody, .qd-table--stack tr, .qd-table--stack td { display: block; width: auto; }
   .qd-table--stack tr { position: relative; padding: 14px 16px 14px 52px; border-bottom: 1px solid var(--avp-line-2); }

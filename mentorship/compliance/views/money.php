@@ -58,6 +58,7 @@ $ready = QuestMoney::ready();
           <div class="avp-card-head">
             <h2 id="qdMonthH"><?= e(date('F Y', strtotime($month . '-01'))) ?></h2>
             <form class="qd-inline" method="get" action="#money">
+              <input type="hidden" name="s" value="money">
               <label><span class="av-sr">Month</span><input type="month" name="month" value="<?= e($month) ?>" max="<?= e($last) ?>"></label>
               <button class="avp-btn avp-btn--sq" type="submit">Show</button>
             </form>

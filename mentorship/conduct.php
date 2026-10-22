@@ -40,6 +40,8 @@ $back = static function (string $url, array $q) use ($ajax): void {
     }
     $hash = '';
     if (($p = strpos($url, '#')) !== false) { $hash = substr($url, $p); $url = substr($url, 0, $p); }
+    /* The desk draws only the section it is asked for; name it. */
+    if ($hash !== '' && str_starts_with($url, '/mentorship/compliance/')) $q = ['s' => substr($hash, 1)] + $q;
     header('Location: ' . $url . (str_contains($url, '?') ? '&' : '?') . http_build_query($q) . $hash, true, 303);
     exit;
 };

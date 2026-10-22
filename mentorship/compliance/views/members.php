@@ -71,7 +71,7 @@ $levels = Levels::order();
         <aside class="qd-drawer" id="qdMemberPanel" aria-labelledby="qdPanelH" <?= $focus ? '' : 'hidden' ?> data-qd-drawer>
           <div class="qd-drawer-head">
             <h2 id="qdPanelH" data-qd-panel-name><?= e($focus['name'] ?? 'Member') ?></h2>
-            <a class="avp-icon-btn" href="#members" data-qd-close aria-label="Close">
+            <a class="avp-icon-btn" href="?s=members#members" data-qd-close aria-label="Close">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></a>
           </div>
           <div class="qd-drawer-body">

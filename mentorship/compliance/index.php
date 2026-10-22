@@ -60,6 +60,26 @@ if (!$can): ?>
 
 $sections = QuestDesk::sectionsFor($u);
 $ov = QuestDesk::overview();
+
+/* Only the section being opened is drawn. The rest are fetched the first time
+   they are shown (?partial=<id>, by desk.js) — a desk with a few hundred
+   members and cases was a megabyte of forms on every load, most of it for
+   sections nobody opened. Without script, ?s=<id> draws that section, and
+   every action's redirect names the section it came from. */
+$renderSection = static function (string $sid) use ($sections, $u, $csrf, $edit, $superior, $ov): void {
+    $title = $sections[$sid]['title'];
+    require __DIR__ . '/views/' . $sid . '.php';
+};
+$partial = (string) ($_GET['partial'] ?? '');
+if ($partial !== '') {
+    if (!isset($sections[$partial])) { http_response_code(404); exit; }
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store');
+    $renderSection($partial);
+    exit;
+}
+$active = (string) ($_GET['s'] ?? '');
+if (!isset($sections[$active])) $active = isset($_GET['member']) ? 'members' : 'overview';
 $badge = ['cases' => $ov['waiting'], 'suggestions' => $ov['suggestions']];
 $groups = [];
 foreach ($sections as $id => $s) $groups[$s['group']][$id] = $s;
@@ -96,7 +116,7 @@ $initials = strtoupper(substr((string) ($parts[0] ?? 'A'), 0, 1) . substr((strin
       <div class="avp-nav-group">
         <div class="avp-nav-title"><?= e($g) ?></div>
 <?php foreach ($items as $id => $s): $b = (int) ($badge[$id] ?? 0); ?>
-        <a class="avp-nav-link pnav-link" href="#<?= e($id) ?>" data-view="<?= e($id) ?>">
+        <a class="avp-nav-link pnav-link" href="?s=<?= e($id) ?>#<?= e($id) ?>" data-view="<?= e($id) ?>">
           <svg class="qd-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="<?= e($icons[$id] ?? '') ?>"/></svg>
           <span class="avp-nav-label pnav-label"><?= e($s['label']) ?></span>
 <?php if ($b > 0): ?>          <span class="avp-nav-badge pnav-badge" data-badge="<?= e($id) ?>"><?= $b ?></span>
@@ -142,8 +162,12 @@ $initials = strtoupper(substr((string) ($parts[0] ?? 'A'), 0, 1) . substr((strin
       <p class="qd-flash" id="qdToast" role="status" aria-live="polite" hidden></p>
 <?php
 foreach (array_keys($sections) as $sid) {
-    $title = $sections[$sid]['title'];
-    require __DIR__ . '/views/' . $sid . '.php';
+    if ($sid === $active) { $renderSection($sid); continue; } ?>
+      <section class="pview avp-view qd-view" id="view-<?= e($sid) ?>" data-view="<?= e($sid) ?>" data-qd-lazy="<?= e($sid) ?>" hidden aria-busy="true">
+        <div class="avp-view-head qd-head"><div><h1 class="avp-h1"><?= e($sections[$sid]['title']) ?></h1></div></div>
+        <p class="qd-empty"><a href="?s=<?= e($sid) ?>#<?= e($sid) ?>">Open <?= e($sections[$sid]['label']) ?></a></p>
+      </section>
+<?php
 }
 ?>
     </div>
