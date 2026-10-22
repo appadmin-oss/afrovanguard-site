@@ -368,8 +368,8 @@ final class Conduct
             /* "Loss of current level" is the manual's; here it is only ever a
                suggestion for a person to decide. */
             $line = Quest::deductions()[(string) $c['action_id']] ?? null;
-            if ($line && ($line['suggests'] ?? '') === 'demotion' && class_exists('QuestSuggestions')) {
-                QuestSuggestions::raise((int) $c['mentee_id'], 'demotion', $label . ' — approved by compliance (case #' . $caseId . ').', 'deduction:' . $caseId);
+            if ($line && ($line['suggests'] ?? '') === 'demotion' && class_exists('QuestLadder')) {
+                QuestLadder::suggest((int) $c['mentee_id'], 'demotion', $label . ' — approved by compliance (case #' . $caseId . '). The Pyramid Manual: loss of current level.', 'deduction:' . $caseId);
             }
         } else {
             $label = self::caseLabel($c);

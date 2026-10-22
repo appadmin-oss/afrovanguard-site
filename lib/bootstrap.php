@@ -352,6 +352,7 @@ require_once __DIR__ . '/QuestRules.php';     // every priced line of the Quest,
 require_once __DIR__ . '/QuestPoints.php';    // the Quest's points, kept apart from the gate's
 require_once __DIR__ . '/Conduct.php';        // a mentor's fines and awards, approved by the compliance committee
 require_once __DIR__ . '/QuestRecord.php';    // a member's Quest record
+require_once __DIR__ . '/QuestLadder.php';    // demotions, suspensions and fines the manual calls for, suggested to a person
 require_once __DIR__ . '/SiteHome.php';       // the homepage hero as content: draft, preview, publish, history
 require_once __DIR__ . '/Media.php';          // the Studio's media library: chunked upload, image edits
 require_once __DIR__ . '/SitePages.php';          // the Studio's Pages editor: every public page's words, links, pictures
@@ -442,6 +443,7 @@ av_harden_errors();
 AiKnowledge::boot();
 // Membership progression: capture referrals on sign-up.
 Levels::boot();
+QuestLadder::boot();
 // Workspace automation: subscribe event handlers (onboarding, real-time, etc.).
 AvAutomation::register();
 // Collaboration: feed domain events into the team activity stream.
