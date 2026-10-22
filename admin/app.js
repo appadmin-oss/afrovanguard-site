@@ -3437,17 +3437,23 @@
     api('centres_list').then(function (r) {
       var cs = (r.data && r.data.centres) || [];
       if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load the centres. <button type="button" class="btn btn-outline btn-sm" data-centre-retry>Try again</button></p>'; return; }
+      /* Once CACENTRE's list has arrived it decides the places: no adding here,
+         and a linked centre's name and status are changed there. */
+      var cac = r.data.cacentre || null;
+      $('#centreCacNote').hidden = !cac; $('#centreNew').hidden = !!cac; $('#centreCodeHelp').hidden = !!cac;
+      $('#centreCacWhen').textContent = cac && cac.at ? 'Last update from CACENTRE: ' + String(cac.at).replace('T', ' ').slice(0, 16) + ' UTC.' : '';
       box.innerHTML = cs.length ? '<div class="mem-centres">' + cs.map(function (c) {
-        var retired = c.status !== 'active';
+        var retired = c.status !== 'active', linked = !!c.cac_id;
         return '<form class="mem-centre-row' + (retired ? ' is-retired' : '') + '" data-id="' + c.id + '">'
-          + '<label class="fld"><span>Centre</span><input name="name" maxlength="60" value="' + escapeHtml(c.name) + '" required /></label>'
+          + '<label class="fld"><span>Centre' + (linked ? ' · from CACENTRE' : '') + '</span><input name="name" maxlength="60" value="' + escapeHtml(c.name) + '" required' + (linked ? ' readonly aria-describedby="centreCacNote"' : '') + ' /></label>'
           + '<label class="fld"><span>Code</span><input name="code" class="mem-centre-code" maxlength="8" value="' + escapeHtml(c.code) + '" required /></label>'
           + '<div class="mem-centre-ops">'
           + '<button type="button" class="btn btn-outline btn-sm" data-centre-members="' + escapeHtml(c.name) + '">' + c.members + ' member' + (c.members === 1 ? '' : 's') + '</button>'
           + (retired ? '<span class="badge draft">Retired</span>' : '')
+          + (linked ? '<span class="badge">CACENTRE</span>' : (cac ? '<span class="badge draft">Not a CACENTRE location</span>' : ''))
           + '<button type="submit" class="btn btn-primary btn-sm">Save</button>'
-          + '<button type="button" class="btn btn-outline btn-sm" data-centre-status="' + (retired ? 'active' : 'retired') + '" data-name="' + escapeHtml(c.name) + '">' + (retired ? 'Reopen' : 'Retire') + '</button>'
-          + '<button type="button" class="btn btn-outline btn-sm" data-centre-del data-n="' + c.members + '" data-name="' + escapeHtml(c.name) + '">Delete</button>'
+          + (linked ? '' : '<button type="button" class="btn btn-outline btn-sm" data-centre-status="' + (retired ? 'active' : 'retired') + '" data-name="' + escapeHtml(c.name) + '">' + (retired ? 'Reopen' : 'Retire') + '</button>'
+          + '<button type="button" class="btn btn-outline btn-sm" data-centre-del data-n="' + c.members + '" data-name="' + escapeHtml(c.name) + '">Delete</button>')
           + '</div></form>';
       }).join('') + '</div>' : '<p class="muted">No centres yet. Add the first above — Egbeda, Ayobo…</p>';
     }).catch(function () { box.innerHTML = '<p class="muted">Could not load the centres. <button type="button" class="btn btn-outline btn-sm" data-centre-retry>Try again</button></p>'; });

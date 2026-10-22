@@ -15,6 +15,22 @@
  *
  * Centres already on members when this first runs are taken into the list,
  * so nothing a member has today is refused tomorrow.
+ *
+ * ── CACENTRE DECIDES THE PLACES ────────────────────────────────────────────
+ * CACENTRE's locations list (its Attendance → Desks and settings → Locations)
+ * is the one list of places. The gate passes it here (integrations/
+ * cacentre-gate.php, {op:"locations"}) whenever it changes, and
+ * syncFromCacentre() applies it: each location is linked to a centre by its
+ * id (cac_id), which stays when the name changes — a centre already here
+ * under that name or a former one is linked; a new location becomes a centre;
+ * a renamed one is renamed, with its members; one CACENTRE took off is
+ * retired. Once the list has arrived, a centre is not added, renamed, retired
+ * or deleted here by hand: the Studio says where to do it. The code is still
+ * the portal's own.
+ *
+ * Each location's calendar — the days it meets, its terms, its holidays —
+ * comes with it (cac_calendar), and the gate's absence sweep counts a
+ * member's days by their centre's calendar (GateAttendance::isProgrammeDayFor).
  */
 declare(strict_types=1);
 
@@ -22,6 +38,8 @@ final class Centres
 {
     public const NAME_MAX = 60;
     public const MAX = 200;
+    public const CAC_META = 'av_cac_locations';
+    private const WHERE = 'Centres are CACENTRE’s locations: add, rename or close one in CACENTRE → Attendance → Desks and settings → Locations, and it arrives here within minutes.';
 
     public static function ensure(): void
     {
@@ -34,6 +52,13 @@ final class Centres
             created_at VARCHAR(32) NOT NULL DEFAULT '',
             updated_at VARCHAR(32) NOT NULL DEFAULT ''
         )");
+        /* Linked to a CACENTRE location (syncFromCacentre). */
+        foreach (['cac_id' => "VARCHAR(16) NOT NULL DEFAULT ''", 'cac_calendar' => 'TEXT', 'cac_synced_at' => "VARCHAR(32) NOT NULL DEFAULT ''"] as $col => $decl) {
+            if (!Database::columnExists('av_centres', $col)) {
+                try { Database::pdo()->exec("ALTER TABLE av_centres ADD COLUMN {$col} {$decl}"); }
+                catch (Throwable $e) { error_log('[centres] add ' . $col . ': ' . $e->getMessage()); }
+            }
+        }
         self::adoptExisting();
     }
 
@@ -64,11 +89,14 @@ final class Centres
 
     private static function rows(bool $withRetired): array
     {
-        $sql = 'SELECT id, code, name, status, created_at, updated_at FROM av_centres'
+        $sql = 'SELECT id, code, name, status, created_at, updated_at, cac_id, cac_calendar, cac_synced_at FROM av_centres'
              . ($withRetired ? '' : " WHERE status = 'active'") . ' ORDER BY name';
-        return array_map(static fn($r) => ['id' => (int) $r['id'], 'code' => (string) $r['code'], 'name' => (string) $r['name'],
-            'status' => (string) $r['status'], 'created_at' => (string) $r['created_at'], 'updated_at' => (string) $r['updated_at']],
-            Database::pdo()->query($sql)->fetchAll(PDO::FETCH_ASSOC));
+        return array_map(static function ($r) {
+            $cal = json_decode((string) ($r['cac_calendar'] ?? ''), true);
+            return ['id' => (int) $r['id'], 'code' => (string) $r['code'], 'name' => (string) $r['name'],
+                'status' => (string) $r['status'], 'created_at' => (string) $r['created_at'], 'updated_at' => (string) $r['updated_at'],
+                'cac_id' => (string) ($r['cac_id'] ?? ''), 'calendar' => is_array($cal) ? $cal : null, 'cac_synced_at' => (string) ($r['cac_synced_at'] ?? '')];
+        }, Database::pdo()->query($sql)->fetchAll(PDO::FETCH_ASSOC));
     }
 
     private static function insert(string $name, string $code): int
@@ -149,7 +177,8 @@ final class Centres
         $name = self::clean($name);
         if ($name === '') return '';
         foreach (self::rows(true) as $c) if (mb_strtolower($c['name']) === mb_strtolower($name)) return $c['name'];
-        if (count(self::rows(true)) >= self::MAX) return $name;
+        /* CACENTRE decides the places: a name typed on a member is not a new one. */
+        if (self::cacentreActive() || count(self::rows(true)) >= self::MAX) return $name;
         self::insert($name, self::suggestCode($name));
         self::audit('centre.create', $name, 'added from a member record', 'system');
         return $name;
@@ -163,7 +192,9 @@ final class Centres
         foreach (self::rows(true) as $c) {
             if (mb_strtolower($c['name']) === $k && $c['status'] !== 'active') return $c['name'] . ' is retired. Choose a centre that is open.';
         }
-        return '“' . self::clean($name) . '” is not a centre. Add it in Members → Centres first.';
+        return '“' . self::clean($name) . '” is not a centre. ' . (self::cacentreActive()
+            ? 'Centres are CACENTRE’s locations: add it there, under Attendance → Desks and settings → Locations.'
+            : 'Add it in Members → Centres first.');
     }
 
     /**
@@ -179,6 +210,11 @@ final class Centres
         $name = self::clean((string) ($d['name'] ?? ''));
         $code = strtoupper(trim((string) ($d['code'] ?? '')));
         if (mb_strlen($name) < 2) return ['ok' => false, 'error' => 'A centre needs a name of at least two letters.'];
+        if (!$id && self::cacentreActive()) return ['ok' => false, 'code' => 'managed_by_cacentre', 'error' => self::WHERE];
+        $linked = $id ? self::get($id) : null;
+        if ($linked && $linked['cac_id'] !== '' && $name !== $linked['name']) {
+            return ['ok' => false, 'code' => 'managed_by_cacentre', 'error' => $linked['name'] . ' is a CACENTRE location. Rename it there; the portal follows.'];
+        }
         if ($code === '') $code = $id ? (string) (self::get($id)['code'] ?? '') : self::suggestCode($name);
         if (!preg_match('/^[A-Z][A-Z0-9]{0,7}$/', $code)) return ['ok' => false, 'error' => 'A code is up to 8 letters and digits, starting with a letter, like EG.'];
         $all = self::rows(true);
@@ -224,6 +260,7 @@ final class Centres
         if (!in_array($status, ['active', 'retired'], true)) return ['ok' => false, 'error' => 'A centre is active or retired.'];
         $c = self::get($id);
         if (!$c) return ['ok' => false, 'error' => 'No such centre.'];
+        if ($c['cac_id'] !== '') return ['ok' => false, 'code' => 'managed_by_cacentre', 'error' => 'Whether ' . $c['name'] . ' is open is decided in CACENTRE. ' . self::WHERE];
         if ($c['status'] === $status) return ['ok' => true, 'unchanged' => true];
         Database::pdo()->prepare('UPDATE av_centres SET status = ?, updated_at = ? WHERE id = ?')->execute([$status, self::now(), $id]);
         self::audit($status === 'retired' ? 'centre.retire' : 'centre.reopen', $c['name'], '', $actor);
@@ -256,6 +293,7 @@ final class Centres
         self::ensure();
         $c = self::get($id);
         if (!$c) return ['ok' => false, 'error' => 'No such centre.'];
+        if ($c['cac_id'] !== '') return ['ok' => false, 'code' => 'managed_by_cacentre', 'error' => $c['name'] . ' is a CACENTRE location. Take it off CACENTRE’s list and it is retired here.'];
         $u = self::uses($c['name']);
         if ($u['members'] > 0 || $u['attendance'] > 0) {
             return ['ok' => false, 'code' => 'centre_in_use', 'uses' => $u, 'error' => $c['name'] . ' is in use — '
@@ -265,6 +303,109 @@ final class Centres
         Database::pdo()->prepare('DELETE FROM av_centres WHERE id = ?')->execute([$id]);
         self::audit('centre.delete', $c['name'], '', $actor);
         return ['ok' => true];
+    }
+
+    /* ══ CACENTRE's locations ═══════════════════════════════════════════════ */
+
+    /** Has CACENTRE's list arrived? From then on it decides the places. */
+    public static function cacentreActive(): bool
+    {
+        $v = json_decode((string) (Database::metaGet(self::CAC_META) ?? ''), true);
+        return is_array($v) && (string) ($v['version'] ?? '') !== '';
+    }
+
+    /** What the Studio shows about the list: its version and when it came. */
+    public static function cacentreState(): ?array
+    {
+        $v = json_decode((string) (Database::metaGet(self::CAC_META) ?? ''), true);
+        return is_array($v) && (string) ($v['version'] ?? '') !== '' ? $v : null;
+    }
+
+    /** A centre's calendar from CACENTRE, by any spelling of its name; null when it has none. */
+    public static function calendarFor(string $name): ?array
+    {
+        self::ensure();
+        $k = mb_strtolower(self::clean($name));
+        if ($k === '') return null;
+        foreach (self::rows(true) as $c) if (mb_strtolower($c['name']) === $k) return $c['calendar'];
+        return null;
+    }
+
+    /**
+     * Apply CACENTRE's list. Checked whole before anything is written; then
+     * one transaction and one audit line.
+     *
+     * @param array{version?:string,tz?:string,locations?:array} $in
+     */
+    public static function syncFromCacentre(array $in): array
+    {
+        self::ensure();
+        $version = mb_substr(trim((string) ($in['version'] ?? '')), 0, 64);
+        $list = is_array($in['locations'] ?? null) ? array_slice($in['locations'], 0, self::MAX) : null;
+        if ($version === '' || $list === null) return ['ok' => false, 'error' => 'A version and a list of locations are needed.'];
+        $clean = []; $seen = [];
+        foreach ($list as $l) {
+            $id = (string) ($l['id'] ?? ''); $name = self::clean((string) ($l['name'] ?? ''));
+            if (!preg_match('/^L[0-9a-f]{10}$/', $id) || mb_strlen($name) < 2 || isset($seen[$id])) return ['ok' => false, 'error' => 'The list has a location with no id or name, or one listed twice. Nothing was changed.'];
+            $seen[$id] = true;
+            $clean[] = ['id' => $id, 'name' => $name, 'status' => (string) ($l['status'] ?? '') === 'retired' ? 'retired' : 'active',
+                        'aliases' => array_values(array_filter(array_map(static fn($a) => self::clean((string) $a), (array) ($l['aliases'] ?? [])))),
+                        'calendar' => is_array($l['calendar'] ?? null) ? $l['calendar'] : null];
+        }
+        $pdo = Database::pdo();
+        $report = ['created' => [], 'linked' => [], 'renamed' => [], 'retired' => [], 'reopened' => [], 'members' => 0];
+        $pdo->beginTransaction();
+        try {
+            foreach ($clean as $l) {
+                $all = self::rows(true);
+                $c = null;
+                foreach ($all as $r) if ($r['cac_id'] === $l['id']) $c = $r;
+                if (!$c) {
+                    foreach (array_merge([$l['name']], $l['aliases']) as $n) {
+                        foreach ($all as $r) if ($r['cac_id'] === '' && mb_strtolower($r['name']) === mb_strtolower($n)) { $c = $r; break 2; }
+                    }
+                    if ($c) { $pdo->prepare('UPDATE av_centres SET cac_id = ? WHERE id = ?')->execute([$l['id'], $c['id']]); $report['linked'][] = $l['name']; }
+                }
+                if (!$c && $l['status'] === 'retired') continue;
+                $cal = $l['calendar'] ? json_encode($l['calendar'], JSON_UNESCAPED_SLASHES) : ($c && $c['calendar'] ? json_encode($c['calendar'], JSON_UNESCAPED_SLASHES) : '');
+                if (!$c) {
+                    $pdo->prepare('INSERT INTO av_centres (code, name, status, created_at, updated_at, cac_id, cac_calendar, cac_synced_at) VALUES (?,?,?,?,?,?,?,?)')
+                        ->execute([self::suggestCode($l['name']), $l['name'], 'active', self::now(), self::now(), $l['id'], $cal, self::now()]);
+                    $report['created'][] = $l['name'];
+                    continue;
+                }
+                $name = $c['name'];
+                if ($l['status'] === 'active' && $c['name'] !== $l['name']) {
+                    foreach ($all as $r) if ($r['id'] !== $c['id'] && mb_strtolower($r['name']) === mb_strtolower($l['name'])) {
+                        throw new RuntimeException('The portal already has another centre called ' . $l['name'] . '. Rename it in Members → Centres; the list is taken on the next try.');
+                    }
+                    $st = $pdo->prepare('UPDATE member_profiles SET centre = ? WHERE LOWER(centre) = ?');
+                    $st->execute([$l['name'], mb_strtolower($c['name'])]);
+                    $report['members'] += $st->rowCount();
+                    $report['renamed'][] = $c['name'] . ' → ' . $l['name'];
+                    $name = $l['name'];
+                }
+                $status = $l['status'];
+                if ($status !== $c['status']) $report[$status === 'retired' ? 'retired' : 'reopened'][] = $l['name'];
+                $pdo->prepare('UPDATE av_centres SET name = ?, status = ?, cac_calendar = ?, cac_synced_at = ?, updated_at = ? WHERE id = ?')
+                    ->execute([$name, $status, $cal, self::now(), ($name !== $c['name'] || $status !== $c['status']) ? self::now() : $c['updated_at'], $c['id']]);
+            }
+            Database::metaSet(self::CAC_META, json_encode(['version' => $version, 'tz' => (string) ($in['tz'] ?? ''), 'at' => gmdate('Y-m-d\TH:i:s\Z')]));
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+        if ($report['created'] || $report['renamed'] || $report['retired'] || $report['reopened'] || $report['linked']) {
+            self::audit('centre.cacentre', 'CACENTRE ' . $version, implode('; ', array_filter([
+                $report['created'] ? 'added ' . implode(', ', $report['created']) : '',
+                $report['linked'] ? 'linked ' . implode(', ', $report['linked']) : '',
+                $report['renamed'] ? 'renamed ' . implode(', ', $report['renamed']) . ' (' . $report['members'] . ' members moved)' : '',
+                $report['retired'] ? 'retired ' . implode(', ', $report['retired']) : '',
+                $report['reopened'] ? 'reopened ' . implode(', ', $report['reopened']) : '',
+            ])), 'cacentre');
+        }
+        return ['ok' => true, 'version' => $version] + $report;
     }
 
     private static function audit(string $action, string $target, string $detail, string $actor): void

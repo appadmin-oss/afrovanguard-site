@@ -274,3 +274,33 @@ NEVER commit api/config.php; camera Permissions-Policy is camera=(self) in
   each chapter plus the whole-book reflection — see `docs/ngv-reading.md`.
 - Tests: `tests/gateattendance.test.php` (Leave:), `tests/ngvreading.test.php`
   (book list:), `tests/ngvfines.test.php` (a vanguard's own fines).
+
+## 2026-10-22 — Centres follow CACENTRE's locations; absences by each location's calendar
+
+- **CACENTRE decides the places.** Its locations list is the only one. The
+  CACENTRE gate sends it to `integrations/cacentre-gate.php` as
+  `{op:"locations", version, tz, locations:[{id, name, status, aliases, calendar}]}`,
+  signed with the resolve key the gate already uses, and retries every five
+  minutes until this answers `{ok:true}`.
+- `Centres::syncFromCacentre()`: checked whole, one transaction, one audit line
+  (`centre.cacentre`). A location is linked to a centre by its id (`av_centres.cac_id`,
+  added by `Centres::ensure()`), else by its name or a former name. New → a centre
+  with a code from its name. Renamed → the same centre renamed, with its members
+  (`member_profiles.centre`). Removed → retired. The calendar goes in `cac_calendar`.
+  The list's version and time are kept in meta `av_cac_locations`.
+- Once the list has arrived: `Centres::save()` refuses a new centre and a linked
+  centre's rename; `setStatus()` and `delete()` refuse a linked centre
+  (`managed_by_cacentre`, with where to do it). The code is still the portal's.
+  `adopt()` no longer adds a centre typed on a member. Studio → Members →
+  Centres shows the note, a CACENTRE badge, and read-only names.
+- **Absences by the member's location.** `GateAttendance::isProgrammeDayFor($member, $day)`:
+  the portal's holidays never count; otherwise the member's centre's calendar
+  decides (`meetsOn()`: its weekdays, inside the terms it runs, not on its
+  holidays); a member at no centre, or a centre with no calendar, keeps
+  `gate.programme_days`. Used by `sweep()` (absences and absence fines),
+  `award()`, runs and perfect weeks, and the day register's "not in yet" list.
+  Members' centres are read in one query per request (`centreOf`).
+- Tests: `tests/cacentrelocations.test.php`; CACENTRE's
+  `tests/integration/gate-e2e.php` renames a location in CACENTRE and sees it
+  arrive here through the real gate.
+

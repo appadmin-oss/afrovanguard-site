@@ -848,6 +848,8 @@ body.studio { --gold-deep: var(--av-gold-text); }
 .mem-centres { display: flex; flex-direction: column; gap: 8px; }
 .mem-centre-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 10px 12px; border: 1px solid var(--divider); border-radius: var(--radius-md); }
 .mem-centre-row.is-retired { opacity: .7; }
+.mem-cac-note { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--divider); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); font-size: 14px; line-height: 1.5; }
+.mem-centre-row input[readonly] { background: var(--bg); }
 .mem-centre-row .fld { margin: 0; }
 .mem-centre-ops { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 /* A roster row's action menu (drawn from MEMBER_ACTIONS, like the bulk bar). */

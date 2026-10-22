@@ -14,6 +14,9 @@
  *   resolve   {op:"resolve", token}   a printed member card, X-NGV-YY-NNNN
  *             {op:"resolve", ref}     a member picked from search
  *             {op:"search", q}        find by name; nobody who may not come in
+ *             {op:"locations", version, tz, locations:[…]}
+ *                                     CACENTRE's locations: the portal's centres
+ *                                     follow them (Centres::syncFromCacentre)
  *   report    {passages:[…]}          what happened at the door — see
  *                                     GateAttendance::report() for the answers
  *
@@ -60,6 +63,11 @@ if ($purpose === 'report') {
 }
 
 $op = (string) $in['op'];
+if ($op === 'locations') {
+    $r = Centres::syncFromCacentre(['version' => (string) ($in['version'] ?? ''), 'tz' => (string) ($in['tz'] ?? ''),
+        'locations' => is_array($in['locations'] ?? null) ? $in['locations'] : null]);
+    $out($r, $r['ok'] ? 200 : 400);
+}
 if ($op === 'formats') {
     /* The shapes of the portal's older printed cards (MemberCards). The NGV
        number is not one of them: the gate reads that itself. */

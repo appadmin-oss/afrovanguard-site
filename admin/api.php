@@ -1356,7 +1356,7 @@ try {
             json_out($r, $r['ok'] ? 200 : 409);
         /* ── Centres, one list with codes (lib/Centres.php) ── */
         case 'centres_list':
-            json_out(['ok' => true, 'centres' => Centres::all()]);
+            json_out(['ok' => true, 'centres' => Centres::all(), 'cacentre' => Centres::cacentreState()]);
         case 'centre_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = Centres::save(['id' => $body['id'] ?? 0, 'name' => $body['name'] ?? '', 'code' => $body['code'] ?? ''], av_admin_actor());

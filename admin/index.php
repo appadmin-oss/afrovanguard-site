@@ -613,6 +613,7 @@
 
     <section class="mem-pane" data-pane="centres" hidden>
       <p class="muted">The centres members belong to, one list with a short code, as NGG keeps its centres. A member's centre is one of these or none. Renaming a centre renames it on every member there; a centre in use is retired, not deleted — its members keep it, and nobody new is put there.</p>
+      <p class="mem-cac-note" id="centreCacNote" role="status" hidden><b>Centres come from CACENTRE.</b> Its locations list is the only list of places: a location added, renamed or taken off in CACENTRE → Attendance → Desks and settings → Locations is added, renamed (with its members) or retired here within minutes, and each centre's days and terms decide when its members are expected. The code is still set here. <span id="centreCacWhen"></span></p>
       <form class="mem-centre-new" id="centreNew" autocomplete="off">
         <label class="fld"><span>New centre</span><input id="centreNewName" maxlength="60" placeholder="Egbeda" required /></label>
         <label class="fld"><span>Code</span><input id="centreNewCode" class="mem-centre-code" maxlength="8" placeholder="EG" aria-describedby="centreCodeHelp" /></label>
