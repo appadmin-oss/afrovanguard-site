@@ -96,23 +96,29 @@
     });
     labelFor.overview = 'Today';
 
+    /* A nav entry that opens one app inside another view: Meetings is the
+       Suite's meetings app, given its own place in the menu (portal/tools.js
+       opens it on portal:view with asked = 'meetings'). */
+    var ALIAS = { meetings: 'tools' };
     function showView(name, push) {
+      var asked = name;
+      if (ALIAS[name]) name = ALIAS[name];
       var found = views.some(function (v) { return v.getAttribute('data-view') === name; });
-      if (!found) name = 'overview';
+      if (!found) { name = 'overview'; asked = name; }
       views.forEach(function (v) { v.hidden = v.getAttribute('data-view') !== name; });
       navLinks.forEach(function (l) {
-        var on = l.getAttribute('data-view') === name;
+        var on = l.getAttribute('data-view') === asked;
         l.classList.toggle('is-active', on);
         if (on) l.setAttribute('aria-current', 'page'); else l.removeAttribute('aria-current');
       });
-      if (crumb) crumb.textContent = labelFor[name] || 'Today';
+      if (crumb) crumb.textContent = labelFor[asked] || labelFor[name] || 'Today';
       window.scrollTo(0, 0);
-      if (push && ('#' + name) !== location.hash) {
-        try { history.pushState(null, '', '#' + name); } catch (e) { location.hash = name; }
+      if (push && ('#' + asked) !== location.hash) {
+        try { history.pushState(null, '', '#' + asked); } catch (e) { location.hash = asked; }
       }
       /* So a pane can load itself the first time somebody looks at it
          (portal/inventory.js, portal/leads.js). */
-      try { document.dispatchEvent(new CustomEvent('portal:view', { detail: { view: name } })); } catch (e) {}
+      try { document.dispatchEvent(new CustomEvent('portal:view', { detail: { view: name, asked: asked } })); } catch (e) {}
     }
     window.avpShowView = showView;
 

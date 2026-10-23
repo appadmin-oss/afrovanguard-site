@@ -26,9 +26,13 @@ ck('portal nav: the service worker fetches scripts and styles from the network f
 ck('portal nav: the service worker cache was renamed, so old copies are dropped', !str_contains($sw, "'av-pwa-v4'"));
 
 $idx = (string) file_get_contents(AV_ROOT . '/portal/index.php');
-ck('portal nav: every view link names a view that exists', (function () use ($idx) {
+ck('portal nav: every view link names a view that exists', (function () use ($idx, $avp) {
     $views = [];
     foreach (array_merge([AV_ROOT . '/portal/index.php'], glob(AV_ROOT . '/portal/views/*.php') ?: []) as $f) if (preg_match_all('~class="pview[^"]*"[^>]*data-view="([a-z-]+)"|data-view="([a-z-]+)"[^>]*class="pview~', (string) file_get_contents($f), $m)) foreach (array_merge($m[1], $m[2]) as $v) if ($v !== '') $views[$v] = true;
+    /* An alias in the router (avp.js ALIAS) is a view when what it points at is one. */
+    if (preg_match('~var ALIAS = \{([^}]*)\}~', $avp, $am) && preg_match_all("~([a-z-]+): '([a-z-]+)'~", $am[1], $pairs, PREG_SET_ORDER)) {
+        foreach ($pairs as $pp) if (isset($views[$pp[2]])) $views[$pp[1]] = true;
+    }
     // The sidebar and tab bar are drawn from PHP lists of ['id', 'Label', …]; plus any literal link.
     $nav = substr($idx, (int) strpos($idx, "['overview', 'Today'"), 6000);
     preg_match_all("~\\['([a-z-]+)', '~", $nav, $l);

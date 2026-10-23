@@ -187,3 +187,34 @@ themselves" for the one-time setup.
 > uses Google's own managed recording/transcription — the practical,
 > server-drivable equivalent. Use `attendee` when you need a bot that captures
 > raw media itself.
+
+## Everybody sees every meeting; the organiser decides about the minutes (Oct 2026)
+
+- **Visibility.** Every member and staff member (`LmsAuth::isOrgMember`)
+  sees every meeting in the portal: when, where, who called it, who is
+  invited, the agenda and the join link (`Meetings::listFor`, `canSee`). An
+  Academy learner still sees only the meetings they are in.
+- **Minutes.** Open to everybody who can see the meeting unless the organiser
+  ticks **"Keep the minutes to the people invited"** (`minutes_private`), when
+  the summary, decisions, action items and transcript are for the people in
+  it and whoever may manage it (`canReadMinutes`). The meeting still shows,
+  marked 🔒, so nobody reads it as unminuted.
+- **Acting on a meeting** stays with the people in it: adding a transcript,
+  ticking the agenda (`MeetingClock::setResolved` now asks `isParticipant`),
+  the notetaker. Changing or cancelling one is the organiser's (`mayManage`).
+- **Meetings has its own menu entry** (Work → Meetings). It opens the Suite's
+  meetings app through the router alias `meetings → tools` in `portal/avp.js`.
+
+### CACENTRE staff
+
+CACENTRE's Staff Office has a **Meetings** page (`cac/staff/meetings.php`).
+It lists every meeting and schedules and cancels the staff member's own,
+through one signed door here, `integrations/cacentre-meetings.php`
+(`lib/CacMeetings.php`). The trust is the existing bridge secret,
+`AV_SSO_SECRET`, in the v1 token format, issued by CACENTRE. Each token is for
+the `meetings` door, names the staff member, is bound to the request body
+(`bh`), and its nonce is spent once. A staff member with an account here (by
+email) schedules as that account. One without an account is recorded as the
+organiser by name and email (`organiser_name`, `origin = cacentre`). They can
+cancel, or change the minutes' privacy of, only what they organised.
+Tests: `tests/cacmeetings.test.php`.

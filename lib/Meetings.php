@@ -97,6 +97,17 @@ final class Meetings
         /* How it repeats, as lib/Recurrence.php's rule (JSON); '' means the
            one-word `frequency` still says it (meetings made before rules). */
         self::addCol('meetings', 'recur', "VARCHAR(2000) NOT NULL DEFAULT ''");
+        /* Every member and staff member sees every meeting; the organiser
+           decides whether its MINUTES are for everyone (0) or only for the
+           people in it (1). See canSee() / canReadMinutes(). */
+        self::addCol('meetings', 'minutes_private', 'INTEGER NOT NULL DEFAULT 0');
+        /* Who organised it when that is not an account here: a CACENTRE staff
+           member scheduling from the staff portal (integrations/cacentre-meetings.php).
+           creator_id is their account here when they have one, else 0. */
+        self::addCol('meetings', 'organiser_name', "VARCHAR(160) NOT NULL DEFAULT ''");
+        self::addCol('meetings', 'organiser_email', "VARCHAR(200) NOT NULL DEFAULT ''");
+        self::addCol('meetings', 'origin', "VARCHAR(16) NOT NULL DEFAULT ''");
+        self::addCol('meetings', 'origin_ref', "VARCHAR(64) NOT NULL DEFAULT ''");
         self::$ready = true;
     }
 
@@ -299,7 +310,12 @@ final class Meetings
     }
 
     /** ── Schedule a meeting (workspace or mentorship) ─────────────────── */
-    public static function schedule(int $uid, array $in): array
+    /**
+     * @param array|null $as  who organised it when that is not (only) $uid: a
+     *   CACENTRE staff member — ['name','email','origin'=>'cacentre','ref'=>staff id,'tz'].
+     *   $uid is then their account here, or 0 when they have none.
+     */
+    public static function schedule(int $uid, array $in, ?array $as = null): array
     {
         self::ensure();
         $title = mb_substr(trim((string) ($in['title'] ?? '')), 0, 200);
@@ -307,7 +323,7 @@ final class Meetings
         $when = trim((string) ($in['when'] ?? ''));
         if ($when === '') return ['ok' => false, 'error' => 'Pick a date and time.'];
         // The datetime-local value is the user's wall-clock in their timezone.
-        $tz   = function_exists('av_user_tz') ? av_user_tz($uid) : 'Africa/Lagos';
+        $tz   = $as !== null && !empty($as['tz']) ? (string) $as['tz'] : (function_exists('av_user_tz') && $uid > 0 ? av_user_tz($uid) : 'Africa/Lagos');
         $ts   = self::localToTs($when, $tz);
         $whenUtc = gmdate('Y-m-d H:i:s', $ts);
         $dur  = max(5, min(720, (int) ($in['duration'] ?? 30)));
@@ -325,13 +341,17 @@ final class Meetings
         if (!in_array($context, ['workspace', 'mentorship', 'team'], true)) $context = 'workspace';
         // Invite the organiser too, so everyone involved gets the calendar invite.
         $emails = self::cleanEmails($in['attendees'] ?? []);
-        $me = self::userEmail($uid);
+        $me = $as !== null ? strtolower(trim((string) ($as['email'] ?? ''))) : self::userEmail($uid);
         if ($me !== '' && filter_var($me, FILTER_VALIDATE_EMAIL)) { array_unshift($emails, $me); $emails = array_values(array_unique($emails)); }
         $autoRec = !empty($in['auto_record']) ? 1 : 0;
+        $private = !empty($in['minutes_private']) ? 1 : 0;
 
         $db = Database::pdo();
-        $db->prepare('INSERT INTO meetings (creator_id, title, agenda, scheduled_at, duration_min, frequency, recur, context, context_id, auto_record, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
-           ->execute([$uid, $title, $agenda, $whenUtc, $dur, $freq, $recur, $context, (int) ($in['context_id'] ?? 0), $autoRec, 'scheduled', self::now()]);
+        $db->prepare('INSERT INTO meetings (creator_id, title, agenda, scheduled_at, duration_min, frequency, recur, context, context_id, auto_record, minutes_private, organiser_name, organiser_email, origin, origin_ref, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+           ->execute([$uid, $title, $agenda, $whenUtc, $dur, $freq, $recur, $context, (int) ($in['context_id'] ?? 0), $autoRec, $private,
+                      mb_substr(trim((string) ($as['name'] ?? '')), 0, 160), $as !== null ? $me : '',
+                      $as !== null ? mb_substr((string) ($as['origin'] ?? ''), 0, 16) : '', $as !== null ? mb_substr((string) ($as['ref'] ?? ''), 0, 64) : '',
+                      'scheduled', self::now()]);
         $id = (int) $db->lastInsertId();
         $row = ['scheduled_at' => $whenUtc, 'frequency' => $freq, 'recur' => $recur, 'duration_min' => $dur];
 
@@ -360,7 +380,7 @@ final class Meetings
         // create the event this is a second touch rather than the only one,
         // which is the correct trade: a duplicate invite is a minor annoyance,
         // a missed meeting is not.
-        self::sendInvites($id, $title, $ts, $dur, self::cadence($row), $agenda, $emails, $link['url'], $uid, (bool) $autoRec && self::botAllowed());
+        self::sendInvites($id, $title, $ts, $dur, self::cadence($row), $agenda, $emails, $link['url'], $uid, (bool) $autoRec && self::botAllowed(), false, (string) ($as['name'] ?? ''));
 
         // The AI notetaker (optional). Google transcribes the space natively, so
         // it can be told about a meeting well ahead. Attendee has no dependable
@@ -382,7 +402,7 @@ final class Meetings
         }
 
         if (class_exists('Events')) { try { Events::emit('meeting.scheduled', ['id' => $id, 'by' => $uid, 'at' => $whenUtc]); } catch (Throwable $e) {} }
-        $out = ['ok' => true, 'id' => $id, 'meeting' => self::get($uid, $id)];
+        $out = ['ok' => true, 'id' => $id, 'meeting' => $uid > 0 ? self::get($uid, $id) : self::view($id, null)];
         if ($link['url'] === '') $out['warning'] = 'Meeting saved and everyone was emailed, but Google did not make a Meet link. '
             . (class_exists('GoogleWorkspace') ? GoogleWorkspace::explain($link['error'] ?? '') : '') . ' Edit the meeting once that is fixed and the link is added.';
         return $out;
@@ -436,7 +456,7 @@ final class Meetings
     }
 
     /** Meetings the user created or is invited to, upcoming first then recent. */
-    public static function listFor(int $uid, int $limit = 60): array
+    public static function listFor(int $uid, int $limit = 120): array
     {
         self::ensure();
         $email = self::userEmail($uid);
@@ -449,15 +469,40 @@ final class Meetings
         // whole meetings list would have died the day this moved to MySQL and
         // not one moment sooner.
         $lim = max(1, min(200, $limit));
-        $st = $db->prepare(
-            'SELECT DISTINCT m.* FROM meetings m
-             LEFT JOIN meeting_attendees a ON a.meeting_id = m.id
-             WHERE m.status <> \'cancelled\' AND (m.creator_id = ? OR a.email = ?)
-             ORDER BY m.scheduled_at DESC LIMIT ' . $lim
-        );
-        $st->execute([$uid, $email]);
+        /* Every meeting, for a member or staff member: meetings are open to
+           everybody in the organisation (only their minutes can be kept to
+           the people in them). An Academy learner sees the ones they are in. */
+        if (self::seesAll($uid)) {
+            $st = $db->prepare('SELECT m.* FROM meetings m WHERE m.status <> \'cancelled\' ORDER BY m.scheduled_at DESC LIMIT ' . $lim);
+            $st->execute();
+        } else {
+            $st = $db->prepare(
+                'SELECT DISTINCT m.* FROM meetings m
+                 LEFT JOIN meeting_attendees a ON a.meeting_id = m.id
+                 WHERE m.status <> \'cancelled\' AND (m.creator_id = ? OR a.email = ?)
+                 ORDER BY m.scheduled_at DESC LIMIT ' . $lim
+            );
+            $st->execute([$uid, $email]);
+        }
         $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $out  = array_map(fn($r) => self::shape($r, $uid), $rows);
+        return self::ordered(self::decorate(array_map(fn($r) => self::shape($r, $uid), $rows), $email, $uid));
+    }
+
+    /**
+     * Every meeting, for somebody who is not an account here — a CACENTRE
+     * staff member, by their email (integrations/cacentre-meetings.php).
+     */
+    public static function listAll(string $viewerEmail, int $viewerId = 0, int $limit = 120): array
+    {
+        self::ensure();
+        $lim = max(1, min(200, $limit));
+        $rows = Database::pdo()->query('SELECT m.* FROM meetings m WHERE m.status <> \'cancelled\' ORDER BY m.scheduled_at DESC LIMIT ' . $lim)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return self::ordered(self::decorate(array_map(fn($r) => self::shape($r, $viewerId), $rows), strtolower($viewerEmail), $viewerId));
+    }
+
+    /** Upcoming first, soonest at the top; then the past, most recent first. */
+    private static function ordered(array $out): array
+    {
 
         // ── Upcoming first, soonest at the top; then the past, most recent
         // first. The SQL cannot express this in one ORDER BY without dialect-
@@ -497,15 +542,99 @@ final class Meetings
     public static function get(int $uid, int $id): ?array
     {
         self::ensure();
-        if (!self::isParticipant($uid, $id)) return null;
+        if (!self::canSee($uid, $id)) return null;
+        return self::view($id, $uid);
+    }
+
+    /**
+     * One meeting as a viewer sees it. $uid null is a CACENTRE staff member,
+     * read through integrations/cacentre-meetings.php: they see every
+     * meeting, and the minutes of those not kept private — or of those they
+     * are in, by $staffEmail.
+     */
+    public static function view(int $id, ?int $uid, string $staffEmail = ''): ?array
+    {
+        self::ensure();
         $st = Database::pdo()->prepare('SELECT * FROM meetings WHERE id = ?');
         $st->execute([$id]);
         $r = $st->fetch(PDO::FETCH_ASSOC);
         if (!$r) return null;
-        $m = self::shape($r, $uid);
+        $m = self::decorate([self::shape($r, (int) $uid)], $uid !== null ? self::userEmail($uid) : strtolower($staffEmail), (int) $uid)[0];
         $m['attendees'] = self::attendees($id);
-        $m['transcript'] = self::transcript($id);
+        $read = $uid !== null ? self::canReadMinutes($uid, $id)
+              : ((int) $r['minutes_private'] === 0 || ($staffEmail !== '' && in_array(strtolower($staffEmail), array_merge($m['attendees'], [strtolower((string) $r['organiser_email'])]), true)));
+        $t = self::transcript($id);
+        $m['transcript'] = $read ? $t : null;
+        /* Said, rather than looking like a meeting nobody took notes in. */
+        $m['minutes_hidden'] = !$read && $t !== null;
         return $m;
+    }
+
+    /** A member or staff member: sees every meeting. Learners see their own. */
+    public static function seesAll(int $uid): bool
+    {
+        if ($uid <= 0) return false;
+        try {
+            $st = Database::pdo()->prepare('SELECT * FROM lms_users WHERE id = ?');
+            $st->execute([$uid]);
+            $u = $st->fetch(PDO::FETCH_ASSOC);
+            return $u && (string) ($u['status'] ?? 'active') === 'active' && class_exists('LmsAuth') && LmsAuth::isOrgMember($u);
+        } catch (Throwable $e) { return false; }
+    }
+
+    /** May this person see the meeting — when, where, who, the agenda? */
+    public static function canSee(int $uid, int $id): bool
+    {
+        return self::isParticipant($uid, $id) || self::seesAll($uid);
+    }
+
+    /**
+     * May they read its minutes and transcript? Everybody who can see it,
+     * unless the organiser kept them private: then the people in it, and
+     * whoever may manage it.
+     */
+    public static function canReadMinutes(int $uid, int $id): bool
+    {
+        if (self::isParticipant($uid, $id)) return true;
+        $st = Database::pdo()->prepare('SELECT minutes_private FROM meetings WHERE id = ?');
+        $st->execute([$id]);
+        $p = $st->fetchColumn();
+        if ($p === false) return false;
+        if ((int) $p === 0) return self::seesAll($uid);
+        return self::mayManage($uid, $id);
+    }
+
+    /**
+     * Who organised each meeting, and whether the viewer is in it — in one
+     * query for the list, not one per card.
+     *
+     * @param list<array> $out shaped meetings
+     */
+    private static function decorate(array $out, string $viewerEmail, int $viewerId): array
+    {
+        if (!$out) return $out;
+        $ids = array_map(static fn($m) => (int) $m['id'], $out);
+        $in = implode(',', $ids);
+        $db = Database::pdo();
+        $rows = $db->query("SELECT m.id, m.creator_id, m.minutes_private, m.organiser_name, m.organiser_email, m.origin, u.name AS uname, u.email AS uemail
+                            FROM meetings m LEFT JOIN lms_users u ON u.id = m.creator_id WHERE m.id IN ($in)")->fetchAll(PDO::FETCH_ASSOC);
+        $by = [];
+        foreach ($rows as $r) $by[(int) $r['id']] = $r;
+        $mine = [];
+        if ($viewerEmail !== '') {
+            $st = $db->prepare("SELECT meeting_id FROM meeting_attendees WHERE email = ? AND meeting_id IN ($in)");
+            $st->execute([strtolower($viewerEmail)]);
+            $mine = array_flip(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)));
+        }
+        foreach ($out as $i => $m) {
+            $r = $by[(int) $m['id']] ?? [];
+            $out[$i]['organiser'] = trim((string) ($r['organiser_name'] ?? '')) !== '' ? (string) $r['organiser_name'] : (string) ($r['uname'] ?? '');
+            $out[$i]['organiser_email'] = (string) (($r['organiser_email'] ?? '') !== '' ? $r['organiser_email'] : ($r['uemail'] ?? ''));
+            $out[$i]['from_cacentre'] = (string) ($r['origin'] ?? '') === 'cacentre';
+            $out[$i]['minutes_private'] = (int) ($r['minutes_private'] ?? 0) === 1;
+            $out[$i]['invited'] = isset($mine[(int) $m['id']]) || ($viewerId > 0 && (int) ($r['creator_id'] ?? 0) === $viewerId);
+        }
+        return $out;
     }
 
     public static function cancel(int $uid, int $id, bool $mayManage = false): array
@@ -611,6 +740,7 @@ final class Meetings
         $recur = $rule !== null && $f === 'custom' ? (string) json_encode($rule) : '';
         if ($f !== self::freqKey((string) $r['frequency']) || $recur !== (string) ($r['recur'] ?? '')) { $set['frequency'] = $f; $set['recur'] = $recur; }
         if (array_key_exists('agenda', $in)) { $a = mb_substr(trim((string) $in['agenda']), 0, 2000); if ($a !== (string) $r['agenda']) $set['agenda'] = $a; }
+        if (array_key_exists('minutes_private', $in)) { $mp = !empty($in['minutes_private']) ? 1 : 0; if ($mp !== (int) ($r['minutes_private'] ?? 0)) $set['minutes_private'] = $mp; }
         if (array_key_exists('auto_record', $in)) { $ar = !empty($in['auto_record']) ? 1 : 0; if ($ar !== (int) ($r['auto_record'] ?? 0)) $set['auto_record'] = $ar; }
 
         /* Who is invited: the list given, the organiser always on it. */
@@ -1323,7 +1453,7 @@ final class Meetings
     private static function sendInvites(
         int $id, string $title, int $ts, int $durationMin, string $freq,
         string $agenda, array $emails, string $meetUrl, int $organiserId,
-        bool $recorded = false, bool $updated = false
+        bool $recorded = false, bool $updated = false, string $organiserName = ''
     ): void {
         if (!class_exists('Mailer') || $emails === []) return;
 
@@ -1331,8 +1461,8 @@ final class Meetings
         // discover a notetaker in the participant list once they have joined.
         $announce = $recorded && (!class_exists('AvRules') || AvRules::bool('meetings.bot_announce'));
 
-        $organiser = '';
-        try {
+        $organiser = trim($organiserName);
+        if ($organiser === '') try {
             $st = Database::pdo()->prepare('SELECT name FROM lms_users WHERE id = ?');
             $st->execute([$organiserId]);
             $organiser = trim((string) ($st->fetchColumn() ?: ''));

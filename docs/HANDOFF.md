@@ -408,3 +408,12 @@ That reason says when the bad key is in config.php rather than the Studio, and
 what is wrong with it. A refusal before the test (not a Super Admin, rate
 limited) now prints its error instead of a bare ✗. Test:
 `tests/setuptests.test.php`.
+
+## Meetings: everybody sees them; CACENTRE staff schedule them (Oct 2026)
+
+Every member and staff member now sees every meeting, and the organiser can
+keep a meeting's minutes to the people in it. CACENTRE's Staff Office schedules
+and lists meetings through `integrations/cacentre-meetings.php`, which is
+signed with the existing `AV_SSO_SECRET`. Meetings has its own portal menu
+entry. Details: docs/meetings.md, "Everybody sees every meeting". The nav test
+now recognises router aliases (`portal/avp.js` `ALIAS`).

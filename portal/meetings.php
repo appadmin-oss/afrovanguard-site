@@ -88,7 +88,7 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
             json_out(Meetings::update($uid, (int) ($body['id'] ?? 0), array_intersect_key(is_array($body) ? $body : [],
-                array_flip(['title', 'when', 'duration', 'frequency', 'repeat', 'agenda', 'attendees', 'auto_record'])), Meetings::mayManage($uid, (int) ($body['id'] ?? 0))));
+                array_flip(['title', 'when', 'duration', 'frequency', 'repeat', 'agenda', 'attendees', 'auto_record', 'minutes_private'])), Meetings::mayManage($uid, (int) ($body['id'] ?? 0))));
 
         /* What a repeat rule would do, before it is saved: read-only, so no write guard. */
         case 'repeat_preview':

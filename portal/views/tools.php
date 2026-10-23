@@ -177,7 +177,7 @@
             <div class="suite-app" data-app="meet" hidden>
           <!-- Standardized meetings: schedule (with a link + cadence) and get AI minutes -->
           <section class="pcard tool-meet" id="tlMeet" data-csrf="<?= e($collabCsrf) ?>" data-email="<?= e(strtolower((string) ($u['email'] ?? ''))) ?>">
-            <div class="pcard-head"><h2>🎥 Meetings</h2><span class="pchip pchip--indigo">Members · shared</span></div>
+            <div class="pcard-head"><h2>🎥 Meetings</h2><span class="pchip pchip--indigo">Everyone · members &amp; staff</span></div>
             <div class="pcard-body">
               <form id="tlMeetForm" class="meet-form" autocomplete="off">
                 <input id="tlMeetTitle" class="meet-in" placeholder="Meeting title…" maxlength="200">
@@ -204,6 +204,7 @@
                 <div class="meet-repeat" id="tlMeetRepeat"></div>
                 <input id="tlMeetWho" class="meet-in" placeholder="Invite by email (comma-separated, optional)" maxlength="600">
                 <input id="tlMeetAgenda" class="meet-in" placeholder="Agenda / notes (optional)" maxlength="2000">
+                <label class="meet-bot meet-priv"><input type="checkbox" id="tlMeetPriv"> <span>🔒 Keep the minutes to the people invited — everyone still sees the meeting</span></label>
                 <label class="meet-bot" hidden><input type="checkbox" id="tlMeetRec"> <span>🤖 Add the recording bot — auto-capture &amp; transcribe this meeting</span></label>
                 <div class="meet-form-foot">
                   <button type="submit" class="pbtn pbtn-gold">Schedule meeting</button>

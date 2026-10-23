@@ -148,6 +148,8 @@ if ($isOrg) {
     // Team Chat is strictly for @afrovanguard members.
     $nav['Work'] = [
         ['tasks', 'Tasks', 'gold', ($openTasks + $cacOpen) ? (string) ($openTasks + $cacOpen) : ''],
+        /* Its own place, not only a tile inside Suite: everyone schedules and sees meetings. */
+        ['meetings', 'Meetings', 'indigo', ''],
         ['chat', 'Team Chat', 'green', ''],
         ['workspace', 'Workspace', 'gray', ''],
     ];

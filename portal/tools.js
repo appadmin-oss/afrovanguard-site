@@ -21,7 +21,7 @@
         back = document.getElementById('suiteBack');
     if (!home || !open || !stage) return;
     var NAMES = { cal: 'Calendar', notes: 'Notes', focus: 'Focus timer', habits: 'Habits', countdown: 'Countdown',
-      rem: 'Reminders', board: 'Team board', polls: 'Team polls', standup: 'Daily standup', goals: 'Goals & OKRs', links: 'Team links' };
+      rem: 'Reminders', meet: 'Meetings', board: 'Team board', polls: 'Team polls', standup: 'Daily standup', goals: 'Goals & OKRs', links: 'Team links' };
     var panels = stage.querySelectorAll('.suite-app');
     function toHome() {
       open.hidden = true; home.hidden = false;
@@ -45,6 +45,9 @@
     // Reset to the launcher only when the Suite NAV LINK is clicked (the whole
     // view carries data-view="tools", so scope to the sidebar link itself).
     document.addEventListener('click', function (e) { if (e.target.closest('a.pnav-link[data-view="tools"]')) setTimeout(toHome, 0); });
+    /* Meetings has its own place in the menu: it is this Suite's meetings app. */
+    document.addEventListener('portal:view', function (e) { if (e.detail && e.detail.asked === 'meetings') openApp('meet'); });
+    if ((location.hash || '') === '#meetings') setTimeout(function () { openApp('meet'); }, 0);
   })();
 
   // Apps register a refresh fn here so opening a tile re-pulls fresh data.
