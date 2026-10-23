@@ -442,6 +442,7 @@
       <button class="subtab" data-mv="import" role="tab">Import</button>
       <button class="subtab" data-mv="volunteers" role="tab">Volunteers</button>
       <button class="subtab" data-mv="dups" role="tab">Duplicates</button>
+      <button class="subtab" data-mv="dues" role="tab">Dues</button>
       <button class="subtab" data-mv="offline" role="tab">Offline payments <span class="badge draft" id="offHeldBadge" hidden></span></button>
     </div>
 
@@ -492,7 +493,7 @@
         <select id="memVolunteer" aria-label="Volunteers"><option value="">Volunteers or not</option><option value="yes">Volunteers</option><option value="no">Not volunteers</option></select>
         <select id="memMissing" aria-label="Members with something missing"><option value="">Complete or not</option><option value="phone">No phone</option><option value="birthday">No birthday</option><option value="card">No gate card</option></select>
         <select id="memSegment" aria-label="Dashboard list"><option value="">Any record</option></select>
-        <select id="memMembership" aria-label="Filter by dues"><option value="">Any dues</option><option value="member">Paying dues</option><option value="lifetime">Lifetime dues</option><option value="current">Dues paid</option><option value="due_soon">Dues due within 30 days</option><option value="lapsed">Dues lapsed</option><option value="cancelled">Dues ended by the office</option><option value="never">Never paid dues</option></select>
+        <select id="memMembership" aria-label="Filter by dues"><option value="">Any dues</option><option value="member">Paying dues</option><option value="lifetime">Lifetime dues</option><option value="current">Dues paid</option><option value="due_soon">Dues due within 30 days</option><option value="lapsed">Dues lapsed</option><option value="cancelled">Dues ended by the office</option><option value="never">Never paid dues</option><option value="owing">Behind on dues</option><option value="obliged">Owe dues (behind or not)</option></select>
         <select id="memSort" aria-label="Order"><option value="">Newest first</option><option value="name">Name A–Z</option><option value="centre">Centre</option><option value="role">Access level</option></select>
       </div>
       <div class="mem-chips-bar" id="memChips" aria-live="polite"></div>
@@ -557,6 +558,33 @@
         <div class="editor-actions"><button class="btn btn-outline btn-sm" id="miCheck" disabled>Check what would change</button><button class="btn btn-primary btn-sm" id="miApply" hidden>Import</button></div>
         <div id="miResult"></div>
       </div>
+    </section>
+
+    <!-- Dues: who owes them, what they cost, and who is behind (lib/Membership.php) -->
+    <section class="mem-pane" data-pane="dues" hidden>
+      <div class="mem-dash">
+        <div class="side-card">
+          <h3>The rules</h3>
+          <p class="muted tiny">Every member at or above the level below owes dues each month, from the later of the start date and the day they joined. NextGen Vanguards are not charged here: their membership is on the NGV account. A payment covers the oldest month owed first.</p>
+          <form class="dues-rules" id="duesRules" autocomplete="off" novalidate>
+            <label class="mem-check"><input type="checkbox" id="dr_enabled"> <span>Members owe dues</span></label>
+            <label class="fld"><span>A month (₦)</span><input id="dr_monthly" inputmode="numeric" maxlength="8"></label>
+            <label class="fld"><span>A year (₦)</span><input id="dr_annual" inputmode="numeric" maxlength="8"></label>
+            <label class="fld"><span>Owed from</span><input id="dr_start" type="date"></label>
+            <label class="fld"><span>Owed from level</span><select id="dr_level"></select></label>
+            <div class="mem-errors" id="dr_errors" role="alert" hidden></div>
+            <p class="muted tiny" id="dr_note"></p>
+            <div class="editor-actions"><button type="submit" class="btn btn-primary btn-sm" id="dr_save">Save the rules</button></div>
+          </form>
+        </div>
+        <div class="side-card">
+          <h3>Behind on dues</h3>
+          <div class="ov-grid mem-tiles" id="duesTotals" aria-live="polite"></div>
+          <div class="mem-tools"><button class="btn btn-outline btn-sm" id="duesOpenRoster">Open them in the roster</button></div>
+        </div>
+      </div>
+      <h2 class="mem-audit-h">Largest debts first</h2>
+      <div class="entry-list" id="duesOwing" aria-live="polite"></div>
     </section>
 
     <section class="mem-pane" data-pane="offline" hidden>

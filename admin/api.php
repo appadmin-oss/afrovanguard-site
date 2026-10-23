@@ -96,12 +96,14 @@ try {
         // Provider credentials. Super Admin only — these are the organisation's keys.
         'setup_get', 'setup_save', 'setup_test',
         // A card format decides what opens the front door.
-        'card_format_save'];
+        'card_format_save',
+        // What every member is charged in dues, and from when.
+        'dues_settings_save'];
     $managementOnly = [ // not available to editors
         'mem_list', 'mem_save', 'mem_create',
         // The member desk names every member, their phone and their birthday.
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
-        'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
+        'roster_membership', 'roster_membership_change', 'dues_settings', 'dues_owing', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
         'roles_list', 'role_save', 'role_delete',
         'centres_list', 'centre_save', 'centre_status', 'centre_delete',
         'approvals_list', 'approval_decide', 'approval_withdraw', 'member_requests_list', 'member_request_decide',
@@ -1410,6 +1412,28 @@ try {
                 default     => ['ok' => false, 'error' => 'Unknown membership change.'],
             };
             json_out($r, $r['ok'] ? 200 : 422);
+        /* ── Dues: the rules, and who is behind (lib/Membership.php) ── */
+        case 'dues_settings':
+            json_out(['ok' => true, 'settings' => Membership::settings(), 'levels' => class_exists('Levels') ? Levels::order() : ['O'],
+                      'owing_levels' => Membership::owingLevels(), 'plan' => defined('AV_DUES_PLAN_CODE') && AV_DUES_PLAN_CODE,
+                      'can_edit' => $role === 'superadmin', 'obliged' => Membership::countWhere(Membership::obligedSql())] + ['owing' => Membership::owingSummary()]);
+        case 'dues_settings_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Membership::saveSettings(array_intersect_key($body, array_flip(['enabled', 'monthly_ngn', 'annual_ngn', 'start', 'from_level'])), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'dues_owing':
+            /* The largest debts first, with names: the list the office calls from. */
+            $o = Membership::owingSummary(max(1, min(500, (int) ($_GET['limit'] ?? 100))));
+            $who = [];
+            if (!empty($o['top'])) {
+                $ids = array_map('intval', array_keys($o['top']));
+                $st = Database::pdo()->query('SELECT u.id, u.name, u.email, u.level, p.phone, p.centre FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id WHERE u.id IN (' . implode(',', $ids) . ')');
+                foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $who[(int) $r['id']] = $r;
+            }
+            $list = [];
+            foreach ($o['top'] ?? [] as $id => $a) $list[] = ($who[$id] ?? ['id' => $id]) + $a;
+            unset($o['top']);
+            json_out(['ok' => true, 'summary' => $o, 'members' => $list]);
         /* ── Offline payments (lib/OfflinePayments.php): credited only once the receipt is checked ── */
         case 'offline_list':
             json_out(['ok' => true, 'payments' => OfflinePayments::queue((string) ($_GET['status'] ?? '')), 'counts' => OfflinePayments::counts(),

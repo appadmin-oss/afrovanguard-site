@@ -67,6 +67,9 @@ final class CfisCheckout
     private const TIMEOUT = 15;
 
     /** Is CACENTRE able to collect for us? */
+    public const DEFAULT_URL = 'https://cacentre.afrovanguard.org.ng/finance';
+    public const DEFAULT_SOURCE = 'avg';
+
     public static function configured(): bool
     {
         return self::base() !== '' && self::source() !== '' && strlen(self::secret()) >= 32;
@@ -82,7 +85,13 @@ final class CfisCheckout
      */
     public static function base(): string
     {
-        $raw = rtrim(trim((string) (defined('CFIS_URL') ? CFIS_URL : (getenv('CFIS_URL') ?: ''))), '/');
+        /* CACENTRE's finance is at one address, and Afrovanguard is one
+           property on it ('avg', CfisFoundationSeeder). Both are defaults
+           now, so finance requests and the CFIS checkout are ON as soon as
+           the one private thing — CFIS_SECRET, minted by `cfis:connect avg`
+           — is in place. They used to need three settings, and a site with
+           the key but no URL read "not switched on" to every member. */
+        $raw = rtrim(trim((string) self::setting('CFIS_URL', self::DEFAULT_URL)), '/');
         if ($raw === '') return '';
         return self::safeBase($raw) ? $raw : '';
     }
@@ -105,12 +114,27 @@ final class CfisCheckout
 
     public static function source(): string
     {
-        return trim((string) (defined('CFIS_SOURCE') ? CFIS_SOURCE : (getenv('CFIS_SOURCE') ?: '')));
+        return trim((string) self::setting('CFIS_SOURCE', self::DEFAULT_SOURCE));
     }
 
     private static function secret(): string
     {
-        return trim((string) (defined('CFIS_SECRET') ? CFIS_SECRET : (getenv('CFIS_SECRET') ?: '')));
+        return trim((string) self::setting('CFIS_SECRET', ''));
+    }
+
+    /**
+     * Studio → Setup, then a constant, then the environment, then the
+     * default. A setting that is present but EMPTY in the constant or the
+     * environment is an explicit "off" and is kept, not defaulted over.
+     */
+    private static function setting(string $key, string $default): string
+    {
+        if (class_exists('AvSettings')) {
+            try { $s = AvSettings::get($key); if ($s !== null && $s !== '') return (string) $s; } catch (Throwable $e) {}
+        }
+        if (defined($key)) return (string) constant($key);
+        $e = getenv($key);
+        return $e !== false ? (string) $e : $default;
     }
 
     /**

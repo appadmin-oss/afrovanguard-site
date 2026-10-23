@@ -337,6 +337,10 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 .avp-dues-total span { font-size: 14px; color: var(--avp-muted); }
 .avp-dues-total strong { font-size: 30px; font-weight: 600; letter-spacing: -.01em; }
 .avp-dues-total .avp-dues-n { color: var(--avp-faint); }
+/* Behind on dues: what is owed, in the red tone. */
+.avp-dues-owe { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 14px; border-radius: 10px; background: var(--avp-red-bg); color: var(--avp-red-tx); }
+.avp-dues-owe span { font-size: 14px; }
+.avp-dues-owe strong { font-size: 26px; font-weight: 600; letter-spacing: -.01em; }
 .avp-dues-line { margin: 0; font-size: 15px; font-weight: 600; }
 .avp-dues-line.is-ok { color: var(--avp-green-tx); }
 .avp-dues-line.is-warn { color: var(--avp-red-tx); }

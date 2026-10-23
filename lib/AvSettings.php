@@ -186,6 +186,17 @@ final class AvSettings
             'ph' => 'https://cacentre.afrovanguard.org.ng',
             'help' => 'Where the gate runs. Used to withdraw a member’s pass when they are suspended. Nothing after the hostname.',
         ],
+        /* ── CACENTRE finance (CFIS) ───────────────────────────────────── */
+        'CFIS_SECRET' => [
+            'group' => 'CACENTRE finance (CFIS)', 'label' => 'Property key', 'secret' => true, 'type' => 'text',
+            'ph' => 'the CFIS_SECRET cfis:connect printed',
+            'help' => 'Finance requests and the CFIS checkout are on as soon as this is set. CACENTRE’s finance team mints it with `php artisan cfis:connect avg` and hands it over privately. Minting a new one stops the old one working.',
+        ],
+        'CFIS_URL' => [
+            'group' => 'CACENTRE finance (CFIS)', 'label' => 'Finance address', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://cacentre.afrovanguard.org.ng/finance',
+            'help' => 'Where CFIS runs. Blank uses https://cacentre.afrovanguard.org.ng/finance.',
+        ],
         /* ── NextGen Genius ─────────────────────────────────────────────── */
         'NGG_WEBHOOK_SECRET' => [
             'group' => 'NextGen Genius', 'label' => 'Shared secret', 'secret' => true, 'type' => 'text',

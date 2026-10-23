@@ -3208,7 +3208,7 @@
   var memSel = {}, memPageIds = [], memTotal = 0, memMember = null;
   /* Dues — not the same as being an Afrovanguard member: a learner can pay
      dues and stay a learner, and a member can have none. */
-  var MS_LABEL = { lifetime: 'Lifetime dues', current: 'Dues paid', due_soon: 'Dues due soon', lapsed: 'Dues lapsed', cancelled: 'Dues ended by the office', never: 'Never paid dues', member: 'Paying dues', none: 'No dues' };
+  var MS_LABEL = { lifetime: 'Lifetime dues', current: 'Dues paid', due_soon: 'Dues due soon', lapsed: 'Dues lapsed', cancelled: 'Dues ended by the office', never: 'Never paid dues', member: 'Paying dues', none: 'No dues', owing: 'Behind on dues', obliged: 'Owe dues' };
   function memFill(sel, list, keep, label) {
     var el = $(sel); if (!el) return;
     var v = keep !== undefined ? keep : el.value;
@@ -3233,6 +3233,7 @@
     if (which === 'dups') loadMemDups();
     if (which === 'volunteers') { loadVolProjects(); vsStatus(); }
     if (which === 'offline') loadOffline();
+    if (which === 'dues') loadDues();
   }
   function loadMembers() { memTab(($('.subtab[data-mv].active') || { getAttribute: function () { return 'dash'; } }).getAttribute('data-mv')); }
 
@@ -3263,9 +3264,11 @@
       + '<h2 class="mem-tiles-h">Dues</h2><div class="ov-grid mem-tiles">'
       + dues('member', 'Paying dues', 'any account — a learner can pay') + dues('due_soon', 'Due within 30 days')
       + dues('lapsed', 'Lapsed') + dues('lifetime', 'Lifetime') + dues('cancelled', 'Ended by the office')
+      + dues('owing', 'Behind on dues', naira(du.owing_ngn) + ' owed · ' + (du.owing_months || 0) + ' month' + (du.owing_months === 1 ? '' : 's'))
+      + dues('obliged', 'Owe dues', 'members from level ' + ((du.rules || {}).from_level || 'O') + ' up, not NGV')
       + memTile(naira(du.received_12m_ngn), 'Dues received', '', 'last 12 months')
       + memTile((b.offline || {}).held || 0, 'Offline payments to check', 'data-offline="1"', 'held — not credited')
-      + '</div><p class="mem-tiles-note">Dues open paid courses. They are not membership: paying them changes nobody’s access level.</p>'
+      + '</div><p class="mem-tiles-note">Members owe dues every month' + ((du.rules || {}).enabled === false ? ' — <b>switched off</b>' : ' at ' + naira((du.rules || {}).monthly_ngn) + ' a month or ' + naira((du.rules || {}).annual_ngn) + ' a year') + '. Learners may pay them too, to open paid courses; paying changes nobody’s access level. Set the rules under Members → Dues.</p>'
       + '<h2 class="mem-tiles-h">Progression</h2><div class="ov-grid mem-tiles">'
       + seg('level_raised', 'Level raised', 'last 12 months') + seg('review_open', 'Promotion to decide', 'open reviews')
       + '</div>';
@@ -3308,7 +3311,8 @@
     var badges = (m.ngv ? ' <span class="badge published" title="Enrolled in NextGen Vanguard, or holds an NGV ID card">NGV</span>' : '')
       + (m.volunteer ? ' <span class="badge published" title="On the volunteer roster, a team, NGG\'s volunteer list or the People page">Volunteer</span>' : '')
       + (m.status === 'suspended' ? ' <span class="badge draft">suspended</span>' : '')
-      + (m.membership && m.membership !== 'none' ? ' <span class="badge ' + (m.membership === 'due_soon' ? 'draft' : 'published') + '" title="' + escapeHtml(m.paid_through ? 'Paid through ' + String(m.paid_through).slice(0, 10) : 'Does not expire') + '">' + escapeHtml(MS_LABEL[m.membership]) + '</span>' : '');
+      + (m.membership && m.membership !== 'none' ? ' <span class="badge ' + (m.membership === 'due_soon' ? 'draft' : 'published') + '" title="' + escapeHtml(m.paid_through ? 'Paid through ' + String(m.paid_through).slice(0, 10) : 'Does not expire') + '">' + escapeHtml(MS_LABEL[m.membership]) + '</span>' : '')
+      + (m.owes && m.owes.months > 0 ? ' <span class="badge mem-owes" title="' + escapeHtml(m.owes.months + ' month' + (m.owes.months === 1 ? '' : 's') + ' of dues owed since ' + m.owes.since) + '">Owes ' + escapeHtml(naira(m.owes.amount_ngn)) + '</span>' : '');
     var meta = [m.email, m.phone, m.centre, 'level ' + (m.level || 'O'), m.role].filter(Boolean).map(escapeHtml).join(' · ');
     return '<div class="entry-row mem-row" data-id="' + m.id + '">'
       + '<input type="checkbox" class="mem-pick" data-id="' + m.id + '"' + (memSel[m.id] ? ' checked' : '') + ' aria-label="Choose ' + escapeHtml(m.name || 'member') + '">'
@@ -3612,7 +3616,11 @@
       : ms.state === 'lapsed' ? 'Dues lapsed' + (ms.paid_through ? ' on ' + when(ms.paid_through) : '')
       : ms.state === 'cancelled' ? 'Dues ended by the office' + (ms.ended && ms.ended.at ? ' on ' + when(ms.ended.at) + ' by ' + escapeHtml(ms.ended.by) : '') + (ms.ended && ms.ended.note ? ' — “' + escapeHtml(ms.ended.note) + '”' : '')
       : 'Never paid dues';
-    return '<p class="mem-ms-line">' + line + '</p><p class="muted tiny">Dues paid to date: ₦' + Number(ms.total_paid_ngn || 0).toLocaleString('en-NG') + ' in ' + ms.payments + ' payment' + (ms.payments === 1 ? '' : 's') + (ms.last_paid_at ? ' · last ' + when(ms.last_paid_at) : '') + '</p>';
+    var ar = ms.arrears || {};
+    var owe = ar.months > 0
+      ? '<p class="mem-ms-owe">Behind by <b>' + ar.months + ' month' + (ar.months === 1 ? '' : 's') + '</b> since ' + when(ar.since) + ': <b>' + naira(ar.amount_ngn) + '</b> owed. Recording dues covers the oldest month first.</p>'
+      : '<p class="muted tiny">' + escapeHtml(ar.why || '') + (ar.owes && ar.next_due ? ' Next due ' + when(ar.next_due) + '.' : '') + '</p>';
+    return '<p class="mem-ms-line">' + line + '</p>' + owe + '<p class="muted tiny">Dues paid to date: ₦' + Number(ms.total_paid_ngn || 0).toLocaleString('en-NG') + ' in ' + ms.payments + ' payment' + (ms.payments === 1 ? '' : 's') + (ms.last_paid_at ? ' · last ' + when(ms.last_paid_at) : '') + '</p>';
   }
   function loadMemMembership() {
     if (!memOpen) return;
@@ -3647,6 +3655,51 @@
       if (!d.ok) { toast(d.error || 'Refused.'); return; }
       toast(d.unchanged ? 'Nothing to change.' : 'Dues updated.'); if (done) done(); loadMemMembership(); loadMemRoster();
     }).catch(function () { toast('Network error.'); });
+  }
+
+  /* ── Dues: the rules, and who is behind ── */
+  var duesCfg = null;
+  function loadDues() {
+    var box = $('#duesOwing'); box.innerHTML = '<p class="muted">Loading…</p>';
+    api('dues_settings').then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { $('#duesTotals').innerHTML = '<p class="muted">Could not load the dues rules. <button class="btn btn-outline btn-sm" id="duesRetry">Retry</button></p>'; return; }
+      duesCfg = d; var s = d.settings || {};
+      $('#dr_enabled').checked = !!s.enabled; $('#dr_monthly').value = s.monthly_ngn; $('#dr_annual').value = s.annual_ngn; $('#dr_start').value = s.start;
+      $('#dr_level').innerHTML = (d.levels || []).map(function (l) { return '<option' + (l === s.from_level ? ' selected' : '') + '>' + escapeHtml(l) + '</option>'; }).join('');
+      ['#dr_enabled', '#dr_monthly', '#dr_annual', '#dr_start', '#dr_level', '#dr_save'].forEach(function (x) { $(x).disabled = !d.can_edit; });
+      $('#dr_note').textContent = (d.can_edit ? '' : 'Only a Super Admin changes the rules. ')
+        + (d.plan ? 'Monthly dues renew through a Paystack plan: change its amount in Paystack too when the monthly price changes. ' : '')
+        + (s.updated_at ? 'Last changed ' + String(s.updated_at).slice(0, 10) + ' by ' + s.updated_by + '.' : '');
+      var o = d.owing || {};
+      $('#duesTotals').innerHTML = memTile(o.members || 0, 'Behind', '', 'of ' + (d.obliged || 0) + ' who owe dues')
+        + memTile(naira(o.amount_ngn), 'Owed in all', '', (o.months || 0) + ' month' + (o.months === 1 ? '' : 's'));
+    }).catch(function () { $('#duesTotals').innerHTML = '<p class="muted">Could not load the dues rules. <button class="btn btn-outline btn-sm" id="duesRetry">Retry</button></p>'; });
+    api('dues_owing&limit=200').then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load who is behind. <button class="btn btn-outline btn-sm" id="duesRetry">Retry</button></p>'; return; }
+      box.innerHTML = (d.members || []).length ? d.members.map(function (m) {
+        return '<div class="entry-row mem-row" data-id="' + m.id + '"><div class="entry-info"><div class="entry-title">' + escapeHtml(m.name || '(no name)') + ' <span class="badge mem-owes">' + escapeHtml(naira(m.amount_ngn)) + '</span></div>'
+          + '<div class="entry-meta">' + [m.email, m.phone, m.centre, 'level ' + (m.level || 'O')].filter(Boolean).map(escapeHtml).join(' · ') + '</div>'
+          + '<div class="entry-meta">' + m.months + ' month' + (m.months === 1 ? '' : 's') + ' since ' + escapeHtml(m.since) + (m.paid_through ? ' · paid through ' + escapeHtml(String(m.paid_through).slice(0, 10)) : ' · never paid') + '</div></div>'
+          + '<div class="entry-ops"><button class="btn btn-outline btn-sm dues-open" data-id="' + m.id + '">Open</button></div></div>';
+      }).join('') : '<p class="muted">Nobody is behind on dues.</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load who is behind. <button class="btn btn-outline btn-sm" id="duesRetry">Retry</button></p>'; });
+  }
+  function saveDues(e) {
+    e.preventDefault();
+    var payload = { enabled: $('#dr_enabled').checked, monthly_ngn: $('#dr_monthly').value.trim(), annual_ngn: $('#dr_annual').value.trim(), start: $('#dr_start').value, from_level: $('#dr_level').value };
+    var s = (duesCfg || {}).settings || {};
+    var msg = 'Save the dues rules?';
+    if (s.start && payload.start < s.start) msg += ' Moving the start back to ' + payload.start + ' makes members owe the months before ' + s.start + '.';
+    if (!confirm(msg)) return;
+    $('#dr_save').disabled = true;
+    post('dues_settings_save', payload).then(function (r) {
+      var d = r.data || {}; $('#dr_save').disabled = false;
+      var err = $('#dr_errors');
+      if (!d.ok) { err.hidden = false; err.textContent = d.error || 'Not saved.'; return; }
+      err.hidden = true; toast(d.unchanged ? 'Nothing changed.' : 'Dues rules saved.'); loadDues();
+    }).catch(function () { $('#dr_save').disabled = false; toast('Network error — nothing was saved.'); });
   }
 
   /* ── Offline payments: credited only once the receipt is checked ── */
@@ -3955,9 +4008,20 @@
       ['#memRole', '#memStatus', '#memMissing', '#memMembership', '#memSegment', '#memWorkRole', '#memCentre', '#memLevel', '#memVolunteer'].forEach(function (x) { $(x).value = ''; });
       $('#memQ').value = ''; $('#memKind').value = '';
       if (a.getAttribute('data-kind')) $('#memKind').value = a.getAttribute('data-kind');
-      else if (a.getAttribute('data-ms')) { $('#memMembership').value = a.getAttribute('data-ms'); $('#memKind').value = 'all'; }
+      /* Owing dues is a MEMBER's obligation, so those two lists stay on members;
+         the other dues states are over every account, learners included. */
+      else if (a.getAttribute('data-ms')) { $('#memMembership').value = a.getAttribute('data-ms'); $('#memKind').value = /^(owing|obliged)$/.test(a.getAttribute('data-ms')) ? '' : 'all'; }
       else $('#memSegment').value = a.getAttribute('data-seg');
       memPage = 1; memSel = {}; memTab('roster');
+    });
+    $('#duesRules').addEventListener('submit', saveDues);
+    $('[data-pane="dues"]').addEventListener('click', function (e) {
+      if (e.target.closest('#duesRetry')) { loadDues(); return; }
+      var o = e.target.closest('.dues-open'); if (o) { openMember(+o.getAttribute('data-id')); return; }
+      if (e.target.closest('#duesOpenRoster')) {
+        ['#memRole', '#memStatus', '#memMissing', '#memSegment', '#memWorkRole', '#memCentre', '#memLevel', '#memVolunteer', '#memKind'].forEach(function (x) { $(x).value = ''; });
+        $('#memQ').value = ''; $('#memMembership').value = 'owing'; memPage = 1; memSel = {}; memTab('roster');
+      }
     });
     $('#memList').addEventListener('change', function (e) {
       var c = e.target.closest('.mem-pick'); if (!c) return;

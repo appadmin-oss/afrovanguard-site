@@ -863,3 +863,9 @@ body.studio { --gold-deep: var(--av-gold-text); }
 .appr-ops { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .mem-queued { color: var(--ink); }
 .appr-h3 { margin: 18px 0 4px; font-size: 15px; }
+
+/* Dues owed (Members → Dues, the roster's "Owes ₦…" badge, the drawer line). */
+.badge.mem-owes { background: transparent; border: 1px solid var(--st-err); color: var(--st-err); }
+.mem-ms-owe { font-size: 14px; margin: 0 0 8px; color: var(--st-err); }
+.dues-rules { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px 12px; align-items: end; }
+.dues-rules .mem-check, .dues-rules .mem-errors, .dues-rules .muted, .dues-rules .editor-actions { grid-column: 1 / -1; }

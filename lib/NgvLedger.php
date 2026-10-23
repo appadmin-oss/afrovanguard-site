@@ -561,6 +561,7 @@ final class NgvLedger
 
         $start = self::startDate($p);
         if ($start === '') { $out['skipped'] = 'no_start_date'; return $out; }
+        $began = $start;   // the membership year runs from here, whatever the guard below moves
         $floor = self::validDate((string) ($cfg['accrueFrom'] ?? ''));
         if ($floor !== '' && $floor > $start) $start = $floor;   // the rollout guard
         /* Back from a pause or a withdrawal: from the day they came back. */
@@ -584,16 +585,21 @@ final class NgvLedger
             return $last < $today ? $last : $today;
         };
 
+        /* The ceiling is tested before EVERY charge, not once before the
+           run. Tested once, an account a single naira under it took a whole
+           backlog of months in one go and sailed past it. */
         $membership = (int) $amt['membership']['amount'];
         if ($membership > 0) {
-            foreach (self::periods($start, $upto($amt['membership']['cadence']), $amt['membership']['cadence']) as $k) {
+            foreach (self::periods($start, $upto($amt['membership']['cadence']), $amt['membership']['cadence'], self::PERIODS_MAX, $began) as $k) {
+                if (self::atCap($memberId, $cfg)) { $out['skipped'] = 'at_cap'; break; }
                 if (self::postCharge($memberId, 'membership', $membership, $k,
                         ['note' => 'Membership ' . $k, 'source' => 'accrual'])) $out['membership']++;
             }
         }
         $commitment = (int) $amt['commitment']['amount'];
         if ($commitment > 0) {
-            foreach (self::periods($start, $upto($amt['commitment']['cadence']), $amt['commitment']['cadence']) as $k) {
+            foreach (self::periods($start, $upto($amt['commitment']['cadence']), $amt['commitment']['cadence'], self::PERIODS_MAX, $began) as $k) {
+                if (self::atCap($memberId, $cfg)) { $out['skipped'] = 'at_cap'; break; }
                 if (self::postCharge($memberId, 'commitment', $commitment, $k,
                         ['note' => 'Commitment ' . $k, 'source' => 'accrual'])) $out['commitment']++;
             }
@@ -2680,19 +2686,47 @@ final class NgvLedger
      * Every period key from $start to $upto inclusive, bounded so an ancient or
      * malformed start date cannot generate ten thousand charges in one run.
      */
-    public static function periods(string $start, string $upto, string $cadence, int $max = self::PERIODS_MAX): array
+    public static function periods(string $start, string $upto, string $cadence, int $max = self::PERIODS_MAX, string $anchor = ''): array
     {
         if ($cadence === 'once') return ['once'];
         $out = [];
-        $step = $cadence === 'month' ? '+1 month' : '+1 year';
-        $t = strtotime(($cadence === 'month' ? substr($start, 0, 8) . '01' : substr($start, 0, 4) . '-01-01') . ' 00:00:00 UTC');
+        if ($cadence !== 'month') {
+            /* A year is a year OF MEMBERSHIP, from the day they started, not a
+               calendar year. Counting calendar years charged somebody who
+               started on 5 December for a second year on 1 January, four weeks
+               later. The key stays the year the anniversary falls in, so a
+               charge already posted under the old count is still the same
+               charge, and nobody is billed twice for the change.
+               The years run from $anchor (the day they began) when it is
+               given; $start, moved later by a rollout guard or a return from
+               a pause, only drops the years that ENDED before it — the year
+               they are in when fees switch on is still owed. */
+            $s = self::validDate(substr($start, 0, 10));
+            $a = self::validDate(substr($anchor, 0, 10));
+            if ($a === '' || $a > $s) $a = $s;
+            if ($s === '') return $out;
+            [$y, $m, $d] = array_map('intval', explode('-', $a));
+            $on = static function (int $i) use ($y, $m, $d): string {
+                /* 29 February falls on the 28th in a year without one. */
+                $day = min($d, (int) gmdate('t', (int) gmmktime(0, 0, 0, $m, 1, $y + $i)));
+                return sprintf('%04d-%02d-%02d', $y + $i, $m, $day);
+            };
+            for ($i = 0; $i < $max + 200; $i++) {
+                $from = $on($i);
+                if ($from > substr($upto, 0, 10) || count($out) >= $max) break;
+                if ($on($i + 1) <= $s) continue;          // that year was over before $start
+                $out[] = substr($from, 0, 4);
+            }
+            return $out;
+        }
+        $t = strtotime(substr($start, 0, 8) . '01 00:00:00 UTC');
         if ($t === false) return $out;
         $end = self::periodKey($upto, $cadence);
         for ($i = 0; $i < $max; $i++) {
             $k = self::periodKey(gmdate('Y-m-d', $t), $cadence);
             if ($k > $end) break;
             $out[] = $k;
-            $t = strtotime($step, $t);
+            $t = strtotime('+1 month', $t);
             if ($t === false) break;
         }
         return $out;

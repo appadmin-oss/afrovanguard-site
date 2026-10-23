@@ -347,3 +347,50 @@ NEVER commit api/config.php; camera Permissions-Policy is camera=(self) in
   Nothing is escalated automatically; the amount is still the catalogue's.
 - Tests: `tests/finessmart.test.php`.
 
+
+## Members owe dues; dues are calculated, not just recorded (Oct 2026)
+
+Before this, dues were only ever *paid*: nothing said a member owed them, so
+a member who never paid read "never paid" and owed nothing, and a member who
+lapsed in March and renewed in October got a year from October (the seven
+months between were forgiven). `lib/Membership.php` now owns the obligation:
+
+- **Who owes**: an Afrovanguard member (not a learner), active, at a level
+  from `from_level` up, not a NextGen Vanguard (membership is on their NGV
+  account), not lifetime, not ended by the office, not the community bot.
+  `Membership::obligation()` gives the reason when somebody does not owe.
+- **How much**: from the later of the start date, the day they joined (or the
+  moment the account was made) and the day paid dues ran out, a month falls
+  due on that day and every month after. Arrears = months × the monthly
+  price, with whole years at the yearly price (`Membership::price`).
+  Computed when read, with no cron and no charge table.
+- **Paying clears the oldest month first**: `Membership::nextBase()` is where
+  new months begin, read by the office's grant and by Paystack's
+  `LmsRepository::grantMembership`.
+- **The rules are the office's**: Studio → Members → **Dues** (prices, start
+  date, from level, on/off; changing them is Super Admin only), meta
+  `av_dues_settings`. The start date is fixed the first time it is read (the
+  first of that month) so it does not slide. Every price reader (portal,
+  offline receipt check, how-it-works, the assistant) reads
+  `Membership::monthly()/annual()/price()`. A Paystack monthly plan's amount
+  is set in Paystack, and the screen says so.
+- **Member management**: dashboard tiles "Behind on dues" (total owed) and
+  "Owe dues"; roster filters for both; an "Owes ₦…" badge per row (one query
+  per page); the drawer says how far behind and why; the Dues tab lists the
+  largest debts first; the CSV export has months and naira owed.
+- **Portal**: Membership shows what is owed and since when, a "Pay what's
+  owed" button (period `arrears`), and the offline form offers that amount.
+- **Bug fixed**: `portal/dues.php` read `$body` without ever setting it, so
+  "Pay a month" started a checkout for a year.
+- **NGV ledger**: a membership year runs from the day somebody began, not
+  the calendar year (a 5 December start was charged again on 1 January). The
+  keys are still `YYYY`, so nothing already posted is charged twice. The year
+  that straddles a rollout guard is still owed. The balance ceiling is tested
+  before every charge, not once per run.
+- **Finance requests are on by default**: CFIS's address
+  (`https://cacentre.afrovanguard.org.ng/finance`) and Afrovanguard's property
+  code (`avg`) are defaults, so the private key alone switches finance
+  requests and the CFIS checkout on. It can be pasted into Studio → Setup →
+  CACENTRE finance (CFIS), or set as `CFIS_SECRET`. An explicitly empty
+  setting still switches it off.
+- Tests: `tests/dues.test.php`, `tests/cfisdefault.test.php`.

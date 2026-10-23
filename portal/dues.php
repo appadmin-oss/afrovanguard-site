@@ -40,12 +40,19 @@ if ($action === 'pay_init') {
     if (!Payments::canCollect()) json_out(['ok' => false, 'error' => 'Online payment is not available yet — please contact us to pay your dues.'], 503);
     if (!av_rate_ok('dues_pay_init', 12, 600)) json_out(['ok' => false, 'error' => 'Too many attempts — please try again shortly.'], 429);
 
-    // Period: monthly (₦1,000 · 1 month) or annual (₦12,000 · 12 months).
-    $period = (($body['period'] ?? 'year') === 'month') ? 'month' : 'year';
+    /* The period the payer chose. `$body` was read here and never set, so
+       every press of "Pay a month" started a checkout for a YEAR. */
+    $body = json_decode((string) file_get_contents('php://input'), true);
+    $body = is_array($body) ? $body : [];
+    // month · year · arrears (every month they are behind, at the office's prices).
+    $period = in_array($body['period'] ?? '', ['month', 'arrears'], true) ? (string) $body['period'] : 'year';
     $months = $period === 'month' ? 1 : 12;
-    $amountNgn = $period === 'month'
-        ? (defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000)
-        : (defined('AV_DUES_ANNUAL_NGN')  ? (int) AV_DUES_ANNUAL_NGN  : 12000);
+    if ($period === 'arrears') {
+        $owed = Membership::arrears((int) $u['id']);
+        if ((int) $owed['months'] < 1) json_out(['ok' => false, 'error' => 'You are not behind on dues.'], 400);
+        $months = min(Membership::MAX_MONTHS, (int) $owed['months']);
+    }
+    $amountNgn = Membership::price($months);
     if ($amountNgn <= 0) json_out(['ok' => false, 'error' => 'Dues are not payable online right now.'], 400);
 
     $reference = Payments::reference('membership');
@@ -57,7 +64,7 @@ if ($action === 'pay_init') {
     // Reuse the academy return/webhook handler — it verifies server-side and
     // finalises membership idempotently (browser redirect AND Paystack webhook).
     $callback = rtrim(SITE_URL, '/') . '/academy/pay.php';
-    $meta = ['user_id' => (int) $u['id'], 'kind' => 'membership', 'source' => 'portal_dues', 'purpose' => 'Afrovanguard membership dues (' . $period . ')'];
+    $meta = ['user_id' => (int) $u['id'], 'kind' => 'membership', 'source' => 'portal_dues', 'purpose' => 'Afrovanguard membership dues (' . $months . ' month' . ($months === 1 ? '' : 's') . ')'];
 
     // Monthly + a Paystack Plan configured → start an AUTO-RENEWING subscription.
     // Otherwise, a one-time charge for the chosen period.
@@ -77,7 +84,7 @@ if ($action === 'pay_init') {
 
     $started = Payments::startCheckout(
         (string) $u['email'], $amountNgn * 100, $reference, $callback,
-        'dues', 'Afrovanguard membership dues (' . $period . ')',
+        'dues', 'Afrovanguard membership dues (' . $months . ' month' . ($months === 1 ? '' : 's') . ')',
         (string) ($u['name'] ?? ''), $meta
     );
     if (empty($started['ok'])) {

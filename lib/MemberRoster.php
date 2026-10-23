@@ -620,12 +620,17 @@ final class MemberRoster
         $st->execute($a);
         $ngv = self::vanguardIds();
         $now = Membership::now(); $soon = gmdate('Y-m-d H:i:s', time() + Membership::DUE_SOON_DAYS * 86400);
-        $rows = array_map(static function ($r) use ($ngv, $now, $soon, $volIds) {
+        $page = $st->fetchAll(PDO::FETCH_ASSOC);
+        /* What each member on the page is behind by: one query for the page. */
+        $owed = Membership::arrearsFor(array_column($page, 'id'));
+        $rows = array_map(static function ($r) use ($ngv, $now, $soon, $volIds, $owed) {
             $pt = (string) ($r['paid_through'] ?? '');
             $r['membership'] = $pt === '' || $pt <= $now ? 'none' : ($pt === '9999-12-31 00:00:00' ? 'lifetime' : ($pt <= $soon ? 'due_soon' : 'current'));
             if ($r['membership'] === 'lifetime') $r['paid_through'] = null;
-            return $r + ['ngv' => isset($ngv[(int) $r['id']]), 'volunteer' => isset($volIds[(int) $r['id']])];
-        }, $st->fetchAll(PDO::FETCH_ASSOC));
+            $o = $owed[(int) $r['id']] ?? null;
+            return $r + ['ngv' => isset($ngv[(int) $r['id']]), 'volunteer' => isset($volIds[(int) $r['id']]),
+                         'owes' => $o ? ['months' => $o['months'], 'amount_ngn' => $o['amount_ngn'], 'since' => $o['since'], 'next_due' => $o['next_due']] : null];
+        }, $page);
         return ['members' => $rows, 'total' => $total, 'page' => $page, 'page_size' => $size, 'sort' => $sortKey, 'dir' => strtolower($dir)];
     }
 
@@ -705,7 +710,9 @@ final class MemberRoster
                 'owing_ngn' => array_sum(array_column($fs, 'owing')),
                 'count' => array_sum(array_column($fs, 'fines')),
             ],
-            'dues' => Membership::counts() + ['received_12m_ngn' => (int) round(((int) $st->fetchColumn()) / 100)],
+            'dues' => Membership::counts() + ['received_12m_ngn' => (int) round(((int) $st->fetchColumn()) / 100)]
+                + (static function (): array { $o = Membership::owingSummary(); return ['owing' => $o['members'], 'owing_ngn' => $o['amount_ngn'], 'owing_months' => $o['months']]; })()
+                + ['obliged' => Membership::countWhere(Membership::obligedSql()), 'rules' => Membership::settings()],
             'offline' => class_exists('OfflinePayments') ? OfflinePayments::counts() : [],
         ];
     }

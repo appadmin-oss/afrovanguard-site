@@ -18,8 +18,8 @@ $canonical = rtrim(SITE_URL, '/') . '/how-it-works';
 $image     = rtrim(SITE_URL, '/') . '/assets/og/og-default.png';
 
 // Dues come from the same config as v1 and the portal (lib/bootstrap.php), so the page never quotes a stale amount.
-$MONTHLY = defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000;
-$ANNUAL  = defined('AV_DUES_ANNUAL_NGN')  ? (int) AV_DUES_ANNUAL_NGN  : 12000;
+$MONTHLY = Membership::monthly();
+$ANNUAL  = Membership::annual();
 
 $ladder = [
     ['b' => 'O', 'k' => 'Where everyone begins', 't' => 'Level O — Foundation Member',

@@ -29,6 +29,30 @@
  *     cancelled  the most recent row was ended by the office
  *     never      no row at all
  *
+ * WHO OWES DUES, AND HOW MUCH. Paying dues used to be the only thing that
+ * happened here: nothing said an Afrovanguard member OWED them, so a member
+ * who never paid read "never paid" for ever and owed nothing, and one who
+ * lapsed in March and renewed in October was given a year from October —
+ * the seven months between were simply forgiven. Dues are an obligation now:
+ *
+ *   OBLIGED   an Afrovanguard member (MemberRoster::MEMBER_SQL), active, at a
+ *             level that owes (settings: from_level up), who is not a NextGen
+ *             Vanguard (their membership is on the NGV account — charging it
+ *             here too would bill them twice), and whose dues the office has
+ *             not ended (cancelled) or made lifetime.
+ *   OWES      from the later of the day dues began (settings: start), the day
+ *             they joined and the day their paid dues ran out, one month's
+ *             dues falls due on that day and on the same day every month
+ *             after. Arrears = the months fallen due × the price.
+ *   PAYING    covers the OLDEST month owed first: a grant extends from that
+ *             day, not from today. Paying a year on 23 October for somebody
+ *             paid through 10 March pays them through 10 March next year.
+ *
+ * Computed when read, never posted by a timer: nothing has to run for the
+ * figure to be right, and there is no charge table to drift from the
+ * membership rows. Prices and the rules are the office's (Studio → Members →
+ * Dues), not environment constants a deployment has to be edited for.
+ *
  * Every change is a row, never an edit of history: a grant adds one, a
  * cancellation marks the live ones cancelled with who and why. All times are
  * UTC 'Y-m-d H:i:s', the format SQLite's datetime('now') writes and isMember()
@@ -43,8 +67,13 @@ final class Membership
     public const MAX_MONTHS = 120;
     public const STATES = ['lifetime', 'current', 'due_soon', 'lapsed', 'cancelled', 'never'];
     public const METHODS = ['cash', 'transfer', 'pos', 'cheque', 'waiver', 'other'];
+    public const SETTINGS_KEY = 'av_dues_settings';
+    /** Arrears are counted to here and no further: a bad start date must not produce a four-figure month count. */
+    public const ARREARS_MAX_MONTHS = 240;
+    public const PRICE_MAX_NGN = 10000000;
 
     private static bool $ready = false;
+    private static ?array $settings = null;
 
     public static function ensure(): void
     {
@@ -71,6 +100,290 @@ final class Membership
     {
         $st = Database::pdo()->prepare('SELECT email FROM lms_users WHERE id = ?'); $st->execute([$userId]);
         return strtolower((string) $st->fetchColumn());
+    }
+
+    /* ══ The rules ══════════════════════════════════════════════════════════ */
+
+    /**
+     * The office's dues rules. Prices start from the deployment's
+     * AV_DUES_MONTHLY_NGN / AV_DUES_ANNUAL_NGN, and once saved in the Studio
+     * the saved figures are the price everywhere: the portal's Pay buttons,
+     * the offline receipt check, the arrears, the answer the assistant gives.
+     *
+     * `start` is the day dues began to be owed. Nobody owes for a month before
+     * it. It is fixed the first time the rules are read (the first of that
+     * month) and saved, so it does not slide forward with the calendar — a
+     * start that moved every month would never let anybody owe more than one.
+     */
+    public static function settings(): array
+    {
+        if (self::$settings !== null) return self::$settings;
+        $d = [
+            'enabled'     => true,
+            'monthly_ngn' => defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000,
+            'annual_ngn'  => defined('AV_DUES_ANNUAL_NGN') ? (int) AV_DUES_ANNUAL_NGN : 12000,
+            'start'       => '',
+            'from_level'  => class_exists('Levels') ? Levels::base() : 'O',
+            'updated_at'  => '', 'updated_by' => '',
+        ];
+        $raw = null;
+        try { $raw = Database::metaGet(self::SETTINGS_KEY); } catch (Throwable $e) {}
+        $saved = is_string($raw) ? json_decode($raw, true) : null;
+        $s = array_merge($d, is_array($saved) ? array_intersect_key($saved, $d) : []);
+        $s['enabled'] = (bool) $s['enabled'];
+        $s['monthly_ngn'] = max(0, (int) $s['monthly_ngn']);
+        $s['annual_ngn'] = max(0, (int) $s['annual_ngn']);
+        if (!self::isDate((string) $s['start'])) {
+            $s['start'] = gmdate('Y-m-01');
+            try { Database::metaSet(self::SETTINGS_KEY, (string) json_encode($s)); } catch (Throwable $e) {}
+        }
+        if (!in_array((string) $s['from_level'], self::ladder(), true)) $s['from_level'] = $d['from_level'];
+        return self::$settings = $s;
+    }
+
+    /** Change the rules. Validated whole; nothing is saved if anything is wrong. */
+    public static function saveSettings(array $in, string $by): array
+    {
+        $cur = self::settings();
+        $e = [];
+        $s = $cur;
+        if (array_key_exists('enabled', $in)) $s['enabled'] = filter_var($in['enabled'], FILTER_VALIDATE_BOOLEAN);
+        foreach (['monthly_ngn' => 'A month', 'annual_ngn' => 'A year'] as $k => $label) {
+            if (!array_key_exists($k, $in)) continue;
+            $v = trim((string) $in[$k]);
+            if (!preg_match('/^\d+$/', $v) || (int) $v < 1 || (int) $v > self::PRICE_MAX_NGN) { $e[$k] = $label . ' is a whole number of naira, at least ₦1.'; continue; }
+            $s[$k] = (int) $v;
+        }
+        if (!$e && $s['annual_ngn'] > 12 * $s['monthly_ngn']) $e['annual_ngn'] = 'A year cannot cost more than twelve months paid one at a time (₦' . number_format(12 * $s['monthly_ngn']) . ').';
+        if (array_key_exists('start', $in)) {
+            $v = trim((string) $in['start']);
+            if (!self::isDate($v)) $e['start'] = 'Dues began on a date, like 2026-01-01.';
+            elseif ($v > gmdate('Y-m-d', time() + 366 * 86400)) $e['start'] = 'The start is at most a year ahead.';
+            else $s['start'] = $v;
+        }
+        if (array_key_exists('from_level', $in)) {
+            $v = strtoupper(trim((string) $in['from_level']));
+            if (!in_array($v, self::ladder(), true)) $e['from_level'] = 'The level is one of ' . implode(', ', self::ladder()) . '.';
+            else $s['from_level'] = $v;
+        }
+        if ($e) return ['ok' => false, 'error' => implode(' ', $e), 'fields' => $e];
+        $changed = [];
+        foreach (['enabled', 'monthly_ngn', 'annual_ngn', 'start', 'from_level'] as $k) if ($s[$k] !== $cur[$k]) $changed[] = $k . ': ' . var_export($cur[$k], true) . ' → ' . var_export($s[$k], true);
+        if (!$changed) return ['ok' => true, 'unchanged' => true, 'settings' => $cur];
+        $s['updated_at'] = self::now(); $s['updated_by'] = mb_substr($by, 0, 191);
+        Database::metaSet(self::SETTINGS_KEY, (string) json_encode($s));
+        self::$settings = null;
+        self::lms()->audit('membership.settings', 'dues', implode('; ', $changed), $by);
+        return ['ok' => true, 'settings' => self::settings()];
+    }
+
+    public static function forgetSettings(): void { self::$settings = null; }
+
+    private static function isDate(string $d): bool
+    {
+        return (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && checkdate((int) substr($d, 5, 2), (int) substr($d, 8, 2), (int) substr($d, 0, 4));
+    }
+
+    private static function ladder(): array
+    {
+        return class_exists('Levels') ? Levels::order() : ['O', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    }
+
+    /** The levels that owe dues: from_level and every level above it. */
+    public static function owingLevels(): array
+    {
+        $l = self::ladder();
+        $i = array_search(self::settings()['from_level'], $l, true);
+        return array_values(array_slice($l, $i === false ? 0 : (int) $i));
+    }
+
+    public static function monthly(): int { return (int) self::settings()['monthly_ngn']; }
+    public static function annual(): int { return (int) self::settings()['annual_ngn']; }
+
+    /** What N months of dues cost: whole years at the yearly price, the rest by the month. */
+    public static function price(int $months): int
+    {
+        $months = max(0, $months);
+        return intdiv($months, 12) * self::annual() + ($months % 12) * self::monthly();
+    }
+
+    /* ══ Who owes ═══════════════════════════════════════════════════════════ */
+
+    /**
+     * SQL over `lms_users u` for the members who owe dues at all (whether or
+     * not they are behind). The roster's "owes dues" filter, the dashboard and
+     * arrearsFor() all start from this, so they agree on who.
+     *
+     * @return array{0:string,1:array}
+     */
+    public static function obligedSql(): array
+    {
+        $s = self::settings();
+        if (!$s['enabled'] || $s['start'] > gmdate('Y-m-d')) return ['1 = 0', []];
+        $levels = self::owingLevels();
+        $base = class_exists('Levels') ? Levels::base() : 'O';
+        $ph = implode(',', array_fill(0, count($levels), '?'));
+        $w = ["u.role <> 'learner'", "u.status = 'active'", "COALESCE(NULLIF(u.level, ''), ?) IN ($ph)",
+              "NOT EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.id AND m.status = 'active' AND m.expires_at IS NULL)",
+              "COALESCE((SELECT m.status FROM memberships m WHERE m.user_id = u.id ORDER BY m.id DESC LIMIT 1), '') <> 'cancelled'"];
+        /* The community bot is an account, not a person. */
+        $w[] = 'LOWER(u.email) <> ' . Database::pdo()->quote(class_exists('Community') ? strtolower(Community::BOT_EMAIL) : 'community-bot@afrovanguard.org.ng');
+        $ngv = class_exists('MemberRoster') ? array_keys(MemberRoster::vanguardIds()) : [];
+        if ($ngv) $w[] = 'u.id NOT IN (' . implode(',', array_map('intval', $ngv)) . ')';
+        return ['(' . implode(' AND ', $w) . ')', array_merge([$base], $levels)];
+    }
+
+    /** Members who are behind: obliged, with no dues running today. */
+    public static function owingSql(): array
+    {
+        [$sql, $a] = self::obligedSql();
+        return ["($sql AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.id AND m.status = 'active' AND (m.expires_at IS NULL OR m.expires_at > ?)))", array_merge($a, [self::now()])];
+    }
+
+    /**
+     * Why a member does or does not owe dues, in words the office can repeat
+     * to them. `owes` false always carries the reason.
+     */
+    public static function obligation(int $userId): array
+    {
+        $s = self::settings();
+        $st = Database::pdo()->prepare('SELECT id, email, role, status, level FROM lms_users WHERE id = ?'); $st->execute([$userId]);
+        $u = $st->fetch(PDO::FETCH_ASSOC);
+        $no = static fn(string $code, string $why) => ['owes' => false, 'code' => $code, 'why' => $why];
+        if (!$u) return $no('no_account', 'No such account.');
+        if (!$s['enabled']) return $no('off', 'Dues are switched off.');
+        if (class_exists('Community') && strtolower((string) $u['email']) === strtolower(Community::BOT_EMAIL)) return $no('system', 'A system account, not a person.');
+        if ((string) $u['role'] === 'learner') return $no('learner', 'An Academy learner, not a member: dues are optional.');
+        if (class_exists('MemberRoster') && isset(MemberRoster::vanguardIds()[$userId])) return $no('ngv', 'A NextGen Vanguard: membership is charged on their NGV account.');
+        if ((string) $u['status'] !== 'active') return $no('suspended', 'Suspended: dues stop while the account is.');
+        $lvl = (string) ($u['level'] ?? '') !== '' ? (string) $u['level'] : (class_exists('Levels') ? Levels::base() : 'O');
+        if (!in_array($lvl, self::owingLevels(), true)) return $no('level', 'Level ' . $lvl . ': dues are owed from Level ' . $s['from_level'] . '.');
+        $live = self::live($userId);
+        if ($live && $live['expires_at'] === null) return $no('lifetime', 'Lifetime membership.');
+        $st = Database::pdo()->prepare('SELECT status FROM memberships WHERE user_id = ? ORDER BY id DESC LIMIT 1'); $st->execute([$userId]);
+        if ((string) $st->fetchColumn() === 'cancelled') return $no('cancelled', 'Dues ended by the office.');
+        if ($s['start'] > gmdate('Y-m-d')) return $no('not_yet', 'Dues begin on ' . $s['start'] . '.');
+        return ['owes' => true, 'code' => 'member', 'why' => 'Level ' . $lvl . ' member: dues are owed every month.'];
+    }
+
+    /**
+     * What each member is behind by, for many members in two queries — the
+     * roster draws a page of fifty, and one query each is the N+1 this
+     * codebase removes wherever it finds one.
+     *
+     * @param int[] $ids
+     * @return array<int, array{months:int, amount_ngn:int, since:string, next_due:string, paid_through:?string, from:string}>
+     *         keyed by member id, only for members who are obliged
+     */
+    public static function arrearsFor(array $ids, ?int $now = null): array
+    {
+        self::ensure();
+        if (class_exists('MemberRoster')) MemberRoster::ensure();
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn($i) => $i > 0)));
+        if (!$ids) return [];
+        $now = $now ?? time();
+        [$sql, $a] = self::obligedSql();
+        $out = [];
+        foreach (array_chunk($ids, 500) as $chunk) {
+            $st = Database::pdo()->prepare('SELECT u.id, u.created_at, p.joined_on,
+                    (SELECT MAX(m.expires_at) FROM memberships m WHERE m.user_id = u.id AND m.status = \'active\' AND m.expires_at IS NOT NULL) AS paid_through
+                FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id
+                WHERE u.id IN (' . implode(',', $chunk) . ') AND ' . $sql);
+            $st->execute($a);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $out[(int) $r['id']] = self::owed($r, $now);
+        }
+        return $out;
+    }
+
+    /** One member's arrears, or nothing owed with the reason. */
+    public static function arrears(int $userId, ?int $now = null): array
+    {
+        $ob = self::obligation($userId);
+        $a = self::arrearsFor([$userId], $now)[$userId] ?? null;
+        $zero = ['months' => 0, 'amount_ngn' => 0, 'since' => '', 'next_due' => '', 'paid_through' => null, 'from' => ''];
+        return ($a ?? $zero) + ['owes' => $ob['owes'], 'code' => $ob['code'], 'why' => $ob['why']];
+    }
+
+    /**
+     * The arithmetic, from one row (created_at, joined_on, paid_through).
+     * The anchor is the first day not paid for: the later of the start, the
+     * day they joined, and the day paid dues ran out. A month falls due on
+     * the anchor and on the same day each month after it, up to now.
+     */
+    private static function owed(array $r, int $now): array
+    {
+        $anchor = self::anchorOf($r);
+        $months = 0;
+        while ($months < self::ARREARS_MAX_MONTHS) {
+            $t = (int) strtotime('+' . $months . ' months', $anchor);
+            if ($t > $now) break;
+            $months++;
+        }
+        $next = (int) strtotime('+' . $months . ' months', $anchor);
+        $pt = (string) ($r['paid_through'] ?? '');
+        return ['months' => $months, 'amount_ngn' => self::price($months),
+                'since' => $months > 0 ? gmdate('Y-m-d', $anchor) : '', 'next_due' => gmdate('Y-m-d', $next),
+                'paid_through' => $pt !== '' ? $pt : null, 'from' => gmdate('Y-m-d H:i:s', $anchor)];
+    }
+
+    private static function anchorOf(array $r): int
+    {
+        $start = (int) strtotime(self::settings()['start'] . ' 00:00:00 UTC');
+        $joined = (string) ($r['joined_on'] ?? '');
+        /* The day they joined, or — with none recorded — the moment the
+           account was made, so somebody paying on their first day pays from
+           that moment, not from the midnight before it. */
+        $made = substr((string) ($r['created_at'] ?? ''), 0, 19);
+        $joinTs = self::isDate($joined) && $joined !== substr($made, 0, 10)
+            ? (int) strtotime($joined . ' 00:00:00 UTC')
+            : (int) strtotime($made . ' UTC');
+        $pt = (string) ($r['paid_through'] ?? '');
+        $ptTs = $pt !== '' ? (int) strtotime($pt . ' UTC') : 0;
+        return max($start, $joinTs ?: 0, $ptTs);
+    }
+
+    /**
+     * Where the next months of dues begin, for a grant. With dues running, at
+     * their end. Behind, at the first month owed — paying clears arrears
+     * oldest first rather than forgiving them. Otherwise, now. The Paystack
+     * path (LmsRepository::grantMembership) and the office's grant both read
+     * this, so a payment buys the same months whichever way it arrived.
+     */
+    public static function nextBase(int $userId, ?int $now = null): int
+    {
+        $now = $now ?? time();
+        $live = self::live($userId);
+        if ($live && $live['expires_at'] !== null) return max($now, (int) strtotime($live['expires_at'] . ' UTC'));
+        $a = self::arrearsFor([$userId], $now)[$userId] ?? null;
+        if ($a && $a['months'] > 0) return (int) strtotime($a['from'] . ' UTC');
+        return $now;
+    }
+
+    /** How many accounts a [sql, args] pair over `lms_users u` selects. */
+    public static function countWhere(array $q): int
+    {
+        $st = Database::pdo()->prepare('SELECT COUNT(*) FROM lms_users u WHERE ' . $q[0]); $st->execute($q[1]);
+        return (int) $st->fetchColumn();
+    }
+
+    /**
+     * Who owes, how much in all, and the largest debts — the dashboard's
+     * figure and the list it opens are the same members.
+     */
+    public static function owingSummary(int $top = 0): array
+    {
+        [$sql, $a] = self::owingSql();
+        $st = Database::pdo()->prepare("SELECT u.id FROM lms_users u WHERE $sql"); $st->execute($a);
+        $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+        $all = self::arrearsFor($ids);
+        $owing = array_filter($all, static fn($x) => $x['months'] > 0);
+        $total = array_sum(array_column($owing, 'amount_ngn'));
+        $out = ['members' => count($owing), 'amount_ngn' => $total, 'months' => array_sum(array_column($owing, 'months'))];
+        if ($top > 0 && $owing) {
+            uasort($owing, static fn($x, $y) => $y['amount_ngn'] <=> $x['amount_ngn']);
+            $out['top'] = array_slice($owing, 0, $top, true);
+        }
+        return $out;
     }
 
     /* ══ Reading ════════════════════════════════════════════════════════════ */
@@ -116,6 +429,7 @@ final class Membership
             'total_paid_ngn' => (int) round(((int) $pay['k']) / 100),
             'payments'      => (int) $pay['n'],
             'last_paid_at'  => $pay['last'] ?: null,
+            'arrears'       => self::arrears($userId),
         ];
     }
 
@@ -164,6 +478,8 @@ final class Membership
             case 'lapsed':    return ["$any AND NOT $liveAny AND NOT $lastCancelled", [$now]];
             case 'cancelled': return ["NOT $liveAny AND $lastCancelled", [$now]];
             case 'never':     return ["NOT $any", []];
+            case 'owing':     return self::owingSql();
+            case 'obliged':   return self::obligedSql();
         }
         return null;
     }
@@ -224,20 +540,24 @@ final class Membership
             if ($st->fetchColumn()) return ['ok' => false, 'error' => 'A payment with reference ' . $ref . ' is already recorded.', 'code' => 'duplicate_reference'];
         }
 
-        /* Extend from the later of now and what they already have. */
-        $base = time();
-        if ($live && $live['expires_at'] !== null) $base = max($base, (int) strtotime($live['expires_at'] . ' UTC'));
+        /* Extend from where their dues next begin: the end of what is
+           running, or the oldest month they are behind on (nextBase). */
+        $base = self::nextBase($userId);
         $expires = gmdate('Y-m-d H:i:s', (int) strtotime("+$months months", $base));
         $source = $amount > 0 ? 'offline' : ($method === 'waiver' ? 'waiver' : 'admin');
 
+        $from = gmdate('Y-m-d H:i:s', min($base, time()));
         $pdo->beginTransaction();
         try {
             if ($amount > 0) {
                 $pdo->prepare("INSERT INTO payments (reference, user_id, provider, kind, amount_kobo, status, paid_at, months, note, recorded_by) VALUES (?, ?, ?, 'membership', ?, 'paid', ?, ?, ?, ?)")
                     ->execute([$ref, $userId, 'offline:' . $method, $amount * 100, self::now(), $months, $note, $actor]);
             }
+            /* started_at is where these months begin — in the past when
+               they pay off arrears — so the history reads as the months it
+               covers, not the day the office typed it. */
             $pdo->prepare("INSERT INTO memberships (user_id, tier, status, started_at, expires_at, source, note, granted_by) VALUES (?, 'member', 'active', ?, ?, ?, ?, ?)")
-                ->execute([$userId, self::now(), $expires, $source, $note, $actor]);
+                ->execute([$userId, $from, $expires, $source, $note, $actor]);
             $pdo->commit();
         } catch (Throwable $e) {
             $pdo->rollBack();
