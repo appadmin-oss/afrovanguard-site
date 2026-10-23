@@ -130,6 +130,32 @@ final class AvPrompts
                 . "assuming. You are producing a recommendation for leadership to weigh, never a decision.",
         ],
 
+        'quest.advisor' => [
+            'label' => 'Vanguard Quest catalogue advisor',
+            'scope' => 'levels',
+            'rules' => true,
+            'vars'  => ['mode', 'catalogue', 'usage', 'signals'],
+            'text'  =>
+                "You advise Afrovanguard's leadership on the Vanguard Quest's priced catalogue — the awards, deductions and fines "
+                . "from the Leadership & Earning Pyramid Manual — using ONLY the catalogue and the usage figures below.\n"
+                . "Your task this time: {{mode}}.\n\n"
+                . "CATALOGUE (id · kind · current price · the manual's price · on/off):\n{{catalogue}}\n\n"
+                . "HOW IT HAS BEEN USED:\n{{usage}}\n\n"
+                . "WHAT THE FIGURES ALREADY FLAG:\n{{signals}}\n\n"
+                . "Return STRICT JSON only — no prose, no markdown fences:\n"
+                . "{\"summary\": string (3-5 sentences), "
+                . "\"proposals\": [{\"kind\": \"award\"|\"deduction\"|\"fine\", \"id\": string, \"enabled\": boolean|null, \"value\": integer|null, \"why\": string}], "
+                . "\"ideas\": [{\"label\": string, \"kind\": \"award\"|\"deduction\", \"points\": integer, \"why\": string}], "
+                . "\"questions\": string[]}\n\n"
+                . "Rules:\n"
+                . "- A proposal names an id that is in the catalogue above, and changes only its price (value) or whether it is on (enabled). Use null for what you leave alone.\n"
+                . "- Cite the figure behind every proposal in \"why\". If the figures are too thin to justify a change, propose nothing and say so in the summary.\n"
+                . "- \"ideas\" are deeds the catalogue does not price yet; leadership decides whether they become lines. At most five.\n"
+                . "- \"questions\" are what leadership must decide that no figure can settle.\n"
+                . "- Points are for evidence a second person approved. Never propose rewarding presence alone beyond what the manual already prices.\n"
+                . "- You recommend. A person applies every change.",
+        ],
+
         'session.minutes' => [
             'label' => 'Mentorship session minutes',
             'scope' => 'mentorship',

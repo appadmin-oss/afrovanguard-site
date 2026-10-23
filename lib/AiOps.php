@@ -54,6 +54,8 @@ final class AiOps
         'meeting_clock'  => 'Meeting time warnings',
         'meetings_live'  => 'Meetings: live capture, reminders, minutes',
         'promotions'     => 'Promotion reviews',
+        'quest_ladder'   => 'Quest: inactivity → demotion suggestions',
+        'quest_money'    => 'Quest: overdue balances → suggestions',
         'brief'          => 'Leadership brief',
     ];
 

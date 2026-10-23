@@ -65,7 +65,9 @@ ck('any member: an NGV participant is fined as before, on their NGV account', $v
 /* Where they see it. */
 $idx = (string) file_get_contents(AV_ROOT . '/portal/index.php');
 $view = (string) file_get_contents(AV_ROOT . '/portal/views/fines.php');
-ck('any member: the portal gives a member outside NGV a Fines page once they have had one', str_contains($idx, "['fines', 'Fines'") && str_contains($idx, "views/fines.php") && str_contains($view, 'id="view-fines"'));
+ck('any member: the portal gives a member outside NGV a Fines page once they have had one',
+   (PortalNav::SECTIONS['fines']['view'] ?? '') === 'fines' && PortalNav::visible('fines', ['fines' => true]) && !PortalNav::visible('fines', ['org' => true])
+   && str_contains($idx, "'fines' => (bool) \$myFines['fines']") && str_contains($view, 'id="view-fines"'));
 ck('any member: the page carries no inline style', !str_contains($view, 'style='));
 $desk = (string) file_get_contents(AV_ROOT . '/academy/ngv/fines.php');
 ck('any member: the fines desk records a payment against a fine', str_contains($desk, "\$act === 'pay'") && str_contains($desk, 'data-pay='));

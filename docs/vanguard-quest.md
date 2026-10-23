@@ -114,7 +114,10 @@ correct: it is built, tested end to end against a registry the test supplies,
 and will start working the moment the wording arrives — the ids are already
 stable.
 
-`Quest::progress($memberId)` returns `['done' => n, 'total' => 70]`.
+`Quest::progress($memberId)` returns `['done' => n, 'total' => 70]`, and
+`Quest::progressByValue($memberId)` the same per value. Both read
+`QuestPoints::challengesDone()` — **one query**, not one per slot — and count
+only ids the registry still has.
 
 ## A member's record
 
@@ -163,24 +166,115 @@ finding stays on the record; it stops standing.
 `FINDING_KINDS` is a starting list, not a policy. The owner has not settled
 what counts.
 
-## Open questions this code is waiting on
+## The Pyramid Manual, 22 October 2026
+
+The owner supplied the *Afrovanguard Leadership & Earning Pyramid Manual* and
+decided where it contradicted the earlier brief (van-quest
+`inventory/pyramid-manual.md`):
+
+| Decision | What runs |
+| --- | --- |
+| Attendance counts | Punctuality and workshops are priced catalogue actions, decided at the desk like any other |
+| Section 2 is the catalogue | `lib/quest/awardable-actions.json`; a mentor picks the deed, the catalogue prices it |
+| Deduct, don't demote | Deductions (Scoring Board §3) post negative points through the desk; "loss of current level" is a **suggestion** |
+| Build the money | Points against fines by income bracket, month by month (`QuestMoney`) |
+| Every rule toggleable | `QuestRules` per line, AvRules group "Vanguard Quest" for the rest |
+| AI to optimise the catalogue | `QuestAdvisor`, proposals a superadmin applies |
+
+### The classes
+
+| Class | Holds |
+| --- | --- |
+| `QuestRules` | Every catalogue line (awards, deductions, fines) switchable and re-priceable by a superadmin, logged, never losing the manual's price |
+| `Conduct` | Now four kinds: `award` (by catalogue action), `deduction`, `fine` (manual's list, ledger reason), `challenge`. `withinCeiling()` holds an award to the level's monthly ceiling |
+| `Levels` | With `levels.quest_pyramid` on, recommends on the next level's Quest points and direct mentees met (binding from B), 150 a month for 3 months, no open finding. Still only recommends. Titles follow the manual on screen (`levels.quest_titles`); the **ID card keeps its printed names** unless `levels.quest_titles_on_card` is switched on |
+| `QuestLadder` | Suggestions — demotion, suspension, fine — accepted or dismissed by the committee; daily inactivity sweep; "mentee rises" +50 to the mentor on a recorded promotion |
+| `QuestMoney` | Income brackets (₦ per point, fine scale); monthly preview and apply (offset posted as an NGV **waiver**); overdue sweep suggests suspension and the ₦2,000 fine; Reward Pool share of fines paid. Inert until `quest.money_enabled` and a bracket values a point |
+| `QuestAdvisor` | Usage figures and signals in grouped queries; the model in four modes (prompt `quest.advisor`); proposals validated against the catalogue and applied only by a superadmin |
+| `QuestDesk` | The desk's read model: one section registry, overview figures, the grouped register, promotion |
+
+### The desk — /mentorship/compliance/
+
+The portal's shell (avp.css/avp.js), one registry of sections
+(`QuestDesk::SECTIONS`), a view file each under `mentorship/compliance/views/`:
+Overview · Cases (one at a time or in bulk, count confirmed by a second press,
+cap 200, per-case verdicts) · Suggestions · Promotions · Members (drawer:
+journey, bracket, findings) · Money · Catalogue · Rules · AI advisor ·
+Committee & kinds. Rules and the advisor are superadmin sections. Every form
+is a plain post to `mentorship/conduct.php`; `desk.js` upgrades them in place.
+
+Tests: `questrules`, `questdesk`, `questpyramid`, `questmoney`, `questadvisor`,
+`questdeskui` (fixtures 8100–8599).
+
+### Still waiting
 
 | | |
 | --- | --- |
 | The seventy challenge texts | The sign-off path is inert without them |
-| What counts as an integrity finding | `FINDING_KINDS` is a guess |
-| Which ladder a member climbs | No rank engine until this is settled |
-| Who may move somebody along the journey | Compliance-only today, which may be too tight |
+| Income brackets and the value of a point | Money stays off until they are set on the desk |
+| Earnings by level | The manual's share of CACENTRE service charges is recorded, not computed — the owner is sending more |
+| What counts as an integrity finding | `FINDING_KINDS` is still a guess; the manual's theft and dishonesty row is the best candidate |
+| The Reward Pool's percentage | 0 until leadership sets it |
 
-## What is deliberately not here
+## The member's page — Portal → Vanguard Quest → The Quest
 
-No rank engine. `QuestPoints` stores and totals; what a total means is the
-ladder's business, and the ladder is not built. `lib/Levels.php` runs a
-different ladder on different criteria — see `van-quest/inventory/conflicts.md`,
-finding 2 — and reconciling them is blocked on the owner.
+`portal/views/quest.php`, in every account's menu, because everybody is a part
+of the Quest. It reads `QuestRecord::of()` and nothing else decides anything.
+
+| In order | Why |
+| --- | --- |
+| Journey level, Visitor (0) to Vanguard (4) | It leads. Most of the register is at zero points for a long time, and a page that opens on a number tells them the Quest is not about them |
+| Quest points, challenges proved, people mentored | Quest points are named as separate from the gate pass's attendance points |
+| An open integrity finding | Only while one stands — the doctrine says it is visible while it stands. Its kind and date, never its detail |
+| The seven values | Points and challenges proved per value; says plainly that the challenge wording is not yet written |
+| Recently recorded | The last six grants, with an empty state |
+
+**The level sits second, beside the journey** — the Pyramid Manual settled the
+ladder. The card shows the level held (a decision), what the next one asks in
+points and mentees met, and this month against the level's ceiling.
+
+`tests/questview.test.php` holds the order, the absent rank, and the finding's
+visibility (fixtures 9800–9899).
+
+## Bills and appeals — Portal → Vanguard Quest → Bills & appeals
+
+*The owner, 22 October 2026: members can fine themselves; fines are proposed
+like bills, approved by a committee, and can be appealed. Doctrine:
+`van-quest/doctrine/06-awards-and-fines.md`.*
+
+| Stage | Where | Code |
+| --- | --- | --- |
+| A mentor proposes a fine or deduction; the member is told at once | Mentor portal → Conduct | `Conduct::propose()` → `tellMember()` |
+| The member accepts it or contests it with their side | `portal/views/bills.php` | `Conduct::respond()` |
+| The committee decides; not before an answer or `quest.notice_days`; reject any time | Desk → Cases (shows the answer and their side) | `Conduct::decide()`, `noticeLeft()` |
+| The member appeals once, within `quest.appeal_days`, on grounds | `portal/views/bills.php` | `Conduct::appeal()` |
+| Somebody with no part in it hears it: upheld, overturned, reduced | Desk → Appeals | `Conduct::hearAppeal()` |
+| A member reports themselves, from the catalogue, at its price | `portal/views/bills.php` | `Conduct::selfReport()` |
+
+- Overturning a fine voids its NGV charge (`NgvFines::voidOne`); reducing voids
+  it and issues the smaller one. Overturning a deduction removes its row
+  (`QuestPoints::revoke`) and dismisses a demotion suggestion it raised;
+  reducing re-posts it at the new size. Nothing is raised on appeal.
+- A self-report is accepted on arrival, decided by somebody else, and not
+  appealable. It cannot be an award.
+- An open appeal holds the overdue-balance suspension and fine
+  (`QuestMoney::sweep`).
+- Switches, in Rules: `quest.self_report`, `quest.notice_days` (2),
+  `quest.appeals_enabled`, `quest.appeal_days` (14).
+- Tables: `conduct_cases` gains `response`, `response_note`, `responded_at`;
+  `conduct_appeals` holds one appeal per case.
+- Today lists an unanswered bill (with the day the committee may decide) and
+  a decision whose appeal window closes within three days. The command
+  palette offers "Report yourself" and, when one waits, "Answer a fine or
+  deduction".
+- The mentor is told when their proposal is contested, and how an appeal
+  ended; their list shows the member's answer and the appeal.
+- Desk → Cases filters by the member's answer: ready to decide, contested,
+  not answered, self-reported.
+- `tests/questappeals.test.php` (fixtures 8700–8799).
 
 ## Screens still showing the gate's number
 
 `gate-pass.php`, `portal/_attendance.php` and `Volunteers.php` read
 `GateAttendance::points()`. That is attendance, and on an attendance screen it
-is the right number. Nothing shows a Quest total yet.
+is the right number.

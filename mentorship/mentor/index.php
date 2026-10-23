@@ -24,7 +24,7 @@ if (!Mentorship::isMentor($uid)) {
     render_head([
         'title' => 'Mentor portal — Afrovanguard', 'robots' => 'noindex, nofollow',
         'canonical' => rtrim(SITE_URL, '/') . '/mentorship/mentor/',
-        'css' => ['/assets/site/avm.css'],
+        'css' => ['/assets/site/avm.css', '/assets/site/avm-portal.css'],
     ]);
     render_nav('mentorship');
     ?>

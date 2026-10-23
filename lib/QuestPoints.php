@@ -28,7 +28,7 @@
  *       mentee-rank:<mentee>:<rank>       a mentee reaching a rank credits their mentor
  *
  * NOT A RANK ENGINE. This class stores and totals. What a total means is the
- * ladder's business, and the ladder is not built yet.
+ * ladder's business: Levels (on the Pyramid Manual's floors) and Quest::rankFor().
  */
 declare(strict_types=1);
 
@@ -94,6 +94,94 @@ final class QuestPoints
         }
     }
 
+    /**
+     * Take points away — the Pyramid Manual's deductions, approved at the desk
+     * like an award. Stored as a negative row under the decision that caused
+     * it, so it is once-only exactly as a grant is, and a total is still one
+     * SUM. Takes a positive number; refuses what grant() refuses.
+     */
+    public static function deduct(int $memberId, int $points, string $period, string $reason = '',
+                                  string $note = '', int $byUid = 0, string $day = ''): bool
+    {
+        if ($memberId <= 0 || $points <= 0 || $points > self::MAX_PER_GRANT) return false;
+        $period = trim($period);
+        if ($period === '' || !str_contains($period, ':')) return false;
+        self::ensure();
+        if ($day === '') $day = gmdate('Y-m-d');
+        try {
+            $st = Database::pdo()->prepare(Database::insertIgnore('quest_points',
+                ['member_id', 'day', 'period', 'points', 'reason', 'value_key', 'note', 'granted_by', 'created_at']));
+            $st->execute([$memberId, $day, mb_substr($period, 0, 80), -$points, mb_substr($reason, 0, 40),
+                          '', mb_substr($note, 0, 160), $byUid, gmdate('Y-m-d H:i:s')]);
+            return $st->rowCount() > 0;
+        } catch (Throwable $e) {
+            error_log('[questpoints] deduct: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Take a deduction off the record — an appeal overturned it. Only a
+     * deduction (a negative row), only by its exact period; the case and the
+     * appeal keep the history of why.
+     */
+    public static function revoke(int $memberId, string $period): bool
+    {
+        if ($memberId <= 0 || trim($period) === '') return false;
+        self::ensure();
+        try {
+            $st = Database::pdo()->prepare('DELETE FROM quest_points WHERE member_id = ? AND period = ? AND points < 0');
+            $st->execute([$memberId, $period]);
+            return $st->rowCount() > 0;
+        } catch (Throwable $e) {
+            error_log('[questpoints] revoke: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Points EARNED (positive rows only) in one calendar month, 'YYYY-MM'.
+     * What the manual's monthly ceiling caps, and what its "150 a month"
+     * promotion criterion reads: a deduction takes from the total, not from
+     * what was earned that month.
+     */
+    public static function earnedInMonth(int $memberId, string $month): int
+    {
+        if ($memberId <= 0 || !preg_match('/^\d{4}-\d{2}$/', $month)) return 0;
+        self::ensure();
+        try {
+            $st = Database::pdo()->prepare('SELECT COALESCE(SUM(points), 0) FROM quest_points WHERE member_id = ? AND points > 0 AND day LIKE ?');
+            $st->execute([$memberId, $month . '-%']);
+            return (int) $st->fetchColumn();
+        } catch (Throwable $e) { return 0; }
+    }
+
+    /**
+     * Earned per month for the last $n whole months before $before ('YYYY-MM',
+     * default this month), oldest first: ['2026-07' => 180, …]. One query.
+     * @return array<string,int>
+     */
+    public static function earnedByMonth(int $memberId, int $n, string $before = ''): array
+    {
+        $n = max(1, min(24, $n));
+        $anchor = preg_match('/^\d{4}-\d{2}$/', $before) ? $before : gmdate('Y-m');
+        $months = [];
+        $t = strtotime($anchor . '-01');
+        for ($i = $n; $i >= 1; $i--) $months[gmdate('Y-m', strtotime('-' . $i . ' month', $t))] = 0;
+        if ($memberId <= 0) return $months;
+        self::ensure();
+        try {
+            $first = array_key_first($months);
+            $st = Database::pdo()->prepare('SELECT SUBSTR(day, 1, 7) AS m, SUM(points) AS p FROM quest_points
+                                            WHERE member_id = ? AND points > 0 AND day >= ? AND day < ? GROUP BY SUBSTR(day, 1, 7)');
+            $st->execute([$memberId, $first . '-01', $anchor . '-01']);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                if (isset($months[(string) $r['m']])) $months[(string) $r['m']] = (int) $r['p'];
+            }
+        } catch (Throwable $e) { /* zeros */ }
+        return $months;
+    }
+
     /** What this member has earned by evidence. Never includes attendance. */
     public static function total(int $memberId): int
     {
@@ -116,6 +204,29 @@ final class QuestPoints
             $st->execute([$memberId, $period]);
             return (bool) $st->fetchColumn();
         } catch (Throwable $e) { return false; }
+    }
+
+    /**
+     * The challenges this member has signed off, in one query. A sign-off is
+     * a grant under `challenge:<member>:<challenge>`, so the ledger already
+     * knows; asking it seventy times, once per slot, was the old way.
+     * @return string[] challenge ids, e.g. 'diligence.4'
+     */
+    public static function challengesDone(int $memberId): array
+    {
+        if ($memberId <= 0) return [];
+        self::ensure();
+        $prefix = 'challenge:' . $memberId . ':';
+        try {
+            $st = Database::pdo()->prepare('SELECT period FROM quest_points WHERE member_id = ? AND period LIKE ?');
+            $st->execute([$memberId, $prefix . '%']);
+            $out = [];
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $p) {
+                $p = (string) $p;
+                if (str_starts_with($p, $prefix)) $out[] = substr($p, strlen($prefix));
+            }
+            return $out;
+        } catch (Throwable $e) { return []; }
     }
 
     /** @return array<int,array{day:string,points:int,reason:string,note:string}> newest first */

@@ -1,42 +1,261 @@
 {
     "$schema": "schema/fines.schema.json",
     "source": [
-        "afrovanguard-site lib/NgvFines.php"
+        "doctrine/sources/2026-10-22-pyramid-manual.md — Section 1, Monetary fines (the manual's version, the fuller of the two)"
     ],
+    "note": "All fines vary according to each member's monthly income bracket (Section 3.1). The amounts here are the manual's base; the brackets have not been supplied, so until they are every member pays the base. A fine is charged on the NGV ledger under ledger_reason. Every row can be switched off or re-priced in the Quest desk.",
+    "requires_account": "A fine is money owed and needs an NGV account to be owed against.",
     "currency": "NGN",
-    "max_per_fine": 20000,
-    "note": "Mirrors the live defaults in NgvFines::catalogue(). The office edits the real amounts in site settings, not here; this file records what the Quest says a reason is worth so the two can be compared. A null amount is priced each time.",
-    "requires_account": "A fine is money owed and needs an NGV account to be owed against. A member outside NGV cannot be fined.",
-    "fines": [
+    "max_per_fine": 10000,
+    "groups": [
         {
-            "id": "late",
-            "label": "Lateness",
-            "amount": 1000
-        },
-        {
-            "id": "absent",
-            "label": "Absence",
-            "amount": 2000
-        },
-        {
-            "id": "uniform",
-            "label": "Uniform or ID card",
-            "amount": 500
-        },
-        {
-            "id": "equipment",
-            "label": "Equipment lost or damaged",
-            "amount": null
+            "id": "discipline",
+            "label": "Discipline & Time Management"
         },
         {
             "id": "conduct",
-            "label": "Conduct",
-            "amount": 2000
+            "label": "Professional Conduct & Work Ethics"
         },
         {
-            "id": "other",
-            "label": "Other",
-            "amount": null
+            "id": "reporting",
+            "label": "Accountability & Reporting"
+        },
+        {
+            "id": "appearance",
+            "label": "Personal Appearance & Representation"
+        },
+        {
+            "id": "learning",
+            "label": "Commitment to Learning & Growth"
+        }
+    ],
+    "fines": [
+        {
+            "id": "late_probation",
+            "group": "discipline",
+            "label": "Late resumption during probation (after 7:00 AM)",
+            "amount": 10000,
+            "ledger_reason": "late"
+        },
+        {
+            "id": "late_no_notice",
+            "group": "discipline",
+            "label": "Late arrival post-probation without prior notice",
+            "amount": 1000,
+            "ledger_reason": "late"
+        },
+        {
+            "id": "missed_project_meeting",
+            "group": "discipline",
+            "label": "Missing weekly project meeting",
+            "amount": 1000,
+            "ledger_reason": "absent"
+        },
+        {
+            "id": "unapproved_exit",
+            "group": "discipline",
+            "label": "Emergency or unapproved exit during work hours",
+            "amount": 3000,
+            "ledger_reason": "conduct"
+        },
+        {
+            "id": "sleeping",
+            "group": "discipline",
+            "label": "Sleeping outside designated break time",
+            "amount": 2000,
+            "ledger_reason": "conduct"
+        },
+        {
+            "id": "idle",
+            "group": "discipline",
+            "label": "Idle without task during official hours",
+            "amount": 500,
+            "ledger_reason": "conduct",
+            "note": "per incident"
+        },
+        {
+            "id": "phone_personal",
+            "group": "conduct",
+            "label": "Using phone during work hours for personal purposes",
+            "amount": 1000,
+            "ledger_reason": "conduct"
+        },
+        {
+            "id": "gossip",
+            "group": "conduct",
+            "label": "Chit-chatting or gossiping during office hours",
+            "amount": 1000,
+            "ledger_reason": "conduct"
+        },
+        {
+            "id": "quarrel",
+            "group": "conduct",
+            "label": "Loud quarrels, shouting, or verbal confrontation",
+            "amount": 2000,
+            "ledger_reason": "conduct"
+        },
+        {
+            "id": "no_notebook",
+            "group": "conduct",
+            "label": "Appearing before a superior without a notebook",
+            "amount": 1000,
+            "ledger_reason": "conduct"
+        },
+        {
+            "id": "loitering",
+            "group": "conduct",
+            "label": "Staying or loitering in areas not designated for duty",
+            "amount": 1000,
+            "ledger_reason": "conduct"
+        },
+        {
+            "id": "unaccountability",
+            "group": "conduct",
+            "label": "Act of unaccountability",
+            "amount": 1000,
+            "ledger_reason": "conduct"
+        },
+        {
+            "id": "theft_dishonesty",
+            "group": "conduct",
+            "label": "Theft and dishonesty",
+            "amount": null,
+            "ledger_reason": "conduct",
+            "note": "First and second offense: automatic suspension. Third offense: suspension, ₦5,000 and full restitution."
+        },
+        {
+            "id": "insubordination",
+            "group": "conduct",
+            "label": "Insubordination",
+            "amount": null,
+            "ledger_reason": "conduct",
+            "note": "First offense: 24-hour decommunication on official channels; breaking it extends to 3 days with a fine set by Management."
+        },
+        {
+            "id": "sick_at_work",
+            "group": "conduct",
+            "label": "Coming to work sick or pretending to be sick",
+            "amount": 2000,
+            "ledger_reason": "conduct"
+        },
+        {
+            "id": "client_unanswered",
+            "group": "conduct",
+            "label": "Not responding to any client message",
+            "amount": 500,
+            "ledger_reason": "conduct",
+            "note": "per client"
+        },
+        {
+            "id": "aggressive_shouting",
+            "group": "conduct",
+            "label": "Aggressive shouting (prohibited)",
+            "amount": 1000,
+            "ledger_reason": "conduct",
+            "note": "₦2,000 for Management, ₦1,000 for members"
+        },
+        {
+            "id": "tracker_missed",
+            "group": "reporting",
+            "label": "Failure to submit weekly progress tracker",
+            "amount": 2000,
+            "ledger_reason": "conduct"
+        },
+        {
+            "id": "target_missed",
+            "group": "reporting",
+            "label": "Failure to exceed project target after set deadline",
+            "amount": null,
+            "ledger_reason": "conduct",
+            "note": "Panel review"
+        },
+        {
+            "id": "health_fund",
+            "group": "reporting",
+            "label": "Failure to save or contribute to the health fund",
+            "amount": 1000,
+            "ledger_reason": "other",
+            "note": "per month"
+        },
+        {
+            "id": "outreach_missed",
+            "group": "reporting",
+            "label": "Missing any community project or outreach",
+            "amount": 5000,
+            "ledger_reason": "absent"
+        },
+        {
+            "id": "task_report_missed",
+            "group": "reporting",
+            "label": "Failure to submit progress report every 30 minutes during a task",
+            "amount": 500,
+            "ledger_reason": "conduct"
+        },
+        {
+            "id": "diary_four_weeks",
+            "group": "reporting",
+            "label": "Failure to submit 4 week daily diary",
+            "amount": null,
+            "ledger_reason": "conduct",
+            "note": "Suspension"
+        },
+        {
+            "id": "diary_weekly",
+            "group": "reporting",
+            "label": "Failure to submit weekly diary",
+            "amount": 500,
+            "ledger_reason": "conduct"
+        },
+        {
+            "id": "complacency",
+            "group": "reporting",
+            "label": "Complacency and failure to meet deadlines",
+            "amount": 500,
+            "ledger_reason": "conduct",
+            "note": "Third occurrence: ₦500 and suspension."
+        },
+        {
+            "id": "id_forgotten",
+            "group": "appearance",
+            "label": "Forgotten ID card",
+            "amount": 500,
+            "ledger_reason": "uniform"
+        },
+        {
+            "id": "id_lost",
+            "group": "appearance",
+            "label": "Lost ID card",
+            "amount": 4000,
+            "ledger_reason": "uniform"
+        },
+        {
+            "id": "outfit",
+            "group": "appearance",
+            "label": "Rumpled/stained outfit or dirty shoes",
+            "amount": 1000,
+            "ledger_reason": "uniform"
+        },
+        {
+            "id": "grooming",
+            "group": "appearance",
+            "label": "Unkempt hair, long nails, or excessive fashion",
+            "amount": 1000,
+            "ledger_reason": "uniform"
+        },
+        {
+            "id": "attire_day",
+            "group": "appearance",
+            "label": "Not wearing the approved attire for the specified day",
+            "amount": 500,
+            "ledger_reason": "uniform"
+        },
+        {
+            "id": "books_courses_missed",
+            "group": "learning",
+            "label": "Not completing 2 books + 1 course monthly",
+            "amount": 2000,
+            "ledger_reason": "other",
+            "note": "Q says 2 books + 2 courses."
         }
     ]
 }

@@ -244,6 +244,12 @@ body.avp a:hover { color: var(--avp-gold-tx); }
    is set for "₦128,000"; "Foundation Member" at that size wrapped out of
    its own card. Same row, same weight, read as text. */
 .avp-kpi-v--text { font-size: 19px; line-height: 1.2; }
+/* A KPI that goes somewhere: the whole tile is the link, to the section
+   where the figure is explained. */
+a.avp-kpi--link { display: block; color: inherit; text-decoration: none; transition: border-color .15s ease; }
+a.avp-kpi--link:hover { border-color: var(--avp-ink); }
+a.avp-kpi--link:focus-visible { outline: 2px solid var(--avp-gold); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { a.avp-kpi--link { transition: none; } }
 .avp-cols { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
 .avp-col { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
 .avp-col--main { flex: 1 1 560px; }
@@ -515,3 +521,51 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 .avp-fine-amt.is-indigo { background: var(--avp-indigo-bg); color: var(--avp-indigo-tx); }
 .avp-fines-how { margin: 14px 0 0; color: var(--avp-text-2); font-size: 14px; }
 
+/* The Quest (views/quest.php) */
+.avp-quest-intro { margin: 0 0 16px; color: var(--avp-muted); max-width: 62ch; }
+.avp-quest .avp-kpis { margin-bottom: 0; }
+.avp-quest-levels { margin-bottom: 14px; }
+.avp-quest-values { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.avp-quest-values th, .avp-quest-values td { padding: 9px 0; border-bottom: 1px solid var(--avp-line); text-align: left; }
+.avp-quest-values thead th { font-size: 12.5px; font-weight: 600; color: var(--avp-muted); }
+.avp-quest-values tbody th { font-weight: 600; color: var(--avp-ink); }
+.avp-quest-values td { text-align: right; }
+.avp-quest-values thead th:not(:first-child) { text-align: right; }
+.avp-quest-values + .avp-note { margin-top: 14px; }
+.avp-quest-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14.5px; }
+.avp-quest-list:last-child { margin-bottom: 0; }
+.avp-quest-feeds { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.avp-quest-feeds:last-child { margin-bottom: 0; }
+.avp-quest-feeds a { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--avp-line); border-radius: 10px; color: inherit; text-decoration: none; }
+.avp-quest-feeds a:hover { border-color: var(--avp-ink); }
+.avp-quest-feeds a:focus-visible { outline: 2px solid var(--avp-gold); outline-offset: 2px; }
+.avp-quest-feeds b { font-size: 14.5px; font-weight: 600; }
+.avp-quest-feeds span { font-size: 13.5px; color: var(--avp-muted); }
+
+/* Bills & appeals (views/bills.php) */
+.avp-bill-flash { margin: 0 0 16px; padding: 10px 14px; border-radius: 10px; font-size: 14.5px; }
+.avp-bill-flash.is-ok { background: var(--avp-green-bg); color: var(--avp-green-tx); }
+.avp-bill-flash.is-bad { background: var(--avp-red-bg); color: var(--avp-red-tx); }
+.avp-bills-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.avp-bill { border: 1px solid var(--avp-line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.avp-bill-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 15px; }
+.avp-bill-price { font-weight: 600; white-space: nowrap; }
+.avp-bill-meta { margin: 0; font-size: 13.5px; color: var(--avp-muted); }
+.avp-bill-meta time { white-space: nowrap; }
+.avp-bill-note { margin: 0; font-size: 14px; color: var(--avp-text-2); }
+.avp-bill-ev summary { cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--avp-text-2); }
+.avp-bill-ev p { margin: 6px 0 0; font-size: 14px; white-space: pre-wrap; }
+.avp-bill-ev .avp-form { margin-top: 10px; }
+.avp-bill-acts { display: flex; flex-direction: column; gap: 10px; }
+.avp-bill-acts > form:first-child { align-self: flex-start; }
+.avp-form textarea { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--avp-input); font-family: inherit; font-size: 14.5px; background: var(--avp-bg); color: var(--avp-ink); resize: vertical; }
+.avp-quest-pts { font-weight: 700; color: var(--avp-green-tx); }
+.avp-quest-when { font-size: 12.5px; color: var(--avp-muted); }
+.avp-quest-pts.is-minus { color: var(--avp-red-tx); }
+.avp-quest-ceiling { margin: 12px 0 0; font-size: 13.5px; color: var(--avp-muted); }
+.avp-quest-colour[data-colour="white"] { background: var(--avp-pill); color: var(--avp-ink); }
+.avp-quest-colour[data-colour="black"] { background: var(--avp-primary); color: var(--avp-on-primary); }
+.avp-quest-colour[data-colour="gold"] { background: var(--avp-gold); color: var(--av-ink); }
+/* A long answer gets the card's width; a bare .avp-form-wide only spans the grid. */
+.avp-bills .avp-form label.avp-form-wide { justify-self: stretch; }
+.avp-bills .avp-form textarea { width: 100%; }

@@ -1,0 +1,55 @@
+{
+    "$schema": "schema/deductions.schema.json",
+    "source": [
+        "doctrine/sources/2026-10-22-pyramid-manual.md — Scoring Board §3, Penalty and deductions; the weekly points table's two negative rows (identical)",
+        "The owner's answers, 22 October 2026: deduct, don't demote — a level is only ever SUGGESTED for removal"
+    ],
+    "note": "Points taken away, through the same two-person desk as an award. Where the manual adds 'loss of current level', the system suggests it and a person decides. Every row can be switched off or re-priced in the Quest desk.",
+    "currency": "points",
+    "max_per_deduction": 100,
+    "deductions": [
+        {
+            "id": "meeting_absence",
+            "label": "Absence from meeting without notice",
+            "points": 10,
+            "consequence": "Warning after 3rd time"
+        },
+        {
+            "id": "report_missed",
+            "label": "Failure to submit report",
+            "points": 20,
+            "consequence": "Suspension after 2 months"
+        },
+        {
+            "id": "funds_mismanaged",
+            "label": "Mismanagement of funds",
+            "points": 50,
+            "consequence": "Disciplinary panel"
+        },
+        {
+            "id": "inactive_month",
+            "label": "Inactivity for 30 days",
+            "points": 40,
+            "consequence": "Loss of current level",
+            "suggests": "demotion"
+        },
+        {
+            "id": "negative_conduct",
+            "label": "Negative conduct (gossip, offense, rebellion)",
+            "points": 30,
+            "consequence": "Mentorship review"
+        },
+        {
+            "id": "no_additions",
+            "label": "Not bringing in volunteers, partners, clients or mentees",
+            "points": 70,
+            "consequence": "Not bringing any of these results in a fine"
+        },
+        {
+            "id": "value_breach",
+            "label": "Disciplinary or value breach",
+            "points": 50,
+            "consequence": "Late reports, absenteeism, misconduct"
+        }
+    ]
+}

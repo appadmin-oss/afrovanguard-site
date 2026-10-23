@@ -93,9 +93,9 @@ ck('and arriving straight at #inventory, where no view event fires, still loads 
 /* ── The nav entry is honest about whether it leads anywhere ─────────────── */
 ck('the entry appears only when the bridge is configured — one that leads to "the link is '
  . 'not set up" is a worse answer than no entry',
-   str_contains($portal, "if (CacSso::ready()) {\n        \$nav['Work'][] = ['inventory', 'Inventory', 'gray', ''];"));
-ck('and it is inside the block that only org members get',
-   strpos($portal, "\$nav['Work'][] = ['inventory'") > strpos($portal, 'if ($isOrg) {'));
+   PortalNav::SECTIONS['inventory']['for'] === ['inventory'] && !PortalNav::visible('inventory', ['org' => true]));
+ck('and only org members get it',
+   str_contains($portal, "'inventory' => \$isOrg && CacSso::ready()"));
 
 /* ── The pickers are the centre's, not a second copy ─────────────────────── */
 ck('the categories and sites come from CACENTRE with the rows',
