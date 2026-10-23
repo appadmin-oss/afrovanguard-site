@@ -1770,10 +1770,13 @@
 
     var tests = $('#setupTests');
     if (tests) {
+      /* Every test can be pressed. One that is not set up answers with WHY
+         (the server's own reason), instead of a disabled button whose press
+         did nothing and whose reason lived in a tooltip. */
       tests.innerHTML = (d.testable || []).map(function (t) {
-        return '<button type="button" class="btn btn-outline btn-sm setup-test" data-what="' + escapeHtml(t.key) + '"'
-          + (t.ready ? '' : ' disabled title="Nothing configured to test yet"') + '>Test ' + escapeHtml(t.label) + '</button>'
-          + '<span class="setup-test-out" id="stout_' + escapeHtml(t.key) + '"></span>';
+        return '<button type="button" class="btn btn-outline btn-sm setup-test" data-what="' + escapeHtml(t.key) + '">Test ' + escapeHtml(t.label) + '</button>'
+          + '<span class="setup-test-out' + (t.ready ? '' : ' is-bad') + '" id="stout_' + escapeHtml(t.key) + '">'
+          + (t.ready ? '' : '✗ ' + escapeHtml(t.why || 'Not set up yet.')) + '</span>';
       }).join('');
     }
 
@@ -1907,7 +1910,9 @@
       var d = r.data || {};
       if (!out) return;
       out.className = 'setup-test-out ' + (d.ok ? 'is-ok' : 'is-bad');
-      out.textContent = (d.ok ? '✓ ' : '✗ ') + (d.detail || '') + (d.ms != null ? ' (' + d.ms + 'ms)' : '');
+      /* A refusal before the test (signed out, not a Super Admin, rate
+         limited) has `error`, not `detail`: it printed a bare ✗. */
+      out.textContent = (d.ok ? '✓ ' : '✗ ') + (d.detail || d.error || ('The server answered ' + (r.status || 'nothing') + ' with no explanation.')) + (d.ms != null ? ' (' + d.ms + 'ms)' : '');
     }).catch(function (e) {
       if (settled) return; settled = true; clearTimeout(giveUp);
       b.disabled = false;

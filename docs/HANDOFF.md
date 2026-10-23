@@ -394,3 +394,17 @@ months between were forgiven). `lib/Membership.php` now owns the obligation:
   CACENTRE finance (CFIS), or set as `CFIS_SECRET`. An explicitly empty
   setting still switches it off.
 - Tests: `tests/dues.test.php`, `tests/cfisdefault.test.php`.
+
+## Setup → Test Google Workspace always answers (Oct 2026)
+
+The Test buttons on Studio → Rules & AI → Setup were drawn **disabled** when a
+provider was not ready, with the reason only in a hover tooltip. A Workspace
+key set in config.php that the site could not use (cut short, no
+private_key, defined twice, on the empty template line) therefore made
+"Test Google Workspace" do nothing. Every test button can now be pressed. One
+that is not ready shows the server's reason beside it before it is pressed
+(`AvSettings::testable()['why']`, from `GoogleWorkspace::whyNotConfigured()`).
+That reason says when the bad key is in config.php rather than the Studio, and
+what is wrong with it. A refusal before the test (not a Super Admin, rate
+limited) now prints its error instead of a bare ✗. Test:
+`tests/setuptests.test.php`.

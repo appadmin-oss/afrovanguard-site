@@ -1020,7 +1020,12 @@ final class AvSettings
             ['key' => 'search',    'label' => 'Web search', 'ready' => class_exists('AvWeb') && AvWeb::searchProvider() !== ''],
             ['key' => 'apps_script', 'label' => 'Apps Script mail', 'ready' => class_exists('AppsScriptMail') && AppsScriptMail::configured()],
             ['key' => 'google_signin', 'label' => 'Google sign-in', 'ready' => class_exists('GoogleAuth') && GoogleAuth::configured()],
-            ['key' => 'google_workspace', 'label' => 'Google Workspace', 'ready' => class_exists('GoogleWorkspace') && GoogleWorkspace::configured()],
+            ['key' => 'google_workspace', 'label' => 'Google Workspace', 'ready' => class_exists('GoogleWorkspace') && GoogleWorkspace::configured(),
+             /* Why it is not ready, said beside the button. A key set in
+                config.php that this site cannot read (defined twice, left on
+                the empty template line, under another name) made the button
+                disabled and the press silent — "testing does nothing". */
+             'why' => class_exists('GoogleWorkspace') && !GoogleWorkspace::configured() ? GoogleWorkspace::whyNotConfigured() : ''],
         ];
     }
 

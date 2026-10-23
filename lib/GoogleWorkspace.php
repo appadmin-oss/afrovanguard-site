@@ -170,9 +170,20 @@ final class GoogleWorkspace
                     .'Paste the JSON into Studio → Rules & AI → Setup instead.';
         }
         if ($raw !== '') {
-            return 'The stored Google Workspace key is not a usable service-account key — it is not JSON, '
-                .'or it has no client_email and private_key. Download a fresh JSON key and paste it unedited '
-                .'into Studio → Rules & AI → Setup.';
+            /* Say WHERE the unusable key is. Told to paste it into the
+               Studio, somebody whose key is in config.php went to a screen
+               that was not the problem. */
+            $inConfig = (class_exists('AvSettings') ? AvSettings::get('AV_GDRIVE_SERVICE_ACCOUNT') === null : true)
+                && defined('AV_GDRIVE_SERVICE_ACCOUNT') && (string) constant('AV_GDRIVE_SERVICE_ACCOUNT') !== '';
+            $c = json_decode($raw, true);
+            $what = !is_array($c) ? 'it is not complete JSON (often a key cut short, or a quote inside it that ends the PHP string early)'
+                : (empty($c['private_key']) ? 'it has no private_key' : (empty($c['client_email']) ? 'it has no client_email' : 'it cannot be read'));
+            return $inConfig
+                ? 'The key in config.php (AV_GDRIVE_SERVICE_ACCOUNT) is not a usable service-account key: ' . $what . '. '
+                    . 'Paste the downloaded JSON file\'s contents whole, inside single quotes — define(\'AV_GDRIVE_SERVICE_ACCOUNT\', \'{…}\'); — '
+                    . 'or paste it into Studio → Rules & AI → Setup, which takes precedence.'
+                : 'The stored Google Workspace key is not a usable service-account key: ' . $what . '. Download a fresh JSON key and paste it unedited '
+                    . 'into Studio → Rules & AI → Setup.';
         }
 
         $how = 'an administrator adds the service account key in Studio → Rules & AI → Setup → Google sign-in & Workspace.';
