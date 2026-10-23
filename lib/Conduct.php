@@ -397,6 +397,13 @@ final class Conduct
         $st->execute([$answer, $note, self::now(), $caseId]);
         if ($st->rowCount() !== 1) return ['ok' => false, 'error' => 'It was decided a moment ago.'];
         self::audit('respond', $caseId, $answer, $uid);
+        /* The mentor hears that their proposal is contested, and why, before the committee decides. */
+        if ($answer === 'contested' && class_exists('Notifications') && (int) $c['mentor_id'] !== $uid) {
+            try {
+                Notifications::push((int) $c['mentor_id'], 'conduct', 'The ' . $c['kind'] . ' you proposed is contested', $note,
+                    '/mentorship/mentor/?v=conduct&id=' . (int) $c['mentorship_id'] . '&kind=' . rawurlencode((string) $c['kind']), 'contested:' . $caseId);
+            } catch (Throwable $e) { /* best-effort */ }
+        }
         return ['ok' => true, 'response' => $answer];
     }
 
@@ -538,6 +545,11 @@ final class Conduct
             $verdict = ['upheld' => 'was upheld', 'overturned' => 'succeeded — it is cancelled', 'reduced' => 'reduced it to ' . ($fine ? '₦' . number_format($newValue) : $newValue . ' points')][$outcome];
             try { Notifications::push($mid, 'conduct', 'Your appeal ' . $verdict, $note, '/portal/#bills', 'appeal-heard:' . $appealId); }
             catch (Throwable $e) { /* best-effort */ }
+            /* The proposer learns how it ended, so the next proposal is better judged. */
+            try {
+                Notifications::push((int) $c['mentor_id'], 'conduct', 'An appeal against the ' . $c['kind'] . ' you proposed: ' . strtolower(self::APPEAL_OUTCOMES[$outcome]),
+                    $note, '/mentorship/mentor/?v=conduct&id=' . (int) $c['mentorship_id'] . '&kind=' . rawurlencode((string) $c['kind']), 'appeal-heard-mentor:' . $appealId);
+            } catch (Throwable $e) { /* best-effort */ }
         }
         return ['ok' => true, 'status' => $outcome, 'outcome' => $result];
     }
@@ -758,7 +770,9 @@ final class Conduct
     public static function forPairing(int $mentorUid, int $pairingId): array
     {
         self::ensure();
-        $st = Database::pdo()->prepare('SELECT * FROM conduct_cases WHERE mentor_id = ? AND mentorship_id = ? ORDER BY id DESC LIMIT 50');
+        $st = Database::pdo()->prepare('SELECT c.*, a.status AS appeal_status, a.new_value AS appeal_value FROM conduct_cases c
+            LEFT JOIN conduct_appeals a ON a.case_id = c.id
+            WHERE c.mentor_id = ? AND c.mentorship_id = ? ORDER BY c.id DESC LIMIT 50');
         $st->execute([$mentorUid, $pairingId]);
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }

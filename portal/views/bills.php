@@ -16,7 +16,7 @@
 declare(strict_types=1);
 
 $bId     = (int) $u['id'];
-$bRows   = Conduct::billsFor($bId);
+$bRows   = $myBills ?? Conduct::billsFor($bId);   /* the shell reads them once */
 $bCsrf   = av_csrf_token();
 $bWait   = array_values(array_filter($bRows, static fn($c) => $c['status'] === 'proposed' && (string) $c['response'] === ''));
 $bWith   = array_values(array_filter($bRows, static fn($c) => $c['status'] === 'proposed' && (string) $c['response'] !== ''));

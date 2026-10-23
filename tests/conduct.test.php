@@ -39,7 +39,7 @@ ck('conduct: a mentor cannot propose for somebody else\'s mentee', !Conduct::pro
 ck('conduct: an ended pairing cannot be used', !Conduct::propose(9306, 93003, ['kind' => 'award', 'reason' => 'growth', 'points' => 5, 'occurred_on' => $today, 'evidence' => $ev])['ok']);
 $r = Conduct::propose(9301, 93001, ['kind' => 'fine', 'reason' => 'conduct', 'amount' => '2,000', 'occurred_on' => $today, 'evidence' => 'Was rude.']);
 ck('conduct: evidence of a sentence or two is required', !$r['ok']);
-$r = Conduct::propose(9301, 93001, ['kind' => 'fine', 'reason' => 'conduct', 'amount' => '2,000', 'occurred_on' => date('Y-m-d', strtotime('+2 days')), 'evidence' => $ev]);
+$r = Conduct::propose(9301, 93001, ['kind' => 'fine', 'reason' => 'conduct', 'amount' => '2,000', 'occurred_on' => date('Y-m-d', strtotime(av_today_tz() . ' +1 day')), 'evidence' => $ev]);
 ck('conduct: a future day is refused', !$r['ok']);
 $r = Conduct::propose(9301, 93001, ['kind' => 'fine', 'reason' => 'conduct', 'amount' => '999999', 'occurred_on' => $today, 'evidence' => $ev]);
 ck('conduct: a fine above the cap is refused', !$r['ok']);

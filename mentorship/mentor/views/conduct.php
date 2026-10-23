@@ -127,6 +127,13 @@ $today = date('Y-m-d');
               <span><?= e($r['title'] !== '' ? $r['title'] : Conduct::caseLabel($r)) ?> · <?= e($r['occurred_on']) ?></span>
 <?php if ($r['status'] === 'rejected' && trim((string) $r['decision_note']) !== ''): ?>              <span>Why: <?= e((string) $r['decision_note']) ?></span>
 <?php endif; ?>
+<?php if (in_array((string) $r['kind'], Conduct::ADVERSE, true)): ?>
+              <span><?= (string) $r['response'] === '' ? ($r['status'] === 'proposed' ? 'Not answered yet' : 'Not answered')
+                  : 'The member ' . e(strtolower(Conduct::RESPONSES[(string) $r['response']] ?? '')) . ' it' . ((string) $r['response'] === 'contested' && trim((string) $r['response_note']) !== '' ? ': ' . e((string) $r['response_note']) : '') ?></span>
+<?php if (!empty($r['appeal_status'])): ?>
+              <span>Appeal: <?= $r['appeal_status'] === 'open' ? 'being heard' : e(strtolower(Conduct::APPEAL_OUTCOMES[$r['appeal_status']] ?? '')) ?><?= $r['appeal_status'] === 'reduced' ? ' to ' . e($r['kind'] === 'fine' ? '₦' . number_format((int) $r['appeal_value']) : (int) $r['appeal_value'] . ' points') : '' ?></span>
+<?php endif; ?>
+<?php endif; ?>
             </span>
             <span class="avcd-chip" data-tone="<?= e($statusTone[$r['status']] ?? 'gray') ?>"><?= e($statusWord[$r['status']] ?? $r['status']) ?></span>
 <?php if ($r['status'] === 'proposed'): ?>

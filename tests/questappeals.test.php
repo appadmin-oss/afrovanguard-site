@@ -67,6 +67,9 @@ ck('appeals: nobody answers somebody else\'s bill', !Conduct::respond(8705, (int
 ck('appeals: the member contests it, in their words',
    Conduct::respond(8702, (int) $f['id'], 'contested', 'I told the facilitator I was ill, and she let me go home at eleven.')['ok']
    && Conduct::find((int) $f['id'])['response'] === 'contested');
+$heard = static fn(int $uid, string $key): bool => (bool) $db->query("SELECT 1 FROM user_notifications WHERE user_id = $uid AND dedupe_key = " . $db->quote($key))->fetchColumn();
+ck('appeals: the member was told the day it was proposed, and the mentor when it was contested',
+   $heard(8702, 'bill:' . (int) $f['id']) && $heard(8701, 'contested:' . (int) $f['id']));
 $r = Conduct::decide((int) $f['id'], $U(8703), true, 'The facilitator does not recall it.');
 ck('appeals: once answered, the committee decides', $r['ok'] && $owing() === 3000);
 ck('appeals: an answer cannot change once it is decided', !Conduct::respond(8702, (int) $f['id'], 'accepted', '')['ok']);
@@ -84,6 +87,9 @@ ck('appeals: a reduction is never upward', !Conduct::hearAppeal((int) $ap['id'],
 $h = Conduct::hearAppeal((int) $ap['id'], $U(8704), 'reduced', 'Left with leave, but did not sign out. Halved.', 1500);
 ck('appeals: somebody new reduces it, and what is owed is the new figure', $h['ok'] && $owing() === 1500 && !Conduct::hasOpenAppeal(8702));
 ck('appeals: heard once', !Conduct::hearAppeal((int) $ap['id'], $U(8704), 'overturned', 'Again.')['ok']);
+ck('appeals: the mentor learns how the appeal ended', $heard(8701, 'appeal-heard-mentor:' . (int) $ap['id']));
+$mine = current(array_filter(Conduct::forPairing(8701, 87001), static fn($c) => (int) $c['id'] === (int) $f['id']));
+ck('appeals: the mentor\'s list carries the answer and the appeal', $mine && $mine['response'] === 'contested' && $mine['appeal_status'] === 'reduced');
 $b = Conduct::billsFor(8702)[0];
 ck('appeals: the member\'s bill carries the outcome', $b['appeal_status'] === 'reduced' && (int) $b['appeal_value'] === 1500);
 
@@ -152,4 +158,9 @@ $u = $U(8702);
 ob_start(); require AV_ROOT . '/portal/views/bills.php'; $html = (string) ob_get_clean();
 ck('appeals: the member\'s page renders, with no inline style', str_contains($html, 'data-view="bills"') && !preg_match('/\sstyle\s*=/', $html) && str_contains($html, 'Reduced'));
 
+$today = (string) file_get_contents(AV_ROOT . '/portal/views/today.php');
+ck('appeals: Today asks for an answer, and warns when the time to appeal is closing',
+   substr_count($today, "'goto' => 'bills'") === 2 && str_contains($today, 'Conduct::noticeLeft($b0)'));
+$casesV = (string) file_get_contents(AV_ROOT . '/mentorship/compliance/views/cases.php');
+ck('appeals: the desk filters cases by the member\'s answer', str_contains($casesV, 'data-qd-col="answer"') && str_contains($casesV, 'data-answer="'));
 $wipe();

@@ -173,7 +173,16 @@ $mreqWaiting = class_exists('MemberRequests') ? count(array_filter(MemberRequest
 $portalCtx = ['org' => $isOrg, 'ngv' => $isNgv, 'vol' => $isVol, 'gate' => $hasGate, 'inventory' => $isOrg && CacSso::ready()];
 /* Quest: the month's points against the level's ceiling, when it is on. */
 $questMonth = QuestPoints::earnedInMonth((int) $u['id'], gmdate('Y-m'));
-$billsWaiting = count(array_filter(Conduct::billsFor((int) $u['id']), static fn($c) => $c['status'] === 'proposed' && (string) $c['response'] === ''));
+/* The member's bills, read once: the badge, Today's list and the Bills view use them. */
+$myBills = Conduct::billsFor((int) $u['id']);
+$billsUnanswered = array_values(array_filter($myBills, static fn($c) => $c['status'] === 'proposed' && (string) $c['response'] === ''));
+$billsWaiting = count($billsUnanswered);
+/* Approved, not appealed, and the appeal window closing within three days. */
+$billsClosing = array_values(array_filter($myBills, static function ($c): bool {
+    if ($c['appeal_id']) return false;
+    $until = Conduct::appealOpenUntil($c);
+    return $until !== '' && $until <= gmdate('Y-m-d', time() + 3 * 86400);
+}));
 /* id => [dot colour, badge]. A section not named here is a grey dot, no badge. */
 $navBadges = [
     'overview'    => ['gold', ($tasksDue || $nextSession) ? (string) (count($tasksDue) + ($nextSession ? 1 : 0)) : ''],
@@ -355,6 +364,8 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
       'actions' => array_values(array_filter([
           ['label' => 'New task',  'href' => '/portal/#tasks',     'sub' => 'Something to be done'],
           ['label' => 'Write in the diary', 'href' => '/portal/#diary', 'sub' => 'Today, in your own words'],
+          AvRules::bool('quest.self_report') ? ['label' => 'Report yourself', 'href' => '/portal/#bills', 'sub' => 'A fine or deduction you own up to'] : null,
+          $billsWaiting ? ['label' => 'Answer a fine or deduction', 'href' => '/portal/#bills', 'sub' => $billsWaiting . ' waiting for you'] : null,
           $isOrg && CacSso::ready()
               ? ['label' => 'Look something up in the register', 'href' => '/portal/#inventory',
                  'sub' => 'Where it is, and who has it']

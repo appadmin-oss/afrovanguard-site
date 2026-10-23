@@ -41,6 +41,24 @@ if ($isOrg && ($tasksDue || $cacDue)) {
         'sub' => $cacDue ? 'Due today or earlier · ' . $cacDue . ' in the console' : 'Due today or earlier',
         'cta' => 'Open', 'goto' => 'tasks'];
 }
+/* The Quest's bills: one waiting for the member's answer, or a decision
+   whose appeal window is closing. The decision is the member's; Today says so. */
+if (!empty($billsUnanswered)) {
+    $b0 = $billsUnanswered[0];
+    $bLeft = Conduct::noticeLeft($b0);
+    $attn[] = ['ico' => '!', 'tone' => 'red',
+        'title' => count($billsUnanswered) === 1
+            ? ($b0['kind'] === 'fine' ? 'A fine of ₦' . number_format((int) $b0['amount']) : 'A deduction of ' . (int) $b0['points'] . ' points') . ' has been proposed'
+            : count($billsUnanswered) . ' fines or deductions are waiting for your answer',
+        'sub' => 'Accept it or give your side' . ($bLeft !== '' ? ' — the committee may decide after ' . $bLeft : ''),
+        'cta' => 'Answer', 'goto' => 'bills'];
+}
+if (!empty($billsClosing)) {
+    $attn[] = ['ico' => '⚖', 'tone' => 'gold',
+        'title' => count($billsClosing) === 1 ? 'The time to appeal ' . e(Conduct::caseLabel($billsClosing[0])) . ' ends ' . Conduct::appealOpenUntil($billsClosing[0])
+            : count($billsClosing) . ' decisions can be appealed for three more days at most',
+        'sub' => 'Only if you think it is wrong. Somebody new hears it.', 'cta' => 'See', 'goto' => 'bills'];
+}
 if ($isNgv && $ngvOwed > 0) {
     $attn[] = ['ico' => '₦', 'tone' => 'gold',
         'title' => '₦' . number_format($ngvOwed) . ' outstanding on your NGV account',

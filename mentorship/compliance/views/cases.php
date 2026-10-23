@@ -20,13 +20,16 @@ $what = static function (array $c): string {
       <section class="pview avp-view qd-view" id="view-cases" data-view="cases" hidden aria-labelledby="qdCasesH">
         <div class="avp-view-head qd-head">
           <div><h1 class="avp-h1" id="qdCasesH"><?= e($title) ?></h1>
-            <p class="qd-sub">Read what the mentor saw, then decide. Approving makes it real — the points are granted or taken, the fine is posted — and both people are told. Rejecting needs a reason, which the mentor reads.</p></div>
+            <p class="qd-sub">Read what the mentor saw and, for a fine or deduction, the member's answer — then decide. Approving makes it real — the points are granted or taken, the fine is posted — and both people are told. Rejecting needs a reason, which the mentor reads.</p></div>
         </div>
 
         <form class="qd-filters" role="search" data-qd-filter="qdCaseTable">
           <label class="qd-search"><span class="av-sr">Search cases</span><input type="search" placeholder="Search a name, a deed, a mentor…" data-qd-q></label>
           <label class="qd-select-l"><span class="av-sr">Kind</span>
             <select data-qd-col="kind"><option value="">Every kind</option><option value="award">Awards</option><option value="deduction">Deductions</option><option value="fine">Fines</option><option value="challenge">Challenges</option></select>
+          </label>
+          <label class="qd-select-l"><span class="av-sr">The member's answer</span>
+            <select data-qd-col="answer"><option value="">Any answer</option><option value="ready">Ready to decide</option><option value="contested">Contested</option><option value="none">Not answered</option><option value="self">Self-reported</option></select>
           </label>
           <p class="qd-count" role="status" data-qd-count><?= count($waitingAll) ?> waiting</p>
         </form>
@@ -52,7 +55,13 @@ $what = static function (array $c): string {
               </tr></thead>
               <tbody>
 <?php foreach ($waitingAll as $c): $self = (int) $c['mentor_id'] === (int) $u['id'] || (int) $c['mentee_id'] === (int) $u['id']; ?>
-                <tr data-kind="<?= e((string) $c['kind']) ?>" data-id="<?= (int) $c['id'] ?>">
+<?php
+    /* Words the answer filter matches: the answer itself, "self", and "ready"
+       when nothing — no notice — stands between the committee and approving. */
+    $ans = in_array((string) $c['kind'], Conduct::ADVERSE, true) ? ((string) $c['response'] ?: 'none') : '';
+    $tags = trim($ans . ($c['mentor_kind'] === 'self' ? ' self' : '') . (Conduct::noticeLeft($c) === '' ? ' ready' : ''));
+?>
+                <tr data-kind="<?= e((string) $c['kind']) ?>" data-answer="<?= e($tags) ?>" data-id="<?= (int) $c['id'] ?>">
                   <td class="qd-c-check"><?php if (!$self): ?><label><span class="av-sr">Select the case for <?= e((string) $c['mentee_name']) ?></span><input type="checkbox" name="case_ids[]" value="<?= (int) $c['id'] ?>" data-qd-row></label><?php endif; ?></td>
                   <td><b><?= e((string) $c['mentee_name']) ?></b></td>
                   <td><span class="qd-kindtag" data-kind="<?= e((string) $c['kind']) ?>"><?= e($what($c)) ?></span></td>

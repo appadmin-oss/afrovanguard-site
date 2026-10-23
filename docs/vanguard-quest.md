@@ -263,6 +263,14 @@ like bills, approved by a committee, and can be appealed. Doctrine:
   `quest.appeals_enabled`, `quest.appeal_days` (14).
 - Tables: `conduct_cases` gains `response`, `response_note`, `responded_at`;
   `conduct_appeals` holds one appeal per case.
+- Today lists an unanswered bill (with the day the committee may decide) and
+  a decision whose appeal window closes within three days. The command
+  palette offers "Report yourself" and, when one waits, "Answer a fine or
+  deduction".
+- The mentor is told when their proposal is contested, and how an appeal
+  ended; their list shows the member's answer and the appeal.
+- Desk → Cases filters by the member's answer: ready to decide, contested,
+  not answered, self-reported.
 - `tests/questappeals.test.php` (fixtures 8700–8799).
 
 ## Screens still showing the gate's number

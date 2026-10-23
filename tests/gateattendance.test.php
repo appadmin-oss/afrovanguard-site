@@ -246,8 +246,10 @@ ck('Gate: and an end date that has not passed', !GateAttendance::setProbation($e
 ck('Gate: staff can put a member on probation by name', GateAttendance::setProbation($eke, '', 'Late three times in a week', 1)['ok']
    && str_contains((string) GateAttendance::probationWhy($eke), 'Late three times in a week'));
 /* Probation set by name starts TODAY, so the arrival that tests it has to be
-   dated today or later — a fixed date here passes until the day it doesn't. */
-$prDay = gmdate('Y-m-d');
+   dated today or later — a fixed date here passes until the day it doesn't.
+   Today is the site's (av_today_tz(), Lagos), an hour ahead of UTC: in the
+   last hour of every UTC day it is already tomorrow. */
+$prDay = av_today_tz();
 while (in_array(gmdate('D', strtotime($prDay)), ['Sat', 'Sun'], true)) $prDay = gmdate('Y-m-d', strtotime($prDay . ' +1 day'));
 GateAttendance::report([$gaIn('pr-3', $eke, $prDay, 'late', 4)]);
 ck('Gate: …and it applies to the next late arrival', (int) end($gaFines($eke))['amount'] === 10000);
