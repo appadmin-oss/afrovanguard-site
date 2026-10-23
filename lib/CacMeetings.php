@@ -30,49 +30,21 @@ declare(strict_types=1);
 final class CacMeetings
 {
     public const AUD = 'meetings';
-    private const SKEW = 60;
-
-    private static function unb64(string $s): string
-    {
-        $s = strtr($s, '-_', '+/');
-        return (string) base64_decode($s . str_repeat('=', (4 - strlen($s) % 4) % 4), true);
-    }
 
     /**
-     * The staff member a token speaks for, or the reason it was refused.
+     * The staff member a token speaks for, or the reason it was refused
+     * (lib/CacInbound.php checks the token for this door).
      *
      * @return array{id:string,name:string,email:string}|string
      */
     public static function verify(string $token, string $body, ?int $now = null)
     {
-        if (!class_exists('CacSso') || !CacSso::ready()) return 'not-configured';
-        $p = explode('.', $token);
-        if (count($p) !== 3 || $p[0] !== 'v1') return 'bad-token';
-        if (!hash_equals(hash_hmac('sha256', $p[1], CacSso::secret(), true), self::unb64($p[2]))) return 'bad-signature';
-        $c = json_decode(self::unb64($p[1]), true);
-        if (!is_array($c)) return 'bad-token';
-        $now = $now ?? time();
-        if ((string) ($c['iss'] ?? '') !== 'cacentre' || (string) ($c['aud'] ?? '') !== self::AUD) return 'wrong-door';
-        if ((int) ($c['exp'] ?? 0) < $now - self::SKEW) return 'expired';
-        if ((int) ($c['iat'] ?? 0) > $now + self::SKEW) return 'not-yet';
-        if (!hash_equals((string) ($c['bh'] ?? ''), hash('sha256', $body))) return 'body-mismatch';
+        $c = CacInbound::verify($token, $body, self::AUD, $now);
+        if (!is_array($c)) return $c;
         $s = (array) ($c['staff'] ?? []);
         $email = strtolower(trim((string) ($s['email'] ?? '')));
         if (trim((string) ($s['id'] ?? '')) === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return 'no-staff';
-        if (!self::spend((string) ($c['nonce'] ?? ''), $now)) return 'replayed';
         return ['id' => mb_substr((string) $s['id'], 0, 64), 'name' => mb_substr(trim((string) ($s['name'] ?? '')), 0, 160), 'email' => $email];
-    }
-
-    /** A nonce is good once. Kept a day, which is far past any token's life. */
-    private static function spend(string $nonce, int $now): bool
-    {
-        if (!preg_match('/^[a-f0-9]{16,64}$/', $nonce)) return false;
-        $db = Database::pdo();
-        Database::execSchema($db, "CREATE TABLE IF NOT EXISTS cac_meeting_nonces (nonce VARCHAR(64) PRIMARY KEY, at INTEGER NOT NULL DEFAULT 0)");
-        try { $db->prepare('INSERT INTO cac_meeting_nonces (nonce, at) VALUES (?, ?)')->execute([$nonce, $now]); }
-        catch (Throwable $e) { return false; }
-        if (random_int(1, 50) === 1) $db->prepare('DELETE FROM cac_meeting_nonces WHERE at < ?')->execute([$now - 86400]);
-        return true;
     }
 
     /** Their account here, by email, when they have an active one. */

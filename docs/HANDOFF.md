@@ -417,3 +417,18 @@ and lists meetings through `integrations/cacentre-meetings.php`, which is
 signed with the existing `AV_SSO_SECRET`. Meetings has its own portal menu
 entry. Details: docs/meetings.md, "Everybody sees every meeting". The nav test
 now recognises router aliases (`portal/avp.js` `ALIAS`).
+
+## CACENTRE's email goes out through this site's mail (Oct 2026)
+
+CACENTRE's own outbound mail was not being delivered. Its mailer
+(`cac/includes/mail-transport.php`) now hands each message here first, through
+`integrations/cacentre-send.php` (`lib/CacSend.php`). The request is signed with
+the bridge secret both sites already hold (`AV_SSO_SECRET`), for the
+`mail-send` door, bound to the message, with a nonce spent once. One check
+covers every door CACENTRE calls: `lib/CacInbound.php` (meetings now uses it
+too). This site sends it at once with its own roads (`Mailer::send`), with the
+sender name "CACENTRE", replies to CACENTRE, and this site's own From address
+(the one its mail may send as). Only List-Unsubscribe headers are carried.
+There is a daily ceiling: `AV_CAC_SEND_DAILY`, default 500. Past it the answer
+is `daily_cap` and CACENTRE falls through to its own routes. Tests:
+`tests/cacsend.test.php` here, and `cac/tests/avmail.test.php` in CACENTRE.

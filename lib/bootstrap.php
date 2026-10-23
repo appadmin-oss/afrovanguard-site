@@ -380,7 +380,9 @@ require_once __DIR__ . '/Collab.php';
 require_once __DIR__ . '/AttendeeBot.php';
 require_once __DIR__ . '/Recurrence.php';  /* how a meeting repeats: one rule for Google, the list, the clock and the minutes */
 require_once __DIR__ . '/Meetings.php';
-require_once __DIR__ . '/CacMeetings.php';    /* CACENTRE staff schedule and read meetings here */
+require_once __DIR__ . '/CacInbound.php';     /* one check for every door CACENTRE calls */
+require_once __DIR__ . '/CacMeetings.php';
+require_once __DIR__ . '/CacSend.php';        /* CACENTRE's email, sent by this site's mail */    /* CACENTRE staff schedule and read meetings here */
 require_once __DIR__ . '/Storage.php';
 require_once __DIR__ . '/CardPhoto.php';   /* member card photos: framed, resampled, enhanced */
 require_once __DIR__ . '/Tts.php';
