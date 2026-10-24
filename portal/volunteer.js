@@ -44,9 +44,8 @@
   function toast(t, bad) {
     var el = $('vhToast');
     if (!el) { el = document.createElement('div'); el.id = 'vhToast'; el.className = 'vh-toast'; el.setAttribute('aria-hidden', 'true'); document.body.appendChild(el);
-      el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;padding:10px 16px;border-radius:999px;font-weight:600;font-size:14px;box-shadow:0 8px 30px rgba(0,0,0,.2);max-width:90vw';
       el.addEventListener('mouseenter', function () { clearTimeout(el._t); }); el.addEventListener('mouseleave', function () { el._t = setTimeout(function () { el.hidden = true; }, 2000); }); }
-    el.textContent = t; el.style.background = bad ? '#c0322b' : '#15120e'; el.style.color = '#fff'; el.hidden = false;
+    el.textContent = t; el.classList.toggle('is-bad', !!bad); el.hidden = false;
     announce(t, !!bad);
     clearTimeout(el._t); el._t = setTimeout(function () { el.hidden = true; }, 6000);
   }
@@ -178,8 +177,8 @@
     var h = hub.hours, goal = (hub.engagement && hub.engagement.goal) || 8, pct = Math.min(100, Math.round(h.month / goal * 100));
     var byp = (h.by_project || []).filter(function (x) { return x.hours > 0; });
     $('vhMonth').innerHTML = '<div class="vh-month"><b class="av-num">' + h.month + '</b><span>hours this month</span></div>'
-      + '<div class="vh-meter" role="img" aria-label="' + h.month + ' of a ' + goal + '-hour monthly goal"><i style="width:' + pct + '%"></i></div>'
-      + '<p class="vh-note" style="margin:6px 0 0">' + (h.month >= goal ? 'Monthly goal reached — thank you.' : (goal - h.month).toFixed(1).replace(/\.0$/, '') + ' h to this month’s goal of ' + goal + '.') + ' ' + h.total + ' h in all.</p>'
+      + '<div class="vh-meter" role="img" aria-label="' + h.month + ' of a ' + goal + '-hour monthly goal"><i class="vh-w' + (Math.round(pct / 5) * 5) + '"></i></div>'
+      + '<p class="vh-note vh-mt6">' + (h.month >= goal ? 'Monthly goal reached — thank you.' : (goal - h.month).toFixed(1).replace(/\.0$/, '') + ' h to this month’s goal of ' + goal + '.') + ' ' + h.total + ' h in all.</p>'
       + (byp.length ? '<ul class="vh-byp">' + byp.slice(0, 4).map(function (x) { return '<li><span>' + esc(x.name) + '</span><b class="av-num">' + x.hours + ' h</b></li>'; }).join('') + '</ul>' : '');
 
     $('vhFeed').innerHTML = hub.activity.length ? hub.activity.slice(0, 6).map(function (e) {
@@ -237,7 +236,7 @@
   }
   function giveKudos(id, name) {
     form('Kudos for ' + name, '<label>For<select id="fkKind"><option value="thanks">🙏 Thank you</option><option value="teamwork">🤝 Teamwork</option><option value="leadership">🧭 Leadership</option><option value="extra">🌟 Above and beyond</option></select></label>'
-      + '<label class="avp-form-wide" style="justify-self:stretch">What for<textarea id="fkMsg" maxlength="400" required placeholder="They stayed late to set up the hall…"></textarea></label>', 'Send kudos', function (done) {
+      + '<label class="avp-form-wide vh-stretch">What for<textarea id="fkMsg" maxlength="400" required placeholder="They stayed late to set up the hall…"></textarea></label>', 'Send kudos', function (done) {
       api('kudos', { to: id, kind: val('fkKind'), message: val('fkMsg') }).then(function (r) { done(r); if (r.ok) toast('Sent — ' + name + ' will see it.'); });
     });
   }
@@ -272,7 +271,7 @@
       + '<label>How long<select id="foDur"><option value="60">1 hour</option><option value="120" selected>2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="480">A full day</option></select></label>'
       + '<label>Where<input id="foWhere" maxlength="160" placeholder="CACENTRE, Egbeda"></label>'
       + '<label>Places (0 = no limit)<input id="foSlots" type="number" min="0" max="500" value="0"></label>'
-      + '<label class="avp-form-wide" style="justify-self:stretch">Details<textarea id="foDetails" maxlength="3000"></textarea></label>', 'Post', function (done) {
+      + '<label class="avp-form-wide vh-stretch">Details<textarea id="foDetails" maxlength="3000"></textarea></label>', 'Post', function (done) {
         api('opp_post', { title: val('foTitle'), team_id: +val('foTeam'), project_id: +val('foProj'), when: val('foWhen'), duration: +val('foDur'), location: val('foWhere'), slots: +val('foSlots'), details: val('foDetails') })
           .then(function (r) { done(r); if (r.ok) { toast('Posted.'); setTab('opps'); } });
       });
@@ -281,8 +280,8 @@
     api('opp_roster', null, 'id=' + id).then(function (r) {
       if (!r.ok) return toast(r.error, true);
       var MARK = { signed: 'Signed up', attended: 'Came', absent: 'Did not come' };
-      form(title, r.roster.length ? '<ul class="vh-list avp-form-wide" style="justify-self:stretch">' + r.roster.map(function (p) {
-        return '<li class="vh-row" style="padding:8px 0"><span class="vh-row-t"><span class="vh-row-title">' + esc(p.name) + '</span><span class="vh-row-sub">' + MARK[p.status] + '</span></span><span class="vh-row-btns">'
+      form(title, r.roster.length ? '<ul class="vh-list avp-form-wide vh-stretch">' + r.roster.map(function (p) {
+        return '<li class="vh-row vh-row--pad"><span class="vh-row-t"><span class="vh-row-title">' + esc(p.name) + '</span><span class="vh-row-sub">' + MARK[p.status] + '</span></span><span class="vh-row-btns">'
           + (past && r.can_mark ? '<button type="button" class="avp-btn avp-btn--sq' + (p.status === 'attended' ? ' avp-btn--ink' : '') + '" data-mk="' + p.id + '" data-st="attended">Came</button><button type="button" class="avp-btn avp-btn--sq" data-mk="' + p.id + '" data-st="absent">Did not</button>' : '') + '</span></li>';
       }).join('') + '</ul>' : '<p class="vh-note avp-form-wide">Nobody has signed up yet.</p>', 'Done', function () { $('vhForm').close(); load(); });
       $('vhFormBody').onclick = function (ev) {
@@ -362,7 +361,12 @@
       + (m.room ? '<button type="button" class="avp-btn avp-btn--sq avp-btn--ink" data-room="' + m.id + '" data-occ="' + esc(m.occurrence) + '">Live room</button>' : '')
       + (m.meet_url ? '<a class="avp-btn avp-btn--sq" href="' + esc(m.meet_url) + '" target="_blank" rel="noopener">Join</a>' : '')
       + '<a class="avp-btn avp-btn--sq" href="' + API + '?action=ics&meeting_id=' + m.id + '" title="Add to your calendar" aria-label="Add ' + esc(m.title) + ' to your calendar">.ics</a>'
-      + (m.edit ? '<button type="button" class="avp-btn avp-btn--sq" data-medit="' + m.id + '" aria-label="Change ' + esc(m.title) + '">' + (m.edit.no_link ? '⚠ Add Meet link' : 'Edit') + '</button>' : '');
+      /* Always "Edit" for whoever may change it. It used to read "⚠ Add Meet
+         link" whenever a meeting had no link — every meeting, on a site whose
+         Google Workspace is not connected — so nobody could see it was the
+         edit button. The missing link is said beside it instead. */
+      + (m.edit ? '<button type="button" class="avp-btn avp-btn--sq" data-medit="' + m.id + '" aria-label="Edit ' + esc(m.title) + '">Edit</button>' : '')
+      + (m.edit && m.edit.no_link ? '<span class="vh-nolink" title="Saving the meeting asks Google for the link again">No Meet link yet</span>' : '');
     return row(esc(m.title), sub, btns);
   }
   function ago(at) {
@@ -515,7 +519,7 @@
       var h = '<div class="vh-toolbar"><button type="button" class="vh-linkbtn" id="vhTeamBack">← All teams</button></div>'
         + '<div class="avp-cols"><div class="avp-col avp-col--main">'
         + '<section class="avp-card"><div class="avp-card-head"><h2>' + esc(t.name) + '</h2>' + (t.can_manage ? '<span class="avp-chip avp-chip--sm avp-chip--indigo">You manage this team</span>' : '') + '</div>'
-        + (t.purpose ? '<p class="vh-note" style="padding:12px 20px 0;margin:0">' + esc(t.purpose) + '</p>' : '')
+        + (t.purpose ? '<p class="vh-note vh-note--purpose">' + esc(t.purpose) + '</p>' : '')
         + '<div class="vh-table-wrap"><table class="vh-table"><thead><tr><th scope="col">Member</th><th scope="col">Role</th><th scope="col" class="num">Came</th><th scope="col" class="num">Hours this month</th>' + (t.can_manage ? '<th scope="col"><span class="vh-sr">Remove</span></th>' : '') + '</tr></thead><tbody>'
         + t.members.map(function (p) {
           var a = att[p.id];
@@ -574,7 +578,7 @@
   function drawHours() {
     var h = hub.hours, s = hub.hours_series;
     var byp = h.by_project || [], top = Math.max.apply(null, byp.map(function (x) { return x.hours; }).concat([1]));
-    $('vhByProj').innerHTML = byp.length ? byp.map(function (x) { return '<li class="vh-byp-row"><span><span>' + esc(x.name) + '</span><span class="vh-meter vh-meter--sm"><i style="width:' + Math.round(x.hours / top * 100) + '%"></i></span></span><b class="av-num">' + x.hours + ' h</b></li>'; }).join('')
+    $('vhByProj').innerHTML = byp.length ? byp.map(function (x) { return '<li class="vh-byp-row"><span><span>' + esc(x.name) + '</span><span class="vh-meter vh-meter--sm"><i class="vh-w' + (Math.round(x.hours / top * 20) * 5) + '"></i></span></span><b class="av-num">' + x.hours + ' h</b></li>'; }).join('')
       : '<li class="avp-empty">No hours yet.</li>';
     $('vhChartTable').setAttribute('aria-pressed', chartTable ? 'true' : 'false'); $('vhChartTable').textContent = chartTable ? 'Show as a chart' : 'Show as a table';
     if (chartTable) {
@@ -588,14 +592,15 @@
       $('vhChart').innerHTML = '<div class="vh-bars" role="img" aria-label="Hours given each month for the last twelve months. Use Show as a table for the numbers.">'
         + '<span class="vh-axis" aria-hidden="true"><i>' + nice + '</i><i>' + (nice / 2) + '</i><i>0</i></span>'
         + s.map(function (x, i) {
-          var hgt = x.hours ? Math.max(3, Math.round(x.hours / nice * H)) : 0;
-          return '<span class="vh-bar' + (i === s.length - 1 ? ' is-now' : '') + '" tabindex="0" data-tip="' + esc(x.long) + ' · ' + x.hours + ' h"><i style="height:' + hgt + 'px"></i><small>' + esc(x.label) + '</small></span>';
+          /* A height in 5% steps of the chart, as a class: never an inline style. */
+          var hgt = x.hours ? Math.max(5, Math.round(x.hours / nice * 20) * 5) : 0;
+          return '<span class="vh-bar' + (i === s.length - 1 ? ' is-now' : '') + '" tabindex="0" data-tip="' + esc(x.long) + ' · ' + x.hours + ' h"><i class="vh-h' + hgt + '"></i><small>' + esc(x.label) + '</small></span>';
         }).join('') + '</div>';
     }
     $('vhHoursList').innerHTML = h.recent.length ? h.recent.map(function (r) {
       return row(esc(r.activity), esc(day(r.day)) + ' · ' + r.hours + ' h' + (r.project ? ' · ' + esc(r.project) : '') + ' · ' + esc(SRC_LABEL[r.source] || 'recorded'),
         r.source === 'manual' ? '<button type="button" class="vh-x" data-unhours="' + r.id + '" aria-label="Remove ' + esc(r.activity) + '">×</button>' : '');
-    }).join('') + (h.recent.length >= 20 ? '<li class="vh-note" style="padding:10px 20px">The latest twenty. Download the CSV for everything.</li>' : '') : '<li class="avp-empty">Nothing yet. Meetings, shifts and NGG sessions are added for you; log anything else here.</li>';
+    }).join('') + (h.recent.length >= 20 ? '<li class="vh-note vh-note--foot">The latest twenty. Download the CSV for everything.</li>' : '') : '<li class="avp-empty">Nothing yet. Meetings, shifts and NGG sessions are added for you; log anything else here.</li>';
     if (!$('lhDay').value) { $('lhDay').value = new Date().toISOString().slice(0, 10); $('lhDay').max = $('lhDay').value; }
   }
   var SRC_LABEL = { manual: 'logged by you', meeting: 'meeting attended', opportunity: 'shift attended', ngg: 'NGG session' };
@@ -668,7 +673,7 @@
 
   $('vhLogHours').addEventListener('click', function () { setTab('record'); setTimeout(function () { $('lhAct').focus(); }, 50); });
   $('vhNewTeam').addEventListener('click', function () {
-    form('New team', '<label>Name<input id="ftName" maxlength="120" required></label><label>Project<select id="ftProj">' + projectOptions(0) + '</select></label><label class="avp-form-wide" style="justify-self:stretch">What it does<input id="ftPur" maxlength="400"></label>', 'Create', function (done) {
+    form('New team', '<label>Name<input id="ftName" maxlength="120" required></label><label>Project<select id="ftProj">' + projectOptions(0) + '</select></label><label class="avp-form-wide vh-stretch">What it does<input id="ftPur" maxlength="400"></label>', 'Create', function (done) {
       api('team_create', { name: val('ftName'), purpose: val('ftPur'), project_id: +val('ftProj') }).then(function (r) { done(r); if (r.ok) { setTab('people'); openTeam(r.id); } });
     });
   });
@@ -685,9 +690,9 @@
       + '<label>When<input id="fsWhen" type="datetime-local" value="' + local + '" required></label>'
       + '<label>How long<select id="fsDur">' + DURS.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === 60 ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>'
       + '<div class="avp-form-wide vh-repeat" id="fsRepeat"></div>'
-      + '<label class="avp-form-wide" style="justify-self:stretch">Agenda — one item a line<textarea id="fsAgenda" rows="4"></textarea></label>'
-      + '<label class="avp-form-wide" style="justify-self:stretch">Also invite (emails, optional)<input id="fsExtra" placeholder="guest@example.org"></label>'
-      + (bot ? '<label class="avp-form-wide" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="fsRec" style="height:auto"> Send the notetaker to record and transcribe</label>' : ''),
+      + '<label class="avp-form-wide vh-stretch">Agenda — one item a line<textarea id="fsAgenda" rows="4"></textarea></label>'
+      + '<label class="avp-form-wide vh-stretch">Also invite (emails, optional)<input id="fsExtra" placeholder="guest@example.org"></label>'
+      + (bot ? '<label class="avp-form-wide vh-check"><input type="checkbox" id="fsRec"> Send the notetaker to record and transcribe</label>' : ''),
       'Schedule and invite', function (done) {
         api('schedule', { team_id: +val('fsTeam'), title: val('fsTitle'), when: val('fsWhen'), duration: +val('fsDur'), repeat: rep ? rep.value() : { freq: 'once' }, agenda: val('fsAgenda'), extra: val('fsExtra'), auto_record: !!(bot && $('fsRec') && $('fsRec').checked) })
           .then(function (r) { done(r); if (r.ok) toast(r.warning || 'Scheduled — the team has been invited.'); });
@@ -706,8 +711,8 @@
       + '<label>When<input id="feWhen" type="datetime-local" value="' + esc(e.when) + '" required></label>'
       + '<label>How long<select id="feDur">' + DURS.concat(DURS.some(function (o) { return o[0] === e.duration; }) ? [] : [[e.duration, e.duration + ' minutes']]).map(function (o) { return opt(o[0], o[1], e.duration); }).join('') + '</select></label>'
       + '<div class="avp-form-wide vh-repeat" id="feRepeat"></div>'
-      + '<label class="avp-form-wide" style="justify-self:stretch">Agenda — one item a line<textarea id="feAgenda" rows="4">' + esc(e.agenda) + '</textarea></label>'
-      + '<label class="avp-form-wide" style="justify-self:stretch">Also invite (emails, optional)<input id="feExtra" placeholder="guest@example.org"></label>'
+      + '<label class="avp-form-wide vh-stretch">Agenda — one item a line<textarea id="feAgenda" rows="4">' + esc(e.agenda) + '</textarea></label>'
+      + '<label class="avp-form-wide vh-stretch">Also invite (emails, optional)<input id="feExtra" placeholder="guest@example.org"></label>'
       + '<p class="avp-form-wide vh-form-note">Everyone invited is told what changed' + (e.no_link ? ', and Google is asked again for the Meet link' : '') + '.</p>',
       'Save changes', function (done) {
         var body = { id: id }, cur = { title: val('feTitle'), when: val('feWhen'), duration: +val('feDur'), agenda: val('feAgenda') };
@@ -882,22 +887,22 @@
       }).join('') + '</div></section>';
     h += '<section class="vh-min-sec"><h3>Summary <span class="vh-hint">Markdown works</span></h3><textarea id="mSummary" aria-label="Summary"' + (ro ? ' disabled' : '') + '>' + esc(b.summary) + '</textarea>'
       + (ro ? '' : (hub && hub.integrations.assistant
-          ? '<details style="margin-top:8px"' + (ed.words ? ' open' : '') + '><summary class="vh-note" style="cursor:pointer">' + (ed.words ? 'Turn what was said in the room into the minutes' : 'Paste rough notes and let the assistant sort them into the sections') + '</summary>'
-            + (ed.words ? '<button type="button" class="avp-btn avp-btn--sq" id="mUseWords" style="margin:6px 0">Use what was said in the room</button>' : '')
-            + '<textarea id="mRough" aria-label="Rough notes or a transcript to tidy" placeholder="Paste your notes or a transcript…"></textarea><button type="button" class="avp-btn avp-btn--sq" id="mTidy" style="margin-top:6px">Tidy into the minutes</button></details>'
+          ? '<details class="vh-mt8"' + (ed.words ? ' open' : '') + '><summary class="vh-note vh-pointer">' + (ed.words ? 'Turn what was said in the room into the minutes' : 'Paste rough notes and let the assistant sort them into the sections') + '</summary>'
+            + (ed.words ? '<button type="button" class="avp-btn avp-btn--sq vh-my6" id="mUseWords">Use what was said in the room</button>' : '')
+            + '<textarea id="mRough" aria-label="Rough notes or a transcript to tidy" placeholder="Paste your notes or a transcript…"></textarea><button type="button" class="avp-btn avp-btn--sq vh-mt6" id="mTidy">Tidy into the minutes</button></details>'
           /* No assistant on this site: what the room heard can still go into the notes, as it was said. */
-          : (ed.words ? '<button type="button" class="avp-btn avp-btn--sq" id="mWordsToNotes" style="margin-top:8px">Add what was said in the room to the notes</button>' : ''))) + '</section>';
+          : (ed.words ? '<button type="button" class="avp-btn avp-btn--sq vh-mt8" id="mWordsToNotes">Add what was said in the room to the notes</button>' : ''))) + '</section>';
     if (b.arising.length) h += '<section class="vh-min-sec"><h3>Matters arising <span class="vh-hint">open actions from earlier meetings</span></h3><ul class="vh-list vh-arising">'
       + b.arising.map(function (a, i) {
         return '<li data-ar="' + i + '"><span>' + esc(a.title) + (a.owner ? ' <span class="vh-note">(' + esc(a.owner) + (a.due ? ', due ' + esc(a.due) : '') + ')</span>' : '') + '</span>'
           + '<input data-f="update" value="' + esc(a.update || '') + '" placeholder="Update" aria-label="Update on ' + esc(a.title) + '"' + (ro ? ' disabled' : '') + '>'
-          + '<label class="vh-note" style="display:flex;gap:4px;align-items:center"><input type="checkbox" data-f="done" style="height:auto"' + (a.done ? ' checked' : '') + (ro ? ' disabled' : '') + '> done</label></li>';
+          + '<label class="vh-note vh-check vh-check--sm"><input type="checkbox" data-f="done"' + (a.done ? ' checked' : '') + (ro ? ' disabled' : '') + '> done</label></li>';
       }).join('') + '</ul></section>';
     h += '<section class="vh-min-sec"><h3>Agenda and discussion</h3><ul class="vh-items" id="mAgenda">' + b.agenda.map(function (a, i) { return itemRow('agenda', i, a, ro); }).join('') + '</ul>' + (ro ? '' : '<button type="button" class="vh-add" data-add="agenda">+ Agenda item</button>') + '</section>';
     h += '<section class="vh-min-sec"><h3>Decisions</h3><ul class="vh-items" id="mDecisions">' + b.decisions.map(function (d, i) { return itemRow('decision', i, d, ro); }).join('') + '</ul>' + (ro ? '' : '<button type="button" class="vh-add" data-add="decision">+ Decision</button>') + '</section>';
     h += '<section class="vh-min-sec"><h3>Actions <span class="vh-hint">each becomes a tracked action for its owner when published</span></h3><ul class="vh-items" id="mActions">' + b.actions.map(function (a, i) { return itemRow('action', i, a, ro); }).join('') + '</ul>' + (ro ? '' : '<button type="button" class="vh-add" data-add="action">+ Action</button>') + '</section>';
     h += '<section class="vh-min-sec"><h3>Other notes</h3><textarea id="mNotes" aria-label="Other notes"' + (ro ? ' disabled' : '') + '>' + esc(b.notes) + '</textarea></section>';
-    h += '<section class="vh-min-sec"><h3>Next meeting</h3><input id="mNext" aria-label="Next meeting" value="' + esc(b.next_meeting) + '" placeholder="e.g. Saturday 9 November, 10am"' + (ro ? ' disabled' : '') + ' style="width:100%"></section>';
+    h += '<section class="vh-min-sec"><h3>Next meeting</h3><input id="mNext" aria-label="Next meeting" value="' + esc(b.next_meeting) + '" placeholder="e.g. Saturday 9 November, 10am"' + (ro ? ' disabled' : '') + ' class="vh-full"></section>';
     $('vhMinBody').innerHTML = h;
 
     var f = '';

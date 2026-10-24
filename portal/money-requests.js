@@ -64,15 +64,14 @@
     });
 
     var reachable = !!data.finance_reachable;
-    /* Not set up, or set up and not answering: two different sentences. */
+    /* Asking is always open (data.accepting): a request finance cannot take
+       yet is kept and sent by itself. Not set up, or set up and not
+       answering, are still two different sentences under the form. */
     var off = data.finance_configured === false;
-    form.hidden = !reachable;
+    form.hidden = data.accepting === false && !reachable;
     card.querySelector('[data-mr-down]').hidden = reachable || off;
     var offNote = card.querySelector('[data-mr-off]'); if (offNote) offNote.hidden = !off;
-    /* The intro describes the form. With finance unreachable the form is not
-       there, so the intro sat above the outage note describing a control
-       nobody could see. One note at a time. */
-    card.querySelector('[data-mr-max]').hidden = !reachable;
+    card.querySelector('[data-mr-max]').hidden = false;
     if (reachable && data.max) {
       card.querySelector('[data-mr-max]').textContent = 'Up to ' + money(data.max) + ' through this form.';
     }
@@ -93,7 +92,7 @@
       head.innerHTML = '<strong></strong><span class="pchip pchip--' + tone(r.status, r.paid) + '"></span>';
       head.querySelector('strong').textContent = r.title;
       head.querySelector('span').textContent = r.paid ? 'Paid'
-        : (r.sent ? String(r.status).replace(/_/g, ' ') : 'Not sent');
+        : (r.sent ? String(r.status).replace(/_/g, ' ') : 'Waiting to send');
       li.appendChild(head);
 
       var sub = document.createElement('p');
@@ -107,8 +106,10 @@
       if (!r.sent) {
         var why = document.createElement('p');
         why.className = 'mr-sub is-bad';
-        why.textContent = r.error || 'This never reached finance.';
+        why.textContent = r.error || 'This has not reached finance yet. It is kept and goes by itself.';
         li.appendChild(why);
+        /* Nothing to press while finance is not connected: it goes by itself. */
+        if (off) { list.appendChild(li); return; }
 
         var again = document.createElement('button');
         again.type = 'button';
@@ -159,7 +160,8 @@
       if (res.ok) {
         form.reset();
         if (bank) bank.open = false;
-        say('Sent to finance' + (res.reference ? ' as ' + res.reference : '') + '. They decide from here.');
+        say(res.queued ? (res.message || 'Asked. Your request is kept and goes to finance by itself.')
+          : 'Sent to finance' + (res.reference ? ' as ' + res.reference : '') + '. They decide from here.');
         load();
       } else {
         /* Finance's own sentence, not "something went wrong": it says

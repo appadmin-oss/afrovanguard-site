@@ -65,6 +65,13 @@ if (class_exists('LmsRepository') && class_exists('CfisCheckout') && CfisCheckou
     catch (Throwable $e) { error_log('[cron] hosted payments: ' . $e->getMessage()); }
 }
 
+/* Every tick: finance requests members made while finance was not connected
+   or not answering go now, if it can take them (lib/CfisRequests.php). */
+if (class_exists('CfisRequests') && CfisRequests::configured()) {
+    try { $result['finance_requests'] = CfisRequests::sendPending(); }
+    catch (Throwable $e) { error_log('[cron] finance requests: ' . $e->getMessage()); }
+}
+
 // Every tick: turn due reminders + imminent sessions into notifications
 // (idempotent via dedupe keys; emails too when a Mailer is configured).
 if (class_exists('Notifications')) {

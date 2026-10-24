@@ -30,8 +30,8 @@ declare(strict_types=1);
           <div class="pcard-head"><h2 id="avpMoneyReqH">Ask finance for money</h2></div>
           <div class="pcard-body">
             <p class="pcard-note" data-mr-max>A claim for something you paid for, or something that needs buying.</p>
-            <p class="pcard-note" data-mr-down hidden>Finance cannot be reached just now, so requests cannot be sent. Nothing you have already sent is affected.</p>
-            <p class="pcard-note" data-mr-off hidden>Asking finance for money is not switched on for this site yet. An administrator connects it to CACENTRE finance (CFIS) once; until then, ask your coordinator.</p>
+            <p class="pcard-note" data-mr-down hidden>Finance cannot be reached just now. You can still ask: your request is kept and goes by itself as soon as finance answers.</p>
+            <p class="pcard-note" data-mr-off hidden>Finance is not connected to this site yet. You can still ask: your request is kept, the office is told, and it goes to finance by itself once it is connected.</p>
 
             <form class="mr-form" data-mr-form novalidate hidden>
               <label class="mr-wide">What for <input name="title" maxlength="160" required placeholder="Bus fare to the Saturday session"></label>

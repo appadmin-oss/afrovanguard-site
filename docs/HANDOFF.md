@@ -432,3 +432,21 @@ sender name "CACENTRE", replies to CACENTRE, and this site's own From address
 There is a daily ceiling: `AV_CAC_SEND_DAILY`, default 500. Past it the answer
 is `daily_cap` and CACENTRE falls through to its own routes. Tests:
 `tests/cacsend.test.php` here, and `cac/tests/avmail.test.php` in CACENTRE.
+
+## Finance requests on by default; volunteer meetings editable (Oct 2026)
+
+- **Finance requests are always open.** With CFIS not connected, or not
+  answering, a member's request is kept under its own reference (status
+  `unsent`, with who asked and the bank details). The office is emailed
+  (`AV_FINANCE_EMAIL`, else `ADMIN_EMAIL`), and the cron sends it by itself
+  once finance can take it (`CfisRequests::sendPending`). The form offers
+  CFIS's own default spending kinds while finance cannot be asked
+  (`CfisRequests::DEFAULT_CATEGORIES`, mirroring CFIS `config/cfis.php`);
+  CFIS still decides on arrival. A refusal from finance is still shown as
+  such. Tests: `tests/cfisrequests.test.php`, rewritten for this rule.
+- **Volunteer dashboard → Coming up:** the edit button always reads "Edit".
+  It said "⚠ Add Meet link" on any meeting without a link, which was every
+  meeting on a site without Google Workspace, so nobody saw it could edit.
+  `portal/volunteer.js` and `portal/views/volunteer.php` now write no inline
+  styles: bar and meter sizes are 5% step classes (`.vh-w*`, `.vh-h*`), and
+  the toast is `.vh-toast`. Test: `tests/volunteerui.test.php`.
