@@ -79,6 +79,10 @@ if (class_exists('Notifications')) {
     catch (Throwable $e) { error_log('[cron] notifications: ' . $e->getMessage()); }
 }
 
+// Every tick: the VanQuest onboarding mail, fifteen minutes after a seat is confirmed.
+try { $result['vanquest'] = VanQuest::tick(50); }
+catch (Throwable $e) { error_log('[cron] vanquest: ' . $e->getMessage()); }
+
 // Every tick: send the AI notetaker into meetings that are about to start.
 // Covers providers that cannot be told to join later, and retries any dispatch
 // that failed when the meeting was scheduled — otherwise a bot that could not be

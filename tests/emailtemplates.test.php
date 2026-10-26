@@ -67,7 +67,7 @@ $templates = array_map(
 );
 sort($templates);
 
-ck('email: all nineteen templates are installed (eighteen designed, plus vanquest_welcome)', count($templates) === 19);
+ck('email: all twenty templates are installed (eighteen designed, plus the two VanQuest mails)', count($templates) === 20);
 
 foreach ($templates as $t) {
     $notices = [];
@@ -142,7 +142,7 @@ foreach ($templates as $t) {
         // has its own sizes. Either way the PNG must take the GIF's exact box.
         preg_match('~src="https://[^"]+/' . $art . '\.gif" width="(\d+)" height="(\d+)"~', $html, $box);
         ck("email/$t: Outlook is served $art.png instead, in the same box as the GIF",
-            $box !== [] && ($t === 'vanquest_welcome' || [$box[1], $box[2]] === ['100', '75'])
+            $box !== [] && (str_starts_with($t, 'vanquest_') || [$box[1], $box[2]] === ['100', '75'])
             && preg_match('~\[if mso\]><img class="av-art" src="https://[^"]+/' . $art
                 . '\.png" width="' . $box[1] . '" height="' . $box[2] . '"~', $html) === 1);
     }
@@ -172,25 +172,44 @@ foreach (array_keys($seen) as $art) {
 }
 
 /* ---------------------------------------------------------------------------
- * VanQuest. Joining from vquest.afrovanguard.org.ng sends vanquest_welcome on
- * its own frame. The placement letter comes from the visitor's browser, so the
- * template takes only O–D and words it as a potential level an interview confirms.
+ * VanQuest: its two mails, on their own frame. The module that sends them is
+ * tested in tests/vanquest.test.php.
  * ------------------------------------------------------------------------- */
-$vq = av_email_render('vanquest_welcome', []);
-ck('vanquest: renders on the VanQuest frame, not the Afrovanguard centre frame',
+$vq = av_email_render('vanquest_welcome', ['seat_url' => 'https://vquest.afrovanguard.org.ng/seat/?t=x']);
+ck('vanquest: the welcome renders on the VanQuest frame, not the Afrovanguard centre frame',
     str_contains($vq['html'], 'vqmark.png') && !str_contains($vq['html'], 'email-seal.png'));
-ck('vanquest: with no placement it starts at O and sends them to the placement test',
-    str_contains($vq['html'], '>Ordinary<') && str_contains($vq['html'], '/placement/'));
-$vqB = av_email_render('vanquest_welcome', ['placement' => 'B', 'xp' => 340]);
-ck('vanquest: a placement reads as a potential level that an interview confirms',
-    str_contains($vqB['html'], 'Potential Becoming') && str_contains($vqB['html'], 'An interview confirms it.'));
-$vqE = av_email_render('vanquest_welcome', ['placement' => 'E']);
-ck('vanquest: a letter above D is not a placement and is ignored', !str_contains($vqE['html'], 'Potential'));
+ck('vanquest: the welcome asks them to confirm their seat, twice, by the seat link',
+    $vq['subject'] === 'Confirm your seat in the VanQuest community'
+    && substr_count($vq['html'], 'href="https://vquest.afrovanguard.org.ng/seat/?t=x"') >= 4);
+ck('vanquest: the welcome explains the game and shows their status',
+    str_contains($vq['text'], 'HOW THE GAME WORKS') && str_contains($vq['text'], 'NOT CONFIRMED YET'));
 $top = array_slice(json_decode((string) file_get_contents(AV_ROOT . '/lib/quest/ranks.json'), true)['ranks'], -1)[0]['title'];
 ck('vanquest: the rank names come from lib/quest/ranks.json',
     str_contains($vq['html'], 'title="' . $top . '"') && str_contains($vq['html'], 'Ordinary to ' . $top));
-ck('vanquest: says XP is not Quest points', str_contains($vq['text'], 'It is not Quest points'));
-$pc = (string) file_get_contents(AV_ROOT . '/process-contact.php');
-ck('vanquest: process-contact.php lets vquest.afrovanguard.org.ng post, and sends the template',
-    str_contains($pc, "'https://vquest.afrovanguard.org.ng'") && str_contains($pc, "sendTemplate(\$email, 'vanquest_welcome'"));
+$people = [['first_name' => 'Chidi', 'letter' => 'O', 'avatar' => 'https://afrovanguard.org.ng/vanquest/api.php?action=avatar&a=0a0b0c0d&s=m'],
+           ['first_name' => 'Amara', 'letter' => 'A', 'avatar' => 'https://afrovanguard.org.ng/vanquest/api.php?action=avatar&a=01020304&s=f']];
+$vqP = av_email_render('vanquest_welcome', ['people' => $people, 'players' => 9, 'metrics' => ['volunteers_active' => 123]]);
+ck('vanquest: the welcome shows the people already in, by name and avatar',
+    str_contains($vqP['html'], '>Chidi<') && str_contains($vqP['html'], 'action=avatar&amp;a=0a0b0c0d')
+    && str_contains($vqP['text'], 'Chidi, Amara and 7 others'));
+ck('vanquest: the mails carry no community numbers (those are on the community page)',
+    !str_contains($vqP['html'], '123') && !str_contains($vqP['text'], 'ACTIVE VOLUNTEERS'));
+$vqB = av_email_render('vanquest_welcome', ['placement' => 'B', 'xp' => 340]);
+ck('vanquest: a placement reads as a potential level that an interview confirms',
+    str_contains($vqB['html'], 'Potential Becoming') && str_contains($vqB['html'], 'An interview confirms it.'));
+ck('vanquest: a letter above D is not a placement and is ignored',
+    !str_contains(av_email_render('vanquest_welcome', ['placement' => 'E'])['html'], 'Potential'));
+ck('vanquest: a new link for a confirmed seat says so and leads into the community',
+    str_contains(av_email_render('vanquest_welcome', ['seated' => true, 'first_name' => 'Ada'])['html'], 'Enter the community'));
 
+$on = av_email_render('vanquest_onboard', ['first_name' => 'Ada', 'community_url' => 'https://vquest.afrovanguard.org.ng/community/?t=y']);
+ck('vanquest: onboarding greets them by name and leads into the community',
+    str_contains($on['subject'], 'Ada') && str_contains($on['html'], 'Welcome to the community, Ada.')
+    && str_contains($on['html'], 'Enter the community') && !preg_match('/lobby/i', $on['html']));
+ck('vanquest: onboarding picks the next step: the placement test when not yet placed',
+    str_contains($on['subject'], 'find your starting level') && str_contains($on['html'], '/placement/'));
+$onA = av_email_render('vanquest_onboard', ['first_name' => 'Ada', 'placement' => 'A', 'people' => $people, 'joined_since' => 2]);
+ck('vanquest: and the interview once placed, with who joined since them',
+    str_contains($onA['subject'], 'your interview') && str_contains($onA['text'], 'JOINED SINCE YOU')
+    && str_contains($onA['text'], 'Chidi and Amara joined after you'));
+ck('vanquest: says XP is not Quest points', str_contains($vq['text'], 'not Quest points') && str_contains($on['text'], 'not Quest points'));

@@ -230,6 +230,8 @@ $knownMetaKeys = [
     // sweep again that day, and both are idempotent by source key.
     'quest_ladder_sweep_day',
     'quest_money_sweep_day',
+    // VanQuest's community numbers, cached ten minutes. Reviewed: content, gates no migration.
+    'vq_metrics',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {
