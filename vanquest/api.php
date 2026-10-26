@@ -59,7 +59,8 @@ try {
             if ($method === 'GET') {
                 $p = VanQuest::byToken($t);
                 if (!$p) json_out(['ok' => false, 'message' => 'This link is not valid any more. Join again for a new one.'], 404);
-                json_out(['ok' => true, 'seated' => $p['confirmed_at'] !== '', 'first_name' => $p['first_name'], 'sex' => $p['sex'], 'letter' => VanQuest::letter($p)]);
+                json_out(['ok' => true, 'seated' => $p['confirmed_at'] !== '', 'first_name' => $p['first_name'], 'sex' => $p['sex'], 'letter' => VanQuest::letter($p),
+                    'avatar_m' => VanQuest::avatarUrl(['sex' => 'male'] + $p), 'avatar_f' => VanQuest::avatarUrl(['sex' => 'female'] + $p)]);
             }
             $r = VanQuest::confirm($t, (string) ($in['first_name'] ?? ''), (string) ($in['sex'] ?? ''));
             if (!$r['ok']) json_out($r, isset($r['errors']['token']) ? 404 : 400);
@@ -68,6 +69,7 @@ try {
             $p = VanQuest::byToken($t);
             if (!$p) json_out(['ok' => false, 'message' => 'This link is not valid any more.'], 404);
             if ($p['confirmed_at'] === '') json_out(['ok' => false, 'message' => 'Confirm your seat first.', 'confirm' => true], 409);
+            $p = VanQuest::recordPlacement($p, (string) ($in['p'] ?? ''));
             json_out(['ok' => true] + VanQuest::community($p));
         case 'interview':
             if ($method !== 'POST') json_out(['ok' => false, 'message' => 'POST required.'], 405);

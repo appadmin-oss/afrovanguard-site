@@ -55,6 +55,13 @@ $mails();
 $t = $r3['token'];
 
 /* The interview. */
+ck('vanquest: the interview comes after the placement test',
+    (VanQuest::requestInterview($t, 'Ada', 'female', '+2348012345678')['errors']['placement'] ?? '') !== '' && $mails() === []);
+VanQuest::recordPlacement(VanQuest::byToken($t), 'Z');
+ck('vanquest: a placement outside O–D is not recorded', VanQuest::byToken($t)['placement'] === '');
+VanQuest::recordPlacement(VanQuest::byToken($t), 'A');
+VanQuest::recordPlacement(VanQuest::byToken($t), 'C');
+ck('vanquest: a placement from the browser is kept, once', VanQuest::byToken($t)['placement'] === 'A');
 ck('vanquest: the interview needs a phone number', !VanQuest::requestInterview($t, 'Ada', 'female', '12')['ok']);
 $iv = VanQuest::requestInterview($t, 'Ada', 'female', '+234 801 234 5678', 'Weekends');
 $m = $mails();

@@ -171,6 +171,19 @@ final class VanQuest
         return ['ok' => true, 'player' => self::byToken($token)];
     }
 
+    /**
+     * A placement taken in the browser after joining, reported by the community
+     * page. Kept only while the player has none: it words their status and
+     * unlocks the interview, and is never a rank in the Quest.
+     */
+    public static function recordPlacement(array $p, string $letter): array
+    {
+        if ($p['placement'] !== '' || !in_array($letter, self::PLACEMENTS, true)) return $p;
+        Database::pdo()->prepare("UPDATE vq_players SET placement = ? WHERE id = ? AND placement = ''")->execute([$letter, $p['id']]);
+        $p['placement'] = $letter;
+        return $p;
+    }
+
     /** First name as people write it: letters, spaces, hyphens and apostrophes, 40 at most. */
     public static function cleanName(string $s): string
     {
@@ -184,7 +197,8 @@ final class VanQuest
     {
         return [
             'player' => self::publicPlayer($p, true),
-            'metrics' => self::metrics(),
+            // Players change by the minute, so their count is read live, not from the cache.
+            'metrics' => ['players' => self::players()] + self::metrics(),
             'people' => self::people(24, (int) $p['id']),
             'onboard_at' => $p['confirmed_at'] !== '' ? gmdate('c', strtotime($p['confirmed_at'] . ' UTC') + self::ONBOARD_AFTER) : null,
         ];
@@ -209,6 +223,8 @@ final class VanQuest
     {
         $p = self::byToken($token);
         if ($p === null || $p['confirmed_at'] === '') return ['ok' => false, 'errors' => ['token' => 'Confirm your seat first.']];
+        // The interview confirms a placement, so it comes after the placement test.
+        if (!in_array($p['placement'], self::PLACEMENTS, true)) return ['ok' => false, 'errors' => ['placement' => 'Take the placement test first: the interview confirms its result.']];
         $name = self::cleanName($firstName);
         $phone = preg_replace('/[^0-9+]/', '', $phone) ?? '';
         $e = [];
