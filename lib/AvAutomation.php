@@ -84,7 +84,7 @@ final class AvAutomation
                     'Welcome to Afrovanguard Workspace',
                     $when,
                     30,
-                    "You're connected. This hub now shows your Gmail, Calendar and Drive in one place — and schedules mentorship straight to your calendar with a Meet link.\n\nStart here: " . rtrim(SITE_URL, '/') . '/workspace',
+                    "You're connected. Your portal now shows your Gmail, Calendar, Drive and Google Chat where you work — Today, the calendar and Team Chat — and schedules mentorship straight to your calendar with a Meet link.\n\nStart here: " . rtrim(SITE_URL, '/') . '/portal/',
                     false
                 );
             } catch (Throwable $e) { error_log('[automation] onboarding event: ' . $e->getMessage()); }

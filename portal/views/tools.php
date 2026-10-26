@@ -30,6 +30,17 @@
               <button type="button" class="app-tile app-tile--team" data-app="goals"><span class="app-ic">◎</span><span class="app-tx"><span class="app-nm">Goals &amp; OKRs</span><span class="app-desc">Track objectives</span></span></button>
               <button type="button" class="app-tile app-tile--team" data-app="links"><span class="app-ic">🔖</span><span class="app-tx"><span class="app-nm">Team links</span><span class="app-desc">Shared resources</span></span></button>
             </div>
+<?php if (!empty($google['apps'])): /* The Google apps, with the rest of the tools (lib/GoogleHub.php) */ ?>
+            <h2 class="suite-section"><span>G Google</span><small>Signed in with Google · @<?= e((string) $google['domain']) ?></small></h2>
+            <div class="pws-grid" id="suiteGoogle">
+<?php foreach ($google['apps'] as $gs): ?>
+              <a class="pws-app" href="<?= e($gs['url']) ?>" target="_blank" rel="noopener noreferrer">
+                <span class="pws-ico pws-ico--<?= e($gs['key']) ?>"><?= av_workspace_icon($gs['icon']) ?></span>
+                <span class="pws-text"><span class="pws-name"><?= e($gs['label']) ?></span><span class="pws-desc"><?= e($gs['desc']) ?></span></span>
+              </a>
+<?php endforeach; ?>
+            </div>
+<?php endif; ?>
 <?php endif; ?>
           </div>
 

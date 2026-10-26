@@ -51,6 +51,10 @@ $dues     = $isOrg ? $lms->duesStatus((int) $u['id']) : null;
 $duesCsrf = $dues ? av_csrf_token() : '';
 $journey  = Levels::progress((int) $u['id']);
 $collabCsrf = av_csrf_token();
+/* Google Workspace is part of the portal, not a page beside it (lib/GoogleHub.php):
+   what it can do for this person, read once and used by every view. */
+$google = GoogleHub::state($u);
+$googleNotice = GoogleHub::notice($_GET);
 $upcoming = class_exists('Mentorship') ? Mentorship::upcomingSessions((int) $u['id'], 6) : [];
 // Mentorship hours logged (attended sessions, as mentor or mentee) + consistency.
 $mentorStats = class_exists('Mentorship') ? Mentorship::memberConsistency((int) $u['id']) : ['held' => 0, 'attended' => 0, 'rate' => null, 'minutes' => 0, 'hours' => 0.0];
@@ -271,6 +275,21 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
       </div>
     </nav>
 
+<?php if ($google['oauth'] || ($google['admin'] && $google['problem'] !== '')): ?>
+    <!-- The Google account this portal works with — connect, or who it is and a way out. -->
+    <div class="avp-google" id="avpGoogle">
+<?php if ($google['connected']): ?>
+      <span class="avp-g-dot" aria-hidden="true"></span>
+      <span class="avp-g-t"><span class="avp-g-l">Google connected</span><span class="avp-g-e"><?= e($google['email']) ?></span></span>
+      <form method="post" action="/auth/google/disconnect" class="avp-g-out" onsubmit="return confirm('Disconnect Google from the portal? Your mail, calendar and Chat stop showing here.')">
+        <input type="hidden" name="csrf" value="<?= e($collabCsrf) ?>"><button type="submit" class="avp-g-btn">Disconnect</button></form>
+<?php elseif ($google['oauth']): ?>
+      <a class="avp-g-connect" href="<?= e($google['connect']) ?>"><span class="avp-g-logo" aria-hidden="true">G</span> Connect Google <span class="avp-g-sub">mail, calendar, Drive, Chat</span></a>
+<?php else: ?>
+      <a class="avp-g-warn" href="/admin/#rules" title="<?= e($google['problem']) ?>">⚠ Google needs setting up</a>
+<?php endif; ?>
+    </div>
+<?php endif; ?>
     <div class="avp-me">
       <span class="avp-me-av" aria-hidden="true"><?= e($pInitials) ?></span>
       <span class="avp-me-t"><span class="avp-me-n"><?= e(trim($first . ' ' . ($parts[1] ?? ''))) ?></span><span class="avp-me-r"><?= $roleName ?></span></span>
@@ -352,9 +371,12 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   <script src="<?= e(av_asset('/portal/chat-panel.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/meet-modal.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/dues-pay.js')) ?>" defer></script>
-  <script src="<?= e(av_asset('/portal/workspace-live.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/portal/google.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/mentor-meet.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/team-chat.js')) ?>" defer></script>
+  <script type="application/json" id="avGoogleState"><?= json_encode(['oauth' => $google['oauth'], 'connected' => $google['connected'], 'org' => $google['org'],
+      'admin' => $google['admin'], 'problem' => $google['problem'], 'connect' => $google['connect'], 'domain' => $google['domain'], 'notice' => $googleNotice],
+      JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
   <script src="<?= e(av_asset('/portal/tools.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/repeat.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/meetings.js')) ?>" defer></script>

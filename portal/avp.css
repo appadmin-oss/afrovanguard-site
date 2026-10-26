@@ -577,3 +577,45 @@ a.avp-kpi--link:focus-visible { outline: 2px solid var(--avp-gold); outline-offs
 /* A long answer gets the card's width; a bare .avp-form-wide only spans the grid. */
 .avp-bills .avp-form label.avp-form-wide { justify-self: stretch; }
 .avp-bills .avp-form textarea { width: 100%; }
+
+/* ── Google in the portal (lib/GoogleHub.php, portal/google.js) ─────────── */
+/* The account in the side bar: connect, or who it is and a way out. */
+.avp-google { padding: 10px 14px; border-top: 1px solid var(--avp-side-line); font-size: 13.5px; }
+.avp-google { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.avp-g-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--avp-green-tx); flex-shrink: 0; }
+.avp-g-t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.avp-g-l { font-weight: 700; color: var(--avp-ink); }
+.avp-g-e { color: var(--avp-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avp-g-out { margin: 0; }
+.avp-g-btn { background: none; border: 1px solid var(--avp-side-line); border-radius: 8px; padding: 6px 10px; min-height: 32px; font: inherit; font-size: 12.5px; color: var(--avp-text-2); cursor: pointer; }
+.avp-g-btn:hover { color: var(--avp-ink); border-color: var(--avp-text-2); }
+.avp-g-connect, .avp-g-warn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border-radius: 10px; font-weight: 700; text-decoration: none; }
+.avp-g-connect { background: var(--avp-bg); border: 1px solid var(--avp-side-line); color: var(--avp-ink); }
+.avp-g-connect:hover { border-color: var(--avp-gold-tx); }
+.avp-g-logo { width: 22px; height: 22px; border-radius: 50%; background: var(--avp-indigo-bg); color: var(--avp-indigo-tx); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+.avp-g-sub { font-weight: 400; font-size: 12px; color: var(--avp-text-2); }
+.avp-g-warn { background: var(--avp-red-bg); color: var(--avp-red-tx); }
+
+/* The connect round-trip's result, under the welcome. */
+.avp-g-notice { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--avp-green-bg); color: var(--avp-green-tx); font-weight: 600; }
+.avp-g-notice.is-err { background: var(--avp-red-bg); color: var(--avp-red-tx); }
+
+/* The Google card on Today. */
+.avp-g-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.avp-g-kpis > div { border: 1px solid var(--avp-line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.avp-g-kpis span { font-size: 12.5px; color: var(--avp-text-2); }
+.avp-g-kpis b { font-size: 20px; color: var(--avp-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avp-g-kpis #gNext { font-size: 15px; line-height: 1.6; }
+.avp-g-kpis small { font-size: 12px; color: var(--avp-text-2); }
+.avp-g-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.avp-g-h { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--avp-text-2); }
+.avp-g-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.avp-g-li a, .avp-g-li > span { display: flex; flex-direction: column; gap: 1px; padding: 7px 8px; border-radius: 8px; color: inherit; text-decoration: none; min-width: 0; }
+.avp-g-li a:hover { background: var(--avp-line-2); }
+.avp-g-li b { font-size: 14px; color: var(--avp-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.avp-g-li.is-unread b { font-weight: 800; }
+.avp-g-li span span, .avp-g-li a span { font-size: 13px; color: var(--avp-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avp-g-empty { font-size: 13.5px; color: var(--avp-text-2); padding: 6px 8px; }
+.avp-g-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.avp-g-note { margin: 0 0 12px; color: var(--avp-text-2); max-width: 62ch; }
+@media (max-width: 760px) { .avp-g-cols, .avp-g-kpis { grid-template-columns: 1fr; } }

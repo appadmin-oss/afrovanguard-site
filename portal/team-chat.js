@@ -1,5 +1,5 @@
 /* team-chat.js — live Google Chat panel (spaces + messages + send + unread).
-   Self-initialises on #chatCard (portal + /workspace). Near-live via polling. */
+   Self-initialises on #chatCard (the portal's Team Chat). Near-live via polling. */
 (function () {
   'use strict';
   var card = document.getElementById('chatCard'); if (!card) return;
@@ -53,7 +53,7 @@
   function sayChat(msg, reconnect){
     if(!form) return;
     if(!noteEl){ noteEl=document.createElement('p'); noteEl.className='ws-chat-note'; form.parentNode.insertBefore(noteEl, form.nextSibling); }
-    noteEl.innerHTML = esc(msg) + (reconnect ? ' <a href="/auth/google/connect?next=/workspace">Reconnect Google →</a>' : '');
+    noteEl.innerHTML = esc(msg) + (reconnect ? ' <a href="/auth/google/connect?next=%2Fportal%2F%23chat">Reconnect Google →</a>' : '');
     noteEl.hidden = !msg;
   }
   if(form) form.addEventListener('submit', function(e){

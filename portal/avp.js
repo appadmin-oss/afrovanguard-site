@@ -99,7 +99,8 @@
     /* A nav entry that opens one app inside another view: Meetings is the
        Suite's meetings app, given its own place in the menu (portal/tools.js
        opens it on portal:view with asked = 'meetings'). */
-    var ALIAS = { meetings: 'tools' };
+    /* #workspace was its own view; Google is on Today now (lib/GoogleHub.php). */
+    var ALIAS = { meetings: 'tools', workspace: 'overview' };
     function showView(name, push) {
       var asked = name;
       if (ALIAS[name]) name = ALIAS[name];

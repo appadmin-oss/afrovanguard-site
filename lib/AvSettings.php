@@ -115,7 +115,7 @@ final class AvSettings
         'AV_GWS_CONNECT_ON_SIGNIN' => [
             'group' => 'Google sign-in & Workspace', 'label' => 'Ask for Workspace access at sign-in', 'secret' => false, 'type' => 'enum',
             'options' => ['org', 'all', '0'],
-            'help' => 'org (default): only someone signing in with an organisation address is also asked for Gmail, Calendar, Drive and Chat access. all: everybody is — a personal Gmail account then sees an “unverified app” warning unless Google has verified the app. 0: never; members connect from /workspace instead.',
+            'help' => 'org (default): only someone signing in with an organisation address is also asked for Gmail, Calendar, Drive and Chat access. all: everybody is — a personal Gmail account then sees an “unverified app” warning unless Google has verified the app. 0: never; members connect from the portal instead (Today, or the Google account in the side bar).',
         ],
         'AV_GDRIVE_SERVICE_ACCOUNT' => [
             'group' => 'Google sign-in & Workspace', 'label' => 'Service account key (JSON)', 'secret' => true, 'type' => 'json',

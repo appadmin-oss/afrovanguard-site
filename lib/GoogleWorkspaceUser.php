@@ -161,7 +161,7 @@ final class GoogleWorkspaceUser
         $payload = "$mark.$exp.$nonce.$uid.$b64";
         if (!hash_equals(av_mac('google-connect', $payload), $sig)) return null;
         $next = base64_decode(strtr($b64, '-_', '+/'), true);
-        return ['uid' => (int) $uid, 'next' => $next === false ? '/workspace' : GoogleAuth::safeNext($next)];
+        return ['uid' => (int) $uid, 'next' => $next === false ? '/portal/' : GoogleAuth::safeNext($next)];
     }
 
     public static function connectUrl(string $state, string $loginHint = ''): string
@@ -303,7 +303,7 @@ final class GoogleWorkspaceUser
                case — the OAuth consent screen is in "Testing", where Google
                expires every refresh token after seven days. Keeping it made the
                connection read as live for ever while every panel came back
-               empty. Forget it, so /workspace asks them to connect again. */
+               empty. Forget it, so the portal asks them to connect again. */
             if (str_contains(self::$lastHttp['body'], 'invalid_grant')) {
                 Database::pdo()->prepare("UPDATE google_connections SET refresh_token='', access_token='', access_expires=0, updated_at=? WHERE user_id=?")
                     ->execute([gmdate('Y-m-d H:i:s'), $uid]);

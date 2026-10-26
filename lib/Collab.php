@@ -137,7 +137,7 @@ final class Collab
     {
         static $done = false; if ($done || !class_exists('Events')) return; $done = true;
         Events::on('member.created', fn($p) => self::log(0, (string) ($p['name'] ?? 'A new member'), 'joined Afrovanguard', '', ''));
-        Events::on('workspace.connected', fn($p) => self::log((int) ($p['user_id'] ?? 0), self::nameOf((int) ($p['user_id'] ?? 0)), 'connected their Google Workspace', '', '/workspace'));
+        Events::on('workspace.connected', fn($p) => self::log((int) ($p['user_id'] ?? 0), self::nameOf((int) ($p['user_id'] ?? 0)), 'connected their Google Workspace', '', '/portal/'));
         Events::on('mentorship.session_scheduled', fn($p) => self::log(0, 'A mentor', 'scheduled a mentorship session', '', '/mentorship/'));
         Events::on('diary.published', fn($p) => self::log((int) ($p['author_id'] ?? 0), (string) ($p['author'] ?? 'A member'), 'published a Diary entry', (string) ($p['title'] ?? ''), (string) ($p['url'] ?? '/diary/')));
         Events::on('course.completed', fn($p) => self::log((int) ($p['user_id'] ?? 0), (string) ($p['name'] ?? 'A learner'), 'completed a course', (string) ($p['course'] ?? ''), ''));

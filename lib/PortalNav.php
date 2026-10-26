@@ -42,7 +42,6 @@ final class PortalNav
            portal/tools.js opens the app. */
         'meetings'    => ['group' => 'Work', 'label' => 'Meetings', 'for' => ['org'], 'view' => 'tools'],
         'chat'        => ['group' => 'Work', 'label' => 'Team Chat', 'for' => ['org'], 'view' => 'chat'],
-        'workspace'   => ['group' => 'Work', 'label' => 'Workspace', 'for' => ['org'], 'view' => 'workspace'],
         'inventory'   => ['group' => 'Work', 'label' => 'Inventory', 'for' => ['inventory'], 'view' => 'inventory'],
 
         'quest'       => ['group' => 'Vanguard Quest', 'label' => 'The Quest', 'for' => ['all'], 'view' => 'quest'],

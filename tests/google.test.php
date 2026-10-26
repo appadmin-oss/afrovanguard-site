@@ -223,7 +223,8 @@ require_once AV_ROOT . '/lib/workspace.php';
 ck('workspace: a failed connect is told, not silent', (av_workspace_notice('connect_failed', false)['tone'] ?? '') === 'err');
 ck('workspace: a successful connect is told', (av_workspace_notice('', true)['tone'] ?? '') === 'ok');
 ck('workspace: an unknown code shows nothing', av_workspace_notice('<script>', false) === null);
-ck('workspace: the page renders the notice', str_contains((string) file_get_contents(AV_ROOT . '/workspace.php'), 'av_workspace_notice('));
+/* /workspace is gone into the portal: it carries the code on, and the portal says it (GoogleHub::notice → portal/google.js). */
+ck('workspace: the old page passes the notice on to the portal', str_contains((string) file_get_contents(AV_ROOT . '/workspace.php'), "\$q['google_e']") && str_contains((string) file_get_contents(AV_ROOT . '/portal/index.php'), 'GoogleHub::notice($_GET)'));
 
 AvSettings::save(['AV_GDRIVE_SERVICE_ACCOUNT' => ''], 'test');
 foreach ($gEnvKeep as $k => $v) { if ($v === false) putenv($k); else putenv($k . '=' . $v); }

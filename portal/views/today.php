@@ -250,6 +250,52 @@ if ($isOrg && !$hasPlan):
               </div>
             </section>
 <?php endif; ?>
+<?php if ($isOrg && ($google['oauth'] || $google['org'])):
+    /* Google, on Today (lib/GoogleHub.php) — what the Workspace view used to be. Filled by portal/google.js
+       from /portal/workspace.php?action=me once connected. */
+    $gDomain = (string) $google['domain'];
+    $gAct = [
+        ['Compose', av_ws_link('AV_WS_MAIL_URL', 'https://mail.google.com/a/' . $gDomain) . '#compose'],
+        ['New doc', 'https://docs.google.com/document/create'],
+        ['New event', 'https://calendar.google.com/calendar/u/0/r/eventedit'],
+        ['Start a Meet', 'https://meet.google.com/new'],
+    ];
+?>
+            <section class="avp-card avp-gcard" id="avpGoogleCard" aria-labelledby="avpGoogleH">
+              <div class="avp-card-head">
+                <div class="avp-head-pair"><h2 id="avpGoogleH">Google</h2><span class="avp-head-sub"><?= $google['connected'] ? e($google['email']) : 'Mail, calendar, Drive and Chat' ?></span></div>
+<?php if ($google['connected']): ?>
+                <span class="avp-chip avp-chip--green">Connected</span>
+<?php endif; ?>
+              </div>
+              <div class="avp-card-body">
+<?php if ($google['connected']): ?>
+                <div class="avp-g-kpis" id="gKpis">
+                  <div><span>Unread mail</span><b class="av-num" id="gUnread">—</b></div>
+                  <div><span>Next event</span><b id="gNext">—</b><small id="gNextWhen"></small></div>
+                  <div><span>Recent files</span><b class="av-num" id="gFileCount">—</b></div>
+                </div>
+                <div class="avp-g-cols">
+                  <div><h3 class="avp-g-h">Inbox</h3><ul class="avp-g-list" id="gMail" aria-live="polite"><li class="avp-g-empty">Loading…</li></ul></div>
+                  <div><h3 class="avp-g-h">Coming up</h3><ul class="avp-g-list" id="gEvents"><li class="avp-g-empty">Loading…</li></ul></div>
+                  <div><h3 class="avp-g-h">Recent files</h3><ul class="avp-g-list" id="gFiles"><li class="avp-g-empty">Loading…</li></ul></div>
+                </div>
+                <div class="avp-g-acts">
+<?php foreach ($gAct as [$gl, $gu]): ?>
+                  <a class="avp-btn" href="<?= e($gu) ?>" target="_blank" rel="noopener noreferrer"><?= e($gl) ?> <span aria-hidden="true">↗</span></a>
+<?php endforeach; ?>
+                  <a class="avp-btn" href="#chat" data-goto="chat">Google Chat in Team Chat</a>
+                </div>
+<?php elseif ($google['oauth']): ?>
+                <p class="avp-g-note">Connect your Google account to see your inbox, what is coming up in your calendar and your recent Drive files here, and your Google Chat spaces in Team Chat. You sign in with Google once and can disconnect at any time.</p>
+                <a class="avp-btn avp-btn--ink" href="<?= e($google['connect']) ?>">Connect Google</a>
+<?php else: ?>
+                <p class="avp-g-note">Your own Google account cannot be connected here yet<?= $google['admin'] ? ': ' . e($google['problem']) : ' — an administrator needs to switch it on' ?>. The Google apps are in the Suite.</p>
+                <a class="avp-btn" href="#tools" data-goto="tools">Open the Suite</a>
+<?php endif; ?>
+              </div>
+            </section>
+<?php endif; ?>
             <section class="avp-card" aria-labelledby="avpJourneyH">
               <div class="avp-card-head"><h2 id="avpJourneyH">Your level</h2><a class="avp-head-link" href="#quest" data-goto="quest">The Quest →</a></div>
               <div class="avp-card-body avp-journey">
