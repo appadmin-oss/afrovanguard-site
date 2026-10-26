@@ -42,3 +42,36 @@ function avd_rail(array $sections, int $readMinutes): void
     </div>
   </nav>
 <?php }
+
+/**
+ * Mark the paragraph that takes the drop cap (class "has-dropcap").
+ *
+ * It was simply the first <p>. An entry that opens with a byline or dateline
+ * — "From the Office of the Chief Servant", in italics, one line — gave the
+ * big letter to that line, and the letter, taller than the line, hung down
+ * into the paragraph below it. The drop cap belongs to the first paragraph
+ * of prose: one with a real sentence or two in it (MIN_CHARS), that is not
+ * wholly italic or bold, among the first few. When there is none, there is no
+ * drop cap, which reads better than one in the wrong place.
+ */
+function avd_dropcap(string $html): string
+{
+    $min = 120; $look = 6; $seen = 0;
+    if (!preg_match_all('~<p(\s[^>]*)?>(.*?)</p>~is', $html, $m, PREG_OFFSET_CAPTURE)) return $html;
+    foreach ($m[0] as $i => [$whole, $at]) {
+        if (++$seen > $look) break;
+        $attrs = (string) ($m[1][$i][0] ?? '');
+        $inner = trim((string) $m[2][$i][0]);
+        if (preg_match('~class\s*=\s*["\'][^"\']*\blead\b~i', $attrs)) continue;
+        $text = trim(html_entity_decode(strip_tags($inner), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        if (mb_strlen($text) < $min) continue;
+        if (preg_match('~^<(em|i|strong|b)\b[^>]*>.*</\1>$~is', $inner) && !preg_match('~</(em|i|strong|b)>.+<\1\b~is', $inner)) continue;
+        if (!preg_match('/^["“‘\'(]?[\p{L}\p{N}]/u', $text)) continue;
+        $tag = preg_match('~\bclass\s*=\s*(["\'])~i', $attrs)
+            ? '<p' . preg_replace('~\bclass\s*=\s*(["\'])~i', 'class=${1}has-dropcap ', $attrs, 1) . '>'
+            : '<p' . $attrs . ' class="has-dropcap">';
+        $open = strlen('<p' . $attrs . '>');
+        return substr($html, 0, $at) . $tag . substr($html, $at + $open);
+    }
+    return $html;
+}
