@@ -421,6 +421,7 @@ require_once __DIR__ . '/CrmAudiencePush.php';  /* this site's people, pushed (s
 require_once __DIR__ . '/NggVolunteers.php';    /* NGG's volunteers, fetched (signed) from NGG */
 require_once __DIR__ . '/VolunteerSeeds.php';   /* NGG volunteers seeded from a file, linked as they sign in */
 require_once __DIR__ . '/TaskReport.php';       /* the day's tasks: done, undone, unclaimed */
+require_once __DIR__ . '/ProgrammeSessions.php';  /* the year's programme sessions: TONI, MEDI, SUMMER, DOMI */
 require_once __DIR__ . '/TaskLedger.php';       /* what people did with the work they were given */
 require_once __DIR__ . '/TaskMatch.php';        /* who a task fits, from people's labels (+ AI) */
 require_once __DIR__ . '/Todo.php';             /* the to-do pop-up: one list across both sites */

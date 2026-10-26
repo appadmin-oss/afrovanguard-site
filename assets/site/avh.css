@@ -553,3 +553,18 @@ html.av-si .avh .avh-drawer-ctas{grid-template-columns:1fr}
 /* Phones: the uppercase kickers read at 11px on a desktop and not on a
    390px screen. Everything else here already reflows; this is type only. */
 @media (max-width:639px){.avh-tag{font-size:12px}.avh-play{font-size:11px;letter-spacing:-.5px}}
+/* Programme session strip (sessions.js): live now, or the countdown to the next */
+.avh-sess{background:var(--av-ink);color:var(--av-white)}
+.avh-sess-in{max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding-top:14px;padding-bottom:14px;font-size:15px}
+.avh-sess-tag{display:inline-flex;align-items:center;gap:7px;padding:3px 11px;border-radius:999px;border:1px solid var(--av-gold);color:var(--av-gold);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.avh-sess.is-live .avh-sess-tag{border-color:var(--av-cdg-live);color:var(--av-cdg-live)}
+.avh-sess-dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+@media (prefers-reduced-motion:no-preference){.avh-sess-dot{animation:avhSessPulse 1.8s ease-in-out infinite}}
+@keyframes avhSessPulse{50%{opacity:.3}}
+.avh-sess-name{font-weight:700;font-size:17px}
+.avh-sess-meta,.avh-sess-theme{opacity:.85}
+.avh-sess-theme{font-style:italic}
+.avh-sess-clock{margin-left:auto;display:inline-flex;align-items:baseline;gap:4px;font-variant-numeric:tabular-nums}
+.avh-sess-clock b{font-size:22px;color:var(--av-gold)}
+.avh-sess-clock small{font-size:12px;opacity:.8;margin-right:8px}
+@media (max-width:640px){.avh-sess-clock{margin-left:0;width:100%}}

@@ -13,6 +13,8 @@
     // Content: editors draft the site and manage media; publishing checks admin at the API.
     site: 'editor', homepage: 'editor', pages: 'editor', media: 'editor',
     inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
+    // Session notes are the office's; the dates and themes are public anyway.
+    sessions: 'admin',
     // Seat claims carry names, emails and phone numbers — admin, like the rest of the PII.
     summit: 'admin',
     mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin',
@@ -42,7 +44,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), sessions: $('#sessionsView'), psEdit: $('#psEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
     site: $('#siteView'), media: $('#mediaView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
@@ -117,6 +119,7 @@
     else if (which === 'summit') { show('summit'); loadSummit(); }
     else if (which === 'people') { show('people'); loadTeam(); }
     else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
+    else if (which === 'sessions') { show('sessions'); loadSessions(); }
     else if (which === 'communities') { show('communities'); loadCommunities(); }
     else if (which === 'webhooks') { show('webhooks'); loadWebhooks(); loadAppTokens(); }
     else if (which === 'system') { show('system'); loadSystem(); }
@@ -801,6 +804,78 @@
   var celYear = new Date().getFullYear(), celData = null, celPrefill = null;
   var CEL_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], CEL_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function celDay(iso) { var d = new Date(iso + 'T12:00:00'); return CEL_DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + CEL_MON[d.getMonth()]; }
+  /* ---- Programme sessions: kept on CACENTRE, read by lib/ProgrammeSessions.php ---- */
+  var psYear = new Date().getFullYear();
+  function psState(x) {
+    if (x.state === 'live') return '<span class="badge published">Live · week ' + x.week_of + ' of ' + x.total_weeks + '</span>';
+    if (x.state === 'upcoming') return '<span class="badge draft">Starts in ' + x.days_to_start + ' day' + (x.days_to_start === 1 ? '' : 's') + '</span>';
+    return '<span class="badge draft">Over</span>';
+  }
+  function psSource(src) {
+    var el = $('#psSrc'), when = src.fetched_at ? new Date(src.fetched_at).toLocaleString() : '';
+    var link = $('#psEditLink');
+    link.hidden = !src.edit_url; if (src.edit_url) link.href = src.edit_url;
+    if (!src.stale) { el.className = 'ps-src'; el.textContent = 'From CACENTRE' + (when ? ' · fetched ' + when : '') + '.'; return; }
+    el.className = 'ps-src is-stale';
+    el.textContent = src.error === 'not-configured'
+      ? 'CACENTRE’s address (CAC_SITE_URL) is not set, so there is no calendar to show.'
+      : 'CACENTRE did not answer' + (when ? '. Showing the copy fetched ' + when + '.' : ', and no copy has been fetched yet.');
+  }
+  function loadSessions(action) {
+    var box = $('#psList');
+    box.innerHTML = '<p class="muted">Loading…</p>';
+    $('#psYear').textContent = psYear; $('#psYearH').textContent = psYear;
+    api((action || 'psess_list') + '&year=' + psYear).then(function (r) {
+      if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load the sessions. <button type="button" class="btn btn-outline btn-sm" data-psretry>Try again</button></p>'; return; }
+      psSource(r.data.source || {});
+      var n = r.data.now || {}, cur = n.current, nx = n.countdown;
+      $('#psLiveBadge').hidden = !cur;
+      $('#psNow').innerHTML = (cur ? '<p><b>Running now:</b> ' + escapeHtml(cur.label) + ' · week ' + cur.week_of + ' of ' + cur.total_weeks + ' · ' + cur.days_left + ' day' + (cur.days_left === 1 ? '' : 's') + ' left</p>' : '<p><b>No session is running today.</b></p>') +
+        (nx ? '<p>The homepage counts down to <b>' + escapeHtml(nx.label) + '</b>, starting ' + escapeHtml(nx.dates.split(' – ')[0]) + (nx.featured ? ' (featured on CACENTRE)' : '') + '.</p>' : '');
+      var rows = r.data.sessions || [];
+      box.innerHTML = rows.length ? rows.map(function (x, i) {
+        return '<div class="entry-row ps-row' + (x.state === 'live' ? ' is-next' : '') + '">' +
+          (x.cover_url ? '<img class="ps-thumb" src="' + escapeHtml(x.cover_url) + '" alt="" loading="lazy" />' : '<span class="ps-thumb ps-thumb--code" aria-hidden="true">' + escapeHtml(x.code.slice(0, 4)) + '</span>') +
+          '<div class="entry-info"><div class="entry-title">' + escapeHtml(x.label) + ' ' + psState(x) + (x.featured ? ' <span class="badge published">On the homepage</span>' : '') + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(x.session_id) + ' · ' + escapeHtml(x.dates) + ' · ' + x.total_weeks + ' weeks' + (x.theme ? ' · ' + escapeHtml(x.theme) : '') + '</div></div>' +
+          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-psopen="' + i + '" aria-label="What happened here in ' + escapeHtml(x.label) + '">Report</button></div></div>';
+      }).join('') : '<p class="muted">CACENTRE lists no sessions in ' + psYear + '.</p>';
+      box._rows = rows;
+    });
+  }
+  function openSession(x) {
+    $('#psEditH').textContent = x.label;
+    $('#psDetail').innerHTML = escapeHtml(x.dates) + ' · ' + x.total_weeks + ' weeks · ' + psState(x) + (x.theme ? '<br><i>“' + escapeHtml(x.theme) + '”</i>' : '');
+    var pv = $('#psCoverPreview'); pv.hidden = !x.cover_url;
+    pv.innerHTML = x.cover_url ? '<img src="' + escapeHtml(x.cover_url) + '" alt="Cover of ' + escapeHtml(x.label) + '" />' : '';
+    var body = $('#psReportBody');
+    if (x.state === 'upcoming') body.innerHTML = '<p class="muted tiny">It has not started yet.</p>';
+    else {
+      body.innerHTML = '<p class="muted tiny">Loading…</p>';
+      api('psess_report&sid=' + encodeURIComponent(x.session_id)).then(function (r) {
+        var d = r.data;
+        if (!d || !d.ok) { body.innerHTML = '<p class="muted tiny">' + escapeHtml((d && d.error) || 'Could not load what happened in it.') + '</p>'; return; }
+        body.innerHTML = '<dl class="ps-stats">' +
+          '<div><dt>Gate visits</dt><dd>' + d.visits + '</dd></div><div><dt>Members who came</dt><dd>' + d.visitors + '</dd></div>' +
+          '<div><dt>Volunteer hours</dt><dd>' + d.volunteer_hours + '</dd></div><div><dt>Volunteers</dt><dd>' + d.volunteers + '</dd></div>' +
+          '<div><dt>Tasks finished</dt><dd>' + d.tasks_done + '</dd></div></dl>' +
+          (d.top_volunteers.length ? '<p class="muted tiny">Most hours given</p><ol class="ps-top">' + d.top_volunteers.map(function (v) { return '<li>' + escapeHtml(v.name) + ' — ' + v.hours + ' h</li>'; }).join('') + '</ol>' : '');
+      });
+    }
+    show('psEdit');
+    $('#psEditH').focus();
+  }
+  $('#psYearPrev').addEventListener('click', function () { psYear--; loadSessions(); });
+  $('#psYearNext').addEventListener('click', function () { psYear++; loadSessions(); });
+  $('#psRefreshBtn').addEventListener('click', function () { loadSessions('psess_refresh'); });
+  $('#psBackBtn').addEventListener('click', function () { show('sessions'); loadSessions(); });
+  $('#psList').addEventListener('click', function (e) {
+    if (e.target.closest('[data-psretry]')) { loadSessions(); return; }
+    var b = e.target.closest('[data-psopen]'); if (!b) return;
+    var x = ($('#psList')._rows || [])[parseInt(b.getAttribute('data-psopen'), 10)];
+    if (x) openSession(x);
+  });
+
   function loadCelebrations() {
     var box = $('#celList'), bi = $('#celBuiltins');
     box.innerHTML = '<p class="muted">Loading…</p>'; bi.innerHTML = '';

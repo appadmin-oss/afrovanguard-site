@@ -213,6 +213,9 @@ $knownMetaKeys = [
     // The daily task report (lib/TaskReport). Reviewed: gates no migration.
     // The day it last went out; lost, that day's report is sent once more.
     'task_report_day',
+    // Programme sessions (lib/ProgrammeSessions). Reviewed: gates no migration.
+    // The last calendar CACENTRE sent; lost, it is fetched again.
+    'programme_sessions_cache',
     // The resumable SQLite→server migration (lib/DbMigrateJob). Reviewed:
     // gates no migration of its own — it IS the migration's progress, the
     // table list and the per-table cursor, so a run survives the request

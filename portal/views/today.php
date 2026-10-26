@@ -93,6 +93,10 @@ if ($postsToday) {
         'sub' => 'Catch up with members', 'cta' => 'Open', 'goto' => 'community'];
 }
 
+/* The programme session running now, or the next to start (lib/ProgrammeSessions.php). */
+$prog = null;
+try { $pn = ProgrammeSessions::now(); $prog = $pn['current'] ?: $pn['next']; } catch (Throwable $e) { error_log('[portal] sessions: ' . $e->getMessage()); }
+
 /* The KPI row. Each number appears here or in a card below, never both:
    members online lives in the top bar and the Who's online card, and
    mentorship hours are spelled out in the Mentorship card's own stats. */
@@ -124,6 +128,18 @@ if ($dues) {
           <div class="avp-hello-t">
             <h1 class="avp-h1" id="avpTodayH">Welcome back, <?= e($first) ?>.</h1>
             <p class="avp-lede"><?= $isOrg ? 'Here’s what’s happening across your Afrovanguard workspace today.' : 'Pick up where you left off in your learning.' ?></p>
+<?php if ($prog): ?>
+            <p class="avp-session<?= $prog['live'] ? ' is-live' : '' ?>" id="avpSession">
+              <span class="avp-session-tag"><?= $prog['live'] ? 'Live' : 'Next' ?></span>
+              <b><?= e($prog['label']) ?></b>
+              <span><?= $prog['live']
+                  ? 'Week ' . (int) $prog['week_of'] . ' of ' . (int) $prog['total_weeks'] . ' · ' . (int) $prog['days_left'] . ' day' . ((int) $prog['days_left'] === 1 ? '' : 's') . ' left'
+                  : 'Starts in ' . (int) $prog['days_to_start'] . ' day' . ((int) $prog['days_to_start'] === 1 ? '' : 's') . ' · ' . e(date('j M', strtotime($prog['start_date']))) ?></span>
+<?php if ($prog['theme'] !== ''): ?>
+              <span class="avp-session-theme">“<?= e($prog['theme']) ?>”</span>
+<?php endif; ?>
+            </p>
+<?php endif; ?>
           </div>
           <div class="avp-hello-actions">
 <?php if ($isOrg): ?>

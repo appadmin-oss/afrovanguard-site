@@ -55,6 +55,7 @@
         <button class="tab" data-tab="people"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5.2 6.5-5.2s6.5 1.9 6.5 5.2"/><path d="M17 8.2a3 3 0 0 1 0 5.6"/><path d="M19 20c0-2.2-1-3.7-2.6-4.6"/></svg><span>People</span></button>
         <button class="tab" data-tab="mentorship"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="9" r="2.6"/><circle cx="16.5" cy="8" r="2.2"/><path d="M3.5 19c0-2.8 2.1-4.3 4.5-4.3s4.5 1.5 4.5 4.3"/><path d="M14.5 14.4c2-.3 4 .9 4 3.1"/><path d="M12 13l2.5-2.4"/></svg><span>Mentorship</span></button>
         <button class="tab" data-tab="celebrations"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="9" width="18" height="12" rx="1.5"/><path d="M3 13h18M12 9v12"/><path d="M12 9c-1.5-2.5-5-2.5-5-.5 0 1 .8 1.5 2 1.5h3zM12 9c1.5-2.5 5-2.5 5-.5 0 1-.8 1.5-2 1.5h-3z"/></svg><span>Celebrations</span></button>
+        <button class="tab" data-tab="sessions"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M7 13h4v4H7z"/></svg><span>Sessions</span><span class="tab-badge tab-badge--live" id="psLiveBadge" hidden>Live</span></button>
       </div>
       <div class="nav-group">
         <p class="nav-group-h">Community</p>
@@ -831,6 +832,48 @@
     </div>
     <p class="muted tiny cel-note">These run by themselves, with this year’s real dates. Edit one to change its words or move its date (Eid follows the announced sighting); turn one off to skip it.</p>
     <div class="entry-list" id="celBuiltins"></div>
+  </main>
+
+  <!-- PROGRAMME SESSIONS (kept on CACENTRE; lib/ProgrammeSessions.php reads them) -->
+  <main class="studio-main" id="sessionsView" hidden>
+    <div class="studio-head">
+      <div><h1>Programme sessions</h1><p class="muted">TONI, MEDI, SUMMER and DOMI. CACENTRE keeps one calendar for every site. The portal shows the session that is running, and the homepage counts down to the next one.</p></div>
+      <div class="editor-actions">
+        <button type="button" class="btn btn-outline btn-sm" id="psRefreshBtn">Fetch now</button>
+        <a class="btn btn-primary" id="psEditLink" href="#" target="_blank" rel="noopener" hidden>Edit in CACENTRE ↗</a>
+      </div>
+    </div>
+    <p class="ps-src" id="psSrc" aria-live="polite"></p>
+    <div class="ps-now" id="psNow" aria-live="polite"></div>
+    <div class="cel-yearhead">
+      <h2 class="cel-h2">Sessions in <span id="psYearH"></span></h2>
+      <div class="cel-yearnav" role="group" aria-label="Year">
+        <button type="button" class="btn btn-outline btn-sm" id="psYearPrev" aria-label="Previous year">‹</button>
+        <span class="cel-year" id="psYear" aria-live="polite"></span>
+        <button type="button" class="btn btn-outline btn-sm" id="psYearNext" aria-label="Next year">›</button>
+      </div>
+    </div>
+    <div class="entry-list" id="psList"></div>
+  </main>
+
+  <!-- PROGRAMME SESSION: what happened here in it -->
+  <main class="studio-main" id="psEditView" hidden>
+    <div class="studio-head">
+      <button class="btn btn-outline btn-sm" id="psBackBtn">← All sessions</button>
+    </div>
+    <div class="editor-grid">
+      <div class="editor-main">
+        <h2 class="cel-h2" id="psEditH" tabindex="-1"></h2>
+        <p id="psDetail" class="ps-detail"></p>
+        <div class="cover-preview ps-cover" id="psCoverPreview" hidden></div>
+      </div>
+      <aside class="editor-side">
+        <div class="side-card" id="psReport">
+          <h3>Here, in this session</h3>
+          <div id="psReportBody" aria-live="polite"></div>
+        </div>
+      </aside>
+    </div>
   </main>
 
   <!-- CELEBRATION EDITOR -->

@@ -179,6 +179,14 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 /* ── shared parts ──────────────────────────────────────────────────────── */
 .avp .avp-h1 { font-family: var(--av-serif); font-weight: 500; font-size: clamp(34px, 4vw, 48px); line-height: 1.05; letter-spacing: -.01em; margin: 0 0 8px; color: var(--avp-ink); }
 .avp-lede { margin: 0; font-size: 16.5px; color: var(--avp-text-2); }
+.avp-session { margin: 10px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14.5px; color: var(--avp-text-2); }
+.avp-session b { color: var(--avp-ink); }
+.avp-session-tag { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; background: var(--avp-indigo-bg); color: var(--avp-indigo-tx); }
+.avp-session.is-live .avp-session-tag { background: var(--avp-green-bg); color: var(--avp-green-tx); }
+.avp-session.is-live .avp-session-tag::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; margin-right: 6px; }
+.avp-session-theme { font-style: italic; }
+@media (prefers-reduced-motion: no-preference) { .avp-session.is-live .avp-session-tag::before { animation: avpPulse 1.8s ease-in-out infinite; } }
+@keyframes avpPulse { 50% { opacity: .35; } }
 .avp-view-head { margin-bottom: 24px; }
 .avp .avp-btn { height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--avp-input);
   background: var(--avp-bg); color: var(--avp-ink); font-size: 14.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }

@@ -107,6 +107,8 @@ try {
         'roles_list', 'role_save', 'role_delete',
         'centres_list', 'centre_save', 'centre_status', 'centre_delete',
         'approvals_list', 'approval_decide', 'approval_withdraw', 'member_requests_list', 'member_request_decide',
+        // Programme sessions (kept on CACENTRE): who served in each.
+        'psess_list', 'psess_refresh', 'psess_report',
         'roster_export', 'roster_centres', 'member_notes', 'member_note_add', 'member_note_delete', 'member_activity', 'member_message',
         'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
@@ -1328,6 +1330,16 @@ try {
             $r = MemberDesk::message((array) ($body['ids'] ?? []), (string) ($body['title'] ?? ''), (string) ($body['body'] ?? ''), !empty($body['email']), av_admin_actor());
             json_out($r, $r['ok'] ? 200 : 422);
         /* ── Work roles, one list with descriptions (lib/MemberRoles.php) ── */
+        case 'psess_list':
+        case 'psess_refresh':
+            /* CACENTRE keeps the calendar; this is what it last sent. */
+            $psCal = ProgrammeSessions::calendar($action === 'psess_refresh');
+            $psYear = max(2000, min(2100, (int) ($_GET['year'] ?? date('Y'))));
+            json_out(['ok' => true, 'year' => $psYear, 'sessions' => ProgrammeSessions::forYear($psYear), 'now' => ProgrammeSessions::now(),
+                'source' => ['fetched_at' => $psCal['fetched_at'] ? gmdate('c', $psCal['fetched_at']) : '', 'stale' => $psCal['stale'], 'error' => $psCal['error'], 'edit_url' => ProgrammeSessions::consoleUrl()]]);
+        case 'psess_report':
+            $r = ProgrammeSessions::report((string) ($_GET['sid'] ?? ''));
+            json_out($r ? ['ok' => true] + $r : ['ok' => false, 'error' => 'CACENTRE no longer lists that session.'], $r ? 200 : 404);
         case 'roles_list':
             json_out(['ok' => true, 'roles' => MemberRoles::all()]);
         case 'role_save':

@@ -9,6 +9,7 @@
  *   GET ?action=member&id=N      → single member profile
  *   GET ?action=votm             → current Volunteer of the Month
  *   GET ?action=celebrations     → today's auto-celebrations (holidays/birthdays/VOTM)
+ *   GET ?action=sessions         → the programme session running now, the next, and the countdown
  */
 declare(strict_types=1);
 require_once __DIR__ . '/lib/bootstrap.php';
@@ -23,7 +24,7 @@ if (function_exists('av_rate_ok') && !av_rate_ok('public_api', 120, 60)) {
 }
 
 $action = (string) ($_GET['action'] ?? 'members');
-if (!in_array($action, ['members', 'member', 'votm', 'celebrations'], true)) {
+if (!in_array($action, ['members', 'member', 'votm', 'celebrations', 'sessions'], true)) {
     json_out(['status' => 'error', 'error' => 'Unknown action.'], 400);
 }
 
@@ -39,6 +40,9 @@ try {
         if (isset($out['member'])) $out['member'] = av_team_public_dict($out['member']);
     } elseif ($action === 'votm') {
         $out = av_votm($pdo);
+    } elseif ($action === 'sessions') {
+        $n = ProgrammeSessions::now();
+        $out = ['status' => 'ok', 'today' => $n['today'], 'current' => $n['current'], 'next' => $n['next'], 'countdown' => $n['countdown']];
     } else { // celebrations
         if (is_file(AV_ROOT . '/lib/celebrations.php')) {
             require_once AV_ROOT . '/lib/celebrations.php';
