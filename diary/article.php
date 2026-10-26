@@ -180,7 +180,7 @@ render_nav('diary');
               </ol>
             </aside>
 <?php endif; ?>
-<?= avd_dropcap(class_exists('IQ') ? IQ::embedShortcodes($a['body_html']) : $a['body_html']) ?>
+<?= class_exists('IQ') ? IQ::embedShortcodes($a['body_html']) : $a['body_html'] ?>
 
             <ul class="avd-tags" aria-label="Filed under">
               <li><a href="/diary/?cat=<?= e(rawurlencode($a['category_slug'])) ?>"># <?= e($a['category']) ?></a></li>

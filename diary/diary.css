@@ -496,18 +496,11 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, input:focus-visible, 
 
 
 /* ============================================================ EDITORIAL POLISH
-   Magazine-grade reading: standfirst lead, drop cap, pull-quotes, accented
+   Magazine-grade reading: standfirst lead, pull-quotes, accented
    headings. Layered over the base article styles. */
 .article-body .lead {
   font-style: normal; font-weight: 500; color: var(--ink);
   font-size: calc(21px * var(--reading-scale)); line-height: 1.5; margin: 0 0 30px;
-}
-/* drop cap on the first paragraph of prose — chosen by avd_dropcap() (diary/reader.php),
-   so a byline or one-line dateline at the top does not take it and leave the letter
-   hanging into the next paragraph */
-.article-body p.has-dropcap::first-letter {
-  float: left; font-family: var(--font-heading); font-weight: 700;
-  font-size: 4.2em; line-height: .72; padding: 8px 12px 0 0; color: var(--gold-deep);
 }
 /* accented section headings */
 .article-body h2::before {
@@ -553,7 +546,6 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, input:focus-visible, 
 .article-body caption { caption-side: bottom; font-size: 13px; color: var(--muted); padding: 8px 4px 0; text-align: left; }
 
 @media (max-width: 600px) {
-  .article-body p.has-dropcap::first-letter { font-size: 3.4em; }
   .article-body blockquote { font-size: calc(18px * var(--reading-scale)); margin: 26px 0; }
 }
 
