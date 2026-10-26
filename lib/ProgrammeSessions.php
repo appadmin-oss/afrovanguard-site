@@ -26,6 +26,8 @@ final class ProgrammeSessions
     public const PATH    = '/api/programme-sessions.php';
     public const TZ      = 'Africa/Lagos';
     public const TTL     = 600;
+    /** After a failed ask, how long before asking CACENTRE again. */
+    public const RETRY   = 300;
     private const TIMEOUT = 3;
     private const META   = 'programme_sessions_cache';
 
@@ -63,6 +65,12 @@ final class ProgrammeSessions
         if (!$force && $cache && $age < self::TTL) {
             return self::$memo = ['sessions' => (array) ($cache['sessions'] ?? []), 'fetched_at' => (int) $cache['fetched_at'], 'stale' => false, 'error' => ''];
         }
+        /* After a failed ask, wait RETRY seconds before asking again: until
+           CACENTRE has the calendar door, or while it is down, every page
+           would otherwise ask it again (and wait on it). */
+        if (!$force && $cache && (int) ($cache['tried_at'] ?? 0) > time() - self::RETRY) {
+            return self::$memo = ['sessions' => (array) ($cache['sessions'] ?? []), 'fetched_at' => (int) ($cache['fetched_at'] ?? 0), 'stale' => true, 'error' => (string) ($cache['error'] ?? 'unreachable')];
+        }
         $d = self::fetch(null);
         if (is_array($d) && !empty($d['ok']) && is_array($d['sessions'] ?? null)) {
             $rows = array_values(array_filter(array_map([self::class, 'clean'], $d['sessions'])));
@@ -70,6 +78,10 @@ final class ProgrammeSessions
             return self::$memo = ['sessions' => $rows, 'fetched_at' => time(), 'stale' => false, 'error' => ''];
         }
         $why = is_array($d) ? (string) ($d['error'] ?? 'refused') : (self::consoleUrl() === '' ? 'not-configured' : 'unreachable');
+        try {
+            Database::metaSet(self::META, json_encode(['fetched_at' => (int) ($cache['fetched_at'] ?? 0), 'sessions' => (array) ($cache['sessions'] ?? []),
+                'tried_at' => time(), 'error' => $why], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        } catch (Throwable $e) {}
         return self::$memo = ['sessions' => (array) ($cache['sessions'] ?? []), 'fetched_at' => (int) ($cache['fetched_at'] ?? 0), 'stale' => true, 'error' => $why];
     }
 

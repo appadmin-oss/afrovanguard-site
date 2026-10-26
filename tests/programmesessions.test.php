@@ -41,6 +41,21 @@ ck('cache: read again within ten minutes, CACENTRE is not asked', $calls === 0);
 $down = true;
 $c = ProgrammeSessions::calendar(true);
 ck('cache: when CACENTRE does not answer, the last copy is used, and said to be old', $calls === 1 && $c['stale'] && count($c['sessions']) === 6);
+$calls = 0;
+ProgrammeSessions::useSource(function (?int $year) use (&$calls, &$down, &$cal, $row) { $calls++; return $down ? null : ['ok' => true, 'sessions' => $cal]; });
+$m = json_decode((string) Database::metaGet('programme_sessions_cache'), true);
+$m['fetched_at'] = time() - ProgrammeSessions::TTL - 5;   /* the copy has gone stale; the failed ask was just now */
+Database::metaSet('programme_sessions_cache', json_encode($m));
+ProgrammeSessions::useSource(function (?int $year) use (&$calls) { $calls++; return null; });
+$c = ProgrammeSessions::calendar();
+ck('cache: after a failed ask, CACENTRE is not asked again for five minutes', $calls === 0 && $c['stale'] && count($c['sessions']) === 6 && (int) ($m['tried_at'] ?? 0) > 0);
+ProgrammeSessions::useSource(function (?int $year) use (&$calls, &$down, &$cal, $row) {
+    $calls++;
+    if ($down) return null;
+    $out = ['ok' => true, 'sessions' => $cal];
+    if ($year !== null) $out['year_sessions'] = $year === 2080 ? [$row('DOMI', 2080, '09-07', '12-13')] : [];
+    return $out;
+});
 $down = false;
 
 /* ── Decided here, from the dates ────────────────────────────────────── */
