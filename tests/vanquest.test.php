@@ -23,6 +23,13 @@ $m = $mails();
 ck('vanquest: the first mail is the seat confirmation', count($m) === 1 && $m[0][0] === 'ada@example.com' && $m[0][1] === 'Confirm your seat in the VanQuest community');
 ck('vanquest: a bad address is refused', !VanQuest::join('not-an-email')['ok']);
 ck('vanquest: asking again at once is held back, not mailed twice', $join('ada@example.com')['status'] === 'wait' && $mails() === []);
+/* A mail that does not go is not reported as sent, and the player can ask again at once. */
+Mailer::fakeRoads(['smtp' => static fn(array $m): bool => false]);
+$u = VanQuest::join('nomail@example.com');
+ck('vanquest: when the email cannot be sent, the player is told, not "an email has been sent"', !$u['ok'] && $u['status'] === 'unsent' && str_contains($u['message'], 'could not send'));
+Mailer::fakeRoads(['smtp' => static function (array $m) use (&$sent): bool { $sent[] = [$m['to'], $m['subject']]; return true; }]);
+ck('vanquest: …and asking again straight away is not held back', VanQuest::join('nomail@example.com')['status'] !== 'wait');
+$mails();
 
 $t = (string) $r['token'];
 ck('vanquest: the token opens the seat; a made-up one does not',

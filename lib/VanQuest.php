@@ -136,6 +136,14 @@ final class VanQuest
             'seated' => $p['confirmed_at'] !== '', 'first_name' => $p['first_name'],
             'people' => self::people(6, (int) $p['id']), 'players' => self::players((int) $p['id']),
         ]);
+        if (!$sent) {
+            /* Not "an email has been sent" when none was: the player would wait
+               for a mail that is not coming, and the resend gap would refuse
+               them for two minutes. Say so, and let them ask again at once. */
+            $pdo->prepare("UPDATE vq_players SET mailed_at = '' WHERE id = ?")->execute([(int) $p['id']]);
+            return ['ok' => false, 'status' => 'unsent', 'mailed' => false, 'token' => $token,
+                'message' => 'We could not send your email just now. Try again in a few minutes.'];
+        }
         return ['ok' => true, 'status' => $status, 'mailed' => $sent, 'token' => $token,
             'message' => $status === 'seated' ? 'You already have a seat. We have emailed you a new link to it.' : 'An email has been sent.'];
     }

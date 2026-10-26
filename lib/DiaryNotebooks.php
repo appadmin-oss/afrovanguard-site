@@ -114,7 +114,7 @@ final class DiaryNotebooks
             PRIMARY KEY (notebook_id, user_id)
         );
         CREATE INDEX IF NOT EXISTS idx_nbm_user ON diary_notebook_members(user_id);";
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);   /* one statement at a time; on MySQL an index that is already there (no CREATE INDEX IF NOT EXISTS) is not an error */
 
         // The entry side of the relationship. Added to the existing table rather
         // than a join table: an entry lives in at most one notebook, and a join
