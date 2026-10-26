@@ -67,7 +67,7 @@ $templates = array_map(
 );
 sort($templates);
 
-ck('email: all eighteen designed templates are installed', count($templates) === 18);
+ck('email: all nineteen templates are installed (eighteen designed, plus vanquest_welcome)', count($templates) === 19);
 
 foreach ($templates as $t) {
     $notices = [];
@@ -138,9 +138,13 @@ foreach ($templates as $t) {
         ck("email/$t: the $art GIF is hidden from Outlook, not just sent to it",
             str_contains($html, '<!--[if !mso]><!--><img class="av-art" src="')
             && str_contains($html, "/$art.gif"));
-        ck("email/$t: Outlook is served $art.png instead, at the same 100x75 box",
-            preg_match('~\[if mso\]><img class="av-art" src="https://[^"]+/' . $art
-                . '\.png" width="100" height="75"~', $html) === 1);
+        // The designed illustrations sit in a 100x75 box; VanQuest's pixel art
+        // has its own sizes. Either way the PNG must take the GIF's exact box.
+        preg_match('~src="https://[^"]+/' . $art . '\.gif" width="(\d+)" height="(\d+)"~', $html, $box);
+        ck("email/$t: Outlook is served $art.png instead, in the same box as the GIF",
+            $box !== [] && ($t === 'vanquest_welcome' || [$box[1], $box[2]] === ['100', '75'])
+            && preg_match('~\[if mso\]><img class="av-art" src="https://[^"]+/' . $art
+                . '\.png" width="' . $box[1] . '" height="' . $box[2] . '"~', $html) === 1);
     }
 }
 
@@ -166,3 +170,27 @@ foreach (array_keys($seen) as $art) {
     ck("email: the $art fallback is the finished drawing, not a blank frame",
         $im !== false && $cells > 0 && (100 * $ink / $cells) > 3.0);
 }
+
+/* ---------------------------------------------------------------------------
+ * VanQuest. Joining from vquest.afrovanguard.org.ng sends vanquest_welcome on
+ * its own frame. The placement letter comes from the visitor's browser, so the
+ * template takes only O–D and words it as a potential level an interview confirms.
+ * ------------------------------------------------------------------------- */
+$vq = av_email_render('vanquest_welcome', []);
+ck('vanquest: renders on the VanQuest frame, not the Afrovanguard centre frame',
+    str_contains($vq['html'], 'vqmark.png') && !str_contains($vq['html'], 'email-seal.png'));
+ck('vanquest: with no placement it starts at O and sends them to the placement test',
+    str_contains($vq['html'], '>Ordinary<') && str_contains($vq['html'], '/placement/'));
+$vqB = av_email_render('vanquest_welcome', ['placement' => 'B', 'xp' => 340]);
+ck('vanquest: a placement reads as a potential level that an interview confirms',
+    str_contains($vqB['html'], 'Potential Becoming') && str_contains($vqB['html'], 'An interview confirms it.'));
+$vqE = av_email_render('vanquest_welcome', ['placement' => 'E']);
+ck('vanquest: a letter above D is not a placement and is ignored', !str_contains($vqE['html'], 'Potential'));
+$top = array_slice(json_decode((string) file_get_contents(AV_ROOT . '/lib/quest/ranks.json'), true)['ranks'], -1)[0]['title'];
+ck('vanquest: the rank names come from lib/quest/ranks.json',
+    str_contains($vq['html'], 'title="' . $top . '"') && str_contains($vq['html'], 'Ordinary to ' . $top));
+ck('vanquest: says XP is not Quest points', str_contains($vq['text'], 'It is not Quest points'));
+$pc = (string) file_get_contents(AV_ROOT . '/process-contact.php');
+ck('vanquest: process-contact.php lets vquest.afrovanguard.org.ng post, and sends the template',
+    str_contains($pc, "'https://vquest.afrovanguard.org.ng'") && str_contains($pc, "sendTemplate(\$email, 'vanquest_welcome'"));
+

@@ -20,8 +20,9 @@ guess. A template name the module does not know throws, and `sendTemplate()`
 turns that into `false` plus a logged `Mailer::$lastError` rather than sending
 a half-rendered message.
 
-Two frames exist: the Academy templates sit on the card frame
-(`_frame_card.php`), everything else on the centre frame (`_frame.php`).
+Three frames exist: the Academy templates sit on the card frame
+(`_frame_card.php`), `vanquest_welcome` on the VanQuest frame (`_frame_vq.php`),
+everything else on the centre frame (`_frame.php`).
 
 ## The eighteen templates and what fires them
 
@@ -80,3 +81,26 @@ illustrations are ever redrawn.
 referenced GIF must be hidden from Outlook, must have a PNG beside it at the
 same dimensions, and that PNG must carry real ink rather than being another
 blank frame.
+
+## VanQuest
+
+`vanquest_welcome` is not part of the designer's handoff. It is the welcome for
+people who join from VanQuest's own site, `vquest.afrovanguard.org.ng` (source:
+the `appadmin-oss/van-quest` repository, `site/`). That site posts
+`process-contact.php` with `action=newsletter`, `source=vanquest` and, if the
+visitor has taken the placement test, its letter (O–D) and their site XP. The
+subscriber is stored like any newsletter sign-up, tagged `source: vanquest`, and
+de-duplicated per source, so an existing newsletter subscriber still gets the
+VanQuest welcome once. The placement letter and XP come from the visitor's
+browser: they shape the email's wording and are never stored as a rank.
+
+It sits on its own frame, `_frame_vq.php`, in VanQuest's look: dark ground, one
+orange accent, Geist and Geist Mono, pixel art. The rank names on its ladder are
+read from `lib/quest/ranks.json`.
+
+Its illustrations are the `vq*` files in `assets/site/email/`, drawn from
+VanQuest's own pixel icons by `php tools/make-vanquest-email-art.php`, which also
+writes each PNG fallback (the last frame). Unlike the designed illustrations they
+are not 100x75: the hero is 192x120 and the quest-log icons 40x40. The test
+requires only that each PNG takes the same box as its GIF.
+

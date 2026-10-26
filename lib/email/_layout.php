@@ -38,7 +38,7 @@ function av_email_render(string $template, array $v): array
     require __DIR__ . "/templates/{$template}.php";
     $body = ob_get_clean();
     ob_start();
-    require __DIR__ . ($frame === 'card' ? '/_frame_card.php' : '/_frame.php');
+    require __DIR__ . (['card' => '/_frame_card.php', 'vq' => '/_frame_vq.php'][$frame] ?? '/_frame.php');
     $html = ob_get_clean();
     return ['subject' => $subject, 'html' => $html, 'text' => av_email_text($subject, $body)];
 }

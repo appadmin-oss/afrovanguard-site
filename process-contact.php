@@ -24,8 +24,9 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 header('X-Powered-By: ');
 
 /* ── CORS ───────────────────────────────────────────────────── */
-// Fix M-03: include www. subdomain so Paystack/forms work on both origins
-$allowedOrigins = ['https://afrovanguard.org.ng', 'https://www.afrovanguard.org.ng'];
+// Fix M-03: include www. subdomain so Paystack/forms work on both origins.
+// vquest. is VanQuest's own site; it posts the newsletter action with source=vanquest.
+$allowedOrigins = ['https://afrovanguard.org.ng', 'https://www.afrovanguard.org.ng', 'https://vquest.afrovanguard.org.ng'];
 $origin  = $_SERVER['HTTP_ORIGIN'] ?? '';
 if (in_array($origin, $allowedOrigins, true)) {
     header("Access-Control-Allow-Origin: {$origin}");
@@ -522,6 +523,13 @@ if ($action === 'newsletter') {
     }
     $email = mb_strtolower($email, 'UTF-8');
 
+    /* VanQuest (vquest.afrovanguard.org.ng) joins through this action too, and gets
+       its own welcome. Its placement letter and XP are the visitor's own browser
+       tally, used for the email's wording only and never stored as a rank. */
+    $source    = ($input['source'] ?? '') === 'vanquest' ? 'vanquest' : 'site';
+    $placement = in_array($input['placement'] ?? '', ['O', 'A', 'B', 'C', 'D'], true) ? $input['placement'] : '';
+    $xp        = min(99999, max(50, (int) ($input['xp'] ?? 50)));
+
     /* Rate limit newsletter sign-ups per IP */
     $nlIp = preg_replace('/[^0-9a-fA-F.:]/', '', av_client_ip());
     if (!rateLimit('nl_' . $nlIp, 10, 3600)) {
@@ -537,6 +545,7 @@ if ($action === 'newsletter') {
         'created'  => date('c'),
         'ip_hash'  => hash('sha256', ($nlIp) . 'av_nl_salt'),
     ];
+    if ($source === 'vanquest') $entry['source'] = 'vanquest';
 
     /* Atomic deduplication + write inside a single file lock */
     $isNew = !file_exists(CONTACT_FILE);
@@ -550,12 +559,15 @@ if ($action === 'newsletter') {
         $data = $raw ? json_decode($raw, true) : null;
         if (!is_array($data) || !isset($data['contacts'])) $data = defaultContactData();
 
-        /* Deduplication */
+        /* Deduplication, per source: a newsletter subscriber who then joins
+           VanQuest is a new VanQuest member and gets its welcome once. */
         foreach ($data['contacts'] as $c) {
-            if (($c['type'] ?? '') === 'newsletter' && ($c['email'] ?? '') === $email) {
+            if (($c['type'] ?? '') === 'newsletter' && ($c['email'] ?? '') === $email
+                && ($c['source'] ?? 'site') === $source) {
                 flock($fp, LOCK_UN);
                 fclose($fp);
-                echo json_encode(['success' => true, 'message' => 'You are already subscribed. Welcome back!']);
+                echo json_encode(['success' => true, 'message' => $source === 'vanquest'
+                    ? "You're already in the Quest. Welcome back!" : 'You are already subscribed. Welcome back!']);
                 exit;
             }
         }
@@ -571,6 +583,15 @@ if ($action === 'newsletter') {
         flock($fp, LOCK_UN);
         fclose($fp);
         if ($isNew && file_exists(CONTACT_FILE)) @chmod(CONTACT_FILE, 0600);
+    }
+
+    if ($source === 'vanquest') {
+        if (ENABLE_EMAIL_NOTIFICATIONS && class_exists('Mailer') && method_exists('Mailer', 'sendTemplate')
+            && !Mailer::sendTemplate($email, 'vanquest_welcome', ['placement' => $placement, 'xp' => $xp])) {
+            error_log('[AV-Contact] VanQuest welcome to ' . $email . ': ' . (method_exists('Mailer', 'lastError') ? Mailer::lastError() : 'send failed'));
+        }
+        echo json_encode(['success' => true, 'message' => "You're in. Welcome to the Quest."]);
+        exit;
     }
 
     /* Optional welcome email */
