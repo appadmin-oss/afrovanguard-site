@@ -661,6 +661,25 @@ final class GoogleWorkspace
         return ['id' => (string) $d['id'], 'html_link' => (string) ($d['htmlLink'] ?? '')];
     }
 
+    /**
+     * Create ($eventId '') or replace-in-place an event on the org calendar from
+     * a full Calendar API event body. Returns its id, or null (lastError says why).
+     * Used to keep the site's own events on the team calendar.
+     */
+    public static function upsertEvent(string $eventId, array $event, ?string $calendarId = null): ?string
+    {
+        if (!self::calendarWriteEnabled()) return null;
+        $cal = $calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject());
+        if ($cal === '') return null;
+        $base = self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events';
+        $d = $eventId !== ''
+            ? self::apiSend('PATCH', $base . '/' . rawurlencode($eventId) . '?sendUpdates=none', self::SCOPE_CALENDAR_RW, self::subject() !== '', $event)
+            : self::apiSend('POST', $base . '?sendUpdates=none', self::SCOPE_CALENDAR_RW, self::subject() !== '', $event);
+        /* An event deleted by hand in Google Calendar: make it again. */
+        if (!$d && $eventId !== '' && str_contains(self::$lastError, '404')) return self::upsertEvent('', $event, $calendarId);
+        return $d && !empty($d['id']) ? (string) $d['id'] : ($d && $eventId !== '' ? $eventId : null);
+    }
+
     /** Cancel/delete an event (e.g. when a session is cancelled). */
     public static function deleteCalendarEvent(string $eventId, ?string $calendarId = null): bool
     {

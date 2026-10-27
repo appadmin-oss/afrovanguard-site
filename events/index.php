@@ -19,8 +19,8 @@ $canonical = "$S/events/";
 
 require_once AV_ROOT . '/lib/workspace.php';
 
-/* The upcoming list reads the same feed as Home: events-feed.php → AvEvents
-   (Africa GATES, cached 30 min, fail-safe), with our summit at its head. */
+/* The upcoming list reads the same feed as Home: events-feed.php → SiteEvents
+   (ours, and Africa GATES' cached 30 min, fail-safe), with our summit at its head. */
 $feedUrl = '/events-feed.php';
 
 /* The org's live Google Calendar embed, when one is configured. */
@@ -158,7 +158,10 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <div class="avev-wrap">
     <div class="avev-up-head">
       <div><div class="avev-eyebrow">Calendar</div><h2 class="avev-h2" id="avev-up-h">What’s coming up</h2></div>
-      <a class="avev-full" href="https://afg.afrovanguard.org.ng/events" target="_blank" rel="noopener">Full calendar on Africa GATES ↗</a>
+      <div class="avev-links">
+        <a class="avev-full" href="/events/calendar.ics">Subscribe to our calendar</a>
+        <a class="avev-full" href="<?= e(AvEvents::source()) ?>/events" target="_blank" rel="noopener">Africa GATES events ↗</a>
+      </div>
     </div>
     <div class="avev-bar">
       <div class="avev-seg" role="group" aria-label="When" data-avev-when>

@@ -82,6 +82,44 @@ final class GoogleHub
         return 'Google refused (' . (string) ($f['where'] ?? '') . '): ' . $why . '. Studio → Rules & AI → Setup → Test Google Workspace shows what to change.';
     }
 
+    /**
+     * Keep one of the site's events (lib/SiteEvents.php) on the org's Google
+     * Calendar, so the team sees it beside everything else. Published → there
+     * (made or updated), draft or cancelled → taken off. Best-effort: the
+     * event is saved whatever Google says.
+     */
+    public static function mirrorEvent(array $ev): void
+    {
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::calendarWriteEnabled()) return;
+        $gid = (string) ($ev['google_event_id'] ?? '');
+        if (($ev['status'] ?? '') !== 'published') { self::unmirrorEvent($ev); return; }
+        $tz = 'Africa/Lagos';
+        $site = rtrim(defined('SITE_URL') ? (string) SITE_URL : '', '/');
+        $body = ['summary' => mb_substr((string) $ev['title'], 0, 200),
+                 'description' => mb_substr(trim(($ev['summary'] ?? '') . "\n\n" . ($ev['body'] ?? '') . (($ev['audience'] ?? '') === 'public' ? "\n\n" . $site . '/events/' . $ev['slug'] . '/' : '')), 0, 4000),
+                 'location' => mb_substr(trim(($ev['venue'] ?? '') . ' ' . ($ev['location'] ?? '')), 0, 300)];
+        if (!empty($ev['all_day'])) {
+            $end = ($ev['ends_at'] ?? '') !== '' ? substr((string) $ev['ends_at'], 0, 10) : substr((string) $ev['starts_at'], 0, 10);
+            $body['start'] = ['date' => substr((string) $ev['starts_at'], 0, 10)];
+            $body['end'] = ['date' => (new DateTimeImmutable($end))->modify('+1 day')->format('Y-m-d')];
+        } else {
+            $s = new DateTimeImmutable((string) $ev['starts_at'], new DateTimeZone($tz));
+            $f = ($ev['ends_at'] ?? '') !== '' ? new DateTimeImmutable((string) $ev['ends_at'], new DateTimeZone($tz)) : $s->modify('+2 hours');
+            $body['start'] = ['dateTime' => $s->format('Y-m-d\TH:i:s'), 'timeZone' => $tz];
+            $body['end'] = ['dateTime' => $f->format('Y-m-d\TH:i:s'), 'timeZone' => $tz];
+        }
+        $id = GoogleWorkspace::upsertEvent($gid, $body);
+        if ($id !== null && $id !== $gid && class_exists('SiteEvents')) SiteEvents::setGoogleId((int) $ev['id'], $id);
+    }
+
+    public static function unmirrorEvent(array $ev): void
+    {
+        $gid = (string) ($ev['google_event_id'] ?? '');
+        if ($gid === '' || !class_exists('GoogleWorkspace')) return;
+        GoogleWorkspace::deleteCalendarEvent($gid);
+        if (class_exists('SiteEvents')) SiteEvents::setGoogleId((int) $ev['id'], '');
+    }
+
     /** The sentence for the connect round-trip's ?google=… / ?google_e=…, or null. */
     public static function notice(array $get): ?array
     {

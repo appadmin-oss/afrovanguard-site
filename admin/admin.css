@@ -890,3 +890,4 @@ body.studio { --gold-deep: var(--av-gold-text); }
 @media (max-width: 560px) { .ps-row { flex-wrap: wrap; } .ps-row .entry-ops { width: 100%; } }
 .ps-row .badge.draft { color: #474d59; }   /* 4.5:1 or better on the grey tint at 11px */
 :root[data-theme="dark"] .ps-row .badge.draft { color: var(--muted); }
+.ev-past { margin-top: 18px; } .ev-past > summary { cursor: pointer; margin: 0 0 10px; }

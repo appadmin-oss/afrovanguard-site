@@ -175,7 +175,7 @@
     var box = document.getElementById('calAgenda'); if (!box) return;
     var weekEl = document.getElementById('calWeek'), sumEl = document.getElementById('calSummary');
     var ITEMS = [], PICK = 0;
-    var BAR = { meeting: 'indigo', session: 'green', event: 'gold', afg: 'gold', gcal: 'indigo', task: 'red', reminder: 'gold' };
+    var BAR = { meeting: 'indigo', session: 'green', event: 'gold', site: 'gold', afg: 'gold', gcal: 'indigo', task: 'red', reminder: 'gold' };
     function ymd(off) { var d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + (off || 0)); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
     var TODAY = ymd(0), from = TODAY, to = ymd(14);
     function timeLabel(t) { if (!t) return 'All day'; var p = t.split(':'); var h = +p[0]; return ((h % 12) || 12) + ':' + p[1] + (h < 12 ? 'am' : 'pm'); }

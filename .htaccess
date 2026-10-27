@@ -83,6 +83,10 @@ RewriteRule ^diary/series/([a-z0-9-]+)/?$ diary/series.php?slug=$1 [L,QSA]
 RewriteRule ^diary/([A-Za-z]{3}-[0-9]{4}-[0-9]{4,})/?$ diary/article.php?code=$1 [L,QSA]
 RewriteRule ^diary/([a-z0-9-]+)/?$ diary/article.php?slug=$1 [L,QSA]
 
+# Events: the public calendar to subscribe to, and a page per event of ours.
+RewriteRule ^events/calendar\.ics$ events/ics.php [L]
+RewriteRule ^events/([a-z0-9-]+)/?$ events/view.php?slug=$1 [L,QSA]
+
 # Academy  (/academy/ and /academy/studio/ are real dirs → served above)
 RewriteRule ^academy/sitemap\.xml$ academy/sitemap.php [L]
 RewriteRule ^academy/og/([a-z0-9-]+)\.png$ academy/og.php?slug=$1 [L,QSA]

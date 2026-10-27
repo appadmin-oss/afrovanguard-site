@@ -1,20 +1,57 @@
 <?php
 /**
- * lib/AvEvents.php — pull the latest / ongoing events from the AFG sub-site
- * (afg.afrovanguard.org.ng) for display on the main site's home page.
+ * lib/AvEvents.php — Africa GATES events, read from Africa GATES.
  *
- * Best-effort and FAIL-SAFE: it caches to disk, tries a couple of structured
- * sources (The Events Calendar REST API, then an RSS feed), and on any failure
- * returns the last good cache (or an empty list). It must NEVER throw or block
- * a page — the home banner simply hides itself when there are no events.
+ * Africa GATES (afg.afrovanguard.org.ng, the africa-gates repository) keeps
+ * its own events calendar. It publishes it as JSON at /api/events
+ * (src/Services/EventsFeed.php there): published events only, by the same
+ * rules as its /events page, each with its start and end in UTC and the zone
+ * it happens in, a cover, an RSVP link and a link to the event there.
+ *
+ * This used to ask the host for a WordPress events API and RSS feeds. Africa
+ * GATES is not WordPress, so every request was a 404 and no Africa GATES event
+ * ever reached the home page, /events/ or the portal calendar.
+ *
+ *   cached     both lists (upcoming, and the recent past) are kept in
+ *              data/afg-events.json and read again for TTL seconds; when
+ *              Africa GATES does not answer, the last copy is used, however
+ *              old, and the Studio says so. After a failed ask it is not asked
+ *              again for RETRY seconds. A page never waits more than TIMEOUT.
+ *   shaped     each event comes out in the shape the site already used
+ *              (title, url, when, day, month, iso, ongoing, location, excerpt,
+ *              image) plus source 'gates', end, date/time and the RSVP link.
+ *              Times are shown in the event's own zone, not UTC.
+ *
+ * Source: AV_GATES_URL (Studio or env), default https://afg.afrovanguard.org.ng.
+ * It must NEVER throw or block a page.
  */
 declare(strict_types=1);
 
 final class AvEvents
 {
-    private const SOURCE   = 'https://afg.afrovanguard.org.ng';
-    private const TTL      = 1800;          // 30 min fresh window
-    private const STALE_OK = 86400;         // serve stale up to a day on fetch failure
+    public const DEFAULT_SOURCE = 'https://afg.afrovanguard.org.ng';
+    private const TTL     = 1800;
+    private const RETRY   = 300;
+    private const TIMEOUT = 5;
+
+    /** @var null|Closure(string $url): ?string  stands in for Africa GATES in tests */
+    private static ?Closure $fetcher = null;
+    private static ?array $memo = null;
+    private static string $lastError = '';
+
+    public static function useFetcher(?Closure $f): void { self::$fetcher = $f; self::$memo = null; }
+
+    public static function source(): string
+    {
+        $u = '';
+        try { $u = class_exists('Config') ? (string) Config::get('AV_GATES_URL', '') : ''; } catch (Throwable $e) {}
+        if ($u === '') $u = (string) getenv('AV_GATES_URL');
+        $u = rtrim(trim($u), '/');
+        return preg_match('~^https?://[^\s/]+~i', $u) ? $u : self::DEFAULT_SOURCE;
+    }
+
+    /** Where Africa GATES events are edited. */
+    public static function adminUrl(): string { return self::source() . '/admin/events'; }
 
     private static function cacheFile(): string
     {
@@ -23,140 +60,155 @@ final class AvEvents
         return $dir . '/afg-events.json';
     }
 
-    /** Up to $limit upcoming/ongoing events. Always returns an array. */
+    /** Up to $limit upcoming or running events, soonest first. Always an array. */
     public static function latest(int $limit = 6): array
     {
-        $limit = max(1, min(12, $limit));
-        $file  = self::cacheFile();
-        $now   = time();
-
-        // Fresh cache → use it.
-        if (is_file($file)) {
-            $age = $now - (int) @filemtime($file);
-            $cached = json_decode((string) @file_get_contents($file), true);
-            if (is_array($cached) && isset($cached['events']) && $age < self::TTL) {
-                return array_slice($cached['events'], 0, $limit);
-            }
-        }
-
-        // Refresh from the source (each strategy is wrapped; none may throw out).
-        $events = [];
-        try { $events = self::fromTribeApi($limit); } catch (\Throwable $e) { error_log('[events] tribe: ' . $e->getMessage()); }
-        if (!$events) { try { $events = self::fromRss($limit); } catch (\Throwable $e) { error_log('[events] rss: ' . $e->getMessage()); } }
-
-        if ($events) {
-            @file_put_contents($file, json_encode(['fetched' => $now, 'events' => $events]));
-            return array_slice($events, 0, $limit);
-        }
-
-        // Fetch failed → serve stale cache if it isn't ancient.
-        if (is_file($file)) {
-            $age = $now - (int) @filemtime($file);
-            $cached = json_decode((string) @file_get_contents($file), true);
-            if (is_array($cached) && isset($cached['events']) && $age < self::STALE_OK) {
-                return array_slice($cached['events'], 0, $limit);
-            }
-        }
-        return [];
+        return array_slice(self::load(false)['upcoming'], 0, max(1, min(50, $limit)));
     }
 
-    /** The Events Calendar (Tribe) public REST API — the common WP events plugin. */
-    private static function fromTribeApi(int $limit): array
+    /** Up to $limit past events, newest first. */
+    public static function past(int $limit = 12): array
     {
-        $today = date('Y-m-d');
-        $url = self::SOURCE . '/wp-json/tribe/events/v1/events?per_page=' . $limit . '&start_date=' . $today . '&status=publish';
-        $body = self::get($url);
-        if (!$body) return [];
+        return array_slice(self::load(false)['past'], 0, max(1, min(50, $limit)));
+    }
+
+    /** For the Studio: when it was last fetched, whether that copy is old, and why. */
+    public static function status(bool $refresh = false): array
+    {
+        $c = self::load($refresh);
+        return ['source' => self::source(), 'admin_url' => self::adminUrl(), 'fetched_at' => $c['fetched'] ? gmdate('c', $c['fetched']) : '',
+                'stale' => $c['stale'], 'error' => $c['error'], 'upcoming' => count($c['upcoming']), 'past' => count($c['past'])];
+    }
+
+    /** ['upcoming','past','fetched','stale','error'] — from the cache while fresh. */
+    private static function load(bool $force): array
+    {
+        if (self::$memo !== null && !$force) return self::$memo;
+        $file = self::cacheFile();
+        $c = is_file($file) ? json_decode((string) @file_get_contents($file), true) : null;
+        $c = is_array($c) && isset($c['upcoming']) ? $c : ['fetched' => 0, 'tried' => 0, 'error' => '', 'upcoming' => [], 'past' => []];
+        $now = time();
+        $fresh = $now - (int) $c['fetched'] < self::TTL;
+        $backoff = $now - (int) ($c['tried'] ?? 0) < self::RETRY;
+        if (!$force && ($fresh || $backoff)) {
+            return self::$memo = self::live($c, !$fresh);
+        }
+        $up = self::fetch('upcoming', 50);
+        $past = is_array($up) ? self::fetch('past', 12) : null;
+        if (is_array($up)) {
+            $c = ['fetched' => $now, 'tried' => $now, 'error' => '', 'upcoming' => $up, 'past' => is_array($past) ? $past : (array) $c['past']];
+        } else {
+            $c['tried'] = $now;
+            $c['error'] = self::$lastError ?: 'Africa GATES did not answer';
+        }
+        @file_put_contents($file, json_encode($c, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
+        return self::$memo = self::live($c, !is_array($up));
+    }
+
+    /** The cached lists, with "ongoing" worked out now rather than when fetched. */
+    private static function live(array $c, bool $stale): array
+    {
+        $now = time();
+        $up = [];
+        foreach ((array) $c['upcoming'] as $e) {
+            $s = strtotime((string) ($e['iso'] ?? '')) ?: 0;
+            $f = strtotime((string) ($e['ends_iso'] ?? '')) ?: 0;
+            $over = $f ? $f < $now : ($s && $s < $now - 6 * 3600);
+            if ($over) continue;   /* it has ended since it was fetched */
+            $e['ongoing'] = $s && $s <= $now;
+            $up[] = $e;
+        }
+        return ['upcoming' => $up, 'past' => (array) $c['past'], 'fetched' => (int) $c['fetched'], 'stale' => $stale, 'error' => (string) ($c['error'] ?? '')];
+    }
+
+    private static function fetch(string $scope, int $limit): ?array
+    {
+        self::$lastError = '';
+        $url = self::source() . '/api/events?scope=' . $scope . '&limit=' . $limit;
+        $body = self::$fetcher ? (self::$fetcher)($url) : self::get($url);
+        if ($body === null) { self::$lastError = self::$lastError ?: 'Africa GATES did not answer at ' . self::source(); return null; }
         $d = json_decode($body, true);
-        if (!is_array($d) || empty($d['events']) || !is_array($d['events'])) return [];
+        if (!is_array($d) || empty($d['success']) || !is_array($d['events'] ?? null)) {
+            self::$lastError = 'Africa GATES answered, but not with its events feed (/api/events). Is the update deployed there?';
+            return null;
+        }
         $out = [];
         foreach ($d['events'] as $e) {
-            $start = (string) ($e['start_date'] ?? $e['utc_start_date'] ?? '');
-            $out[] = self::norm([
-                'title'    => (string) ($e['title'] ?? ''),
-                'url'      => (string) ($e['url'] ?? ($e['website'] ?? self::SOURCE . '/events')),
-                'start'    => $start,
-                'end'      => (string) ($e['end_date'] ?? ''),
-                'all_day'  => !empty($e['all_day']),
-                'location' => (string) ($e['venue']['venue'] ?? ($e['venue']['city'] ?? '')),
-                'excerpt'  => strip_tags((string) ($e['excerpt'] ?? $e['description'] ?? '')),
-                'image'    => (string) (is_array($e['image'] ?? null) ? ($e['image']['url'] ?? '') : ($e['image'] ?? '')),
-            ]);
+            if (is_array($e) && ($x = self::norm($e)) !== null) $out[] = $x;
         }
-        return array_values(array_filter($out, fn($x) => $x['title'] !== ''));
+        return $out;
     }
 
-    /** RSS fallback: /events/feed/ (works for most WP events archives). */
-    private static function fromRss(int $limit): array
+    /** One event from /api/events, in the site's shape. */
+    public static function norm(array $e): ?array
     {
-        foreach (['/events/feed/', '/feed/?post_type=tribe_events', '/feed/'] as $path) {
-            $body = self::get(self::SOURCE . $path);
-            if (!$body || stripos($body, '<item') === false) continue;
-            $xml = @simplexml_load_string($body, 'SimpleXMLElement', LIBXML_NOCDATA | LIBXML_NOERROR | LIBXML_NOWARNING);
-            if (!$xml || !isset($xml->channel->item)) continue;
-            $out = [];
-            foreach ($xml->channel->item as $item) {
-                $start = (string) $item->pubDate;
-                $out[] = self::norm([
-                    'title'    => trim((string) $item->title),
-                    'url'      => trim((string) $item->link),
-                    'start'    => $start ? date('c', strtotime($start)) : '',
-                    'end'      => '',
-                    'all_day'  => false,
-                    'location' => '',
-                    'excerpt'  => trim(strip_tags((string) $item->description)),
-                    'image'    => '',
-                ]);
-                if (count($out) >= $limit) break;
-            }
-            if ($out) return $out;
-        }
-        return [];
-    }
-
-    /** Normalise one event into the shape the home banner consumes. */
-    private static function norm(array $e): array
-    {
-        $ts = $e['start'] ? strtotime($e['start']) : 0;
-        $endTs = !empty($e['end']) ? strtotime($e['end']) : 0;
-        $ongoing = $ts && $endTs && $ts <= time() && $endTs >= time();
-        $excerpt = trim(preg_replace('/\s+/', ' ', (string) $e['excerpt']));
+        $title = trim((string) ($e['title'] ?? ''));
+        $zone = (string) ($e['timezone'] ?? '');
+        $start = self::at((string) ($e['starts_at'] ?? ''), $zone);
+        if ($title === '' || !$start) return null;
+        $end = self::at((string) ($e['ends_at'] ?? ''), $zone);
+        $allDay = !empty($e['all_day']);
+        $safe = static fn(string $u): string => preg_match('~^https?://[^\s"<>]+$~i', $u) ? $u : '';
+        $page = $safe((string) ($e['url'] ?? ''));
+        $rsvp = $safe((string) ($e['rsvp_url'] ?? ''));
+        $excerpt = trim((string) ($e['tagline'] ?? '')) ?: trim((string) preg_replace('/\s+/', ' ', (string) ($e['description'] ?? '')));
         if (mb_strlen($excerpt) > 160) $excerpt = mb_substr($excerpt, 0, 157) . '…';
+        $venue = trim((string) ($e['venue'] ?? '')); $loc = trim((string) ($e['location'] ?? ''));
+        $where = $venue === '' ? $loc : ($loc === '' || stripos($venue, $loc) !== false ? $venue : $venue . ', ' . $loc);
         return [
-            'title'    => trim((string) $e['title']),
-            'url'      => (string) $e['url'],
-            'when'     => $ts ? date($e['all_day'] ? 'D, j M' : 'D, j M · g:ia', $ts) : '',
-            'day'      => $ts ? date('j', $ts) : '',
-            'month'    => $ts ? strtoupper(date('M', $ts)) : '',
-            'iso'      => $ts ? date('c', $ts) : '',
-            'ongoing'  => $ongoing,
-            'location' => trim((string) $e['location']),
+            'source'   => 'gates',
+            'id'       => 'gates-' . (int) ($e['id'] ?? 0),
+            'title'    => mb_substr($title, 0, 200),
+            'url'      => $page ?: ($rsvp ?: self::source() . '/events'),
+            'rsvp'     => $rsvp,
+            'when'     => $start->format($allDay ? 'D, j M' : 'D, j M · g:ia'),
+            'day'      => $start->format('j'),
+            'month'    => strtoupper($start->format('M')),
+            'iso'      => $start->format(DATE_ATOM),
+            'ends_iso' => $end ? $end->format(DATE_ATOM) : '',
+            'date'     => $start->format('Y-m-d'),
+            'time'     => $allDay ? '' : $start->format('H:i'),
+            'end_time' => $end && $end->format('Y-m-d') === $start->format('Y-m-d') ? $end->format('H:i') : '',
+            'all_day'  => $allDay,
+            'ongoing'  => false,
+            'location' => $where,
             'excerpt'  => $excerpt,
-            'image'    => (string) $e['image'],
+            'image'    => $safe((string) ($e['cover_image'] ?? '')),
+            'category' => '',
+            'host'     => trim((string) ($e['host'] ?? '')) ?: 'Africa GATES',
+            'price'    => mb_substr(trim((string) ($e['price'] ?? '')), 0, 40),
+            'state'    => preg_replace('/[^a-z]/', '', strtolower((string) ($e['state'] ?? ''))),
+            'ics'      => $safe((string) ($e['calendar_url'] ?? '')),
+            'live'     => $safe((string) ($e['livestream'] ?? '')),
         ];
+    }
+
+    /** An ISO time (UTC from Africa GATES) moved into the event's zone; Lagos when it names none. */
+    private static function at(string $iso, string $zone = ''): ?DateTimeImmutable
+    {
+        if ($iso === '') return null;
+        try {
+            $tz = new DateTimeZone(in_array($zone, DateTimeZone::listIdentifiers(), true) ? $zone : 'Africa/Lagos');
+            return (new DateTimeImmutable($iso))->setTimezone($tz);
+        } catch (Throwable $e) { return null; }
     }
 
     /** Outbound GET — short timeouts, no exceptions, returns body or null. */
     private static function get(string $url): ?string
     {
-        if (function_exists('curl_init')) {
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_MAXREDIRS      => 3,
-                CURLOPT_TIMEOUT        => 6,
-                CURLOPT_CONNECTTIMEOUT => 4,
-                CURLOPT_USERAGENT      => 'AfrovanguardSite/1.0 (+https://afrovanguard.org.ng)',
-                CURLOPT_HTTPHEADER     => ['accept: application/json, application/rss+xml, */*'],
-            ]);
-            $body = curl_exec($ch);
-            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            return (is_string($body) && $body !== '' && $code < 400) ? $body : null;
-        }
-        $ctx = stream_context_create(['http' => ['timeout' => 6, 'ignore_errors' => true]]);
-        $body = @file_get_contents($url, false, $ctx);
-        return ($body !== false && $body !== '') ? $body : null;
+        if (!function_exists('curl_init')) return null;
+        $ch = curl_init($url);
+        $opts = [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3,
+                 CURLOPT_TIMEOUT => self::TIMEOUT, CURLOPT_CONNECTTIMEOUT => 3,
+                 CURLOPT_USERAGENT => 'AfrovanguardSite/1.0 (+https://afrovanguard.org.ng)', CURLOPT_HTTPHEADER => ['Accept: application/json']];
+        if (str_starts_with($url, 'https://')) { $opts[CURLOPT_SSL_VERIFYPEER] = true; $opts[CURLOPT_SSL_VERIFYHOST] = 2; }
+        curl_setopt_array($ch, $opts);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_errno($ch) ? curl_error($ch) : '';
+        curl_close($ch);
+        if ($err !== '') self::$lastError = 'Could not reach Africa GATES (' . $err . ')';
+        elseif ($code >= 400) self::$lastError = 'Africa GATES answered ' . $code . ' for /api/events. Is the update deployed there?';
+        return (is_string($body) && $body !== '' && $code < 400) ? $body : null;
     }
 }

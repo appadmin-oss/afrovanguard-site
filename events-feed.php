@@ -1,6 +1,6 @@
 <?php
 /**
- * events-feed.php — same-origin JSON proxy of the latest AFG events.
+ * events-feed.php — the events the site shows: ours and Africa GATES', public only.
  *
  * The static home page can't fetch afg.afrovanguard.org.ng directly (CORS),
  * so it fetches this endpoint, which serves AvEvents' cached, fail-safe list.
@@ -25,8 +25,13 @@ try {
     }
 } catch (\Throwable $e) { error_log('[events-feed] summit: ' . $e->getMessage()); }
 
+/* Then everything else, ours and Africa GATES' (lib/SiteEvents.php): what is
+   coming, and the recent past for the page's "Past" filter. Public events
+   only — this feed is for visitors. */
+$past = [];
 try {
-    $events = array_merge($events, AvEvents::latest(6));
+    $events = array_merge($events, SiteEvents::listFor(null, 'upcoming', 24));
+    $past = SiteEvents::listFor(null, 'past', 12);
 } catch (\Throwable $e) { error_log('[events-feed] ' . $e->getMessage()); }
 
-echo json_encode(['ok' => true, 'events' => $events], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+echo json_encode(['ok' => true, 'events' => $events, 'past' => $past], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

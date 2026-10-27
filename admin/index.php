@@ -56,6 +56,7 @@
         <button class="tab" data-tab="mentorship"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="9" r="2.6"/><circle cx="16.5" cy="8" r="2.2"/><path d="M3.5 19c0-2.8 2.1-4.3 4.5-4.3s4.5 1.5 4.5 4.3"/><path d="M14.5 14.4c2-.3 4 .9 4 3.1"/><path d="M12 13l2.5-2.4"/></svg><span>Mentorship</span></button>
         <button class="tab" data-tab="celebrations"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="9" width="18" height="12" rx="1.5"/><path d="M3 13h18M12 9v12"/><path d="M12 9c-1.5-2.5-5-2.5-5-.5 0 1 .8 1.5 2 1.5h3zM12 9c1.5-2.5 5-2.5 5-.5 0 1-.8 1.5-2 1.5h-3z"/></svg><span>Celebrations</span></button>
         <button class="tab" data-tab="sessions"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M7 13h4v4H7z"/></svg><span>Sessions</span><span class="tab-badge tab-badge--live" id="psLiveBadge" hidden>Live</span></button>
+        <button class="tab" data-tab="events"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M12 12.5l1.1 2.2 2.4.3-1.8 1.7.5 2.4-2.2-1.2-2.2 1.2.5-2.4-1.8-1.7 2.4-.3z"/></svg><span>Events</span></button>
       </div>
       <div class="nav-group">
         <p class="nav-group-h">Community</p>
@@ -854,6 +855,80 @@
       </div>
     </div>
     <div class="entry-list" id="psList"></div>
+  </main>
+
+  <!-- EVENTS: ours (lib/SiteEvents.php) and Africa GATES's (lib/AvEvents.php) -->
+  <main class="studio-main" id="eventsView" hidden>
+    <div class="studio-head">
+      <div><h1>Events</h1><p class="muted">Afrovanguard’s own events go on the site’s <a href="/events/" target="_blank" rel="noopener" style="text-decoration:underline">events page</a>, the homepage and the portal calendar. Africa GATES events are added there and shown here beside ours.</p></div>
+      <div class="editor-actions">
+        <a class="btn btn-outline btn-sm" href="/events/calendar.ics" target="_blank" rel="noopener">Calendar feed (.ics)</a>
+        <button type="button" class="btn btn-primary" id="evNewBtn">New event</button>
+      </div>
+    </div>
+    <p class="ps-src" id="evGoogle" aria-live="polite"></p>
+    <h2 class="cel-h2">Coming up</h2>
+    <div class="entry-list" id="evUpList"></div>
+    <div class="cel-yearhead">
+      <h2 class="cel-h2">From Africa GATES</h2>
+      <div class="editor-actions">
+        <button type="button" class="btn btn-outline btn-sm" id="evGatesRefresh">Fetch now</button>
+        <a class="btn btn-outline btn-sm" id="evGatesAdmin" href="#" target="_blank" rel="noopener">Manage on Africa GATES ↗</a>
+      </div>
+    </div>
+    <p class="ps-src" id="evGatesSrc" aria-live="polite"></p>
+    <div class="entry-list" id="evGatesList"></div>
+    <details class="ev-past"><summary class="cel-h2">Past events</summary><div class="entry-list" id="evPastList"></div></details>
+  </main>
+
+  <!-- EVENT EDITOR -->
+  <main class="studio-main" id="evEditView" hidden>
+    <div class="studio-head">
+      <button class="btn btn-outline btn-sm" id="evBackBtn">← All events</button>
+      <div class="editor-actions">
+        <a class="btn btn-outline btn-sm" id="evViewLink" href="#" target="_blank" rel="noopener" hidden>View ↗</a>
+        <button class="btn btn-outline btn-sm" id="evDeleteBtn" hidden>Delete</button>
+        <button class="btn btn-primary btn-sm" id="evSaveBtn">Save</button>
+      </div>
+    </div>
+    <form id="evForm" class="editor-grid" novalidate>
+      <div class="editor-main">
+        <h2 class="cel-h2" id="evEditH" tabindex="-1">New event</h2>
+        <label class="fld"><span>Title</span><input id="ev_title" maxlength="200" required placeholder="e.g. Leadership Roundtable: Lagos" /></label>
+        <label class="fld"><span>One-line summary</span><input id="ev_summary" maxlength="255" placeholder="Shown on the cards and in search results." /></label>
+        <label class="fld"><span>Description</span><textarea id="ev_body" rows="7" maxlength="8000" placeholder="What happens, who it is for, what to bring. Blank lines start new paragraphs."></textarea></label>
+        <div class="fld-row">
+          <label class="fld"><span>Starts</span><input id="ev_start" type="datetime-local" required /></label>
+          <label class="fld"><span>Ends (optional)</span><input id="ev_end" type="datetime-local" /></label>
+        </div>
+        <label class="fld checkbox"><input type="checkbox" id="ev_allday" /> <span>All day (no times)</span></label>
+        <div class="fld-row">
+          <label class="fld"><span>Venue</span><input id="ev_venue" maxlength="200" placeholder="e.g. CACENTRE Hall" /></label>
+          <label class="fld"><span>City or area</span><input id="ev_location" maxlength="160" placeholder="e.g. Ikeja, Lagos" /></label>
+        </div>
+        <label class="fld"><span>Online link (optional)</span><input id="ev_online" type="url" placeholder="https://meet.google.com/…" /></label>
+        <label class="fld"><span>RSVP or registration link (optional)</span><input id="ev_rsvp" type="url" placeholder="https://…" /></label>
+      </div>
+      <aside class="editor-side">
+        <div class="side-card">
+          <h3>Publishing</h3>
+          <label class="fld"><span>Status</span><select id="ev_status"></select></label>
+          <label class="fld"><span>Who sees it</span><select id="ev_audience"></select></label>
+          <p class="muted tiny">Only “Everyone” events get a public page and appear on the homepage. The others show in the portal for those signed in.</p>
+          <label class="fld"><span>Category</span><select id="ev_category"><option value="">None</option></select></label>
+        </div>
+        <div class="side-card">
+          <h3>Cover</h3>
+          <div class="cover-preview" id="evCoverPreview"><span>No cover</span></div>
+          <label class="btn btn-outline btn-sm">Upload image<input type="file" id="evCoverFile" accept="image/*" hidden /></label>
+          <button type="button" class="btn btn-outline btn-sm" id="evCoverClear" hidden>Remove</button>
+        </div>
+        <div class="side-card" id="evGoogleCard" hidden>
+          <h3>Google Calendar</h3>
+          <p class="muted tiny" id="evGoogleNote"></p>
+        </div>
+      </aside>
+    </form>
   </main>
 
   <!-- PROGRAMME SESSION: what happened here in it -->

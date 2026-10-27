@@ -109,6 +109,8 @@ try {
         'approvals_list', 'approval_decide', 'approval_withdraw', 'member_requests_list', 'member_request_decide',
         // Programme sessions (kept on CACENTRE): who served in each.
         'psess_list', 'psess_refresh', 'psess_report',
+        // Events: ours are written here; Africa GATES events are read from there.
+        'sev_list', 'sev_refresh', 'sev_save', 'sev_delete',
         'roster_export', 'roster_centres', 'member_notes', 'member_note_add', 'member_note_delete', 'member_activity', 'member_message',
         'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
@@ -1337,6 +1339,22 @@ try {
             $psYear = max(2000, min(2100, (int) ($_GET['year'] ?? date('Y'))));
             json_out(['ok' => true, 'year' => $psYear, 'sessions' => ProgrammeSessions::forYear($psYear), 'now' => ProgrammeSessions::now(),
                 'source' => ['fetched_at' => $psCal['fetched_at'] ? gmdate('c', $psCal['fetched_at']) : '', 'stale' => $psCal['stale'], 'error' => $psCal['error'], 'edit_url' => ProgrammeSessions::consoleUrl()]]);
+        /* ── Events: ours (lib/SiteEvents.php) and Africa GATES's (lib/AvEvents.php) ── */
+        case 'sev_list':
+        case 'sev_refresh':
+            $sevAll = SiteEvents::all();
+            json_out(['ok' => true, 'upcoming' => $sevAll['upcoming'], 'past' => array_slice($sevAll['past'], 0, 30),
+                'gates' => AvEvents::status($action === 'sev_refresh'), 'gates_events' => AvEvents::latest(12),
+                'audiences' => SiteEvents::AUDIENCES, 'statuses' => SiteEvents::STATUSES, 'categories' => SiteEvents::CATEGORIES,
+                'google' => class_exists('GoogleWorkspace') && GoogleWorkspace::calendarWriteEnabled()]);
+        case 'sev_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = SiteEvents::save((array) $body, av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'sev_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = SiteEvents::delete((int) ($body['id'] ?? 0), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 404);
         case 'psess_report':
             $r = ProgrammeSessions::report((string) ($_GET['sid'] ?? ''));
             json_out($r ? ['ok' => true] + $r : ['ok' => false, 'error' => 'CACENTRE no longer lists that session.'], $r ? 200 : 404);

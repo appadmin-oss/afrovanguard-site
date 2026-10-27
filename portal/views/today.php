@@ -296,6 +296,31 @@ if ($isOrg && !$hasPlan):
               </div>
             </section>
 <?php endif; ?>
+<?php
+    /* Events (lib/SiteEvents.php): ours this member may see — members-only and team ones
+       included — and Africa GATES', soonest first. Never fails the page. */
+    $todayEvents = [];
+    try { $todayEvents = SiteEvents::listFor($u, 'upcoming', 4); } catch (Throwable $e) { error_log('[today] events: ' . $e->getMessage()); }
+    if ($todayEvents):
+?>
+            <section class="avp-card" id="avpEventsCard" aria-labelledby="avpEventsH">
+              <div class="avp-card-head">
+                <div class="avp-head-pair"><h2 id="avpEventsH">Events</h2><span class="avp-head-sub">Afrovanguard and Africa GATES</span></div>
+                <a class="avp-head-link" href="/events/">All events →</a>
+              </div>
+              <div class="avp-card-body">
+                <ul class="avp-g-list avp-ev-list">
+<?php foreach ($todayEvents as $ev):
+        $evExt = ($ev['source'] ?? '') === 'gates' || preg_match('~^https?://~', (string) $ev['url']) && !str_starts_with((string) $ev['url'], rtrim((string) (defined('SITE_URL') ? SITE_URL : ''), '/') . '/'); ?>
+                  <li class="avp-g-li avp-ev-li"><a href="<?= e((string) $ev['url']) ?>"<?= $evExt ? ' target="_blank" rel="noopener"' : '' ?>>
+                    <span class="avp-ev-date" aria-hidden="true"><b><?= e((string) $ev['day']) ?></b><?= e((string) $ev['month']) ?></span>
+                    <span class="avp-ev-txt"><b><?= e((string) $ev['title']) ?></b><span><?= e(implode(' · ', array_filter([!empty($ev['ongoing']) ? 'On now' : (string) $ev['when'], (string) ($ev['location'] ?? ''), ($ev['host'] ?? '') !== 'Afrovanguard' ? (string) ($ev['host'] ?? '') : (($ev['audience'] ?? 'public') !== 'public' ? 'Members only' : '')]))) ?></span></span>
+                  </a></li>
+<?php endforeach; ?>
+                </ul>
+              </div>
+            </section>
+<?php endif; ?>
             <section class="avp-card" aria-labelledby="avpJourneyH">
               <div class="avp-card-head"><h2 id="avpJourneyH">Your level</h2><a class="avp-head-link" href="#quest" data-goto="quest">The Quest →</a></div>
               <div class="avp-card-body avp-journey">

@@ -15,6 +15,8 @@
     inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
     // Session notes are the office's; the dates and themes are public anyway.
     sessions: 'admin',
+    // Events go public; the API keeps them with management, like the homepage's publishing.
+    events: 'admin',
     // Seat claims carry names, emails and phone numbers — admin, like the rest of the PII.
     summit: 'admin',
     mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin',
@@ -44,7 +46,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), sessions: $('#sessionsView'), psEdit: $('#psEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), sessions: $('#sessionsView'), psEdit: $('#psEditView'), events: $('#eventsView'), evEdit: $('#evEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
     site: $('#siteView'), media: $('#mediaView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
@@ -120,6 +122,7 @@
     else if (which === 'people') { show('people'); loadTeam(); }
     else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
     else if (which === 'sessions') { show('sessions'); loadSessions(); }
+    else if (which === 'events') { show('events'); loadEvents(); }
     else if (which === 'communities') { show('communities'); loadCommunities(); }
     else if (which === 'webhooks') { show('webhooks'); loadWebhooks(); loadAppTokens(); }
     else if (which === 'system') { show('system'); loadSystem(); }
@@ -874,6 +877,112 @@
     var b = e.target.closest('[data-psopen]'); if (!b) return;
     var x = ($('#psList')._rows || [])[parseInt(b.getAttribute('data-psopen'), 10)];
     if (x) openSession(x);
+  });
+
+  /* ---- Events: ours (lib/SiteEvents.php) and Africa GATES's, read from there (lib/AvEvents.php) ---- */
+  var evData = null, editingEv = 0, evCover = '';
+  function evBadge(x) {
+    if (x.status === 'draft') return ' <span class="badge draft">Draft</span>';
+    if (x.status === 'cancelled') return ' <span class="badge draft">Cancelled</span>';
+    return ' <span class="badge published">Published</span>';
+  }
+  function evWhen(x) {
+    var s = x.starts_at || '', e = x.ends_at || '';
+    var out = s.replace('T', ' ');
+    if (e) out += ' – ' + (e.slice(0, 10) === s.slice(0, 10) ? e.slice(11) : e);
+    return out + (+x.all_day ? ' (all day)' : '');
+  }
+  function evRow(x) {
+    return '<div class="entry-row ps-row">' +
+      (x.cover_url ? '<img class="ps-thumb" src="' + escapeHtml(x.cover_url) + '" alt="" loading="lazy" />' : '<span class="ps-thumb ps-thumb--code" aria-hidden="true">' + escapeHtml(x.starts_at.slice(8, 10)) + '</span>') +
+      '<div class="entry-info"><div class="entry-title">' + escapeHtml(x.title) + evBadge(x) + (x.audience !== 'public' ? ' <span class="badge draft">' + escapeHtml((evData.audiences || {})[x.audience] || x.audience) + '</span>' : '') + (x.google_event_id ? ' <span class="badge published">In Google Calendar</span>' : '') + '</div>' +
+      '<div class="entry-meta">' + escapeHtml(evWhen(x)) + (x.venue || x.location ? ' · ' + escapeHtml([x.venue, x.location].filter(Boolean).join(', ')) : '') + '</div></div>' +
+      '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-evopen="' + x.id + '" aria-label="Edit ' + escapeHtml(x.title) + '">Edit</button></div></div>';
+  }
+  function loadEvents(action) {
+    var up = $('#evUpList'), past = $('#evPastList'), gl = $('#evGatesList');
+    up.innerHTML = '<p class="muted">Loading…</p>';
+    api(action || 'sev_list').then(function (r) {
+      if (!r.data || !r.data.ok) { up.innerHTML = '<p class="muted">' + escapeHtml((r.data && r.data.error) || 'Could not load the events.') + '</p>'; return; }
+      evData = r.data;
+      up.innerHTML = evData.upcoming.length ? evData.upcoming.map(evRow).join('') : '<p class="muted">No events of ours coming up. <b>New event</b> adds one.</p>';
+      past.innerHTML = evData.past.length ? evData.past.map(evRow).join('') : '<p class="muted">None yet.</p>';
+      $('#evGoogle').textContent = evData.google
+        ? 'Published events are copied to the shared Google Calendar, and kept in step when you edit or cancel them.'
+        : 'Google Calendar is not connected, so events stay on the site only. Connect it under System → Google Workspace.';
+      var g = evData.gates || {}, when = g.fetched_at ? new Date(g.fetched_at).toLocaleString() : '';
+      $('#evGatesAdmin').href = g.admin_url || '#';
+      var src = $('#evGatesSrc');
+      if (g.error) { src.className = 'ps-src is-stale'; src.textContent = g.error + (when ? '. Showing the copy fetched ' + when + '.' : '.'); }
+      else { src.className = 'ps-src'; src.textContent = 'From ' + (g.source || 'Africa GATES') + (when ? ' · fetched ' + when : '') + '. Refreshed every half hour.'; }
+      var ge = evData.gates_events || [];
+      gl.innerHTML = ge.length ? ge.map(function (x) {
+        return '<div class="entry-row ps-row">' +
+          (x.image ? '<img class="ps-thumb" src="' + escapeHtml(x.image) + '" alt="" loading="lazy" />' : '<span class="ps-thumb ps-thumb--code" aria-hidden="true">' + escapeHtml(x.day) + '</span>') +
+          '<div class="entry-info"><div class="entry-title">' + escapeHtml(x.title) + (x.ongoing ? ' <span class="badge published">On now</span>' : '') + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(x.when) + (x.location ? ' · ' + escapeHtml(x.location) : '') + (x.host && x.host !== 'Africa GATES' ? ' · ' + escapeHtml(x.host) : '') + '</div></div>' +
+          '<div class="entry-ops"><a class="btn btn-outline btn-sm" href="' + escapeHtml(x.url) + '" target="_blank" rel="noopener">Open ↗</a></div></div>';
+      }).join('') : '<p class="muted">Africa GATES lists nothing coming up.</p>';
+    });
+  }
+  function evLocal(v, allDay) { return v ? (allDay ? v.slice(0, 10) + 'T00:00' : v.replace(' ', 'T')) : ''; }
+  function evFill(selId, map, val) {
+    var sel = $(selId), html = selId === '#ev_category' ? '<option value="">None</option>' : '';
+    if (Array.isArray(map)) map.forEach(function (c) { html += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
+    else Object.keys(map).forEach(function (k) { html += '<option value="' + escapeHtml(k) + '">' + escapeHtml(map[k]) + '</option>'; });
+    sel.innerHTML = html; sel.value = val;
+  }
+  function setEvCover(u) {
+    evCover = u || '';
+    $('#evCoverPreview').innerHTML = evCover ? '<img src="' + escapeHtml(evCover) + '" alt="Event cover" />' : '<span>No cover</span>';
+    $('#evCoverClear').hidden = !evCover;
+  }
+  function openEvent(id) {
+    var all = evData ? evData.upcoming.concat(evData.past) : [];
+    var x = all.filter(function (e) { return +e.id === id; })[0] || { id: 0, title: '', summary: '', body: '', starts_at: '', ends_at: '', all_day: 0, venue: '', location: '', online_url: '', rsvp_url: '', cover_url: '', status: 'draft', audience: 'public', category: '' };
+    editingEv = +x.id || 0;
+    $('#evEditH').textContent = editingEv ? x.title : 'New event';
+    $('#ev_title').value = x.title; $('#ev_summary').value = x.summary; $('#ev_body').value = x.body || '';
+    $('#ev_allday').checked = !!+x.all_day;
+    $('#ev_start').value = evLocal(x.starts_at, !!+x.all_day); $('#ev_end').value = evLocal(x.ends_at, !!+x.all_day);
+    $('#ev_venue').value = x.venue; $('#ev_location').value = x.location; $('#ev_online').value = x.online_url; $('#ev_rsvp').value = x.rsvp_url;
+    evFill('#ev_status', evData.statuses, x.status); evFill('#ev_audience', evData.audiences, x.audience); evFill('#ev_category', evData.categories, x.category);
+    setEvCover(x.cover_url);
+    $('#evDeleteBtn').hidden = !editingEv;
+    var link = $('#evViewLink'); link.hidden = !(editingEv && x.audience === 'public' && x.status !== 'draft'); link.href = '/events/' + encodeURIComponent(x.slug || '') + '/';
+    $('#evGoogleCard').hidden = !evData.google;
+    $('#evGoogleNote').textContent = x.google_event_id ? 'On the shared calendar. Saving updates it; drafting or cancelling takes it off.' : 'Publishing adds it to the shared calendar.';
+    show('evEdit'); $('#evEditH').focus();
+  }
+  $('#evNewBtn').addEventListener('click', function () { if (evData) openEvent(0); });
+  $('#evBackBtn').addEventListener('click', function () { show('events'); loadEvents(); });
+  $('#evGatesRefresh').addEventListener('click', function () { loadEvents('sev_refresh'); });
+  ['#evUpList', '#evPastList'].forEach(function (id) {
+    $(id).addEventListener('click', function (e) { var b = e.target.closest('[data-evopen]'); if (b) openEvent(parseInt(b.getAttribute('data-evopen'), 10)); });
+  });
+  $('#evCoverFile').addEventListener('change', function () {
+    if (!this.files[0]) return;
+    uploadFile(this.files[0]).then(function (r) { r.data && r.data.ok ? (setEvCover(r.data.url), toast('Cover uploaded')) : toast((r.data && r.data.error) || 'Upload failed'); });
+    this.value = '';
+  });
+  $('#evCoverClear').addEventListener('click', function () { setEvCover(''); });
+  $('#evSaveBtn').addEventListener('click', function () {
+    var allDay = $('#ev_allday').checked, cut = function (v) { return v ? (allDay ? v.slice(0, 10) : v.replace('T', ' ').slice(0, 16)) : ''; };
+    if (!$('#ev_title').value.trim() || !$('#ev_start').value) { toast('A title and a start are required.'); return; }
+    var btn = this; btn.disabled = true;
+    post('sev_save', {
+      id: editingEv, title: $('#ev_title').value.trim(), summary: $('#ev_summary').value.trim(), body: $('#ev_body').value,
+      starts_at: cut($('#ev_start').value), ends_at: cut($('#ev_end').value), all_day: allDay ? 1 : 0,
+      venue: $('#ev_venue').value.trim(), location: $('#ev_location').value.trim(), online_url: $('#ev_online').value.trim(), rsvp_url: $('#ev_rsvp').value.trim(),
+      cover_url: evCover, status: $('#ev_status').value, audience: $('#ev_audience').value, category: $('#ev_category').value
+    }).then(function (r) {
+      btn.disabled = false;
+      if (r.data && r.data.ok) { toast('Saved.'); show('events'); loadEvents(); } else toast((r.data && r.data.error) || 'Could not save.');
+    });
+  });
+  $('#evDeleteBtn').addEventListener('click', function () {
+    if (!editingEv || !confirm('Delete this event? Cancelling it instead keeps it on the page marked “Cancelled”.')) return;
+    post('sev_delete', { id: editingEv }).then(function (r) { if (r.data && r.data.ok) { toast('Deleted.'); show('events'); loadEvents(); } else toast((r.data && r.data.error) || 'Could not delete.'); });
   });
 
   function loadCelebrations() {

@@ -568,3 +568,7 @@ html.av-si .avh .avh-drawer-ctas{grid-template-columns:1fr}
 .avh-sess-clock b{font-size:22px;color:var(--av-gold)}
 .avh-sess-clock small{font-size:12px;opacity:.8;margin-right:8px}
 @media (max-width:640px){.avh-sess-clock{margin-left:0;width:100%}}
+.avh-events-more{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin:40px 0 0}
+.avh-card-date{display:flex;flex-direction:column;align-items:center;justify-content:center;aspect-ratio:3/2;background:var(--av-ink,#0b0f1a);color:var(--av-gold,#f3b416)}
+.avh-card-date b{font-size:56px;line-height:1;font-weight:800}
+.avh-card-date span{font-size:14px;letter-spacing:.14em;margin-top:6px}

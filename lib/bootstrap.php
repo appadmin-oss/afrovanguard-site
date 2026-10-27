@@ -345,6 +345,7 @@ require_once __DIR__ . '/AvRouter.php';   // which model answers which job, and 
 require_once __DIR__ . '/AiOps.php';     // cron heartbeat, model spend, and the alert list
 require_once __DIR__ . '/ChatBot.php';   // the Google Chat task bot
 require_once __DIR__ . '/AvEvents.php';
+require_once __DIR__ . '/SiteEvents.php';       /* our own events, and Africa GATES', as one list */
 require_once __DIR__ . '/Mentorship.php';
 require_once __DIR__ . '/MentorAcademy.php';  // what a mentor must know before accepting anyone
 require_once __DIR__ . '/MentorPortal.php';   // the read model behind /mentorship/mentor/

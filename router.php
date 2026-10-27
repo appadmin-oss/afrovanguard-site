@@ -99,6 +99,8 @@ if (preg_match('~^/diary/([a-z0-9-]+)/?$~', $uri, $m)) {
     return true;
 }
 
+if ($uri === '/events/calendar.ics') { require __DIR__ . '/events/ics.php'; return true; }
+if (preg_match('~^/events/([a-z0-9-]+)/?$~', $uri, $m)) { $_GET['slug'] = $m[1]; require __DIR__ . '/events/view.php'; return true; }
 if (preg_match('~^/ethos/?$~', $uri)) { require __DIR__ . '/ethos/index.php'; return true; }
 
 // Standalone sign-in page (a real /login/ folder in prod; routed here for dev).

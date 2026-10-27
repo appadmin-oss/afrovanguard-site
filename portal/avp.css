@@ -619,3 +619,9 @@ a.avp-kpi--link:focus-visible { outline: 2px solid var(--avp-gold); outline-offs
 .avp-g-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .avp-g-note { margin: 0 0 12px; color: var(--avp-text-2); max-width: 62ch; }
 @media (max-width: 760px) { .avp-g-cols, .avp-g-kpis { grid-template-columns: 1fr; } }
+
+/* Events on Today (#avpEventsCard): a date tile beside each title. */
+.avp-ev-li a { flex-direction: row; align-items: center; gap: 12px; }
+.avp-ev-li .avp-ev-date { flex: none; width: 46px; display: flex; flex-direction: column; align-items: center; padding: 5px 0; border-radius: 10px; background: var(--avp-gold-bg, #FBF4E0); color: var(--avp-gold-tx); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.avp-ev-li .avp-ev-date b { font-size: 18px; line-height: 1.1; color: inherit; }
+.avp-ev-li .avp-ev-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }

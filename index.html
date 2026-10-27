@@ -190,8 +190,8 @@
   <link rel="stylesheet" href="/assets/site/fonts.css?v=ace0a75b7d" />
   <link rel="preload" as="image" href="/Images/summer6.jpg" fetchpriority="high" />
   <link rel="stylesheet" href="/assets/site/av-tokens.css?v=c84fb80b5f" />
-  <link rel="stylesheet" href="/assets/site/avh.css?v=ca3fb9f183" />
-  <script src="/assets/site/avh.js?v=a9ec61269d" defer></script>
+  <link rel="stylesheet" href="/assets/site/avh.css?v=1ee2662d0c" />
+  <script src="/assets/site/avh.js?v=3291f29c00" defer></script>
 </head>
 <body class="avh" id="top">
 <a class="avh-skip" href="#main">Skip to content</a>
@@ -420,17 +420,18 @@
   </div>
 </section>
 
-<!-- WIRE: these four cards are the design's sample events. Keep the repo's event source (events-feed.php) if index.html already pulls from it. -->
+<!-- The four cards below are the fallback. avh.js fills the rail from /events-feed.php (our events and Africa GATES', lib/SiteEvents.php) whenever anything is coming up. -->
 <section id="events" class="avh-events">
   <div class="avh-eyebrow">What's on</div>
   <h2 class="avh-h2" data-avh-reveal>Upcoming Events</h2>
   <p class="avh-events-lede" data-cms="index-p-11">Join us in building Africa's leadership future — in person and online.</p>
-  <div class="avh-cards avh-wrap">
-    <a class="avh-card" data-avh-reveal href="#events"><img src="/Images/storm3.png" alt="School Storm 2026 — Spring Edition" loading="lazy" data-cms="index-img-11"><div class="avh-card-body"><div class="avh-tag">Event <i>|</i> Projects</div><h3 data-cms="index-h3-8">School Storm 2026 — Spring Edition</h3><div class="avh-card-meta">Alimosho · Free registration</div></div></a>
-    <a class="avh-card" data-avh-reveal href="#events"><img src="/Images/summer4.png" alt="Alimosho Summer School 2026" loading="lazy" data-cms="index-img-12"><div class="avh-card-body"><div class="avh-tag">Event <i>|</i> Projects</div><h3 data-cms="index-h3-9">Alimosho Summer School 2026</h3><div class="avh-card-meta">6 weeks · Limited slots</div></div></a>
-    <a class="avh-card" data-avh-reveal href="#events"><img src="/Images/gates2.png" alt="Leaders of Tomorrow Summit" loading="lazy" data-cms="index-img-13"><div class="avh-card-body"><div class="avh-tag">Event <i>|</i> Workshop</div><h3 data-cms="index-h3-10">Leaders of Tomorrow Summit</h3><div class="avh-card-meta">Full-day summit</div></div></a>
-    <a class="avh-card" data-avh-reveal href="#events"><img src="/Images/bootcamp1.png" alt="Techome Digital Skills Bootcamp" loading="lazy" data-cms="index-img-14"><div class="avh-card-body"><div class="avh-tag">Event <i>|</i> Workshop</div><h3 data-cms="index-h3-11">Techome Digital Skills Bootcamp</h3><div class="avh-card-meta">5-day intensive</div></div></a>
+  <div class="avh-cards avh-wrap" data-avh-events>
+    <a class="avh-card" data-avh-reveal href="/events/"><img src="/Images/storm3.png" alt="School Storm 2026 — Spring Edition" loading="lazy" data-cms="index-img-11"><div class="avh-card-body"><div class="avh-tag">Event <i>|</i> Projects</div><h3 data-cms="index-h3-8">School Storm 2026 — Spring Edition</h3><div class="avh-card-meta">Alimosho · Free registration</div></div></a>
+    <a class="avh-card" data-avh-reveal href="/events/"><img src="/Images/summer4.png" alt="Alimosho Summer School 2026" loading="lazy" data-cms="index-img-12"><div class="avh-card-body"><div class="avh-tag">Event <i>|</i> Projects</div><h3 data-cms="index-h3-9">Alimosho Summer School 2026</h3><div class="avh-card-meta">6 weeks · Limited slots</div></div></a>
+    <a class="avh-card" data-avh-reveal href="/events/"><img src="/Images/gates2.png" alt="Leaders of Tomorrow Summit" loading="lazy" data-cms="index-img-13"><div class="avh-card-body"><div class="avh-tag">Event <i>|</i> Workshop</div><h3 data-cms="index-h3-10">Leaders of Tomorrow Summit</h3><div class="avh-card-meta">Full-day summit</div></div></a>
+    <a class="avh-card" data-avh-reveal href="/events/"><img src="/Images/bootcamp1.png" alt="Techome Digital Skills Bootcamp" loading="lazy" data-cms="index-img-14"><div class="avh-card-body"><div class="avh-tag">Event <i>|</i> Workshop</div><h3 data-cms="index-h3-11">Techome Digital Skills Bootcamp</h3><div class="avh-card-meta">5-day intensive</div></div></a>
   </div>
+  <p class="avh-events-more"><a class="avh-more" href="/events/">See every event <span aria-hidden="true">→</span></a> <a class="avh-more" href="/events/calendar.ics">Add to your calendar <span aria-hidden="true">→</span></a></p>
 </section>
 
 

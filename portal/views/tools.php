@@ -53,7 +53,7 @@
             <div class="suite-stage" id="suiteStage">
 
             <div class="suite-app" data-app="cal" hidden>
-          <!-- Integrated calendar: team events + AFG events + sessions + tasks + reminders -->
+          <!-- Integrated calendar: team events + Afrovanguard and Africa GATES events + sessions + tasks + reminders -->
           <section class="pcard tool-cal" id="tlCal" data-csrf="<?= e($collabCsrf) ?>" data-org="<?= $isOrg ? '1' : '0' ?>">
             <div class="pcard-head cal-head">
               <h2>◗ Calendar</h2>
@@ -70,7 +70,8 @@
                 <div class="cal-grid" id="tlCalGrid"><p class="pc-empty">Loading calendar…</p></div>
                 <div class="cal-legend">
                   <span class="cal-key cal-key--event">Team event</span>
-                  <span class="cal-key cal-key--afg">Afrovanguard</span>
+                  <span class="cal-key cal-key--site">Afrovanguard event</span>
+                  <span class="cal-key cal-key--afg">Africa GATES</span>
                   <span class="cal-key cal-key--session">Mentorship</span>
                   <span class="cal-key cal-key--task">Task</span>
                   <span class="cal-key cal-key--reminder">Reminder</span>
