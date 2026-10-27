@@ -35,6 +35,13 @@ final class GoogleWorkspace
     const SCOPE_MEET_SETTINGS = 'https://www.googleapis.com/auth/meetings.space.settings';  // turn on recording/transcript/notes on a Calendar-made space
     const SCOPE_MEET_CREATED = 'https://www.googleapis.com/auth/meetings.space.created';     // open an instant Meet room with no Calendar event
     const SCOPE_PUBSUB    = 'https://www.googleapis.com/auth/pubsub';                       // drain the Meet events queue (the service account itself)
+    const SCOPE_DRIVE_FILE = 'https://www.googleapis.com/auth/drive.file';                  // upload documents into the shared folder
+    /* Each member's own Google, read AS them (memberToken): no "Connect Google",
+       no consent screen, no seven-day expiry. */
+    const SCOPE_GMAIL_RO  = 'https://www.googleapis.com/auth/gmail.readonly';
+    const SCOPE_CHAT_SPACES = 'https://www.googleapis.com/auth/chat.spaces.readonly';
+    const SCOPE_CHAT_MESSAGES = 'https://www.googleapis.com/auth/chat.messages';
+    const SCOPE_CHAT_READSTATE = 'https://www.googleapis.com/auth/chat.users.readstate.readonly';
 
     /** @var array<string,array{v:string,exp:int}> per-request token cache, keyed by scope+subject */
     private static array $tokens = [];
@@ -212,6 +219,8 @@ final class GoogleWorkspace
     /** Google API host prefix (overridable for testing). */
     private static function apiBase(): string { return rtrim((string) (Config::get('AV_WS_BASE_URL', '') ?: 'https://www.googleapis.com'), '/'); }
     /** Meet REST API host (own host; overridable for testing). */
+    private static function uploadBase(): string { return rtrim((string) (Config::get('AV_WS_UPLOAD_URL', '') ?: self::apiBase()), '/'); }
+
     private static function meetBase(): string { return rtrim((string) (Config::get('AV_MEET_BASE_URL', '') ?: 'https://meet.googleapis.com'), '/'); }
     /** Admin SDK Reports API host (overridable for testing). */
     private static function reportsBase(): string { return rtrim((string) (Config::get('AV_REPORTS_BASE_URL', '') ?: 'https://admin.googleapis.com'), '/'); }
@@ -476,6 +485,71 @@ final class GoogleWorkspace
         return is_array($res['json']) ? $res['json'] : ($res['code'] < 300 ? ['ok' => true] : null);
     }
 
+    /* ── acting as a member ─────────────────────────────────────────
+     * The service account, with domain-wide delegation, can act as any user
+     * in the organisation. That is how the portal reads a member's own inbox,
+     * calendar, Drive and Chat, and makes a meeting on their own calendar so
+     * they own the Meet: nobody presses "Connect Google", nothing expires after
+     * seven days in Testing, and no scope needs Google's app verification.
+     *
+     *   AV_GWS_MEMBER_ACCESS = delegated (default) | oauth   (oauth: the old
+     *   per-member connect flow, for a site with no service account)
+     */
+    public static function memberAccess(): bool
+    {
+        if (!self::configured()) return false;
+        return strtolower(trim((string) Config::get('AV_GWS_MEMBER_ACCESS', 'delegated'))) !== 'oauth';
+    }
+
+    /** Is this an address the service account may act as — a user at the organisation's domain? */
+    public static function isOrgAddress(string $email): bool
+    {
+        $email = strtolower(trim($email));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
+        return class_exists('LmsAuth') ? LmsAuth::isOrgEmail($email) : str_ends_with($email, '@' . strtolower((string) Config::get('AV_ORG_DOMAIN', 'afrovanguard.org.ng')));
+    }
+
+    /** A token for $scope acting as the member $email, or null (lastError/explain say why). */
+    public static function memberToken(string $email, string $scope): ?string
+    {
+        if (!self::memberAccess() || !self::isOrgAddress($email)) return null;
+        return self::accessToken($scope, false, strtolower(trim($email)));
+    }
+
+    /**
+     * Upload a file into a Drive folder, acting as the admin (or $asUser), so
+     * it counts against a real user's storage — a bare service account has
+     * none, and every upload to a folder in My Drive failed for it. Shared
+     * drives are supported. ['id','url'] or null (lastError says why).
+     */
+    public static function driveUpload(string $folderId, string $name, string $mime, string $bytes, ?string $asUser = null): ?array
+    {
+        if (!self::configured() || $folderId === '') return null;
+        $who = $asUser !== null && $asUser !== '' ? $asUser : self::subject();
+        $tok = self::accessToken(self::SCOPE_DRIVE_FILE, false, $who !== '' ? $who : null);
+        if (!$tok) return null;
+        $boundary = 'av' . bin2hex(random_bytes(8));
+        $meta = json_encode(['name' => $name !== '' ? $name : 'document-' . gmdate('Ymd-His'), 'parents' => [$folderId]], JSON_UNESCAPED_UNICODE);
+        $body = "--$boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n$meta\r\n"
+              . "--$boundary\r\nContent-Type: " . ($mime !== '' ? $mime : 'application/octet-stream') . "\r\n\r\n" . $bytes . "\r\n--$boundary--";
+        $url = self::uploadBase() . '/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,webViewLink';
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_TIMEOUT => 60, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_POSTFIELDS => $body,
+            CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $tok, 'Content-Type: multipart/related; boundary=' . $boundary, 'Accept: application/json']]);
+        $res = curl_exec($ch); $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE); $err = curl_error($ch); curl_close($ch);
+        $r = is_string($res) ? ['code' => $code, 'body' => $res, 'json' => json_decode($res, true)] : null;
+        if (!is_string($res)) self::$lastTransport = mb_substr($err, 0, 200);
+        if (!$r || $code >= 400 || empty($r['json']['id'])) {
+            self::$lastError = 'Drive upload — ' . self::errorLine($r);
+            self::$lastScope = self::SCOPE_DRIVE_FILE;
+            self::noteFailure();
+            return null;
+        }
+        self::noteOk();
+        $id = (string) $r['json']['id'];
+        return ['id' => $id, 'url' => (string) ($r['json']['webViewLink'] ?? 'https://drive.google.com/file/d/' . $id . '/view')];
+    }
+
     /* ── live reads (normalised; [] on any problem) ─────────────── */
 
     /** Upcoming events from a calendar, soonest first. */
@@ -572,10 +646,11 @@ final class GoogleWorkspace
      * attendees, and return the ids + join link. Impersonates the subject so
      * the event lives on a real Workspace calendar and Meet is provisioned.
      * Returns ['id','html_link','meet_url'] or null on any failure. */
-    public static function createMeetEvent(string $title, string $startIso, int $durationMin, array $attendeeEmails = [], string $description = '', ?string $calendarId = null, bool $withMeet = true, array $recurrence = []): ?array
+    public static function createMeetEvent(string $title, string $startIso, int $durationMin, array $attendeeEmails = [], string $description = '', ?string $calendarId = null, bool $withMeet = true, array $recurrence = [], string $asUser = ''): ?array
     {
         if (!self::calendarWriteEnabled()) return null;
-        $cal = $calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject());
+        /* $asUser: made on that member's own calendar, as them, so they own the Meet. */
+        $cal = $asUser !== '' ? ($calendarId ?: 'primary') : ($calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject()));
         if ($cal === '') return null;
         $startTs = strtotime($startIso) ?: time();
         $endTs   = $startTs + max(5, $durationMin) * 60;
@@ -600,10 +675,11 @@ final class GoogleWorkspace
             $qs['conferenceDataVersion'] = '1';
         }
         $url = self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events?' . http_build_query($qs);
-        $d = self::apiSend('POST', $url, self::SCOPE_CALENDAR_RW, self::subject() !== '', $event);
+        $d = self::apiSend('POST', $url, self::SCOPE_CALENDAR_RW, self::subject() !== '', $event, $asUser !== '' ? $asUser : null);
         if (!$d || empty($d['id'])) return null;
         return [
             'id'        => (string) $d['id'],
+            'conference' => (string) ($d['conferenceData']['createRequest']['status']['statusCode'] ?? ''),
             'html_link' => (string) ($d['htmlLink'] ?? ''),
             'meet_url'  => (string) ($d['hangoutLink'] ?? self::meetFrom($d)),
         ];
@@ -619,13 +695,13 @@ final class GoogleWorkspace
     }
 
     /** Patch an existing event (time/title/attendees). Returns true on success. */
-    public static function updateCalendarEvent(string $eventId, array $patch, ?string $calendarId = null): bool
+    public static function updateCalendarEvent(string $eventId, array $patch, ?string $calendarId = null, string $asUser = ''): bool
     {
         if (!self::calendarWriteEnabled() || $eventId === '') return false;
-        $cal = $calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject());
+        $cal = $asUser !== '' ? ($calendarId ?: 'primary') : ($calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject()));
         if ($cal === '') return false;
         $url = self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events/' . rawurlencode($eventId) . '?sendUpdates=all';
-        return self::apiSend('PATCH', $url, self::SCOPE_CALENDAR_RW, self::subject() !== '', $patch) !== null;
+        return self::apiSend('PATCH', $url, self::SCOPE_CALENDAR_RW, self::subject() !== '', $patch, $asUser !== '' ? $asUser : null) !== null;
     }
 
     /**
@@ -681,13 +757,13 @@ final class GoogleWorkspace
     }
 
     /** Cancel/delete an event (e.g. when a session is cancelled). */
-    public static function deleteCalendarEvent(string $eventId, ?string $calendarId = null): bool
+    public static function deleteCalendarEvent(string $eventId, ?string $calendarId = null, string $asUser = ''): bool
     {
         if (!self::calendarWriteEnabled() || $eventId === '') return false;
-        $cal = $calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject());
+        $cal = $asUser !== '' ? ($calendarId ?: 'primary') : ($calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject()));
         if ($cal === '') return false;
         $url = self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events/' . rawurlencode($eventId) . '?sendUpdates=all';
-        return self::apiSend('DELETE', $url, self::SCOPE_CALENDAR_RW, self::subject() !== '') !== null;
+        return self::apiSend('DELETE', $url, self::SCOPE_CALENDAR_RW, self::subject() !== '', null, $asUser !== '' ? $asUser : null) !== null;
     }
 
     /* ── Google Chat (post AS the member, via domain-wide delegation) ──
@@ -1102,11 +1178,11 @@ final class GoogleWorkspace
     }
 
     /** An event's Meet link, re-read — Calendar can create the conference a moment after the event. */
-    public static function eventMeetUrl(string $eventId, ?string $calendarId = null): string
+    public static function eventMeetUrl(string $eventId, ?string $calendarId = null, string $asUser = ''): string
     {
-        $cal = $calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject());
+        $cal = $asUser !== '' ? ($calendarId ?: 'primary') : ($calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject()));
         if ($eventId === '' || $cal === '' || !self::configured()) return '';
-        $d = self::apiGet(self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events/' . rawurlencode($eventId) . '?conferenceDataVersion=1', self::SCOPE_CALENDAR_RW, self::subject() !== '');
+        $d = self::apiGet(self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events/' . rawurlencode($eventId) . '?conferenceDataVersion=1', self::SCOPE_CALENDAR_RW, self::subject() !== '', $asUser !== '' ? $asUser : null);
         return is_array($d) ? (string) ($d['hangoutLink'] ?? self::meetFrom($d)) : '';
     }
 
@@ -1344,6 +1420,11 @@ final class GoogleWorkspace
         self::SCOPE_MEET_CREATED      => 'starting an instant Meet room',
         self::SCOPE_REPORTS           => 'Meet minutes from the audit log',
         self::SCOPE_CHAT              => 'posting to Google Chat',
+        self::SCOPE_DRIVE_FILE        => 'uploading documents to the Drive folder',
+        self::SCOPE_GMAIL_RO          => 'each member’s inbox on Today',
+        self::SCOPE_CHAT_SPACES       => 'each member’s Google Chat spaces',
+        self::SCOPE_CHAT_MESSAGES     => 'reading and sending Google Chat messages',
+        self::SCOPE_CHAT_READSTATE    => 'unread marks in Google Chat',
     ];
 
     /**
@@ -1409,6 +1490,20 @@ final class GoogleWorkspace
         }
     }
 
+    /** Make, read back and delete a Meet event as $who: 1 when a Meet link came back, 0 (lastError says why). */
+    private static function probeSchedule(string $who): int
+    {
+        $start = gmdate('c', time() + 30 * 86400);
+        $ev = self::createMeetEvent('Afrovanguard connection test (safe to ignore)', $start, 15, [], 'Made and removed by Studio → Test Google Workspace.', null, true, [], $who);
+        if (!$ev) return 0;
+        $url = (string) $ev['meet_url'];
+        for ($i = 0; $url === '' && $i < 2; $i++) { usleep(800000); $url = self::eventMeetUrl((string) $ev['id'], null, $who); }
+        $err = $url === '' ? 'the event was made but Google gave it no Meet room' . ($ev['conference'] !== '' ? ' (conference ' . $ev['conference'] . ')' : '') . ' — turn Google Meet on for ' . $who . ' in the Admin console (Apps → Google Workspace → Calendar → Sharing settings → Video conferencing)' : '';
+        self::deleteCalendarEvent((string) $ev['id'], null, $who);
+        self::$lastError = $err;
+        return $url !== '' ? 1 : 0;
+    }
+
     private static function probeInner(): array
     {
         $tok = self::accessToken(self::SCOPE_CALENDAR, self::subject() !== '');
@@ -1431,6 +1526,24 @@ final class GoogleWorkspace
             : ['n' => null, 'error' => ''];
         $dir = self::subject() !== '' ? $step(fn() => count(self::directoryUsers(1))) : ['n' => null, 'error' => ''];
         $grp = self::subject() !== '' ? $step(fn() => count(self::directoryGroups(1))) : ['n' => null, 'error' => ''];
+        /* What scheduling really does, done once: an event with a Meet room on the
+           organiser's calendar, read back for its link, then deleted. A scope
+           check passing while Calendar would not make a Meet room is how
+           "scheduling works" was reported for meetings that had no link. */
+        $who = self::organiser() !== '' ? self::organiser() : self::subject();
+        $sched = $who !== '' && self::calendarWriteEnabled() ? $step(fn() => self::probeSchedule($who))
+            : ['n' => null, 'error' => self::calendarWriteEnabled() ? 'nobody to schedule as — set “Admin to act as”' : ''];
+        $meetApi = $who !== '' ? $step(function () use ($who) {
+            $d = self::apiGet(self::meetBase() . '/v2/conferenceRecords?pageSize=1', self::SCOPE_MEET_RO, false, $who);
+            return $d === null ? 0 : 1;
+        }) : ['n' => null, 'error' => ''];
+        $chatApi = $who !== '' ? $step(function () use ($who) {
+            $d = self::apiGet(self::chatBase() . '/v1/spaces?pageSize=1', self::SCOPE_CHAT_SPACES, false, $who);
+            if ($d === null && (str_contains(self::$lastError, '404') || str_contains(self::$lastError, 'Chat app'))) {
+                self::$lastError .= ' — the Google Chat API needs a Chat app configured in the Cloud project (APIs & Services → Google Chat API → Configuration: give it a name, an avatar and a description)';
+            }
+            return $d === null ? 0 : 1;
+        }) : ['n' => null, 'error' => ''];
         return [
             'configured'      => true,
             'service_account' => (string) (self::credentials()['client_email'] ?? ''),
@@ -1442,6 +1555,10 @@ final class GoogleWorkspace
             'drive'           => $drv['n'], 'drive_error' => $drv['error'], 'drive_folder' => $folder,
             'directory'       => $dir['n'], 'directory_error' => $dir['error'],
             'groups'          => $grp['n'], 'groups_error' => $grp['error'],
+            'schedule'        => $sched['n'], 'schedule_error' => $sched['error'], 'schedule_as' => $who,
+            'meet_api'        => $meetApi['n'], 'meet_api_error' => $meetApi['error'],
+            'chat_api'        => $chatApi['n'], 'chat_api_error' => $chatApi['error'],
+            'member_access'   => self::memberAccess(),
             'meet_organiser'  => self::organiser(), 'meet_capture' => self::artifactMode(),
             'meet_events'     => (string) Config::get('AV_MEET_PUBSUB_SUB', '') !== '',
             'scopes'          => self::subject() !== '' ? self::scopeCheck() : [],

@@ -280,9 +280,11 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
     <div class="avp-google" id="avpGoogle">
 <?php if ($google['connected']): ?>
       <span class="avp-g-dot" aria-hidden="true"></span>
-      <span class="avp-g-t"><span class="avp-g-l">Google connected</span><span class="avp-g-e"><?= e($google['email']) ?></span></span>
+      <span class="avp-g-t"><span class="avp-g-l"><?= $google['mode'] === 'delegated' ? 'Google Workspace' : 'Google connected' ?></span><span class="avp-g-e"><?= e($google['email']) ?></span></span>
+<?php if ($google['mode'] !== 'delegated'): /* Through the organisation's Workspace there is nothing of theirs to disconnect. */ ?>
       <form method="post" action="/auth/google/disconnect" class="avp-g-out" onsubmit="return confirm('Disconnect Google from the portal? Your mail, calendar and Chat stop showing here.')">
         <input type="hidden" name="csrf" value="<?= e($collabCsrf) ?>"><button type="submit" class="avp-g-btn">Disconnect</button></form>
+<?php endif; ?>
 <?php elseif ($google['oauth']): ?>
       <a class="avp-g-connect" href="<?= e($google['connect']) ?>"><span class="avp-g-logo" aria-hidden="true">G</span> Connect Google <span class="avp-g-sub">mail, calendar, Drive, Chat</span></a>
 <?php else: ?>

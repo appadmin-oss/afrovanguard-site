@@ -59,7 +59,7 @@ final class Drive
         $header = self::b64url(json_encode(['alg' => 'RS256', 'typ' => 'JWT']));
         $claim  = self::b64url(json_encode([
             'iss' => $c['client_email'], 'scope' => self::SCOPE, 'aud' => self::TOKEN_URL,
-            'iat' => $now, 'exp' => $now + 3600,
+            'iat' => $now - 60, 'exp' => $now + 3540,
         ]));
         $sig = '';
         if (!openssl_sign($header . '.' . $claim, $sig, $c['private_key'], 'sha256WithRSAEncryption')) return null;
@@ -85,6 +85,15 @@ final class Drive
     public static function upload(string $tmpPath, string $originalName, string $mime = 'application/octet-stream'): array
     {
         if (!self::configured()) throw new RuntimeException('Drive is not configured.');
+        /* As the admin the site acts for, into a folder in My Drive or a shared
+           drive. As the bare service account (below, the old way) every upload to
+           a My Drive folder failed: a service account has no storage of its own,
+           and shared drives were not asked for (supportsAllDrives). */
+        if (class_exists('GoogleWorkspace')) {
+            $r = GoogleWorkspace::driveUpload(self::folderId(), $originalName, $mime, (string) file_get_contents($tmpPath));
+            if ($r) return ['url' => $r['url'], 'provider' => 'drive', 'id' => $r['id']];
+            throw new RuntimeException('Drive upload failed. ' . GoogleWorkspace::explain());
+        }
         $tok = self::accessToken();
         if (!$tok) throw new RuntimeException('Drive auth failed.');
 

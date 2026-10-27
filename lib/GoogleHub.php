@@ -49,6 +49,8 @@ final class GoogleHub
         return [
             'oauth' => $oauth,
             'connected' => $oauth && $uid > 0 && GoogleWorkspaceUser::connected($uid),
+            /* delegated: reached through the organisation's service account, nothing to connect */
+            'mode' => $oauth && $uid > 0 ? GoogleWorkspaceUser::mode($uid) : '',
             'org' => $org,
             'org_member' => class_exists('LmsAuth') && LmsAuth::isOrgMember($u),
             'admin' => $isAdmin,

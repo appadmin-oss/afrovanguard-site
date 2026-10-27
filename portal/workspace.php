@@ -39,12 +39,16 @@ try {
             if (!$oauth || !GoogleWorkspaceUser::connected((int) $u['id'])) {
                 json_out(['ok' => true, 'oauth' => $oauth, 'connected' => false, 'mine' => null]);
             }
-            json_out(['ok' => true, 'oauth' => true, 'connected' => true, 'mine' => GoogleWorkspaceUser::snapshot((int) $u['id'])]);
+            $mine = GoogleWorkspaceUser::snapshot((int) $u['id']);
+            json_out(['ok' => true, 'oauth' => true, 'connected' => true, 'mode' => $mine['mode'], 'mine' => $mine, 'errors' => $mine['errors']]);
 
         /* ── Google Chat (live, via the member's own connection) ── */
         case 'chat_spaces': {
             if (!GoogleWorkspaceUser::connected((int) $u['id'])) json_out(['ok' => false, 'connected' => false, 'error' => 'Connect Google to use Chat.'], 200);
-            json_out(['ok' => true, 'connected' => true, 'spaces' => GoogleWorkspaceUser::chatSpaces((int) $u['id'])]);
+            $spaces = GoogleWorkspaceUser::chatSpaces((int) $u['id']);
+            /* No spaces and a refusal is not "no spaces": say why (often that the Chat API needs a Chat app configured in Google Cloud). */
+            $why = !$spaces ? (GoogleWorkspaceUser::lastWhy() ?: (GoogleWorkspaceUser::lastHttpCode() >= 400 ? 'Google Chat answered ' . GoogleWorkspaceUser::lastHttpCode() . '. ' . (GoogleWorkspaceUser::lastHttpCode() === 404 || str_contains(GoogleWorkspaceUser::lastHttpError(), 'Chat app') ? 'The Google Chat API needs a Chat app set up in the Google Cloud project (APIs & Services → Google Chat API → Configuration).' : '') : '')) : '';
+            json_out(['ok' => true, 'connected' => true, 'spaces' => $spaces, 'error' => $why]);
         }
         case 'chat_unread': {
             if (!GoogleWorkspaceUser::connected((int) $u['id'])) json_out(['ok' => false, 'connected' => false], 200);
@@ -69,6 +73,9 @@ try {
             // Google connection predates the "post to Chat" permission — they need
             // to reconnect to grant it.
             $code = GoogleWorkspaceUser::lastHttpCode();
+            if (GoogleWorkspaceUser::mode((int) $u['id']) === 'delegated') {
+                json_out(['ok' => false, 'reconnect' => false, 'error' => 'Could not send. ' . (GoogleWorkspaceUser::lastWhy() ?: ('Google ' . $code . ' ' . GoogleWorkspaceUser::lastHttpError()))], 503);
+            }
             $needsReconnect = in_array($code, [401, 403], true);
             json_out([
                 'ok' => false,

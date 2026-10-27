@@ -108,6 +108,10 @@ final class Meetings
         self::addCol('meetings', 'organiser_email', "VARCHAR(200) NOT NULL DEFAULT ''");
         self::addCol('meetings', 'origin', "VARCHAR(16) NOT NULL DEFAULT ''");
         self::addCol('meetings', 'origin_ref', "VARCHAR(64) NOT NULL DEFAULT ''");
+        /* Whose calendar the Google event is on: the organiser's own (they own the
+           Meet, so they can record, admit people and end it for everyone), or ''
+           for the shared calendar the site was set up with. */
+        self::addCol('meetings', 'google_host', "VARCHAR(200) NOT NULL DEFAULT ''");
         self::$ready = true;
     }
 
@@ -212,27 +216,59 @@ final class Meetings
      * ['url','provider','google_event_id']; url is '' when Google Workspace
      * Calendar isn't connected (caller surfaces a "connect Google" warning).
      */
-    public static function provisionLink(string $title, string $startIso, int $durationMin, array $emails, string $agenda, array|string $recurrence): array
+    /**
+     * Who hosts a meeting at Google: the organiser, when they are a user at the
+     * organisation (the service account acts as them), so the event sits on
+     * their own calendar and the Meet is theirs. '' — the shared calendar —
+     * for anybody else, or when AV_MEET_HOST = shared (the default when a
+     * meeting organiser mailbox is set).
+     */
+    public static function hostFor(string $organiserEmail): string
+    {
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::memberAccess()) return '';
+        /* A dedicated organiser mailbox was set up to own every meeting (its licence
+           records them): it keeps doing so unless "organiser" is chosen outright. */
+        $mode = strtolower(trim((string) Config::get('AV_MEET_HOST', '')));
+        if ($mode === '') $mode = trim((string) Config::get('AV_MEET_ORGANISER', '')) !== '' ? 'shared' : 'organiser';
+        if ($mode === 'shared') return '';
+        $e = strtolower(trim($organiserEmail));
+        return GoogleWorkspace::isOrgAddress($e) ? $e : '';
+    }
+
+    public static function provisionLink(string $title, string $startIso, int $durationMin, array $emails, string $agenda, array|string $recurrence, string $host = ''): array
     {
         /* The rule's lines (Recurrence::lines), or an old one-word cadence. */
         if (is_string($recurrence)) {
             $start = Recurrence::local(gmdate('Y-m-d H:i:s', strtotime($startIso) ?: time()));
             $recurrence = Recurrence::lines(Recurrence::fromPreset(self::freqKey($recurrence), $start), $start);
         }
+        $error = '';
         if (class_exists('GoogleWorkspace') && GoogleWorkspace::calendarWriteEnabled()) {
-            try {
-                $ev = GoogleWorkspace::createMeetEvent(
-                    $title, $startIso, $durationMin, $emails,
-                    $agenda !== '' ? $agenda : 'Afrovanguard meeting.',
-                    null, true,
-                    $recurrence
-                );
-                if ($ev && !empty($ev['meet_url'])) {
-                    return ['url' => (string) $ev['meet_url'], 'provider' => 'google', 'google_event_id' => (string) ($ev['id'] ?? '')];
+            /* The organiser's own calendar first; the shared one if Google will not
+               act as them (a mailbox not yet set up, Calendar off for that user). */
+            foreach (array_values(array_unique([$host, ''])) as $as) {
+                try {
+                    $ev = GoogleWorkspace::createMeetEvent(
+                        $title, $startIso, $durationMin, $emails,
+                        $agenda !== '' ? $agenda : 'Afrovanguard meeting.',
+                        null, true, $recurrence, $as
+                    );
+                } catch (Throwable $e) { error_log('[meetings] google: ' . $e->getMessage()); $ev = null; }
+                if (!$ev) { $error = $error ?: GoogleWorkspace::lastError(); continue; }
+                $url = (string) ($ev['meet_url'] ?? '');
+                /* Calendar can answer before Meet has made the room ("pending").
+                   The event exists either way, so its id is kept: dropping it is
+                   what made a second event, and a second set of invites, each
+                   time somebody saved the meeting again. */
+                for ($try = 0; $url === '' && $try < 2; $try++) {
+                    usleep(700000);
+                    $url = GoogleWorkspace::eventMeetUrl((string) $ev['id'], null, $as);
                 }
-            } catch (Throwable $e) { error_log('[meetings] google: ' . $e->getMessage()); }
+                return ['url' => $url, 'provider' => 'google', 'google_event_id' => (string) ($ev['id'] ?? ''), 'host' => $as,
+                        'error' => $url === '' ? 'Google made the calendar event but has not made its Meet room yet; the link is added within a few minutes.' : ''];
+            }
         }
-        return ['url' => '', 'provider' => '', 'google_event_id' => '', 'error' => class_exists('GoogleWorkspace') ? GoogleWorkspace::lastError() : ''];
+        return ['url' => '', 'provider' => '', 'google_event_id' => '', 'host' => '', 'error' => $error !== '' ? $error : (class_exists('GoogleWorkspace') ? GoogleWorkspace::lastError() : '')];
     }
 
     /**
@@ -268,8 +304,11 @@ final class Meetings
     {
         if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) return false;
         try {
-            $r = GoogleWorkspace::configureMeetSpace($code);
             $db = Database::pdo();
+            /* Only the space's owner may change its settings: the host, when there is one. */
+            $hs = $db->prepare('SELECT google_host FROM meetings WHERE id = ?'); $hs->execute([$id]);
+            $host = (string) ($hs->fetchColumn() ?: '');
+            $r = GoogleWorkspace::configureMeetSpace($code, $host !== '' ? $host : null);
             if (!$r) {
                 $db->prepare('UPDATE meetings SET capture_note = ? WHERE id = ?')->execute([mb_substr(GoogleWorkspace::explain(), 0, 500), $id]);
                 return false;
@@ -292,13 +331,14 @@ final class Meetings
         if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) return $out;
         $db = Database::pdo();
         $soon = gmdate('Y-m-d H:i:s', time() - 6 * 3600);
-        $st = $db->prepare("SELECT id, google_event_id FROM meetings WHERE status = 'scheduled' AND meet_url = '' AND google_event_id <> '' AND scheduled_at >= ? ORDER BY scheduled_at LIMIT 5");
+        $st = $db->prepare("SELECT id, google_event_id, google_host FROM meetings WHERE status = 'scheduled' AND meet_url = '' AND google_event_id <> '' AND scheduled_at >= ? ORDER BY scheduled_at LIMIT 5");
         $st->execute([$soon]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $m) {
-            $url = GoogleWorkspace::eventMeetUrl((string) $m['google_event_id']);
+            $url = GoogleWorkspace::eventMeetUrl((string) $m['google_event_id'], null, (string) $m['google_host']);
             if ($url === '') continue;
             $code = GoogleWorkspace::meetCodeFromUrl($url);
             $db->prepare("UPDATE meetings SET meet_url = ?, meet_code = ?, provider = 'google' WHERE id = ?")->execute([$url, $code, (int) $m['id']]);
+            if ($code !== '' && GoogleWorkspace::artifactMode() !== 'off') self::configureCapture((int) $m['id'], $code);
             $out['links']++;
         }
         if (GoogleWorkspace::artifactMode() !== 'off') {
@@ -357,10 +397,10 @@ final class Meetings
 
         // Google Meet is the only provider: create the Calendar event (which
         // syncs calendars + sends the invite) and take its Meet link.
-        $link = self::provisionLink($title, gmdate('c', $ts), $dur, $emails, $agenda, self::recurrenceLines($row));
+        $link = self::provisionLink($title, gmdate('c', $ts), $dur, $emails, $agenda, self::recurrenceLines($row), self::hostFor($me));
         $code = class_exists('GoogleWorkspace') ? GoogleWorkspace::meetCodeFromUrl($link['url']) : '';
-        $db->prepare('UPDATE meetings SET meet_url = ?, provider = ?, google_event_id = ?, meet_code = ? WHERE id = ?')
-           ->execute([$link['url'], $link['provider'], $link['google_event_id'], $code, $id]);
+        $db->prepare('UPDATE meetings SET meet_url = ?, provider = ?, google_event_id = ?, meet_code = ?, google_host = ? WHERE id = ?')
+           ->execute([$link['url'], $link['provider'], $link['google_event_id'], $code, $link['host'], $id]);
         /* Google records, transcribes and takes notes on its own from here. */
         if ($code !== '') self::configureCapture($id, $code);
 
@@ -403,7 +443,8 @@ final class Meetings
 
         if (class_exists('Events')) { try { Events::emit('meeting.scheduled', ['id' => $id, 'by' => $uid, 'at' => $whenUtc]); } catch (Throwable $e) {} }
         $out = ['ok' => true, 'id' => $id, 'meeting' => $uid > 0 ? self::get($uid, $id) : self::view($id, null)];
-        if ($link['url'] === '') $out['warning'] = 'Meeting saved and everyone was emailed, but Google did not make a Meet link. '
+        if ($link['url'] === '' && $link['google_event_id'] !== '') $out['warning'] = 'Meeting saved, on Google Calendar and everyone was invited. Google is still making the Meet room; the link appears here within a few minutes.';
+        elseif ($link['url'] === '') $out['warning'] = 'Meeting saved and everyone was emailed, but Google did not make a Meet link. '
             . (class_exists('GoogleWorkspace') ? GoogleWorkspace::explain($link['error'] ?? '') : '') . ' Edit the meeting once that is fixed and the link is added.';
         return $out;
     }
@@ -430,7 +471,10 @@ final class Meetings
         $me = self::userEmail($uid);
         if ($me !== '' && filter_var($me, FILTER_VALIDATE_EMAIL)) { array_unshift($emails, $me); $emails = array_values(array_unique($emails)); }
 
-        $space = GoogleWorkspace::createMeetSpace();
+        /* The starter owns the room when Google can act as them; else the site's organiser. */
+        $host = self::hostFor($me);
+        $space = $host !== '' ? GoogleWorkspace::createMeetSpace($host) : null;
+        if (!$space) { $host = ''; $space = GoogleWorkspace::createMeetSpace(); }
         if (!$space) {
             $why = GoogleWorkspace::lastError();
             return ['ok' => false, 'error' => 'Google did not open a Meet room. ' . GoogleWorkspace::explain($why)];
@@ -441,8 +485,8 @@ final class Meetings
         $db->prepare('INSERT INTO meetings (creator_id, title, agenda, scheduled_at, duration_min, frequency, context, context_id, auto_record, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
            ->execute([$uid, $title, $agenda, gmdate('Y-m-d H:i:s', $now), $dur, 'once', 'workspace', 0, 0, 'scheduled', self::now()]);
         $id = (int) $db->lastInsertId();
-        $db->prepare("UPDATE meetings SET meet_url = ?, provider = 'google', meet_code = ?, meet_space = ?, meet_capture = ? WHERE id = ?")
-           ->execute([$space['uri'], $space['code'], $space['space'], $space['mode'], $id]);
+        $db->prepare("UPDATE meetings SET meet_url = ?, provider = 'google', meet_code = ?, meet_space = ?, meet_capture = ?, google_host = ? WHERE id = ?")
+           ->execute([$space['uri'], $space['code'], $space['space'], $space['mode'], $host, $id]);
         if ($space['mode'] !== 'off') $db->prepare("UPDATE meetings SET bot_state = 'native', bot_provider = 'google' WHERE id = ?")->execute([$id]);
 
         $ins = $db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)');
@@ -641,14 +685,14 @@ final class Meetings
     {
         self::ensure();
         $db = Database::pdo();
-        $st = $db->prepare('SELECT creator_id, google_event_id FROM meetings WHERE id = ?');
+        $st = $db->prepare('SELECT creator_id, google_event_id, google_host FROM meetings WHERE id = ?');
         $st->execute([$id]);
         $r = $st->fetch(PDO::FETCH_ASSOC);
         if (!$r) return ['ok' => false, 'error' => 'Meeting not found.'];
         if ((int) $r['creator_id'] !== $uid && !$mayManage) return ['ok' => false, 'error' => 'Only the organiser can cancel.'];
         $db->prepare('UPDATE meetings SET status = \'cancelled\' WHERE id = ?')->execute([$id]);
         if (!empty($r['google_event_id']) && class_exists('GoogleWorkspace')) {
-            try { GoogleWorkspace::deleteCalendarEvent((string) $r['google_event_id']); } catch (Throwable $e) {}
+            try { GoogleWorkspace::deleteCalendarEvent((string) $r['google_event_id'], null, (string) ($r['google_host'] ?? '')); } catch (Throwable $e) {}
         }
         return ['ok' => true];
     }
@@ -785,17 +829,18 @@ final class Meetings
                 /* The rule's lines hang off the start (BYDAY, BYMONTHDAY, the skipped dates' times): either moving sends them again. */
                 if (isset($set['frequency']) || isset($set['scheduled_at'])) $patch['recurrence'] = self::recurrenceLines($m);
                 if ($added || $removed) $patch['attendees'] = array_map(static fn($e) => ['email' => $e], $emails);
-                if ($patch && !GoogleWorkspace::updateCalendarEvent((string) $r['google_event_id'], $patch)) {
+                if ($patch && !GoogleWorkspace::updateCalendarEvent((string) $r['google_event_id'], $patch, null, (string) ($r['google_host'] ?? ''))) {
                     $warning = 'Saved, and everyone was emailed, but Google Calendar was not updated. ' . GoogleWorkspace::explain();
                 }
             } elseif ($url === '') {
-                $link = self::provisionLink($title, gmdate('c', $ts), $dur, $emails, $agenda, self::recurrenceLines($m));
-                if ($link['url'] !== '') {
+                $link = self::provisionLink($title, gmdate('c', $ts), $dur, $emails, $agenda, self::recurrenceLines($m), self::hostFor((string) ($r['organiser_email'] ?? '') ?: self::userEmail((int) $r['creator_id'])));
+                if ($link['google_event_id'] !== '') {
                     $url = $link['url'];
                     $code = GoogleWorkspace::meetCodeFromUrl($url);
-                    $db->prepare('UPDATE meetings SET meet_url = ?, provider = ?, google_event_id = ?, meet_code = ? WHERE id = ?')
-                       ->execute([$url, $link['provider'], $link['google_event_id'], $code, $id]);
+                    $db->prepare('UPDATE meetings SET meet_url = ?, provider = ?, google_event_id = ?, meet_code = ?, google_host = ? WHERE id = ?')
+                       ->execute([$url, $link['provider'], $link['google_event_id'], $code, $link['host'], $id]);
                     if ($code !== '') self::configureCapture($id, $code);
+                    elseif ($link['error'] !== '') $warning = 'Saved and on Google Calendar. ' . $link['error'];
                 } else {
                     $warning = 'Saved, but there is still no Meet link. ' . GoogleWorkspace::explain($link['error'] ?? '');
                 }
@@ -959,7 +1004,7 @@ final class Meetings
             if ($code !== '') {
                 /* As the organiser, who owns the space; the creator as a fallback. */
                 $afterTs = strtotime((string) $m['scheduled_at'] . ' UTC') ?: 0;
-                foreach (array_unique(array_filter([GoogleWorkspace::organiser(), self::userEmail((int) $m['creator_id'])])) as $who) {
+                foreach (array_unique(array_filter([(string) ($m['google_host'] ?? ''), GoogleWorkspace::organiser(), self::userEmail((int) $m['creator_id'])])) as $who) {
                     $conf = GoogleWorkspace::meetConference($code, $who, $afterTs);
                     if (!$conf) continue;
                     $held = true;

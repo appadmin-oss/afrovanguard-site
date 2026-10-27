@@ -70,9 +70,11 @@
   fetch('/portal/workspace.php?action=chat_spaces',{credentials:'same-origin'}).then(function(r){return r.json();})
     .then(function(d){
       if(d&&d.ok){ SPACES=d.spaces||[]; renderSpaces();
+        /* None, and Google said why: show that rather than "No spaces yet". */
+        if(!SPACES.length && d.error){ spacesEl.innerHTML='<p class="pc-empty" role="note">'+esc(d.error)+'</p>'; return; }
         fetch('/portal/workspace.php?action=chat_unread',{credentials:'same-origin'}).then(function(r){return r.json();})
           .then(function(u){ if(u&&u.ok&&u.unread){ UNREAD=u.unread; renderSpaces(); } }).catch(function(){});
-      } else { spacesEl.innerHTML='<p class="pc-empty">Chat unavailable.</p>'; }
+      } else { spacesEl.innerHTML='<p class="pc-empty">'+esc((d&&d.error)||'Chat unavailable.')+'</p>'; }
     }).catch(function(){ spacesEl.innerHTML='<p class="pc-empty">Chat unavailable.</p>'; });
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) loadMsgs(); });
 })();

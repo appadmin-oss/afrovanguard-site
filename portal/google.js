@@ -56,20 +56,22 @@
         ['gMail', 'gEvents', 'gFiles'].forEach(function (id) { if ($(id)) $(id).innerHTML = '<li class="avp-g-empty">Google did not answer. Reload in a moment.</li>'; });
         return;
       }
-      var mail = m.mail || [], ev = m.events || [], files = m.files || [];
+      var mail = m.mail || [], ev = m.events || [], files = m.files || [], er = m.errors || {};
+      /* Empty because Google refused is not empty: say what Google said. */
+      var fail = function (k) { return er[k] ? '<li class="avp-g-empty avp-g-err" role="note">' + esc(er[k]) + '</li>' : ''; };
       $('gUnread').textContent = m.unread == null ? '—' : m.unread;
       $('gFileCount').textContent = files.length;
       if (ev[0]) { $('gNext').textContent = ev[0].title || 'Event'; $('gNextWhen').textContent = when(ev[0].start); }
       else { $('gNext').textContent = 'Nothing'; $('gNextWhen').textContent = ''; }
       $('gMail').innerHTML = mail.length ? mail.map(function (x) {
         return '<li class="avp-g-li' + (x.unread ? ' is-unread' : '') + '">' + link(x.url, '<b>' + esc(x.from) + '</b><span>' + esc(x.subject) + '</span>') + '</li>';
-      }).join('') : '<li class="avp-g-empty">Your inbox is clear.</li>';
+      }).join('') : (fail('mail') || '<li class="avp-g-empty">Your inbox is clear.</li>');
       $('gEvents').innerHTML = ev.length ? ev.map(function (x) {
         return '<li class="avp-g-li">' + link(x.url || x.meet_url, '<b>' + esc(x.title) + '</b><span>' + esc(when(x.start)) + '</span>') + '</li>';
-      }).join('') : '<li class="avp-g-empty">Nothing coming up.</li>';
+      }).join('') : (fail('events') || '<li class="avp-g-empty">Nothing coming up.</li>');
       $('gFiles').innerHTML = files.length ? files.map(function (x) {
         return '<li class="avp-g-li">' + link(x.url, '<b>' + esc(x.name) + '</b><span>' + esc(x.modified ? 'Edited ' + when(x.modified) : '') + '</span>') + '</li>';
-      }).join('') : '<li class="avp-g-empty">No recent files.</li>';
+      }).join('') : (fail('files') || '<li class="avp-g-empty">No recent files.</li>');
     })
     .catch(function () {
       ['gMail', 'gEvents', 'gFiles'].forEach(function (id) { if ($(id)) $(id).innerHTML = '<li class="avp-g-empty">Could not reach Google. Reload in a moment.</li>'; });

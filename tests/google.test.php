@@ -20,7 +20,7 @@ $gB64 = static fn(string $s): string => rtrim(strtr(base64_encode($s), '+/', '-_
 $gIdToken = static fn(array $claims): string => $gB64('{"alg":"RS256"}') . '.' . $gB64((string) json_encode($claims)) . '.sig';
 $gClient = '123456789012-abcdefghijklmnop.apps.googleusercontent.com';
 $gEnvKeep = [];
-foreach (['AV_GOOGLE_CLIENT_ID', 'AV_GOOGLE_CLIENT_SECRET', 'AV_WS_TOKEN_URL', 'AV_WS_BASE_URL', 'AV_REPORTS_BASE_URL', 'AV_GWS_CONNECT_ON_SIGNIN', 'AV_GDRIVE_SERVICE_ACCOUNT', 'AV_WS_SUBJECT', 'AV_WS_DIRECTORY_SYNC'] as $k) $gEnvKeep[$k] = getenv($k);
+foreach (['AV_GOOGLE_CLIENT_ID', 'AV_GOOGLE_CLIENT_SECRET', 'AV_WS_TOKEN_URL', 'AV_WS_BASE_URL', 'AV_REPORTS_BASE_URL', 'AV_GWS_CONNECT_ON_SIGNIN', 'AV_GDRIVE_SERVICE_ACCOUNT', 'AV_WS_SUBJECT', 'AV_WS_DIRECTORY_SYNC', 'AV_MEET_BASE_URL', 'AV_CHAT_BASE_URL', 'AV_GWS_MEMBER_ACCESS', 'AV_MEET_HOST', 'AV_MEET_ORGANISER', 'AV_WS_CALENDAR_ID', 'AV_GDRIVE_FOLDER_ID', 'AV_MEET_ARTIFACTS'] as $k) $gEnvKeep[$k] = getenv($k);
 /* $_SERVER as well as putenv(): that is where SetEnv puts a value, and where
    AvSettings hands a key back to when a Studio value is cleared. */
 putenv('AV_GOOGLE_CLIENT_ID=' . $gClient); $_SERVER['AV_GOOGLE_CLIENT_ID'] = $gClient;
@@ -70,7 +70,10 @@ ck('google: an org address scopes the chooser to the org domain', ($gQ2['hd'] ??
 ck('google: the redirect URI is this site\'s /auth/google/callback', GoogleAuth::redirectUri() === rtrim(SITE_URL, '/') . '/auth/google/callback');
 putenv('AV_GWS_CONNECT_ON_SIGNIN');
 ck('google: by default a personal account is NOT asked for Gmail/Drive at sign-in', !GoogleWorkspaceUser::connectOnSignin('someone@gmail.com') && !GoogleWorkspaceUser::connectOnSignin(''));
-ck('google: …an org address is', GoogleWorkspaceUser::connectOnSignin('staff@afrovanguard.org.ng'));
+putenv('AV_GWS_MEMBER_ACCESS=oauth');
+ck('google: …an org address is, when members connect their own account', GoogleWorkspaceUser::connectOnSignin('staff@afrovanguard.org.ng'));
+putenv('AV_GWS_MEMBER_ACCESS');
+ck('google: …and is not asked at all when the service account already reaches them', !GoogleWorkspace::memberAccess() || !GoogleWorkspaceUser::connectOnSignin('staff@afrovanguard.org.ng'));
 putenv('AV_GWS_CONNECT_ON_SIGNIN=all');
 ck('google: "all" asks everybody', GoogleWorkspaceUser::connectOnSignin('someone@gmail.com'));
 putenv('AV_GWS_CONNECT_ON_SIGNIN=0');
@@ -113,8 +116,13 @@ if ($gProbe = @stream_socket_server('tcp://127.0.0.1:0', $e1, $e2)) {
     $n = (string) stream_socket_get_name($gProbe, false); $gSitePort = (int) substr($n, strrpos($n, ':') + 1); fclose($gProbe);
 }
 $gLog = tempnam(sys_get_temp_dir(), 'avgs');
+$gCalls = tempnam(sys_get_temp_dir(), 'avgc');
 $gStub = $gPort > 0 ? @proc_open([PHP_BINARY, '-S', '127.0.0.1:' . $gPort, AV_ROOT . '/tests/fixtures/google-stub.php'],
-    [0 => ['pipe', 'r'], 1 => ['file', $gLog, 'a'], 2 => ['file', $gLog, 'a']], $gPipes) : null;
+    [0 => ['pipe', 'r'], 1 => ['file', $gLog, 'a'], 2 => ['file', $gLog, 'a']], $gPipes, null, getenv() + ['GSTUB_LOG' => $gCalls]) : null;
+/* The writes the stub saw: [{m, path, q, who}] — who is the user the call acted as. */
+$gWrites = static function () use ($gCalls): array {
+    return array_values(array_filter(array_map(static fn($l) => json_decode($l, true), file($gCalls, FILE_IGNORE_NEW_LINES) ?: [])));
+};
 $gStubBase = 'http://127.0.0.1:' . $gPort;
 $gSiteEnv = getenv() + [];
 $gSiteEnv['AV_WS_TOKEN_URL'] = $gStubBase . '/token';
@@ -141,6 +149,8 @@ if (!is_resource($gStub) || !is_resource($gSite) || !$gUp($gPort) || !$gUp($gSit
     putenv('AV_WS_TOKEN_URL=' . $gStubBase . '/token');
     putenv('AV_WS_BASE_URL=' . $gStubBase);
     putenv('AV_REPORTS_BASE_URL=' . $gStubBase);
+    putenv('AV_MEET_BASE_URL=' . $gStubBase);
+    putenv('AV_CHAT_BASE_URL=' . $gStubBase);
     $site = 'http://127.0.0.1:' . $gSitePort;
     $code = static fn(array $c): string => rtrim(strtr(base64_encode((string) json_encode($c)), '+/', '-_'), '=');
 
@@ -183,6 +193,11 @@ if (!is_resource($gStub) || !is_resource($gSite) || !$gUp($gPort) || !$gUp($gSit
     putenv('AV_WS_SUBJECT=admin@afrovanguard.org.ng');
     $t = AvSettings::test('google_workspace');
     ck('google setup: with delegation the probe reads calendar, Drive and the directory', $t['ok'] && str_contains($t['detail'], 'calendar ✓') && str_contains($t['detail'], 'directory ✓'));
+    ck('google setup: …and really schedules: an event with a Meet room, made and deleted', str_contains($t['detail'], 'scheduling a meeting with a Meet link (as admin@afrovanguard.org.ng) ✓'));
+    $w = $gWrites();
+    ck('google setup: …the test event is deleted again', count(array_filter($w, fn($x) => $x['m'] === 'POST' && str_contains($x['path'], '/events'))) === count(array_filter($w, fn($x) => $x['m'] === 'DELETE')));
+    ck('google setup: …and the Meet and Chat APIs are called', str_contains($t['detail'], 'Meet API (attendance, transcripts) ✓') && str_contains($t['detail'], 'Google Chat API ✓'));
+    ck('google setup: every scope the member features need is in the line to paste', str_contains(GoogleWorkspace::delegationLine(), 'gmail.readonly') && str_contains(GoogleWorkspace::delegationLine(), 'chat.spaces.readonly') && str_contains(GoogleWorkspace::delegationLine(), 'drive.file'));
     ck('google: the calendar is read from the overridable API host', count(GoogleWorkspace::calendarEvents(null, 1)) === 1);
 
     /* The directory, from the web cron, once a day. */
@@ -201,6 +216,71 @@ if (!is_resource($gStub) || !is_resource($gSite) || !$gUp($gPort) || !$gUp($gSit
     ck('google cron: off means off', !GoogleWorkspace::directorySyncDue());
     $gPdo->exec("DELETE FROM lms_users WHERE email IN ('dir.one@afrovanguard.org.ng','dir.gone@afrovanguard.org.ng')");
 
+    /* ── Each member's own Google, through the service account ──────────── */
+    $mk = static function (string $email) use ($gPdo): int {
+        $gPdo->prepare('DELETE FROM lms_users WHERE email = ?')->execute([$email]);
+        $gPdo->prepare("INSERT INTO lms_users (name, email, password_hash, role, status) VALUES (?, ?, 'x', 'member', 'active')")->execute([ucfirst(strtok($email, '@')), $email]);
+        return (int) $gPdo->lastInsertId();
+    };
+    $mem = $mk('kemi.test@afrovanguard.org.ng'); $out = $mk('outsider.' . bin2hex(random_bytes(2)) . '@gmail.com');
+    $noGmail = $mk('nogmail.test@afrovanguard.org.ng');
+    GoogleWorkspace::forgetTokens();
+    ck('member: an organisation member is reached through the service account — nothing to connect', GoogleWorkspaceUser::delegated($mem) && GoogleWorkspaceUser::connected($mem) && GoogleWorkspaceUser::mode($mem) === 'delegated');
+    ck('member: somebody outside the organisation is not', !GoogleWorkspaceUser::delegated($out) && !GoogleWorkspaceUser::connected($out));
+    $snap = GoogleWorkspaceUser::snapshot($mem);
+    ck('member: their own inbox, read as them', $snap['unread'] === 3 && count($snap['mail']) === 1 && $snap['mail'][0]['subject'] === 'Agenda for kemi.test@afrovanguard.org.ng' && $snap['errors'] === []);
+    ck('member: …and their calendar', count($snap['events']) === 1);
+    $snap = GoogleWorkspaceUser::snapshot($noGmail);
+    ck('member: a refused scope is said, not shown as an empty inbox', isset($snap['errors']['mail']) && str_contains($snap['errors']['mail'], 'unauthorized_client') && str_contains($snap['errors']['mail'], 'gmail.readonly'));
+    ck('member: …and what Google did allow still shows', count($snap['events']) === 1 && !isset($snap['errors']['events']));
+    ck('member: their Google Chat spaces', ($s = GoogleWorkspaceUser::chatSpaces($mem)) && $s[0]['label'] === 'Volunteers');
+    putenv('AV_GWS_MEMBER_ACCESS=oauth');
+    ck('member: oauth brings back connecting by hand', !GoogleWorkspaceUser::delegated($mem) && !GoogleWorkspaceUser::connected($mem));
+    putenv('AV_GWS_MEMBER_ACCESS');
+
+    /* ── Meetings: on the organiser's own calendar, as them ─────────────── */
+    putenv('AV_MEET_ARTIFACTS=off'); putenv('AV_WS_CALENDAR_ID'); putenv('AV_MEET_ORGANISER');
+    file_put_contents($gCalls, '');
+    $when = (new DateTimeImmutable('+3 days', new DateTimeZone('Africa/Lagos')))->format('Y-m-d\T10:00');
+    $r = Meetings::schedule($mem, ['title' => 'Volunteer standup', 'when' => $when, 'duration' => 30, 'attendees' => 'ada@afrovanguard.org.ng']);
+    $row = $gPdo->query('SELECT * FROM meetings WHERE id = ' . (int) ($r['id'] ?? 0))->fetch(PDO::FETCH_ASSOC) ?: [];
+    $w = $gWrites();
+    ck('meet: a member schedules, and gets a real Meet link', !empty($r['ok']) && ($row['meet_url'] ?? '') === 'https://meet.google.com/abc-defg-hij' && empty($r['warning']));
+    ck('meet: …on their own calendar, made as them, so the Meet is theirs', ($w[0]['path'] ?? '') === '/calendar/v3/calendars/primary/events' && ($w[0]['who'] ?? '') === 'kemi.test@afrovanguard.org.ng'
+        && ($row['google_host'] ?? '') === 'kemi.test@afrovanguard.org.ng' && str_contains($w[0]['q'] ?? '', 'conferenceDataVersion=1'));
+    file_put_contents($gCalls, '');
+    Meetings::cancel($mem, (int) $r['id']);
+    $w = $gWrites();
+    ck('meet: cancelling deletes it from their calendar, as them', ($w[0]['m'] ?? '') === 'DELETE' && ($w[0]['who'] ?? '') === 'kemi.test@afrovanguard.org.ng' && str_starts_with($w[0]['path'] ?? '', '/calendar/v3/calendars/primary/events/'));
+
+    file_put_contents($gCalls, '');
+    $r = Meetings::schedule($mem, ['title' => 'Pending room check', 'when' => $when, 'duration' => 30]);
+    $row = $gPdo->query('SELECT * FROM meetings WHERE id = ' . (int) ($r['id'] ?? 0))->fetch(PDO::FETCH_ASSOC) ?: [];
+    ck('meet: Google still making the room — the event is kept, not lost', ($row['google_event_id'] ?? '') !== '' && ($row['meet_url'] ?? 'x') === '' && str_contains((string) ($r['warning'] ?? ''), 'still making the Meet room'));
+    Meetings::update($mem, (int) $r['id'], ['agenda' => 'Same meeting, new agenda'], false);
+    Meetings::meetUpkeep();
+    ck('meet: …and saving it again does not make a second event (nor a second set of invites)', count(array_filter($gWrites(), fn($x) => $x['m'] === 'POST' && str_ends_with($x['path'], '/events'))) === 1);
+    $gPdo->exec('DELETE FROM meetings WHERE id = ' . (int) $r['id']);
+
+    putenv('AV_MEET_ORGANISER=meetings@afrovanguard.org.ng');
+    ck('meet: a meeting organiser mailbox set up to own every meeting keeps doing so', Meetings::hostFor('kemi.test@afrovanguard.org.ng') === '');
+    putenv('AV_MEET_HOST=organiser');
+    ck('meet: …unless "organiser" is chosen', Meetings::hostFor('kemi.test@afrovanguard.org.ng') === 'kemi.test@afrovanguard.org.ng');
+    putenv('AV_MEET_HOST'); putenv('AV_MEET_ORGANISER');
+    ck('meet: somebody outside the organisation is never acted as', Meetings::hostFor('someone@gmail.com') === '');
+
+    /* ── Documents into Drive, as the admin, into a shared drive too ────── */
+    putenv('AV_GDRIVE_FOLDER_ID=folder123');
+    file_put_contents($gCalls, '');
+    $tmpf = tempnam(sys_get_temp_dir(), 'avd'); file_put_contents($tmpf, 'minutes');
+    $up = Drive::upload($tmpf, 'minutes.txt', 'text/plain'); @unlink($tmpf);
+    $w = $gWrites();
+    ck('drive: a document uploads, as a real user (a bare service account has no storage)', ($up['id'] ?? '') === 'f1' && ($w[0]['who'] ?? '') === 'admin@afrovanguard.org.ng');
+    ck('drive: …into shared drives too', str_contains($w[0]['q'] ?? '', 'supportsAllDrives=true'));
+    putenv('AV_GDRIVE_FOLDER_ID');
+    $gPdo->exec("DELETE FROM meetings WHERE creator_id = $mem");
+    foreach ([$mem, $out, $noGmail] as $x) $gPdo->exec("DELETE FROM lms_users WHERE id = $x");
+
     /* A refresh token Google has revoked. */
     $uid = (int) $gPdo->query('SELECT id FROM lms_users WHERE email = ' . $gPdo->quote($gEmail))->fetchColumn();
     GoogleWorkspaceUser::ensure();
@@ -216,7 +296,7 @@ if (!is_resource($gStub) || !is_resource($gSite) || !$gUp($gPort) || !$gUp($gSit
 }
 if (is_resource($gStub)) { proc_terminate($gStub); proc_close($gStub); }
 if (is_resource($gSite)) { proc_terminate($gSite); proc_close($gSite); }
-@unlink($gLog);
+@unlink($gLog); @unlink($gCalls);
 
 /* ══ 5. The connect page says what happened ═══════════════════════════════ */
 require_once AV_ROOT . '/lib/workspace.php';

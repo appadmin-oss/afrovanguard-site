@@ -117,6 +117,11 @@ final class AvSettings
             'options' => ['org', 'all', '0'],
             'help' => 'org (default): only someone signing in with an organisation address is also asked for Gmail, Calendar, Drive and Chat access. all: everybody is — a personal Gmail account then sees an “unverified app” warning unless Google has verified the app. 0: never; members connect from the portal instead (Today, or the Google account in the side bar).',
         ],
+        'AV_GWS_MEMBER_ACCESS' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Members’ own Google', 'secret' => false, 'type' => 'enum',
+            'options' => ['delegated', 'oauth'],
+            'help' => 'delegated (default): with the service account below, the site reads each organisation member’s own inbox, calendar, Drive and Chat by acting as them — nobody connects anything and nothing expires. Needs the member scopes in domain-wide delegation (the test lists them). oauth: each member connects their own account, as before.',
+        ],
         'AV_GDRIVE_SERVICE_ACCOUNT' => [
             'group' => 'Google sign-in & Workspace', 'label' => 'Service account key (JSON)', 'secret' => true, 'type' => 'json',
             'ph' => '{ "type": "service_account", … }',
@@ -152,6 +157,11 @@ final class AvSettings
             'group' => 'Google Meet', 'label' => 'Meeting organiser mailbox', 'secret' => false, 'type' => 'email',
             'ph' => 'meetings@afrovanguard.org.ng',
             'help' => 'A licensed Workspace mailbox that owns every meeting the site makes (its calendar holds the events, its Drive the recordings). Recording, transcripts and notes are switched on as this mailbox, and attendance and transcripts read back as it. Blank uses the shared calendar, then the admin above. Needs Business Standard or higher for recording and transcripts.',
+        ],
+        'AV_MEET_HOST' => [
+            'group' => 'Google Meet', 'label' => 'Whose calendar a meeting goes on', 'secret' => false, 'type' => 'enum',
+            'options' => ['organiser', 'shared'],
+            'help' => 'organiser: the person scheduling (an organisation member) — the event is theirs, the invite comes from them and they own the Meet, so they can record, admit guests and end it for everyone. shared: the organiser mailbox / shared calendar above owns every meeting. Blank: organiser, unless a meeting organiser mailbox is set.',
         ],
         'AV_MEET_ARTIFACTS' => [
             'group' => 'Google Meet', 'label' => 'What Google captures', 'secret' => false, 'type' => 'enum',
@@ -1165,13 +1175,17 @@ final class AvSettings
             return ['ok' => false, 'detail' => $who . ' — ' . ($err !== '' ? $err : 'no reason given') . '. ' . $fix . $clock];
         }
         $bits = ['signed in as ' . (string) $p['service_account'] . ((string) ($p['subject'] ?? '') !== '' ? ' acting for ' . $p['subject'] : '')];
-        foreach (['calendar_read' => 'calendar', 'drive' => 'Drive folder', 'directory' => 'directory', 'groups' => 'groups'] as $k => $label) {
+        foreach (['calendar_read' => 'calendar', 'drive' => 'Drive folder', 'directory' => 'directory', 'groups' => 'groups',
+                  'schedule' => 'scheduling a meeting with a Meet link' . ((string) ($p['schedule_as'] ?? '') !== '' ? ' (as ' . $p['schedule_as'] . ')' : ''),
+                  'meet_api' => 'Meet API (attendance, transcripts)', 'chat_api' => 'Google Chat API'] as $k => $label) {
             $e = (string) ($p[$k === 'calendar_read' ? 'calendar_error' : $k . '_error'] ?? '');
             if ($k === 'drive' && (string) ($p['drive_folder'] ?? '') === '') { $bits[] = 'Drive folder not set (optional — documents stay on this site)'; continue; }
             if (($p[$k] ?? null) === null && $e === '') continue;
             $bits[] = $label . ($e !== '' ? ' ✗ ' . $e : ' ✓');
         }
-        $bad = array_filter(['calendar_error', 'drive_error', 'directory_error', 'groups_error'], static fn($k) => (string) ($p[$k] ?? '') !== '');
+        if (!empty($p['member_access'])) $bits[] = 'members’ own mail, calendar, Drive and Chat are read through this account — nobody needs to connect';
+        /* Chat is reported, not failed on: a site can run without it. */
+        $bad = array_filter(['calendar_error', 'drive_error', 'directory_error', 'groups_error', 'schedule_error', 'meet_api_error'], static fn($k) => (string) ($p[$k] ?? '') !== '');
         /* Every scope the features use, not only the four read above: a scope left out of
            domain-wide delegation fails only when its feature runs, so this used to say ✓
            while scheduling and Meet were refused. */
