@@ -97,6 +97,17 @@ final class AvSettings
             'ph' => 'the SECRET from the top of the script',
             'help' => 'Exactly the text between the quotes in const SECRET at the top of the script. The script refuses every request without it.',
         ],
+        /* VanQuest's mails come from VanQuest, not from Afrovanguard (lib/VanQuest.php). */
+        'AV_VQ_FROM_NAME' => [
+            'group' => 'Email', 'label' => 'VanQuest sender name', 'secret' => false, 'type' => 'text',
+            'ph' => 'VanQuest',
+            'help' => 'The name VanQuest’s mails (confirm your seat, the onboarding mail) come from. Blank: VanQuest. Works on every sending road.',
+        ],
+        'AV_VQ_FROM_EMAIL' => [
+            'group' => 'Email', 'label' => 'VanQuest sender address', 'secret' => false, 'type' => 'email',
+            'ph' => 'vanquest@afrovanguard.org.ng',
+            'help' => 'The address VanQuest’s mails come from, and where replies go. Over SMTP it must be the SMTP account or an alias it may send as (Gmail: Settings → Accounts → Send mail as). Google Apps Script can only send from the account that runs it, so there replies go here and the From stays that account. Blank: the site’s own address.',
+        ],
 
         /* ── Google: sign-in and Workspace ─────────────────────────────────
            These lived only in config.php or SetEnv, on a host with no shell —

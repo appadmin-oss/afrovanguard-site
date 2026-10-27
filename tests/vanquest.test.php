@@ -31,6 +31,21 @@ Mailer::fakeRoads(['smtp' => static function (array $m) use (&$sent): bool { $se
 ck('vanquest: …and asking again straight away is not held back', VanQuest::join('nomail@example.com')['status'] !== 'wait');
 $mails();
 
+/* VanQuest's mail comes from VanQuest, not from Afrovanguard. */
+$fromSeen = null;
+Mailer::fakeRoads(['smtp' => static function (array $m) use (&$fromSeen): bool { $fromSeen = $m; return true; }]);
+VanQuest::join('sender.check@example.com');
+ck('vanquest: its mail is from VanQuest, not Afrovanguard', ($fromSeen['from']['name'] ?? '') === 'VanQuest');
+ck('vanquest: …its plain-text part is signed VanQuest too', str_ends_with(trim((string) ($fromSeen['text'] ?? '')), '— VanQuest'));
+putenv('AV_VQ_FROM_EMAIL=vanquest@afrovanguard.org.ng');
+VanQuest::join('sender.check2@example.com');
+ck('vanquest: …from its own address when one is set, and replies go there', ($fromSeen['from']['email'] ?? '') === 'vanquest@afrovanguard.org.ng' && ($fromSeen['from']['replyTo'] ?? '') === 'vanquest@afrovanguard.org.ng');
+putenv('AV_VQ_FROM_EMAIL');
+VanQuest::join('sender.check3@example.com');
+ck('vanquest: Afrovanguard\'s own mail still comes from Afrovanguard', Mailer::send('x@example.com', 'Hi', '<p>Hi</p>') && ($fromSeen['from']['name'] ?? '') !== 'VanQuest');
+Mailer::fakeRoads(['smtp' => static function (array $m) use (&$sent): bool { $sent[] = [$m['to'], $m['subject']]; return true; }]);
+Database::pdo()->exec("DELETE FROM vq_players WHERE email LIKE 'sender.check%'");
+
 $t = (string) $r['token'];
 ck('vanquest: the token opens the seat; a made-up one does not',
     VanQuest::byToken($t)['email'] === 'ada@example.com' && VanQuest::byToken(str_repeat('0', 48)) === null && VanQuest::byToken('x') === null);

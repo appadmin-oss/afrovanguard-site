@@ -387,10 +387,25 @@ final class VanQuest
         return $r ?: null;
     }
 
+    /**
+     * Who VanQuest's mails come from: VanQuest, not Afrovanguard. They went out
+     * under the site's own name and address, so a player who joined a game got
+     * "Afrovanguard <no-reply@…>" and took it for somebody else's mail.
+     * AV_VQ_FROM_NAME / AV_VQ_FROM_EMAIL (Studio → Rules & AI → Setup → Email).
+     */
+    public static function sender(): array
+    {
+        $name = trim((string) Config::get('AV_VQ_FROM_NAME', ''));
+        $addr = strtolower(trim((string) Config::get('AV_VQ_FROM_EMAIL', '')));
+        $out = ['fromName' => $name !== '' ? mb_substr($name, 0, 80) : 'VanQuest'];
+        if ($addr !== '' && filter_var($addr, FILTER_VALIDATE_EMAIL)) { $out['from'] = $addr; $out['replyTo'] = $addr; }
+        return $out;
+    }
+
     private static function mail(string $to, string $template, array $vars): bool
     {
         if (defined('ENABLE_EMAIL_NOTIFICATIONS') && !ENABLE_EMAIL_NOTIFICATIONS) return true;
-        if (!Mailer::sendTemplate($to, $template, $vars)) {
+        if (!Mailer::sendTemplate($to, $template, $vars, self::sender())) {
             error_log('[vanquest] ' . $template . ' to ' . $to . ': ' . Mailer::lastError());
             return false;
         }
