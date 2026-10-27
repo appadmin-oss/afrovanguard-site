@@ -109,13 +109,18 @@ try {
         'approvals_list', 'approval_decide', 'approval_withdraw', 'member_requests_list', 'member_request_decide',
         // Programme sessions (kept on CACENTRE): who served in each.
         'psess_list', 'psess_refresh', 'psess_report',
+        // Academy learners: the roster and its CSV name and email every learner
+        // (NGV youth among them); enrolment, grants and certificates change
+        // their records. Content editors write courses, not people.
+        'ac_roster', 'ac_export', 'ac_grants', 'ac_grant', 'ac_revoke',
+        'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke',
         // Events: ours are written here; Africa GATES events are read from there.
         'sev_list', 'sev_refresh', 'sev_save', 'sev_delete',
         'roster_export', 'roster_centres', 'member_notes', 'member_note_add', 'member_note_delete', 'member_activity', 'member_message',
         'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
         'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
-        'card_formats', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_get', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake', 'ngv_intake_email',
+        'card_formats', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_get', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake', 'ngv_intake_email', 'ngv_intake_consent',
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
         'ngv_reset', 'ngv_restore',
@@ -153,6 +158,9 @@ try {
     if ($role === 'editor' && in_array($action, $managementOnly, true)) {
         json_out(['ok' => false, 'error' => 'Editors can manage content only.'], 403);
     }
+    /* An editor moderates what people wrote, not who they are: their addresses stay out of the queues. */
+    $noEmails = static fn(array $rows): array => $role !== 'editor' ? $rows
+        : array_map(static fn($r) => is_array($r) ? array_filter($r, static fn($k) => !is_string($k) || stripos($k, 'email') === false, ARRAY_FILTER_USE_KEY) : $r, $rows);
 
     $repo = new DiaryRepository();
     $ac   = new AcademyRepository();
@@ -176,8 +184,10 @@ try {
     };
     /* One seam: an admin's sensitive member act is kept for a second person
        (lib/Approvals.php) before any screen's handler can run it. */
-    if ($method === 'POST' && in_array($action, ['roster_bulk', 'roster_update'], true)) {
-        if ($held = Approvals::intercept($action, $body, $memberCtx(), av_admin_actor())) json_out($held, 202);
+    if ($method === 'POST' && in_array($action, ['roster_bulk', 'roster_update', 'mem_save'], true)) {
+        /* The older console's save is the desk's update by another door (see mem_save), so it waits the same way. */
+        $op = $action === 'mem_save' ? 'roster_update' : $action;
+        if ($held = Approvals::intercept($op, $body, $memberCtx(), av_admin_actor())) json_out($held, 202);
     }
 
     // Enterprise audit trail: record EVERY state-changing admin action centrally
@@ -1410,6 +1420,10 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = NgvIntake::supplyEmail((string) ($body['ngg_member_id'] ?? ''), (string) ($body['email'] ?? ''));
             json_out($r, $r['ok'] ? 200 : 422);
+        case 'ngv_intake_consent':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = NgvIntake::recordConsent((string) ($body['ngg_member_id'] ?? ''), (string) ($body['method'] ?? ''), (string) ($body['guardian'] ?? ''), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
         case 'roster_duplicates':
             json_out(['ok' => true, 'groups' => MemberRoster::duplicates()]);
         case 'roster_create':
@@ -1546,7 +1560,7 @@ try {
             if ($apply && $role !== 'superadmin' && $role !== 'admin') json_out(['ok' => false, 'error' => 'Importing members needs an Admin. Anybody here can read the dry run.'], 403);
             $r = MemberRoster::import($parsed['rows'], ['apply' => $apply, 'expect_digest' => (string) ($body['expect_digest'] ?? ''),
                 'overwrite' => !empty($body['overwrite']), 'card_format' => (string) ($body['card_format'] ?? ''), 'id_format' => (string) ($body['id_format'] ?? ''),
-                'source' => mb_substr((string) ($body['source'] ?? ''), 0, 200), 'actor' => av_admin_actor()]);
+                'source' => mb_substr((string) ($body['source'] ?? ''), 0, 200), 'actor' => av_admin_actor(), 'ctx' => $memberCtx()]);
             json_out($r + ['columns' => $parsed['columns'], 'unknown_columns' => $parsed['unknown_columns']], $r['ok'] ? 200 : 422);
         case 'card_formats':
             $o = ['ok' => true, 'formats' => MemberCards::formats()];
@@ -1769,7 +1783,7 @@ try {
         /* ── Vanguard Diary — member-submission moderation ──
            Only public submissions surface here; private/event entries never do. */
         case 'mod_queue':
-            json_out(['ok' => true, 'entries' => (new DiaryJournal())->pendingPublic()]);
+            json_out(['ok' => true, 'entries' => $noEmails((new DiaryJournal())->pendingPublic())]);
         case 'mod_approve':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $res = (new DiaryJournal())->approve((int) ($body['id'] ?? 0), $repo); // promotes into the feed
@@ -1783,7 +1797,7 @@ try {
         /* ── Diary comments — the moderation queue ──
            Nothing a reader writes is public until it passes through here. */
         case 'dc_queue':
-            json_out(['ok' => true, 'comments' => $repo->moderationQueue(200), 'count' => $repo->moderationCount()]);
+            json_out(['ok' => true, 'comments' => $noEmails($repo->moderationQueue(200)), 'count' => $repo->moderationCount()]);
         case 'dc_publish':
         case 'dc_remove': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

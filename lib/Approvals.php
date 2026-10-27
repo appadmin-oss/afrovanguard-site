@@ -98,11 +98,21 @@ final class Approvals
                 : 'End the dues of ' . $n . ' member' . ($n === 1 ? '' : 's') . ': ' . self::names($live) . ' — “' . mb_substr(trim((string) ($value['note'] ?? '')), 0, 120) . '”';
         }
         if ($op === 'roster_update') {
-            if ((string) ($args['status'] ?? '') !== 'suspended') return null;
             $live = self::live([(int) ($args['id'] ?? 0)], $selfId);
             $u = reset($live);
-            if (!$u || (string) $u['status'] === 'suspended') return null;
-            return 'Suspend ' . $u['name'] . ' (' . $u['email'] . ') — they are signed out and their gate pass stops';
+            if (!$u) return null;
+            $says = [];
+            if ((string) ($args['status'] ?? '') === 'suspended' && (string) $u['status'] !== 'suspended') {
+                $says[] = 'Suspend ' . $u['name'] . ' (' . $u['email'] . ') — they are signed out and their gate pass stops';
+            }
+            /* An email address is who the account is: the organisation's Google, the
+               Studio's admin list and every sign-in follow it. Moving it is a second
+               person's decision, like a suspension. */
+            $to = strtolower(trim((string) ($args['email'] ?? '')));
+            if ($to !== '' && strcasecmp($to, (string) $u['email']) !== 0) {
+                $says[] = 'Change the email of ' . $u['name'] . ' from ' . $u['email'] . ' to ' . $to . ' — they are signed out and must confirm the new address';
+            }
+            return $says ? implode('; ', $says) : null;
         }
         return null;
     }

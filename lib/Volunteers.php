@@ -450,14 +450,31 @@ final class Volunteers
     }
 
     /** Volunteers by name or email, for "add to team" and "who owns this action". */
+    /** May this person search accounts to add them to a team? Coordinators, and whoever leads a team. */
+    public static function canSearchPeople(array $u): bool
+    {
+        if (self::canRunTeams($u)) return true;
+        self::ensure();
+        $st = Database::pdo()->prepare("SELECT 1 FROM vol_team_members WHERE user_id = ? AND role = 'lead' LIMIT 1");
+        $st->execute([(int) ($u['id'] ?? 0)]);
+        return (bool) $st->fetchColumn();
+    }
+
+    /**
+     * Accounts matching a name or email, to add to a team: [{id, name, hint}].
+     * The address is never returned, only a hint ("a***@gmail.com") to tell two
+     * people of the same name apart. It used to return every account's email to
+     * any volunteer, so looping through the alphabet gave anyone the whole list.
+     */
     public static function people(string $q, int $limit = 10): array
     {
         $q = trim($q);
         if (mb_strlen($q) < 2) return [];
         $like = '%' . mb_strtolower($q) . '%';
-        $st = Database::pdo()->prepare("SELECT id, name, email FROM lms_users WHERE (LOWER(name) LIKE ? OR LOWER(email) LIKE ?) AND COALESCE(status, 'active') <> 'suspended' ORDER BY name LIMIT " . max(1, min(25, $limit)));
+        $st = Database::pdo()->prepare("SELECT id, name, email FROM lms_users WHERE (LOWER(name) LIKE ? OR LOWER(email) LIKE ?) AND COALESCE(status, 'active') <> 'suspended' ORDER BY name LIMIT " . max(1, min(10, $limit)));
         $st->execute([$like, $like]);
-        return array_map(static fn($r) => ['id' => (int) $r['id'], 'name' => (string) $r['name'], 'email' => (string) $r['email']], $st->fetchAll(PDO::FETCH_ASSOC));
+        return array_map(static fn($r) => ['id' => (int) $r['id'], 'name' => (string) $r['name'],
+            'hint' => (string) preg_replace('/^(.).*?(@.*)$/', '$1***$2', (string) $r['email'])], $st->fetchAll(PDO::FETCH_ASSOC));
     }
 
     /* ══ Hours ══════════════════════════════════════════════════════════════ */

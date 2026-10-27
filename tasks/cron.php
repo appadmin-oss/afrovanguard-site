@@ -336,6 +336,12 @@ if (class_exists('Birthdays')) {
     catch (Throwable $e) { error_log('[cron] member birthdays: ' . $e->getMessage()); }
 }
 
+/* Daily: both databases copied, encrypted and sent off-site (lib/Backups.php). */
+if (class_exists('Backups')) {
+    try { $result['backup'] = Backups::runIfDue(); }
+    catch (Throwable $e) { $result['backup'] = ['ok' => false, 'error' => $e->getMessage()]; error_log('[cron] backup: ' . $e->getMessage()); }
+}
+
 if ($cli) { fwrite(STDOUT, $result['at'] . ' ' . json_encode($result) . "\n"); }
 else { echo json_encode($result); }
 exit(0);

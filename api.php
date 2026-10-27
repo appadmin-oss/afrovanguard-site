@@ -58,7 +58,16 @@ try {
                     $pts = class_exists('GateAttendance') ? (int) (GateAttendance::pointRules()['birthday'] ?? 0) : 0;
                     $cel = av_celebration_for_viewer($cel, ['name' => (string) $u['name'], 'birthday' => $b['birthday'] ?? '', 'year' => $b['year'] ?? 0], $date, $pts);
                 }
-            } catch (Throwable $e) { error_log('[api] celebrations viewer: ' . $e->getMessage()); }
+            } catch (Throwable $e) { error_log('[api] celebrations viewer: ' . $e->getMessage()); $u = null; }
+            /* Teammates' birthdays are for the team. A visitor, or a member outside
+               the organisation, gets the day's other celebrations but never whose
+               birthday it is or their photo: polled daily, that built a birthday
+               list of everyone on the team. */
+            if ($cel && !($u && LmsAuth::isOrgMember($u))) {
+                $keep = array_values(array_filter($cel['items'] ?? [], static fn($it) => ($it['type'] ?? '') !== 'birthday' || !empty($it['mine'])));
+                $keep = array_map(static function ($it) { if (empty($it['mine'])) unset($it['people']); return $it; }, $keep);
+                $cel = $keep ? ['date' => $cel['date'], 'items' => $keep, 'primary' => $keep[0]] + $cel : null;
+            }
             $theme = null;
             try { $theme = av_celebration_theme($pdo, $date); } catch (Throwable $e) { error_log('[api] celebrations theme: ' . $e->getMessage()); }
             $out = ['status' => 'ok', 'celebration' => $cel, 'theme' => $theme];
@@ -77,5 +86,8 @@ try {
     json_out(['status' => 'error', 'error' => 'Directory is temporarily unavailable.'], 500);
 }
 
-header('Cache-Control: public, max-age=60, stale-while-revalidate=30');
+/* Celebrations depend on who is asking (their own birthday, and whether they
+   may see the team's), so that response stays private; it set private above and
+   this used to overwrite it with public. */
+if ($action !== 'celebrations') header('Cache-Control: public, max-age=60, stale-while-revalidate=30');
 json_out($out, ($out['status'] ?? 'ok') === 'ok' ? 200 : 404);

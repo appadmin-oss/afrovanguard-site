@@ -317,6 +317,7 @@ require_once __DIR__ . '/MemberRoles.php';      /* the work roles members hold, 
 require_once __DIR__ . '/Membership.php';       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited once the receipt is verified */
 require_once __DIR__ . '/NgvIntake.php';        /* NGG promotions to NGV become NGV accounts here */
+require_once __DIR__ . '/Backups.php';          /* daily encrypted copies of both databases (tasks/cron.php) */
 require_once __DIR__ . '/NgvFines.php';         /* NGV fines: catalogue, issue, list, import with smart assignment */
 require_once __DIR__ . '/CacTasks.php';   /* the console's tasks, read for the portal */
 require_once __DIR__ . '/CacWeek.php';    /* this week at CACENTRE; portal tasks that count toward it */

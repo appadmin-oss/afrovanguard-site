@@ -227,13 +227,26 @@ if (!is_resource($gStub) || !is_resource($gSite) || !$gUp($gPort) || !$gUp($gSit
     GoogleWorkspace::forgetTokens();
     ck('member: an organisation member is reached through the service account — nothing to connect', GoogleWorkspaceUser::delegated($mem) && GoogleWorkspaceUser::connected($mem) && GoogleWorkspaceUser::mode($mem) === 'delegated');
     ck('member: somebody outside the organisation is not', !GoogleWorkspaceUser::delegated($out) && !GoogleWorkspaceUser::connected($out));
+    /* Reading their mail, Drive and Chat is theirs to switch on (audit M4). */
     $snap = GoogleWorkspaceUser::snapshot($mem);
+    ck('member: their mail is not read until they allow it', $snap['mail'] === [] && $snap['files'] === [] && $snap['reads'] === false
+        && str_contains((string) ($snap['errors']['mail'] ?? ''), 'is off'));
+    ck('member: …while their calendar, which hosts meetings, still works', count($snap['events']) === 1 && !isset($snap['errors']['events']));
+    ck('member: …and nor is their Chat', GoogleWorkspaceUser::chatSpaces($mem) === []);
+    GoogleWorkspaceUser::setReads($mem, true); GoogleWorkspaceUser::setReads($noGmail, true);
+    ck('member: allowing it is audited', (int) $gPdo->query("SELECT COUNT(*) FROM lms_audit WHERE action = 'google.reads.on'")->fetchColumn() >= 1);
+    $snap = GoogleWorkspaceUser::snapshot($mem);
+    ck('member: once allowed, the snapshot says so', $snap['reads'] === true);
     ck('member: their own inbox, read as them', $snap['unread'] === 3 && count($snap['mail']) === 1 && $snap['mail'][0]['subject'] === 'Agenda for kemi.test@afrovanguard.org.ng' && $snap['errors'] === []);
     ck('member: …and their calendar', count($snap['events']) === 1);
     $snap = GoogleWorkspaceUser::snapshot($noGmail);
     ck('member: a refused scope is said, not shown as an empty inbox', isset($snap['errors']['mail']) && str_contains($snap['errors']['mail'], 'unauthorized_client') && str_contains($snap['errors']['mail'], 'gmail.readonly'));
     ck('member: …and what Google did allow still shows', count($snap['events']) === 1 && !isset($snap['errors']['events']));
     ck('member: their Google Chat spaces', ($s = GoogleWorkspaceUser::chatSpaces($mem)) && $s[0]['label'] === 'Volunteers');
+    GoogleWorkspaceUser::setReads($mem, false);
+    ck('member: turning it off stops it again', GoogleWorkspaceUser::chatSpaces($mem) === [] && !GoogleWorkspaceUser::readsAllowed($mem));
+    ck('member: the portal has the switch', str_contains((string) file_get_contents(AV_ROOT . '/portal/workspace.php'), "case 'reads':")
+        && str_contains((string) file_get_contents(AV_ROOT . '/portal/google.js'), 'avp-g-reads'));
     putenv('AV_GWS_MEMBER_ACCESS=oauth');
     ck('member: oauth brings back connecting by hand', !GoogleWorkspaceUser::delegated($mem) && !GoogleWorkspaceUser::connected($mem));
     putenv('AV_GWS_MEMBER_ACCESS');

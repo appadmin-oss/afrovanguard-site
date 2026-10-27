@@ -66,6 +66,34 @@ final class GoogleWorkspaceUser
         return class_exists('GoogleWorkspace') && GoogleWorkspace::memberAccess() && GoogleWorkspace::isOrgAddress(self::emailOf($uid));
     }
 
+    /* Delegation lets the organisation's service account read ANY member's
+       mail, Drive and Chat with nobody asking them. Calendar is how meetings
+       are hosted, so it stays on; reading the private three is the member's
+       own choice (NDPA 2023 s.25-26: consent, and purpose limitation), off
+       until they turn it on. A member who connected their own account by
+       hand consented on Google's screen, so that path is unaffected. */
+    const PRIVATE_SCOPES = [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/drive.readonly',
+        'https://www.googleapis.com/auth/chat.spaces.readonly',
+        'https://www.googleapis.com/auth/chat.messages',
+        'https://www.googleapis.com/auth/chat.users.readstate.readonly',
+    ];
+
+    /** May the site read this member's mail, Drive and Chat through delegation? */
+    public static function readsAllowed(int $uid): bool
+    {
+        return $uid > 0 && class_exists('Prefs') && Prefs::get($uid, 'gws_reads', '') === '1';
+    }
+
+    public static function setReads(int $uid, bool $on): bool
+    {
+        if ($uid <= 0) return false;
+        Prefs::set($uid, 'gws_reads', $on ? '1' : '');
+        try { (new LmsRepository())->audit($on ? 'google.reads.on' : 'google.reads.off', self::emailOf($uid), $on ? 'member allowed the portal to read their Gmail, Drive and Chat' : 'member stopped the portal reading their Gmail, Drive and Chat', 'member:' . $uid); } catch (Throwable $e) {}
+        return true;
+    }
+
     /** 'delegated' | 'oauth' | '' — how this member's Google is reached. */
     public static function mode(int $uid): string
     {
@@ -328,8 +356,12 @@ final class GoogleWorkspaceUser
     /** A valid access token for this user: delegated for $scope, else their own connection (refreshed if needed). */
     public static function accessTokenFor(int $uid, string $scope = ''): ?string
     {
-        if (self::delegated($uid)) {
-            $tok = GoogleWorkspace::memberToken(self::emailOf($uid), $scope !== '' ? $scope : GoogleWorkspace::SCOPE_CALENDAR_RW);
+        $scope = $scope !== '' ? $scope : GoogleWorkspace::SCOPE_CALENDAR_RW;
+        if (self::delegated($uid) && in_array($scope, self::PRIVATE_SCOPES, true) && !self::readsAllowed($uid)) {
+            self::$lastWhy = 'Showing your mail, Drive and Chat here is off. Turn it on on your Google card.';
+            /* Their own connection, if they made one, is their consent. */
+        } elseif (self::delegated($uid)) {
+            $tok = GoogleWorkspace::memberToken(self::emailOf($uid), $scope);
             if ($tok) { self::$lastWhy = ''; return $tok; }
             self::$lastWhy = GoogleWorkspace::explain();
             /* A member who also connected by hand still has that. */
@@ -589,6 +621,7 @@ final class GoogleWorkspaceUser
         $out = [
             'connected'      => self::connected($uid),
             'mode'           => self::mode($uid),
+            'reads'          => self::mode($uid) !== 'delegated' || self::readsAllowed($uid),
             'unread'         => $take(fn() => self::gmailUnread($uid), 'mail'),
             'mail'           => $take(fn() => self::gmailRecent($uid, 5), 'mail'),
             'events'         => $take(fn() => self::calendarUpcoming($uid, 6), 'events'),

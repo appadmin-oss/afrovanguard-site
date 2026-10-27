@@ -3487,7 +3487,9 @@
       $('#memIntake').hidden = !w.length;
       $('#memIntakeList').innerHTML = w.map(function (x) {
         return '<div class="mem-try" data-ngg="' + escapeHtml(x.ngg_member_id) + '"><span><b>' + escapeHtml(x.name) + '</b> <span class="muted tiny">' + escapeHtml(x.ngg_member_id) + ' · ' + escapeHtml(x.detail) + '</span></span>'
-          + '<input type="email" placeholder="their email" value="' + escapeHtml(x.email || '') + '" aria-label="Email for ' + escapeHtml(x.name) + '"><button class="btn btn-primary btn-sm mem-intake-go">Create account</button></div>';
+          + (x.status === 'needs_consent'
+            ? '<input type="text" placeholder="parent or guardian" aria-label="Guardian who consented for ' + escapeHtml(x.name) + '"><select aria-label="How they consented"><option value="signed_form">Signed form</option><option value="in_person">In person</option><option value="phone">Phone call</option><option value="email">Email</option></select><button class="btn btn-primary btn-sm mem-intake-consent">Record consent</button></div>'
+            : '<input type="email" placeholder="their email" value="' + escapeHtml(x.email || '') + '" aria-label="Email for ' + escapeHtml(x.name) + '"><button class="btn btn-primary btn-sm mem-intake-go">Create account</button></div>');
       }).join('');
     });
     api('mem_list').then(function (r) {
@@ -4307,6 +4309,16 @@
     });
 
     $('#memIntakeList').addEventListener('click', function (e) {
+      var c = e.target.closest('.mem-intake-consent');
+      if (c) {
+        var cr = c.closest('[data-ngg]'); c.disabled = true;
+        post('ngv_intake_consent', { ngg_member_id: cr.getAttribute('data-ngg'), guardian: cr.querySelector('input').value.trim(), method: cr.querySelector('select').value }).then(function (r) {
+          var d = r.data || {};
+          if (d.ok && d.status !== 'needs_consent') { toast(d.status === 'needs_email' ? 'Consent recorded. They still need an email.' : 'Consent recorded and NGV account ready.'); loadMemDash(); }
+          else toast(d.error || 'The consent could not be recorded.');
+        }).finally(function () { c.disabled = false; });
+        return;
+      }
       var b = e.target.closest('.mem-intake-go'); if (!b) return;
       var row = b.closest('[data-ngg]'); b.disabled = true;
       post('ngv_intake_email', { ngg_member_id: row.getAttribute('data-ngg'), email: row.querySelector('input').value.trim() }).then(function (r) {

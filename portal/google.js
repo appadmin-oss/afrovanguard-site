@@ -57,23 +57,52 @@
         return;
       }
       var mail = m.mail || [], ev = m.events || [], files = m.files || [], er = m.errors || {};
+      /* Through the organisation's Workspace the site could read anyone's
+         mail; it does only when the member says so. Calendar is unaffected. */
+      if (m.mode === 'delegated' && !m.reads) {
+        var ask = '<li class="avp-g-empty avp-g-ask">Your mail stays private until you choose to show it here.'
+          + ' <button type="button" class="avp-btn avp-g-reads" data-on="1">Show my mail, Drive and Chat</button>'
+          + '<small>Afrovanguard then reads your inbox, recent Drive files and Chat spaces to show them to you, and to nobody else. Turn it off here at any time.</small></li>';
+        er = Object.assign({}, er); delete er.mail; delete er.files;
+        $('gMail').innerHTML = ask; $('gFiles').innerHTML = '<li class="avp-g-empty">Hidden until you allow it.</li>';
+        $('gUnread').textContent = '—'; $('gFileCount').textContent = '—';
+        mail = null; files = null;
+      }
+      if (m.mode === 'delegated' && m.reads && !card.querySelector('.avp-g-off')) {
+        var acts = card.querySelector('.avp-g-acts');
+        if (acts) acts.insertAdjacentHTML('beforeend', '<button type="button" class="avp-btn avp-g-reads avp-g-off" data-on="0">Stop showing my mail here</button>');
+      }
       /* Empty because Google refused is not empty: say what Google said. */
       var fail = function (k) { return er[k] ? '<li class="avp-g-empty avp-g-err" role="note">' + esc(er[k]) + '</li>' : ''; };
-      $('gUnread').textContent = m.unread == null ? '—' : m.unread;
-      $('gFileCount').textContent = files.length;
+      if (mail) $('gUnread').textContent = m.unread == null ? '—' : m.unread;
+      if (files) $('gFileCount').textContent = files.length;
       if (ev[0]) { $('gNext').textContent = ev[0].title || 'Event'; $('gNextWhen').textContent = when(ev[0].start); }
       else { $('gNext').textContent = 'Nothing'; $('gNextWhen').textContent = ''; }
-      $('gMail').innerHTML = mail.length ? mail.map(function (x) {
+      if (mail) $('gMail').innerHTML = mail.length ? mail.map(function (x) {
         return '<li class="avp-g-li' + (x.unread ? ' is-unread' : '') + '">' + link(x.url, '<b>' + esc(x.from) + '</b><span>' + esc(x.subject) + '</span>') + '</li>';
       }).join('') : (fail('mail') || '<li class="avp-g-empty">Your inbox is clear.</li>');
       $('gEvents').innerHTML = ev.length ? ev.map(function (x) {
         return '<li class="avp-g-li">' + link(x.url || x.meet_url, '<b>' + esc(x.title) + '</b><span>' + esc(when(x.start)) + '</span>') + '</li>';
       }).join('') : (fail('events') || '<li class="avp-g-empty">Nothing coming up.</li>');
-      $('gFiles').innerHTML = files.length ? files.map(function (x) {
+      if (files) $('gFiles').innerHTML = files.length ? files.map(function (x) {
         return '<li class="avp-g-li">' + link(x.url, '<b>' + esc(x.name) + '</b><span>' + esc(x.modified ? 'Edited ' + when(x.modified) : '') + '</span>') + '</li>';
       }).join('') : (fail('files') || '<li class="avp-g-empty">No recent files.</li>');
     })
     .catch(function () {
       ['gMail', 'gEvents', 'gFiles'].forEach(function (id) { if ($(id)) $(id).innerHTML = '<li class="avp-g-empty">Could not reach Google. Reload in a moment.</li>'; });
     });
+  card.addEventListener('click', function (e) {
+    var b = e.target.closest('.avp-g-reads'); if (!b) return;
+    var on = b.getAttribute('data-on') === '1';
+    b.disabled = true;
+    fetch('/portal/workspace.php?action=reads', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': st.csrf || '' },
+      body: JSON.stringify({ on: on })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.ok) { location.reload(); return; }
+      b.disabled = false;
+      if (window.AVP && window.AVP.toast) window.AVP.toast((d && d.error) || 'That did not save.', 'error');
+    }).catch(function () { b.disabled = false; });
+  });
 })();

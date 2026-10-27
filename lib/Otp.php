@@ -100,7 +100,8 @@ final class Otp
 
     private static function email(string $to, string $code, int $ttl): void
     {
-        if (!class_exists('Mailer')) { error_log("[otp] (mailer off) code for {$to}: {$code}"); return; }
+        /* Never the code, nor the whole address: an error log is read by whoever runs the host. */
+        if (!class_exists('Mailer')) { error_log('[otp] mailer unavailable; no code sent to ' . preg_replace('/^(.).*?(@.*)$/', '$1***$2', $to)); return; }
         /* The designed template (modules/EMAILS.md: sign_in_code). It draws
            the code as separate digits itself, so the code goes in raw. */
         $ip  = (string) ($_SERVER['REMOTE_ADDR'] ?? '');

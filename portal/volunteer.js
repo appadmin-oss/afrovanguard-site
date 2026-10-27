@@ -528,7 +528,7 @@
             + '</td><td class="num">' + (a && a.rate !== null ? a.rate + '% <small>(' + a.came + '/' + a.counted + ')</small>' : '—') + '</td><td class="num">' + (hrs[p.id] || 0) + '</td>'
             + (t.can_manage ? '<td><button type="button" class="vh-x" data-rm="' + p.id + '" aria-label="Remove ' + esc(p.name) + '">×</button></td>' : '') + '</tr>';
         }).join('') + '</tbody></table></div>'
-        + (t.can_manage ? '<form class="vh-addform" id="vhAddMember"><label>Add somebody<input id="ftAdd" type="email" list="ftPeople" autocomplete="off" placeholder="their email" required><datalist id="ftPeople"></datalist></label><select id="ftRole" aria-label="As"><option value="member">Member</option><option value="secretary">Secretary</option><option value="lead">Lead</option></select><button class="avp-btn avp-btn--sq avp-btn--ink" type="submit">Add</button></form><p class="vh-err" id="ftErr" role="alert"></p>' : '')
+        + (t.can_manage ? '<form class="vh-addform" id="vhAddMember"><label>Add somebody<input id="ftAdd" type="text" list="ftPeople" autocomplete="off" placeholder="name or email" required><datalist id="ftPeople"></datalist></label><select id="ftRole" aria-label="As"><option value="member">Member</option><option value="secretary">Secretary</option><option value="lead">Lead</option></select><button class="avp-btn avp-btn--sq avp-btn--ink" type="submit">Add</button></form><p class="vh-err" id="ftErr" role="alert"></p>' : '')
         + '</section>'
         + '<section class="avp-card"><div class="avp-card-head"><h2>Open actions</h2><span class="avp-chip avp-chip--sm">' + r.actions.length + '</span></div><ul class="vh-list">'
         + (r.actions.length ? r.actions.map(function (a) { return row(esc(a.title), (a.due ? '<span class="' + (a.overdue ? 'is-overdue' : '') + '">Due ' + esc(day(a.due)) + '</span> · ' : '') + esc(a.owner) + (a.from ? ' · ' + esc(a.from) : ''), ''); }).join('') : '<li class="avp-empty">Nothing open.</li>')
@@ -558,16 +558,16 @@
         need('picker').then(function (ok) {
           if (!ok || !$('ftAdd') || $('ftAdd').tomselect) return;
           $('ftAdd').type = 'text';
-          new TomSelect($('ftAdd'), { maxItems: 1, create: true, valueField: 'email', labelField: 'name', searchField: ['name', 'email'], placeholder: 'Name or email',
+          new TomSelect($('ftAdd'), { maxItems: 1, create: true, valueField: 'id', labelField: 'name', searchField: ['name', 'hint'], placeholder: 'Name or email',
             createFilter: function (v) { return /@/.test(v); },
-            render: { option: function (p, e) { return '<div><b>' + e(p.name || p.email) + '</b> <small>' + e(p.email) + '</small></div>'; }, item: function (p, e) { return '<div>' + e(p.name || p.email) + '</div>'; },
+            render: { option: function (p, e) { return '<div><b>' + e(p.name || p.hint || '') + '</b> <small>' + e(p.hint || '') + '</small></div>'; }, item: function (p, e) { return '<div>' + e(p.name || p.id) + '</div>'; },
                       option_create: function (d, e) { return '<div class="create">Add <b>' + e(d.input) + '</b></div>'; }, no_results: function () { return '<div class="no-results">Type a name or an email</div>'; } },
             load: function (q, cb) { if (q.length < 2) return cb(); api('people', null, 'q=' + encodeURIComponent(q)).then(function (x) { cb(x.people || []); }); } });
         });
         var st; $('ftAdd').addEventListener('input', function () {
           clearTimeout(st); var q = this.value.trim(); if (q.length < 2) return;
           st = setTimeout(function () { api('people', null, 'q=' + encodeURIComponent(q)).then(function (x) {
-            $('ftPeople').innerHTML = (x.people || []).map(function (p) { return '<option value="' + esc(p.email) + '">' + esc(p.name) + '</option>'; }).join('');
+            $('ftPeople').innerHTML = (x.people || []).map(function (p) { return '<option value="' + esc(String(p.id)) + '">' + esc(p.name + ' · ' + p.hint) + '</option>'; }).join('');
           }); }, 200);
         });
       }

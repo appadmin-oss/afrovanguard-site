@@ -377,7 +377,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   <script src="<?= e(av_asset('/portal/mentor-meet.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/team-chat.js')) ?>" defer></script>
   <script type="application/json" id="avGoogleState"><?= json_encode(['oauth' => $google['oauth'], 'connected' => $google['connected'], 'org' => $google['org'],
-      'admin' => $google['admin'], 'problem' => $google['problem'], 'connect' => $google['connect'], 'domain' => $google['domain'], 'notice' => $googleNotice],
+      'admin' => $google['admin'], 'problem' => $google['problem'], 'connect' => $google['connect'], 'domain' => $google['domain'], 'notice' => $googleNotice, 'csrf' => $collabCsrf],
       JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
   <script src="<?= e(av_asset('/portal/tools.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/repeat.js')) ?>" defer></script>

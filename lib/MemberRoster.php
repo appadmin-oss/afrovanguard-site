@@ -378,7 +378,16 @@ final class MemberRoster
         $changed = [];
         $pdo = Database::pdo();
         if ($c['name'] !== (string) $u['name']) { $pdo->prepare('UPDATE lms_users SET name = ? WHERE id = ?')->execute([$c['name'], $id]); $changed[] = 'name'; }
-        if ($emailGiven && $c['email'] !== '' && $c['email'] !== strtolower((string) $u['email'])) { $pdo->prepare('UPDATE lms_users SET email = ? WHERE id = ?')->execute([$c['email'], $id]); $changed[] = 'email'; }
+        if ($emailGiven && $c['email'] !== '' && $c['email'] !== strtolower((string) $u['email'])) {
+            /* The new address has to be proven before it counts: the account is
+               unverified and signed out, so the next sign-in is a code sent to
+               that address (which also drops any password set before it was
+               proven, LmsAuth::claimUnverified). Kept verified and signed in, an
+               account pointed at a staff mailbox became that person at once. */
+            $pdo->prepare('UPDATE lms_users SET email = ?, email_verified = 0 WHERE id = ?')->execute([$c['email'], $id]);
+            $pdo->prepare('DELETE FROM lms_sessions WHERE user_id = ?')->execute([$id]);
+            $changed[] = 'email';
+        }
         if (isset($c['role']) && $c['role'] !== (string) $u['role']) { $pdo->prepare('UPDATE lms_users SET role = ? WHERE id = ?')->execute([$c['role'], $id]); $changed[] = 'role'; }
         if (isset($c['status']) && $c['status'] !== (string) $u['status']) {
             $pdo->prepare('UPDATE lms_users SET status = ? WHERE id = ?')->execute([$c['status'], $id]);
@@ -974,6 +983,12 @@ final class MemberRoster
         self::ensure();
         $apply = !empty($opts['apply']); $overwrite = !empty($opts['overwrite']);
         $actor = (string) ($opts['actor'] ?? 'studio');
+        /* Who is importing, so the desk's guards apply row by row: the access
+           ceiling, staff accounts, admin emails, their own record. Without it
+           the import was a way round all of them. Changes a second person has
+           to approve at the desk (a suspension, a new email) are not made here. */
+        $ctx = (array) ($opts['ctx'] ?? []);
+        $held = class_exists('Approvals') && Approvals::bound((string) ($ctx['studio_role'] ?? ''));
         $cardFormat = (string) ($opts['card_format'] ?? '');
         if ($cardFormat !== '' && !MemberCards::format($cardFormat)) return ['ok' => false, 'error' => 'No card format “' . $cardFormat . '”. Describe it first.'];
         /* The organisation's own member ID, when it is not an NGV number. Its
@@ -1038,11 +1053,14 @@ final class MemberRoster
             }
             $warn = [];
             if ($id === null) {
+                /* The desk's refusals, in the dry run as well as the apply, so the
+                   page shows them before anybody presses Apply. */
+                if ($ctx && ($g = self::guard(null, $c, $ctx))) { $report['failed']++; $report['rows'][] = ['ref' => $label, 'action' => 'failed', 'name' => $c['name'], 'detail' => $g['error']]; continue; }
                 $report['created']++;
                 if (!$apply) $report['cards']['would_issue']++;
                 $made = null;
                 if ($apply) {
-                    $made = self::create($c, $actor, 'import');
+                    $made = self::create($c, $actor, 'import', $ctx);
                     if (!$made['ok']) { $report['created']--; $report['failed']++; $report['rows'][] = ['ref' => $label, 'action' => 'failed', 'name' => $c['name'], 'detail' => $made['error']]; continue; }
                     $id = (int) $made['id']; $report['cards']['issued']++;
                 }
@@ -1061,12 +1079,17 @@ final class MemberRoster
                     $cur = (string) ($have[$k] ?? '');
                     if ($cur !== '' && !$overwrite) continue;
                     if (strcasecmp($cur, (string) $c[$k]) === 0) continue;
+                    if ($held && ($k === 'email' || ($k === 'status' && (string) $c[$k] === 'suspended'))) {
+                        $warn[] = ($k === 'email' ? 'new email' : 'suspension') . ' not made by the import: make it at the member desk, where a second admin approves it';
+                        continue;
+                    }
                     $patch[$k] = $c[$k];
                 }
+                if ($patch && $ctx && ($g = self::guard($have, $patch, $ctx))) { $report['failed']++; $report['rows'][] = ['ref' => $label, 'action' => 'failed', 'name' => $have['name'], 'detail' => $g['error']]; continue; }
                 if (!$apply && MemberCards::secure($id) === null) $report['cards']['would_issue']++;
                 if ($patch) {
                     if ($apply) {
-                        $r = self::update($id, $patch, $actor);
+                        $r = self::update($id, $patch, $actor, $ctx);
                         if (!$r['ok']) { $report['failed']++; $report['rows'][] = ['ref' => $label, 'action' => 'failed', 'name' => $c['name'], 'detail' => $r['error']]; continue; }
                     }
                     $report['updated']++;

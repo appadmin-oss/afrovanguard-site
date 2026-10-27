@@ -626,3 +626,5 @@ a.avp-kpi--link:focus-visible { outline: 2px solid var(--avp-gold); outline-offs
 .avp-ev-li .avp-ev-date b { font-size: 18px; line-height: 1.1; color: inherit; }
 .avp-ev-li .avp-ev-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .avp-g-empty.avp-g-err { color: var(--avp-red-tx); font-size: 12.5px; line-height: 1.45; }
+.avp-g-ask { display: grid; gap: 8px; }
+.avp-g-ask small { color: var(--avp-text-2); font-size: 12px; line-height: 1.45; }

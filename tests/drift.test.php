@@ -232,6 +232,9 @@ $knownMetaKeys = [
     'quest_money_sweep_day',
     // VanQuest's community numbers, cached ten minutes. Reviewed: content, gates no migration.
     'vq_metrics',
+    // When the daily backup last ran (lib/Backups). Reviewed: gates no
+    // migration. Lost, the next cron tick takes one more backup that day.
+    'backup_last',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {

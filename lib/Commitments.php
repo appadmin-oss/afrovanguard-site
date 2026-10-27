@@ -315,6 +315,45 @@ final class Commitments
         return $out;
     }
 
+    /**
+     * Who a chair may hand these commitments to: the people who were in those
+     * rooms, by name. The picker used to list every account on the site to
+     * anybody signed in, and anyone can open an account.
+     *
+     * @param list<array> $rows commitments this caller may manage (unassignedFor)
+     * @return list<array{id:int,name:string}>
+     */
+    public static function assignableFor(array $rows): array
+    {
+        $ids = [];
+        try {
+            $db = Database::pdo();
+            foreach ($rows as $c) {
+                $kind = (string) ($c['source_kind'] ?? ''); $sid = (int) ($c['source_id'] ?? 0);
+                if ($sid <= 0) continue;
+                if ($kind === self::SRC_MEETING) {
+                    $st = $db->prepare('SELECT u.id FROM meeting_attendees a JOIN lms_users u ON (u.id = a.user_id OR LOWER(u.email) = LOWER(a.email)) WHERE a.meeting_id = ?
+                                        UNION SELECT creator_id FROM meetings WHERE id = ?');
+                    $st->execute([$sid, $sid]);
+                } elseif ($kind === self::SRC_SESSION) {
+                    $st = $db->prepare('SELECT m.mentor_id FROM mentor_sessions s JOIN mentorships m ON m.id = s.mentorship_id WHERE s.id = ?
+                                        UNION SELECT m.mentee_id FROM mentor_sessions s JOIN mentorships m ON m.id = s.mentorship_id WHERE s.id = ?');
+                    $st->execute([$sid, $sid]);
+                } elseif ($kind === self::SRC_CHAT) {
+                    $st = $db->prepare('SELECT sender_id FROM av_chat_tasks WHERE id = ?');
+                    $st->execute([$sid]);
+                } else continue;
+                foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $id) if ((int) $id > 0) $ids[(int) $id] = true;
+                if ((int) ($c['member_id'] ?? 0) > 0) $ids[(int) $c['member_id']] = true;
+            }
+            if (!$ids) return [];
+            $in = implode(',', array_fill(0, count($ids), '?'));
+            $st = $db->prepare("SELECT id, name FROM lms_users WHERE id IN ($in) AND COALESCE(status, 'active') <> 'suspended' ORDER BY name");
+            $st->execute(array_keys($ids));
+            return array_map(static fn($m) => ['id' => (int) $m['id'], 'name' => (string) $m['name']], $st->fetchAll(PDO::FETCH_ASSOC));
+        } catch (Throwable $e) { error_log('[commitments] assignable: ' . $e->getMessage()); return []; }
+    }
+
     /* ── the human decisions ───────────────────────────────────────────── */
 
     /** Confirm (or correct) who owns a commitment. This is the gate extraction cannot pass. */
