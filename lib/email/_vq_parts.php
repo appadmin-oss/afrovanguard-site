@@ -29,7 +29,11 @@ function vq_defaults(array &$v): void
 /** An illustration: the GIF, and its last frame as PNG for Outlook. */
 function vq_art(array $v, string $n, int $w, int $h, string $style = ''): string
 {
-    $img = fn(string $ext) => '<img class="av-art" src="' . e($v['art_base']) . "/$n.$ext\" width=\"$w\" height=\"$h\" alt=\"\" style=\"display:block;width:{$w}px;height:{$h}px;border:0;$style\">";
+    /* A night-coloured tile behind each picture: where a mail app holds pictures
+       back until the reader allows them, there is a quiet dark square in the
+       design's place, not a white box or a broken-image icon. The art is
+       decoration — every tile names itself in text beside it — so alt stays empty. */
+    $img = fn(string $ext) => '<img class="av-art" src="' . e($v['art_base']) . "/$n.$ext\" width=\"$w\" height=\"$h\" alt=\"\" style=\"display:block;width:{$w}px;height:{$h}px;border:0;background:#1d1915;color:#1d1915;font-size:1px;$style\">";
     return '<!--[if !mso]><!-->' . $img('gif') . '<!--<![endif]--><!--[if mso]>' . $img('png') . '<![endif]-->';
 }
 

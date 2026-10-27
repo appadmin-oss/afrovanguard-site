@@ -56,5 +56,5 @@ $tile = fn(string $icon, string $tag, string $name, string $line) => '<tr><td st
 <?= vq_player_card($v, $seated ? 'CONFIRMED' : 'NOT CONFIRMED YET') ?>
 <?= vq_para('Eight levels, ' . e(reset($v['_ranks'])) . ' to ' . e(end($v['_ranks'])) . '. Each asks for Quest points, earned on evidence, and from Becoming upward, people you mentor.', '8px 40px 0', '12.5px', '#8a8073') ?>
 
-<?php if (!$seated): ?><?= vq_button('Get your seat', $v['seat_url']) ?><?php endif; ?>
+<?php if (!$seated): ?><?= vq_button('Confirm your seat', $v['seat_url']) ?><?php endif; ?>
 <?= vq_para('XP is the website’s tally of your journey, not Quest points. If you did not join VanQuest, ignore this email and nothing happens.', '22px 48px 28px', '12.5px', '#8a8073') ?>

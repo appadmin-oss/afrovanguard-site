@@ -181,6 +181,13 @@ ck('vanquest: the welcome renders on the VanQuest frame, not the Afrovanguard ce
 ck('vanquest: the welcome asks them to confirm their seat, twice, by the seat link',
     $vq['subject'] === 'Confirm your seat in the VanQuest community'
     && substr_count($vq['html'], 'href="https://vquest.afrovanguard.org.ng/seat/?t=x"') >= 4);
+ck('vanquest: one wording for the one action — both buttons say "Confirm your seat"',
+    substr_count($vq['html'], 'Confirm your seat →') === 2 && !str_contains($vq['html'], 'Get your seat'));
+ck('vanquest: the footer signs as VanQuest, an Afrovanguard initiative — not as Afrovanguard',
+    str_contains($vq['html'], 'font-weight:600;">VanQuest</span><br>An Afrovanguard initiative') && !str_contains($vq['html'], 'font-weight:600;">Afrovanguard</span>'));
+ck('vanquest: …and its plain-text part is signed VanQuest', str_ends_with(trim($vq['text']), '— VanQuest'));
+ck('vanquest: every picture sits on a dark tile, so a mail app that holds pictures back shows no white boxes',
+    preg_match_all('~<img [^>]*style="[^"]*background:#[0-9a-f]{6}~', $vq['html']) === preg_match_all('~<img ~', $vq['html']));
 ck('vanquest: the welcome explains the game and shows their status',
     str_contains($vq['text'], 'HOW THE GAME WORKS') && str_contains($vq['text'], 'NOT CONFIRMED YET'));
 $top = array_slice(json_decode((string) file_get_contents(AV_ROOT . '/lib/quest/ranks.json'), true)['ranks'], -1)[0]['title'];

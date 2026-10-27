@@ -51,7 +51,7 @@ a{color:#ff9f1c}
 <table role="presentation" class="av-wrap" width="560" cellpadding="0" cellspacing="0" border="0" style="width:560px;max-width:560px;">
 <tr><td style="padding:0 4px 14px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-<td width="32" valign="middle"><a href="<?= e($v['vq_url']) ?>"><img src="<?= e($v['art_base']) ?>/vqmark.png" width="32" height="34" alt="" style="display:block;width:32px;height:34px;border:0;"></a></td>
+<td width="32" valign="middle"><a href="<?= e($v['vq_url']) ?>"><img src="<?= e($v['art_base']) ?>/vqmark.png" width="32" height="34" alt="" style="display:block;width:32px;height:34px;border:0;background:#0b0a09;color:#0b0a09;font-size:1px;"></a></td>
 <td valign="middle" style="padding-left:10px;"><a href="<?= e($v['vq_url']) ?>" style="font-family:Geist,Arial,Helvetica,sans-serif;font-size:19px;line-height:24px;font-weight:600;letter-spacing:-0.02em;color:#f4efe6;text-decoration:none;">VanQuest</a></td>
 <td valign="middle" align="right" class="vq-mono vq-hide-sm" style="font-family:'Geist Mono','Courier New',Courier,monospace;font-size:10.5px;line-height:16px;letter-spacing:.12em;color:#8a8073;text-align:right;">AN AFROVANGUARD INITIATIVE</td>
 </tr></table>
@@ -63,7 +63,7 @@ a{color:#ff9f1c}
 </td></tr>
 <tr><td class="av-px" style="padding:24px 8px 0;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-<td class="av-col" valign="top" style="font-family:Geist,Arial,Helvetica,sans-serif;font-size:12px;line-height:19px;color:#8a8073;text-align:left;"><span style="color:#f4efe6;font-weight:600;">Afrovanguard</span><br><?= e($v['postal_address']) ?></td>
+<td class="av-col" valign="top" style="font-family:Geist,Arial,Helvetica,sans-serif;font-size:12px;line-height:19px;color:#8a8073;text-align:left;"><span style="color:#f4efe6;font-weight:600;">VanQuest</span><br>An Afrovanguard initiative · <?= e($v['postal_address']) ?></td>
 <td class="av-col" valign="top" align="right" style="font-family:Geist,Arial,Helvetica,sans-serif;font-size:12px;line-height:19px;text-align:right;"><a href="<?= e($v['vq_url']) ?>/" style="color:#8a8073;text-decoration:none;">Story</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="<?= e($v['vq_url']) ?>/world/?play" style="color:#8a8073;text-decoration:none;">World</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="<?= e($v['base_url']) ?>" style="color:#8a8073;text-decoration:none;">Afrovanguard</a></td>
 </tr></table>
 </td></tr>
