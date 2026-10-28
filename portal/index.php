@@ -148,6 +148,9 @@ if ($isOrg) {
        is not set up" is a worse answer than no entry. */
     if (CacSso::ready()) {
         $nav['Work'][] = ['inventory', 'Inventory', 'gray', ''];
+        /* The centre's Wi-Fi: CACENTRE runs it, and a member's sign-in name
+           and PIN are shown here, where they already are (lib/CacWifi.php). */
+        $nav['Work'][] = ['wifi', 'Wi-Fi', 'green', ''];
     }
 }
 /* NextGen Vanguard — the programme dashboard, here rather than a link away.
@@ -1337,6 +1340,39 @@ if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gr
         $wsOauth    = class_exists('GoogleWorkspaceUser') && GoogleWorkspaceUser::configured();
         $wsConn     = $wsOauth && GoogleWorkspaceUser::connected((int) $u['id']);
 ?>
+        <!-- ============================================================ -->
+        <!-- WI-FI — the member's own sign-in, from CACENTRE              -->
+        <!-- ============================================================ -->
+<?php if (CacSso::ready()): ?>
+        <section class="pview" id="view-wifi" data-view="wifi" hidden data-csrf="<?= e($collabCsrf) ?>">
+          <div class="view-head"><h1>Wi-Fi</h1></div>
+          <section class="pcard" aria-labelledby="wifiH">
+            <div class="pcard-head"><div>
+              <h2 id="wifiH">Your Wi-Fi sign-in</h2>
+              <span class="task-head-sub">CACENTRE runs the Wi-Fi at every site. Your sign-in name and PIN are yours alone.</span>
+            </div></div>
+            <div class="pcard-body">
+              <p class="wifi-msg" id="wifiMsg" role="status" aria-live="polite">Loading your Wi-Fi details…</p>
+              <dl class="wifi-dl" id="wifiDl" hidden>
+                <div><dt>Username</dt><dd class="wifi-v" id="wifiUser"></dd></div>
+                <div><dt>PIN</dt><dd class="wifi-v"><span id="wifiPin">••••••</span>
+                  <button type="button" class="pbtn pbtn-ghost" id="wifiShow" aria-pressed="false">Show</button></dd></div>
+                <div id="wifiSpeedRow"><dt>Speed</dt><dd id="wifiSpeed"></dd></div>
+                <div><dt>Where</dt><dd id="wifiWhere"></dd></div>
+                <div><dt>Used today</dt><dd id="wifiToday"></dd></div>
+                <div><dt>This month</dt><dd id="wifiMonth"></dd></div>
+              </dl>
+              <div class="wifi-foot" id="wifiFoot" hidden>
+                <p class="wifi-note">Your PIN is only for the Wi-Fi. Never tell anyone else your PIN — anything done on the Wi-Fi with it counts as you. Only you and the Wi-Fi team see what you use, never which sites.</p>
+                <button type="button" class="pbtn pbtn-ghost" id="wifiNew" aria-describedby="wifiLeft">Get a new PIN</button>
+                <span class="wifi-note" id="wifiLeft"></span>
+              </div>
+              <button type="button" class="pbtn pbtn-ghost" id="wifiRetry" hidden>Try again</button>
+            </div>
+          </section>
+        </section>
+<?php endif; ?>
+
         <!-- ============================================================ -->
         <!-- INVENTORY — the centre's register, read from here             -->
         <!-- ============================================================ -->
@@ -2724,6 +2760,7 @@ if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gr
   <script src="/portal/notifications.js" defer></script>
   <script src="/portal/directory.js" defer></script>
   <script src="/portal/inventory.js" defer></script>
+  <script src="/portal/wifi.js" defer></script>
   <script src="/portal/leads.js" defer></script>
   <?php /* The palette reads the sidebar rather than being handed a second copy
            of it. Panes are hash links, and the portal already listens for

@@ -170,6 +170,27 @@ final class CacSso
      * local path too; this is the same rule kept on both ends rather than
      * trusted to one.
      */
+    /**
+     * Sign a server-to-server document for one CACENTRE door, on this same
+     * key and wire. `aud` names the door, so a token minted for one is refused
+     * at every other — above all, it can never pass as a sign-on link. Used
+     * by CacWifi for the Wi-Fi door (api/afrovanguard-wifi.php over there).
+     *
+     * @param array<string,mixed> $claims must include `aud`
+     */
+    public static function sign(array $claims): string
+    {
+        $now = time();
+        $payload = json_encode($claims + [
+            'iss'   => 'av',
+            'nonce' => bin2hex(random_bytes(16)),
+            'iat'   => $now,
+            'exp'   => $now + self::TTL,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $body = self::b64((string) $payload);
+        return 'v1.' . $body . '.' . self::b64(hash_hmac('sha256', $body, self::secret(), true));
+    }
+
     public static function linkFor(array $u, string $next = self::HOME): string
     {
         return self::landing() . '?t=' . rawurlencode(self::mint($u))

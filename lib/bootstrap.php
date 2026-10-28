@@ -306,6 +306,7 @@ require_once __DIR__ . '/NgvFines.php';         /* NGV fines: catalogue, issue, 
 require_once __DIR__ . '/CacTasks.php';   /* the console's tasks, read for the portal */
 require_once __DIR__ . '/CacInventory.php'; /* and its register, for the same reason */
 require_once __DIR__ . '/CacLeads.php';    /* and the follow-ups a member owes */
+require_once __DIR__ . '/CacWifi.php';     /* and their Wi-Fi: CACENTRE runs it, the PIN is shown here */
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/CfisCheckout.php';  /* CACENTRE collects where this site has no merchant account */

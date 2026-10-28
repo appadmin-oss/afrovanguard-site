@@ -53,6 +53,7 @@ final class AiOps
         'agendas'        => 'Agenda drafting',
         'meeting_clock'  => 'Meeting time warnings',
         'promotions'     => 'Promotion reviews',
+        'wifi'           => 'Members to CACENTRE’s Wi-Fi',
         'brief'          => 'Leadership brief',
     ];
 
