@@ -916,8 +916,18 @@ final class LmsRepository
      * actor (admin identity) and the proxy-validated client IP automatically, so
      * every state-changing action is attributable. Best-effort: never throws.
      */
-    public function audit(string $action, string $target = '', string $detail = '', string $actor = 'admin'): void
+    /**
+     * Who did it. See AdminAudit::actor() — the same reasoning, and the
+     * same resolution, because these two write to the same table and a
+     * trail that names the person through one door and "admin" through
+     * the other is no better than one that names nobody.
+     */
+    public function audit(string $action, string $target = '', string $detail = '', ?string $actor = null): void
     {
+        $actor = trim((string) $actor);
+        if ($actor === '' || $actor === 'admin') {
+            $actor = function_exists('av_admin_actor') ? av_admin_actor() : 'admin';
+        }
         $this->ensureAudit();
         $ip = function_exists('av_client_ip') ? av_client_ip() : '';
         try {

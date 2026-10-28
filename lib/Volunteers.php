@@ -570,11 +570,13 @@ final class Volunteers
         $st = Database::pdo()->prepare('SELECT h.day, h.minutes, h.activity, h.source, p.name project FROM vol_hours h LEFT JOIN vol_projects p ON p.id = h.project_id WHERE h.user_id = ? ORDER BY h.day, h.id');
         $st->execute([$uid]);
         $f = fopen('php://temp', 'r+');
-        fputcsv($f, ['Date', 'Hours', 'Project', 'Activity', 'How it was logged'], ',', '"', '\\');
+        /* Csv:: rather than a third copy of the formula guard. This one
+           escaped only the activity column and only = + - @, so a project
+           name or a leading tab went through unescaped. */
+        Csv::put($f, ['Date', 'Hours', 'Project', 'Activity', 'How it was logged']);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            /* A leading = + - @ would be a formula to a spreadsheet. */
-            $act = preg_match('/^[=+\-@]/', (string) $r['activity']) ? "'" . $r['activity'] : (string) $r['activity'];
-            fputcsv($f, [$r['day'], round((int) $r['minutes'] / 60, 2), (string) ($r['project'] ?? ''), $act, self::SOURCE_LABEL[$r['source']] ?? 'Recorded'], ',', '"', '\\');
+            Csv::put($f, [$r['day'], round((int) $r['minutes'] / 60, 2), (string) ($r['project'] ?? ''),
+                          (string) $r['activity'], self::SOURCE_LABEL[$r['source']] ?? 'Recorded']);
         }
         rewind($f);
         return (string) stream_get_contents($f);

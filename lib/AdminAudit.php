@@ -43,8 +43,40 @@ final class AdminAudit
      * Record an admin action.
      * $undo (optional): ['class'=>'Mentorship','op'=>'pair_status','args'=>[...],'label'=>'Re-open pairing']
      */
-    public static function log(string $area, string $action, string $target = '', string $detail = '', ?array $undo = null, string $actor = 'admin'): void
+    /**
+     * Who did it.
+     *
+     * The actor used to DEFAULT to the literal string 'admin', and of the
+     * hundred-odd call sites exactly one passed anything else. So the trail
+     * recorded that "admin" suspended a member, changed a role, sent a bulk
+     * message or ran an export — and with two or more administrators,
+     * nobody could tell who. An audit trail that cannot answer "who" is a
+     * log.
+     *
+     * The audit's own suggestion was to make the parameter required. A
+     * correct DEFAULT is better: required means a hundred edits and a
+     * hundred chances to pass the wrong thing, and the next caller added
+     * after that is one more chance. Resolved here, it is right by
+     * construction and cannot be forgotten.
+     *
+     * av_admin_actor() answers with the signed-in person's email whoever
+     * they are, so a member-initiated row names the member rather than
+     * "admin" too. A break-glass token has no identity to borrow and says
+     * so — "super_admin (token)" is the truth and is more useful than a
+     * name it cannot prove. Unattended work still reads 'admin', which is
+     * what it has always read.
+     */
+    private static function actor(?string $given): string
     {
+        $given = trim((string) $given);
+        if ($given !== '' && $given !== 'admin') return $given;
+
+        return function_exists('av_admin_actor') ? av_admin_actor() : ($given ?: 'admin');
+    }
+
+    public static function log(string $area, string $action, string $target = '', string $detail = '', ?array $undo = null, ?string $actor = null): void
+    {
+        $actor = self::actor($actor);
         self::ensure();
         $ip = function_exists('av_client_ip') ? av_client_ip() : '';
         $undoJson = ($undo && in_array($undo['class'] ?? '', self::UNDOABLE, true)) ? json_encode($undo, JSON_UNESCAPED_SLASHES) : null;
@@ -84,9 +116,16 @@ final class AdminAudit
         catch (Throwable $e) { return []; }
     }
 
-    /** Reverse a previously-logged action. Returns ['ok'=>bool,'error'?]. */
-    public static function undo(int $id, string $actor = 'admin'): array
+    /**
+     * Reverse a previously-logged action. Returns ['ok'=>bool,'error'?].
+     *
+     * Same actor resolution as log(). Undoing somebody else's action is
+     * the single row most worth attributing — "who put that back" — and
+     * it was the one defaulting hardest to "admin".
+     */
+    public static function undo(int $id, ?string $actor = null): array
     {
+        $actor = self::actor($actor);
         self::ensure();
         $st = Database::pdo()->prepare('SELECT * FROM lms_audit WHERE id = ?'); $st->execute([$id]);
         $row = $st->fetch(PDO::FETCH_ASSOC);

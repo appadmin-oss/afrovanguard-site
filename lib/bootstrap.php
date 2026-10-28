@@ -308,6 +308,7 @@ require_once __DIR__ . '/GateAttendance.php';   /* what the gate reports back ab
 require_once __DIR__ . '/MemberCards.php';      /* the secure and printed cards the gate reads */
 require_once __DIR__ . '/NgvCard.php';          /* the NGV ID card and the one standing it prints */
 require_once __DIR__ . '/MemberRoster.php';     /* the member desk: create, manage, import */
+require_once __DIR__ . '/Csv.php';              /* a CSV a spreadsheet will not execute — every export goes through it */
 require_once __DIR__ . '/MemberDesk.php';       /* notes, activity, export and messages on the member desk */
 require_once __DIR__ . '/Centres.php';
 require_once __DIR__ . '/VanQuest.php';     /* VanQuest players: seats, onboarding, community */

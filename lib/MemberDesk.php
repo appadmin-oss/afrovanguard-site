@@ -127,18 +127,14 @@ final class MemberDesk
         }
         $fh = fopen('php://temp', 'w+');
         fwrite($fh, "\xEF\xBB\xBF");   /* so Excel reads names with accents as UTF-8 */
-        fputcsv($fh, array_values(self::EXPORT_COLUMNS), ',', '"', '');
+        Csv::put($fh, array_values(self::EXPORT_COLUMNS));
         foreach ($rows as $m) {
             $line = [];
-            foreach (array_keys(self::EXPORT_COLUMNS) as $k) {
-                $v = $m[$k] ?? '';
-                if (is_bool($v)) $v = $v ? 'yes' : '';
-                $v = (string) $v;
-                /* A cell a spreadsheet would run as a formula is written as text. */
-                if ($v !== '' && strpbrk($v[0], '=+-@') !== false && !preg_match('/^[+-]?\d[\d\s]*$/', $v)) $v = "'" . $v;
-                $line[] = $v;
-            }
-            fputcsv($fh, $line, ',', '"', '');
+            foreach (array_keys(self::EXPORT_COLUMNS) as $k) $line[] = $m[$k] ?? '';
+            /* The guard used to live here, inline and correct, which is
+               exactly why three other exports did not have it. It is
+               Csv:: now, and it also catches a leading tab. */
+            Csv::put($fh, $line);
         }
         rewind($fh);
         $csv = (string) stream_get_contents($fh);

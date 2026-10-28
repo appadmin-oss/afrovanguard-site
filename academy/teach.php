@@ -35,9 +35,11 @@ if ($course && ($_GET['export'] ?? '') === 'csv') {
     header('Content-Disposition: attachment; filename="' . $fname . '"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM so Excel reads accents correctly
-    fputcsv($out, ['Name', 'Email', 'Progress %', 'Lessons completed', 'Lessons total', 'Last active', 'Certificate']);
+    /* Learner names, typed by the learner. This export had no formula
+       guard at all — the audit named three and there were five. */
+    Csv::put($out, ['Name', 'Email', 'Progress %', 'Lessons completed', 'Lessons total', 'Last active', 'Certificate']);
     foreach ($roster as $r) {
-        fputcsv($out, [
+        Csv::put($out, [
             $r['name'], $r['email'], (int) $r['pct'], (int) $r['done'], (int) $stats['lessons'],
             $r['last_active'] ? date('Y-m-d', strtotime((string) $r['last_active'])) : '',
             $r['certified'] ? 'Issued' : '',

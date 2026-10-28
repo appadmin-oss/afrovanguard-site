@@ -696,10 +696,14 @@ try {
         }
         case 'mentorship_export': {
             $rows = Mentorship::exportPairings((string) ($_GET['segment'] ?? ''));
+            /* Names and emails of mentors and mentees. Same reasoning as
+               the summit export above: logged first, with a count. */
+            AdminAudit::log('mentorship', 'mentorship_export', (string) ($_GET['segment'] ?? 'all'),
+                'Exported ' . max(0, count($rows) - 1) . ' mentorship pairing(s) — names and emails');
             header('Content-Type: text/csv; charset=utf-8');
             header('Content-Disposition: attachment; filename="mentorship-pairings.csv"');
             $out = fopen('php://output', 'w');
-            foreach ($rows as $r) fputcsv($out, $r);
+            foreach ($rows as $r) Csv::put($out, (array) $r);
             fclose($out); exit;
         }
 
@@ -755,16 +759,24 @@ try {
                 : ($sent ? ($sent . ' confirmation(s) sent.') : 'Nothing was waiting to be sent.')]);
         }
         case 'summit_export': {
+            $rows = Summit::search((string) ($_GET['q'] ?? ''), (string) ($_GET['mail'] ?? ''), 2000);
+            /* Logged BEFORE the bytes go out, and with a count. This is
+               every registrant's name, email, phone, location and the
+               message they typed; it left the building with no record
+               that it had. Logged first because once the CSV is streamed
+               the request exits and nothing after it runs. */
+            AdminAudit::log('summit', 'summit_export', Summit::EDITION,
+                'Exported ' . count($rows) . ' summit registration(s) — names, emails, phones, messages');
             header('Content-Type: text/csv; charset=utf-8');
             header('Content-Disposition: attachment; filename="summit-' . Summit::EDITION . '-registrations.csv"');
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['ID', 'Name', 'Email', 'Phone', 'Location', 'Organisation',
-                           'Pillar', 'Seats', 'Heard via', 'Message', 'Emailed', 'Mail error', 'Registered']);
-            foreach (Summit::search((string) ($_GET['q'] ?? ''), (string) ($_GET['mail'] ?? ''), 2000) as $r) {
-                fputcsv($out, [$r['id'], $r['name'], $r['email'], $r['phone'], $r['location'],
-                               $r['organisation'], $r['pillar'], $r['seats'], $r['heard'],
-                               $r['message'], ($r['notified_at'] ?? '') !== '' ? 'yes' : 'no',
-                               $r['notify_error'] ?? '', $r['created_at']]);
+            Csv::put($out, ['ID', 'Name', 'Email', 'Phone', 'Location', 'Organisation',
+                            'Pillar', 'Seats', 'Heard via', 'Message', 'Emailed', 'Mail error', 'Registered']);
+            foreach ($rows as $r) {
+                Csv::put($out, [$r['id'], $r['name'], $r['email'], $r['phone'], $r['location'],
+                                $r['organisation'], $r['pillar'], $r['seats'], $r['heard'],
+                                $r['message'], ($r['notified_at'] ?? '') !== '' ? 'yes' : 'no',
+                                $r['notify_error'] ?? '', $r['created_at']]);
             }
             fclose($out); exit;
         }
@@ -1867,9 +1879,9 @@ try {
             header('Content-Type: text/csv; charset=utf-8');
             header('Content-Disposition: attachment; filename="roster-' . preg_replace('/[^a-z0-9\-]/', '', (string) $cs['slug']) . '.csv"');
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Name', 'Email', 'Enrolled', 'Lessons done', 'Progress %', 'Certified', 'Last active']);
+            Csv::put($out, ['Name', 'Email', 'Enrolled', 'Lessons done', 'Progress %', 'Certified', 'Last active']);
             foreach ($lms->roster((int) $cs['id'], 5000) as $r) {
-                fputcsv($out, [$r['name'], $r['email'], $r['enrolled_at'] ?? '', $r['done'], $r['pct'], $r['certified'] ? 'yes' : 'no', $r['last_active'] ?? '']);
+                Csv::put($out, [$r['name'], $r['email'], $r['enrolled_at'] ?? '', $r['done'], $r['pct'], $r['certified'] ? 'yes' : 'no', $r['last_active'] ?? '']);
             }
             fclose($out); exit;
         }
