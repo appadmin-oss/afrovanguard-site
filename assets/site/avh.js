@@ -481,6 +481,35 @@
       .catch(() => {});
   });
 
+  run('events', () => {
+    // GET /events-feed.php → {events:[…]} (our events and Africa GATES', lib/SiteEvents.php::shape / AvEvents::norm).
+    // Nothing coming up, an error or offline → the design's four cards stay. Text only, never markup.
+    const rail = $('[data-avh-events]'); if (!rail || !window.fetch) return;
+    const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null && text !== '') n.textContent = String(text); return n; };
+    const safe = (u, d) => (typeof u === 'string' && /^(\/(?!\/)|https:\/\/)/.test(u)) ? u : d;
+    const card = x => {
+      const a = el('a', 'avh-card'); a.href = safe(x.url, '/events/');
+      if (/^https:\/\//.test(a.href) && a.host !== location.host) { a.target = '_blank'; a.rel = 'noopener'; }
+      if (x.image) { const img = el('img'); Object.assign(img, { src: safe(x.image, ''), alt: '', loading: 'lazy', decoding: 'async', width: 580, height: 387 }); a.appendChild(img); }
+      else { const d = el('div', 'avh-card-date'); d.append(el('b', null, x.day), el('span', null, x.month)); d.setAttribute('aria-hidden', 'true'); a.appendChild(d); }
+      const body = el('div', 'avh-card-body');
+      const tag = el('div', 'avh-tag', x.ongoing ? 'On now' : x.cancelled ? 'Cancelled' : 'Event');
+      const by = x.category || (x.host && x.host !== 'Afrovanguard' ? x.host : '');
+      if (by) { tag.append(' ', el('i', null, '|'), ' ' + by); }
+      body.append(tag, el('h3', null, x.title));
+      body.appendChild(el('div', 'avh-card-meta', [x.when, x.location].filter(Boolean).join(' · ')));
+      a.appendChild(body); return a;
+    };
+    fetch('/events-feed.php', { headers: { Accept: 'application/json' } })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => {
+        const ev = ((d && d.events) || []).filter(x => x && x.title && !x.cancelled).slice(0, 4);
+        if (!ev.length) return;
+        rail.replaceChildren(...ev.map(card));
+      })
+      .catch(() => {});
+  });
+
   run('votm', () => {
     // GET /api.php?action=votm → {status, votm|null}. Shape: lib/people.php av_votm().
     const box = $('[data-avh-votm]'); if (!box || !window.fetch) return;

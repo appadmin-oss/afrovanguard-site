@@ -16,15 +16,20 @@ declare(strict_types=1);
 
 /* Unconfigured is the state of a fresh install, and of any developer
    machine: no CFIS_URL, no key. */
-ck('with finance not connected, a request is refused in a sentence rather than lost',
-   (function () {
-       $r = CfisRequests::submit(1, ['title' => 'Bus fare', 'purpose' => 'Travel',
-                                     'category' => 'transport', 'amount' => 5000], 'Ada', 'ada@test.ng');
-       return ($r['ok'] ?? true) === false && str_contains((string) $r['error'], 'not switched on');
-   })());
-
-ck('and nothing is written down for a request that was never sendable',
-   (int) Database::pdo()->query("SELECT COUNT(*) FROM cfis_member_requests")->fetchColumn() === 0);
+/* ON BY DEFAULT: with finance not connected a member can still ask. The
+   request is kept under its own reference and goes by itself once finance
+   is connected (CfisRequests::sendPending, from the cron). */
+$kept = CfisRequests::submit(1, ['title' => 'Bus fare', 'purpose' => 'Travel',
+                                 'category' => 'transport', 'amount' => 5000], 'Ada', 'ada@test.ng');
+ck('with finance not connected, a member can still ask — the request is kept, not refused',
+   ($kept['ok'] ?? false) === true && !empty($kept['queued']) && str_contains((string) $kept['message'], 'as soon as finance is connected'));
+$keptRow = Database::pdo()->query("SELECT * FROM cfis_member_requests ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+ck('and it is written down, unsent, under its own reference, saying why it waits',
+   is_array($keptRow) && $keptRow['status'] === 'unsent' && $keptRow['cfis_reference'] === '' && $keptRow['ref'] === $kept['ref']
+   && str_contains((string) $keptRow['last_error'], 'finance is connected'));
+$keptCount = (int) Database::pdo()->query("SELECT COUNT(*) FROM cfis_member_requests")->fetchColumn();
+ck('with finance not connected, the cron sends nothing and drops nothing', CfisRequests::sendPending() === ['sent' => 0, 'refused' => 0, 'waiting' => 0]
+   && (int) Database::pdo()->query("SELECT COUNT(*) FROM cfis_member_requests WHERE status = 'unsent'")->fetchColumn() === $keptCount);
 
 /* Point it at a port nothing answers on: configured, unreachable. That is
    the interesting state — a member pressing the button while the link to
@@ -51,7 +56,7 @@ foreach ($bad as $label => $in) {
 }
 
 ck('and none of those reached the database either',
-   (int) Database::pdo()->query("SELECT COUNT(*) FROM cfis_member_requests")->fetchColumn() === 0);
+   (int) Database::pdo()->query("SELECT COUNT(*) FROM cfis_member_requests")->fetchColumn() === $keptCount);
 
 /* ── A real one, with finance unreachable ──────────────────────────────── */
 
@@ -62,8 +67,8 @@ $sent = CfisRequests::submit(7, [
     'account_number' => '0123456789', 'bank_name' => 'GTBank', 'bank_code' => '058',
 ], 'Ada Nwosu', 'ada@test.ng');
 
-ck('a send that cannot reach finance says so plainly',
-   ($sent['ok'] ?? true) === false && str_contains(mb_strtolower((string) $sent['error']), 'could not be reached'));
+ck('a send that cannot reach finance says so plainly — and keeps the request to send by itself',
+   ($sent['ok'] ?? false) === true && !empty($sent['queued']) && str_contains(mb_strtolower((string) $sent['message']), 'could not be reached'));
 
 $row = Database::pdo()->query("SELECT * FROM cfis_member_requests ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
 
@@ -80,13 +85,19 @@ ck('it is marked as not yet sent, and the reason is kept',
 /* ── Sending it again ──────────────────────────────────────────────────── */
 
 $before = (string) $row['ref'];
+$countBefore = (int) Database::pdo()->query("SELECT COUNT(*) FROM cfis_member_requests")->fetchColumn();
 $again = CfisRequests::retry(7, (int) $row['id'], 'Ada Nwosu', 'ada@test.ng');
 $after = Database::pdo()->query("SELECT ref FROM cfis_member_requests WHERE id = " . (int) $row['id'])->fetchColumn();
 
 ck('a retry keeps the SAME reference — a fresh one is how somebody gets paid twice',
    $before === (string) $after);
 ck('and it did not create a second request',
-   (int) Database::pdo()->query("SELECT COUNT(*) FROM cfis_member_requests")->fetchColumn() === 1);
+   (int) Database::pdo()->query("SELECT COUNT(*) FROM cfis_member_requests")->fetchColumn() === $countBefore);
+$pend = CfisRequests::sendPending();
+ck('the cron tries the waiting ones, stops at the first sign finance is still down, and loses none',
+   $pend['sent'] === 0 && $pend['waiting'] === 1 && (int) Database::pdo()->query("SELECT COUNT(*) FROM cfis_member_requests")->fetchColumn() === $countBefore);
+ck('the bank details wait with the request, to go when it is sent',
+   str_contains((string) Database::pdo()->query("SELECT bank FROM cfis_member_requests WHERE id = " . (int) $row['id'])->fetchColumn(), '0123456789'));
 
 /* ── What the member sees ──────────────────────────────────────────────── */
 
@@ -97,18 +108,18 @@ ck('it says it has not reached finance, rather than looking submitted',
    $mine['requests'][0]['sent'] === false);
 ck('the page knows finance is unreachable, so the form can say so',
    $mine['finance_reachable'] === false);
-ck('and no category list is invented while finance cannot be asked for one '
- . '— a stale copy is exactly how the estate\'s lists drifted before',
-   $mine['categories'] === []);
+ck('while finance cannot be asked, the form offers CFIS\'s own default headings — and finance still decides on arrival',
+   $mine['categories'] === CfisRequests::DEFAULT_CATEGORIES && $mine['accepting'] === true);
 
 /* ── The way in ────────────────────────────────────────────────────────── */
 
 ck('the portal has an endpoint for it',
    is_file(AV_ROOT . '/portal/money-requests.php'));
 
-$card = (string) @file_get_contents(AV_ROOT . '/portal/views/today.php');
-ck('and the card is on Today, which is the page a member lands on',
-   str_contains($card, 'id="moneyRequests"'));
+$card = (string) @file_get_contents(AV_ROOT . '/portal/views/requests.php');
+ck('and the card is on Finance requests, its own page in the member\'s menu — Today points to it',
+   str_contains($card, 'id="moneyRequests"')
+   && str_contains((string) @file_get_contents(AV_ROOT . '/portal/views/today.php'), 'data-goto="requests"'));
 ck('exactly once across every view — all of them render into one document, '
  . 'so a second copy would be a duplicate id and the script would drive '
  . 'whichever came first',
@@ -121,7 +132,7 @@ ck('exactly once across every view — all of them render into one document, '
    })());
 ck('and the membership view points at it rather than repeating it',
    str_contains((string) @file_get_contents(AV_ROOT . '/portal/views/membership.php'),
-                'Ask finance for money on Today'));
+                'Ask finance for money in Finance requests'));
 ck('whose script the portal loads',
    str_contains((string) @file_get_contents(AV_ROOT . '/portal/index.php'), 'money-requests.js'));
 ck('the card is not inside the org-only dues block — a facilitator who paid '

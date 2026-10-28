@@ -25,12 +25,24 @@ declare(strict_types=1);
     $duesCanPay = !empty($dues['payable']) && empty($dues['lifetime']);
     $duesRecurring = defined('AV_DUES_PLAN_CODE') && AV_DUES_PLAN_CODE;
     $duesN = (int) ($dues['payments_count'] ?? 0);
+    /* Behind: months fallen due and not paid (Membership::arrears). */
+    $duesOwe = (array) ($dues['arrears'] ?? []);
+    $duesOweN = (int) ($duesOwe['months'] ?? 0);
+    if ($duesOweN > 0) { $duesPill = 'Behind'; $duesTone = 'red'; }
 ?>
           <section class="avp-card avp-dues dues-<?= e($duesState) ?>" id="membership" data-csrf="<?= e($duesCsrf) ?>" aria-labelledby="avpDuesH">
             <div class="avp-card-head"><h2 id="avpDuesH">Membership dues</h2><span class="avp-chip avp-chip--<?= e($duesTone) ?>"><?= e($duesPill) ?></span></div>
             <div class="avp-card-body avp-dues-body">
 <?php if ($duesTotal > 0): ?>
               <div class="avp-dues-total"><span>Total dues paid</span><strong class="av-num">₦<?= number_format($duesTotal) ?></strong><span class="avp-dues-n av-num">· <?= $duesN ?> payment<?= $duesN === 1 ? '' : 's' ?></span></div>
+<?php endif; ?>
+<?php if ($duesOweN > 0): ?>
+              <div class="avp-dues-owe">
+                <span>Owed since <?= e(date('j M Y', (int) strtotime((string) $duesOwe['since']))) ?></span>
+                <strong class="av-num">₦<?= number_format((int) $duesOwe['amount_ngn']) ?></strong>
+                <span class="av-num"><?= $duesOweN ?> month<?= $duesOweN === 1 ? '' : 's' ?> of dues</span>
+              </div>
+              <p class="avp-note">Dues fall due every month. A payment covers the oldest month owed first.</p>
 <?php endif; ?>
 <?php if (!empty($dues['lifetime'])): ?>
               <p class="avp-dues-line is-ok">✓ <strong>Lifetime membership</strong> — no dues due.</p>
@@ -43,7 +55,10 @@ declare(strict_types=1);
 <?php endif; ?>
 <?php if ($duesCanPay): ?>
               <div class="avp-row-btns">
-                <button type="button" class="avp-btn<?= $duesState === 'active' ? '' : ' avp-btn--ink' ?>" data-dues-pay data-period="year"><?= $duesState === 'active' ? 'Renew a year' : 'Pay a year' ?></button>
+<?php if ($duesOweN > 0): ?>
+                <button type="button" class="avp-btn avp-btn--ink" data-dues-pay data-period="arrears">Pay what’s owed — ₦<?= number_format((int) $duesOwe['amount_ngn']) ?></button>
+<?php endif; ?>
+                <button type="button" class="avp-btn<?= ($duesState === 'active' || $duesOweN > 0) ? '' : ' avp-btn--ink' ?>" data-dues-pay data-period="year"><?= $duesState === 'active' ? 'Renew a year' : 'Pay a year' ?></button>
                 <button type="button" class="avp-btn" data-dues-pay data-period="month"><?= $duesRecurring ? 'Monthly' : 'Pay a month' ?></button>
               </div>
               <p class="avp-msg dues-msg" role="status" hidden></p>
@@ -56,8 +71,8 @@ declare(strict_types=1);
                 <div class="avp-disclose-body">
                   <p class="avp-note">Your dues are credited once the receipt is checked — the amount, the date, and that it went to Afrovanguard. A receipt can be used once.</p>
                   <form class="avp-form dues-off-form" novalidate>
-                    <label>For<select name="months"><option value="12" data-amount="<?= (int) OfflinePayments::duesPrice(12) ?>">A year — ₦<?= number_format(OfflinePayments::duesPrice(12)) ?></option><option value="1" data-amount="<?= (int) OfflinePayments::duesPrice(1) ?>">A month — ₦<?= number_format(OfflinePayments::duesPrice(1)) ?></option></select></label>
-                    <label>Amount paid (₦)<input name="amount" type="number" min="1" required value="<?= (int) OfflinePayments::duesPrice(12) ?>"></label>
+                    <label>For<select name="months"><?php if ($duesOweN > 0 && $duesOweN !== 12 && $duesOweN <= Membership::MAX_MONTHS): ?><option value="<?= $duesOweN ?>" data-amount="<?= (int) OfflinePayments::duesPrice($duesOweN) ?>">What’s owed, <?= $duesOweN ?> month<?= $duesOweN === 1 ? '' : 's' ?> — ₦<?= number_format(OfflinePayments::duesPrice($duesOweN)) ?></option><?php endif; ?><option value="12" data-amount="<?= (int) OfflinePayments::duesPrice(12) ?>">A year — ₦<?= number_format(OfflinePayments::duesPrice(12)) ?></option><option value="1" data-amount="<?= (int) OfflinePayments::duesPrice(1) ?>">A month — ₦<?= number_format(OfflinePayments::duesPrice(1)) ?></option></select></label>
+                    <label>Amount paid (₦)<input name="amount" type="number" min="1" required value="<?= (int) OfflinePayments::duesPrice($duesOweN > 0 && $duesOweN <= Membership::MAX_MONTHS ? $duesOweN : 12) ?>"></label>
                     <label>How<select name="method"><option value="transfer">Bank transfer</option><option value="cash">Cash</option><option value="pos">POS</option><option value="deposit">Bank deposit</option></select></label>
                     <label>Day paid<input name="paid_on" type="date" max="<?= gmdate('Y-m-d') ?>"></label>
                     <label>Reference on the receipt (optional)<input name="reference" maxlength="80"></label>
@@ -101,12 +116,47 @@ declare(strict_types=1);
 
 <?php require AV_ROOT . '/portal/_card.php'; ?>
 
-          <!-- The card itself lives on Today, which is where a member
-               lands. One card, one id: every view is rendered into the
-               same document here, so a second copy would be a duplicate
-               id and the script would drive whichever came first. -->
+<?php $mreqCentres = class_exists('Centres') ? Centres::names() : [];
+      $mreqMe = class_exists('MemberRoster') ? MemberRoster::get((int) $u['id']) : null; ?>
+          <!-- Asking for a change to your own record — another centre,
+               corrected details, pausing or leaving. An admin decides in the
+               Studio → Members → Approvals (lib/MemberRequests.php). -->
+        <section class="avp-card" id="memberRequests" data-csrf="<?= e(av_csrf_token()) ?>" aria-labelledby="avpMreqH">
+          <div class="pcard-head"><h2 id="avpMreqH">Ask for a change to your membership</h2></div>
+          <div class="pcard-body">
+            <form class="mr-form" data-mq-form novalidate>
+              <label class="mr-wide">What are you asking for
+                <select name="kind" data-mq-kind required>
+<?php foreach (MemberRequests::KINDS as $k => $label): ?>
+                  <option value="<?= e($k) ?>"><?= e($label) ?></option>
+<?php endforeach; ?>
+                </select>
+              </label>
+              <label class="mr-wide" data-mq-for="centre">Which centre
+                <select name="centre">
+                  <option value="">Choose a centre</option>
+<?php foreach ($mreqCentres as $c): if ($mreqMe && mb_strtolower($c) === mb_strtolower((string) $mreqMe['centre'])) continue; ?>
+                  <option value="<?= e($c) ?>"><?= e($c) ?></option>
+<?php endforeach; ?>
+                </select>
+              </label>
+              <p class="pcard-note" data-mq-for="centre"><?= $mreqMe && (string) $mreqMe['centre'] !== '' ? 'You are at ' . e((string) $mreqMe['centre']) . ' now.' : 'You are not at a centre yet.' ?></p>
+              <label data-mq-for="details" hidden>Your name, as it should be <input name="name" maxlength="120" value="<?= e((string) ($mreqMe['name'] ?? '')) ?>" autocomplete="name"></label>
+              <label data-mq-for="details" hidden>Your phone <input name="phone" inputmode="tel" maxlength="24" value="<?= e((string) ($mreqMe['phone'] ?? '')) ?>" autocomplete="tel"></label>
+              <label class="mr-wide">Anything an admin should know <textarea name="message" rows="2" maxlength="1000" data-mq-message placeholder="I moved house and the Ayobo centre is nearer."></textarea></label>
+              <button type="submit" class="pbtn pbtn-gold">Send to an admin</button>
+            </form>
+            <p class="enroll-msg" data-mq-msg role="status" hidden></p>
+            <h3 class="avp-req-h3">Your requests</h3>
+            <div data-mq-list aria-live="polite"><p class="pc-empty">Loading…</p></div>
+          </div>
+        </section>
+
+          <!-- Money is asked for in Finance requests (views/requests.php). One
+               card, one id: every view is rendered into the same document, so
+               a second copy would be a duplicate id. -->
           <p class="pcard-note">Paid for something, or need something bought?
-            <a href="#overview" data-goto="overview">Ask finance for money on Today →</a></p>
+            <a href="#requests" data-goto="requests">Ask finance for money in Finance requests →</a></p>
 
 
 <?php if ($isOrg): ?>

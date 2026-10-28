@@ -30,6 +30,17 @@
               <button type="button" class="app-tile app-tile--team" data-app="goals"><span class="app-ic">◎</span><span class="app-tx"><span class="app-nm">Goals &amp; OKRs</span><span class="app-desc">Track objectives</span></span></button>
               <button type="button" class="app-tile app-tile--team" data-app="links"><span class="app-ic">🔖</span><span class="app-tx"><span class="app-nm">Team links</span><span class="app-desc">Shared resources</span></span></button>
             </div>
+<?php if (!empty($google['apps'])): /* The Google apps, with the rest of the tools (lib/GoogleHub.php) */ ?>
+            <h2 class="suite-section"><span>G Google</span><small>Signed in with Google · @<?= e((string) $google['domain']) ?></small></h2>
+            <div class="pws-grid" id="suiteGoogle">
+<?php foreach ($google['apps'] as $gs): ?>
+              <a class="pws-app" href="<?= e($gs['url']) ?>" target="_blank" rel="noopener noreferrer">
+                <span class="pws-ico pws-ico--<?= e($gs['key']) ?>"><?= av_workspace_icon($gs['icon']) ?></span>
+                <span class="pws-text"><span class="pws-name"><?= e($gs['label']) ?></span><span class="pws-desc"><?= e($gs['desc']) ?></span></span>
+              </a>
+<?php endforeach; ?>
+            </div>
+<?php endif; ?>
 <?php endif; ?>
           </div>
 
@@ -42,7 +53,7 @@
             <div class="suite-stage" id="suiteStage">
 
             <div class="suite-app" data-app="cal" hidden>
-          <!-- Integrated calendar: team events + AFG events + sessions + tasks + reminders -->
+          <!-- Integrated calendar: team events + Afrovanguard and Africa GATES events + sessions + tasks + reminders -->
           <section class="pcard tool-cal" id="tlCal" data-csrf="<?= e($collabCsrf) ?>" data-org="<?= $isOrg ? '1' : '0' ?>">
             <div class="pcard-head cal-head">
               <h2>◗ Calendar</h2>
@@ -59,7 +70,8 @@
                 <div class="cal-grid" id="tlCalGrid"><p class="pc-empty">Loading calendar…</p></div>
                 <div class="cal-legend">
                   <span class="cal-key cal-key--event">Team event</span>
-                  <span class="cal-key cal-key--afg">Afrovanguard</span>
+                  <span class="cal-key cal-key--site">Afrovanguard event</span>
+                  <span class="cal-key cal-key--afg">Africa GATES</span>
                   <span class="cal-key cal-key--session">Mentorship</span>
                   <span class="cal-key cal-key--task">Task</span>
                   <span class="cal-key cal-key--reminder">Reminder</span>
@@ -177,7 +189,7 @@
             <div class="suite-app" data-app="meet" hidden>
           <!-- Standardized meetings: schedule (with a link + cadence) and get AI minutes -->
           <section class="pcard tool-meet" id="tlMeet" data-csrf="<?= e($collabCsrf) ?>" data-email="<?= e(strtolower((string) ($u['email'] ?? ''))) ?>">
-            <div class="pcard-head"><h2>🎥 Meetings</h2><span class="pchip pchip--indigo">Members · shared</span></div>
+            <div class="pcard-head"><h2>🎥 Meetings</h2><span class="pchip pchip--indigo">Everyone · members &amp; staff</span></div>
             <div class="pcard-body">
               <form id="tlMeetForm" class="meet-form" autocomplete="off">
                 <input id="tlMeetTitle" class="meet-in" placeholder="Meeting title…" maxlength="200">
@@ -204,6 +216,7 @@
                 <div class="meet-repeat" id="tlMeetRepeat"></div>
                 <input id="tlMeetWho" class="meet-in" placeholder="Invite by email (comma-separated, optional)" maxlength="600">
                 <input id="tlMeetAgenda" class="meet-in" placeholder="Agenda / notes (optional)" maxlength="2000">
+                <label class="meet-bot meet-priv"><input type="checkbox" id="tlMeetPriv"> <span>🔒 Keep the minutes to the people invited — everyone still sees the meeting</span></label>
                 <label class="meet-bot" hidden><input type="checkbox" id="tlMeetRec"> <span>🤖 Add the recording bot — auto-capture &amp; transcribe this meeting</span></label>
                 <div class="meet-form-foot">
                   <button type="submit" class="pbtn pbtn-gold">Schedule meeting</button>

@@ -62,9 +62,9 @@ if ($action === 'connect') {
     $u = LmsAuth::user();
     // Not signed in → send to login and come back to the connect flow. (Avoid
     // av_login_url(): partials.php isn't loaded on this endpoint.)
-    if (!$u) { header('Location: /login?next=' . rawurlencode('/auth/google/connect?next=/workspace')); exit; }
-    if (!av_rate_ok('gws_connect', 20, 600)) av_oauth_bounce('/workspace?e=rate');
-    $state = GoogleWorkspaceUser::makeState((int) $u['id'], (string) ($_GET['next'] ?? '/workspace'));
+    if (!$u) { header('Location: /login?next=' . rawurlencode('/auth/google/connect?next=/portal/')); exit; }
+    if (!av_rate_ok('gws_connect', 20, 600)) av_oauth_bounce('/portal/?google_e=rate');
+    $state = GoogleWorkspaceUser::makeState((int) $u['id'], (string) ($_GET['next'] ?? '/portal/'));
     setcookie(GoogleWorkspaceUser::STATE_COOKIE, $state, [
         'expires' => time() + GoogleWorkspaceUser::STATE_TTL, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
     ]);
@@ -78,7 +78,7 @@ if ($action === 'disconnect') {
     if ($u && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && av_csrf_valid((string) ($_POST['csrf'] ?? ''))) {
         GoogleWorkspaceUser::disconnect((int) $u['id']);
     }
-    header('Location: /workspace');
+    header('Location: /portal/');
     exit;
 }
 
@@ -86,7 +86,7 @@ if ($action === 'callback') {
     if (isset($_GET['error'])) {
         // A cancelled connect returns to the hub; a cancelled sign-in to /login.
         $isConnect = ($_COOKIE[GoogleWorkspaceUser::STATE_COOKIE] ?? '') !== '';
-        av_oauth_bounce($isConnect ? '/workspace?e=connect_cancelled' : '/login?e=google_cancelled');
+        av_oauth_bounce($isConnect ? '/portal/?google_e=connect_cancelled' : '/login?e=google_cancelled');
     }
     $state = (string) ($_GET['state'] ?? '');
 
@@ -96,10 +96,14 @@ if ($action === 'callback') {
     if ($connState !== null && $connCookie !== '' && hash_equals($connCookie, $state)) {
         setcookie(GoogleWorkspaceUser::STATE_COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
         $u = LmsAuth::user();
-        if (!$u || (int) $u['id'] !== $connState['uid']) av_oauth_bounce('/workspace?e=connect_session');
+        if (!$u || (int) $u['id'] !== $connState['uid']) av_oauth_bounce('/portal/?google_e=connect_session');
         $ok = GoogleWorkspaceUser::exchangeAndStore((string) ($_GET['code'] ?? ''), (int) $u['id']);
         if (!$ok) GoogleAuth::recordFailure('workspace connect', GoogleWorkspaceUser::lastHttpError());
-        av_oauth_bounce($connState['next'] . (str_contains($connState['next'], '?') ? '&' : '?') . ($ok ? 'connected=1' : 'e=connect_failed'));
+        /* Back into the portal, saying how it went — before any #fragment, or the fragment swallows it. */
+        $nx = (string) $connState['next'];
+        if ($nx === '/workspace' || str_starts_with($nx, '/workspace?')) $nx = '/portal/';
+        [$path, $frag] = array_pad(explode('#', $nx, 2), 2, '');
+        av_oauth_bounce($path . (str_contains($path, '?') ? '&' : '?') . ($ok ? 'google=connected' : 'google_e=connect_failed') . ($frag !== '' ? '#' . $frag : ''));
     }
 
     // …otherwise the normal sign-in flow.

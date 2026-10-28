@@ -399,3 +399,70 @@
 .vh-mv { font: inherit; font-size: 14px; line-height: 1; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--avp-input); background: var(--avp-surface, #fff); color: var(--avp-text-2); cursor: pointer; }
 .vh-mv:hover { color: var(--avp-ink); }
 .vh-mv:focus-visible { outline: 3px solid var(--avp-gold); outline-offset: 1px; }
+
+/* Utilities in place of the inline styles this file used to write (no style= anywhere). */
+.vh-stretch { justify-self: stretch; }
+.vh-row--pad { padding: 8px 0; }
+.vh-mt6 { margin: 6px 0 0; }
+.vh-mt8 { margin-top: 8px; }
+.vh-my6 { margin: 6px 0; }
+.vh-pointer { cursor: pointer; }
+.vh-full { width: 100%; }
+.vh-note--purpose { padding: 12px 20px 0; margin: 0; }
+.vh-note--foot { padding: 10px 20px; }
+.vh-check { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+.vh-check--sm { gap: 4px; }
+.vh-check input[type=checkbox] { height: auto; }
+/* A meeting with no Meet link yet, said beside its Edit button. */
+.vh-nolink { align-self: center; font-size: 12.5px; color: var(--avp-muted); }
+/* Bar and meter sizes in 5% steps (portal/volunteer.js), a class each. */
+.vh-w0 { width: 0%; }
+.vh-w5 { width: 5%; }
+.vh-w10 { width: 10%; }
+.vh-w15 { width: 15%; }
+.vh-w20 { width: 20%; }
+.vh-w25 { width: 25%; }
+.vh-w30 { width: 30%; }
+.vh-w35 { width: 35%; }
+.vh-w40 { width: 40%; }
+.vh-w45 { width: 45%; }
+.vh-w50 { width: 50%; }
+.vh-w55 { width: 55%; }
+.vh-w60 { width: 60%; }
+.vh-w65 { width: 65%; }
+.vh-w70 { width: 70%; }
+.vh-w75 { width: 75%; }
+.vh-w80 { width: 80%; }
+.vh-w85 { width: 85%; }
+.vh-w90 { width: 90%; }
+.vh-w95 { width: 95%; }
+.vh-w100 { width: 100%; }
+.vh-h0 { height: 0px; }
+.vh-h5 { height: 8px; }
+.vh-h10 { height: 16px; }
+.vh-h15 { height: 24px; }
+.vh-h20 { height: 32px; }
+.vh-h25 { height: 40px; }
+.vh-h30 { height: 48px; }
+.vh-h35 { height: 56px; }
+.vh-h40 { height: 64px; }
+.vh-h45 { height: 72px; }
+.vh-h50 { height: 80px; }
+.vh-h55 { height: 88px; }
+.vh-h60 { height: 96px; }
+.vh-h65 { height: 104px; }
+.vh-h70 { height: 112px; }
+.vh-h75 { height: 120px; }
+.vh-h80 { height: 128px; }
+.vh-h85 { height: 136px; }
+.vh-h90 { height: 144px; }
+.vh-h95 { height: 152px; }
+.vh-h100 { height: 160px; }
+.vh-m0 { margin: 0; }
+.vh-mb10 { margin: 0 0 10px; }
+.vh-note--pad { padding: 0 20px 16px; }
+/* The dashboard's toast (portal/volunteer.js toast()). */
+.vh-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 9999; padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: 14px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .2); max-width: 90vw; background: var(--avp-primary); color: var(--avp-on-primary); }
+.vh-toast.is-bad { background: var(--avp-red-bg); color: var(--avp-red-tx); }
+.vh-toast[hidden] { display: none; }

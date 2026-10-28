@@ -24,8 +24,9 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 header('X-Powered-By: ');
 
 /* ── CORS ───────────────────────────────────────────────────── */
-// Fix M-03: include www. subdomain so Paystack/forms work on both origins
-$allowedOrigins = ['https://afrovanguard.org.ng', 'https://www.afrovanguard.org.ng'];
+// Fix M-03: include www. subdomain so Paystack/forms work on both origins.
+// vquest. is VanQuest's own site; it posts the newsletter action with source=vanquest.
+$allowedOrigins = ['https://afrovanguard.org.ng', 'https://www.afrovanguard.org.ng', 'https://vquest.afrovanguard.org.ng'];
 $origin  = $_SERVER['HTTP_ORIGIN'] ?? '';
 if (in_array($origin, $allowedOrigins, true)) {
     header("Access-Control-Allow-Origin: {$origin}");
@@ -521,6 +522,22 @@ if ($action === 'newsletter') {
         exit;
     }
     $email = mb_strtolower($email, 'UTF-8');
+
+    /* VanQuest (vquest.afrovanguard.org.ng) joins through this action too: those
+       players live in lib/VanQuest.php, with their seat, mails and lobby, not in
+       the newsletter list. vanquest/api.php is the same thing, called directly. */
+    if (($input['source'] ?? '') === 'vanquest') {
+        $nlIp = preg_replace('/[^0-9a-fA-F.:]/', '', av_client_ip());
+        if (!rateLimit('vq_' . $nlIp, 8, 3600)) {
+            http_response_code(429);
+            echo json_encode(['success' => false, 'message' => 'Too many requests. Please try again later.']);
+            exit;
+        }
+        $r = VanQuest::join($email, (string) ($input['placement'] ?? ''), (int) ($input['xp'] ?? 50));
+        http_response_code($r['ok'] ? 200 : 400);
+        echo json_encode(['success' => $r['ok'], 'status' => $r['status'], 'message' => $r['message']]);
+        exit;
+    }
 
     /* Rate limit newsletter sign-ups per IP */
     $nlIp = preg_replace('/[^0-9a-fA-F.:]/', '', av_client_ip());

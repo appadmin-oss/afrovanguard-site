@@ -115,7 +115,12 @@ final class DbMigrateJob
         $f = AV_ROOT . '/db/schema.' . ($driver === 'pgsql' ? 'pgsql' : 'mysql') . '.sql';
         if (!is_file($f)) throw new RuntimeException('No schema file at ' . $f);
         $n = 0;
-        foreach (array_filter(array_map('trim', explode(';', (string) file_get_contents($f)))) as $stmt) {
+        /* Comments out first, as Database::applyServerSchema() does: some hold a
+           ';' ("survives a slug rename); NULL until assigned"), and splitting on
+           it cut the articles table in two — MySQL refused the first half with a
+           1064, and the migration stopped before a single row was copied. */
+        $sql = (string) preg_replace('/--[^\n]*/', '', (string) file_get_contents($f));
+        foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
             if ($stmt === '' || str_starts_with($stmt, '--')) continue;
             try { $dst->exec($stmt); $n++; }
             catch (Throwable $e) {
@@ -140,6 +145,25 @@ final class DbMigrateJob
      */
     public static function begin(PDO $src, PDO $dst, array $conf, bool $replace): array
     {
+        /* A table this site made for itself as a feature first ran is not in
+           db/schema.mysql.sql. Make each one on the target now, shaped like the
+           source, or its rows are left behind (they were: 24 of ~150 tables
+           moved). One the target refuses is named, not skipped in silence. */
+        $refused = [];
+        if (Migrator::driver($dst) === 'mysql' && Migrator::driver($src) === 'sqlite') {
+            foreach (Migrator::allTables($src) as $t) {
+                if (Migrator::tableExists($dst, $t)) {
+                    /* …and a table the schema file made is older than the source's. */
+                    array_push($refused, ...Migrator::addMissingColumns($src, $dst, $t));
+                    continue;
+                }
+                $why = Migrator::createLike($src, $dst, $t);
+                if ($why !== null) $refused[] = $t . ': ' . $why;
+            }
+        }
+        if ($refused) {
+            throw new RuntimeException('The target would not create ' . count($refused) . ' table(s) — nothing has been copied. ' . implode(' | ', array_slice($refused, 0, 5)));
+        }
         $plan = self::plan($src, $dst);
         if ($plan['blocking'] && !$replace) {
             throw new RuntimeException('The target already holds rows in: ' . implode(', ', $plan['blocking'])

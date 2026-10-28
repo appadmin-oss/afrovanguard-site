@@ -71,7 +71,7 @@ final class DiaryTabs
             updated_at VARCHAR(32) NOT NULL DEFAULT ''
         );
         CREATE INDEX IF NOT EXISTS idx_dtab_entry ON diary_entry_tabs(entry_id, sort);";
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);   /* one statement at a time; on MySQL an index that is already there (no CREATE INDEX IF NOT EXISTS) is not an error */
 
         // The name of tab 0. Stored on the entry because tab 0 IS the entry —
         // see the class note. Defaults to empty, which the reader renders as

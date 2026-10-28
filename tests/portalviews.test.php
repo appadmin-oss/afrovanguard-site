@@ -26,13 +26,13 @@ $today = (string) file_get_contents(AV_ROOT . '/portal/views/today.php');
 $posAttn = strpos($today, 'avpAttnH');
 $posAsk  = strpos($today, 'askTaskH');
 $posKpis = strpos($today, 'class="avp-kpis"');
-$posMony = strpos($today, 'id="moneyRequests"');
+$posMony = strpos($today, 'class="avp-today-ask"');
 $posCols = strpos($today, 'class="avp-cols"');
 ck('today: "Needs your attention" is the first card on the page',
    $posAttn !== false && $posAttn < $posAsk && $posAttn < $posKpis);
 ck('today: the ask-a-task card follows attention, above at-a-glance',
    $posAsk !== false && $posAsk > $posAttn && $posAsk < $posKpis);
-ck('today: asking finance sits below at-a-glance, above the columns',
+ck('today: asking — money or a change to your record — is a link to Requests, below at-a-glance, above the columns',
    $posMony !== false && $posMony > $posKpis && $posMony < $posCols);
 
 /* The online count was on screen three times at once (top bar, KPI, the

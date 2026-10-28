@@ -97,6 +97,17 @@ final class AvSettings
             'ph' => 'the SECRET from the top of the script',
             'help' => 'Exactly the text between the quotes in const SECRET at the top of the script. The script refuses every request without it.',
         ],
+        /* VanQuest's mails come from VanQuest, not from Afrovanguard (lib/VanQuest.php). */
+        'AV_VQ_FROM_NAME' => [
+            'group' => 'Email', 'label' => 'VanQuest sender name', 'secret' => false, 'type' => 'text',
+            'ph' => 'VanQuest',
+            'help' => 'The name VanQuest’s mails (confirm your seat, the onboarding mail) come from. Blank: VanQuest. Works on every sending road.',
+        ],
+        'AV_VQ_FROM_EMAIL' => [
+            'group' => 'Email', 'label' => 'VanQuest sender address', 'secret' => false, 'type' => 'email',
+            'ph' => 'vanquest@afrovanguard.org.ng',
+            'help' => 'The address VanQuest’s mails come from, and where replies go. Over SMTP it must be the SMTP account or an alias it may send as (Gmail: Settings → Accounts → Send mail as). Google Apps Script can only send from the account that runs it, so there replies go here and the From stays that account. Blank: the site’s own address.',
+        ],
 
         /* ── Google: sign-in and Workspace ─────────────────────────────────
            These lived only in config.php or SetEnv, on a host with no shell —
@@ -115,7 +126,12 @@ final class AvSettings
         'AV_GWS_CONNECT_ON_SIGNIN' => [
             'group' => 'Google sign-in & Workspace', 'label' => 'Ask for Workspace access at sign-in', 'secret' => false, 'type' => 'enum',
             'options' => ['org', 'all', '0'],
-            'help' => 'org (default): only someone signing in with an organisation address is also asked for Gmail, Calendar, Drive and Chat access. all: everybody is — a personal Gmail account then sees an “unverified app” warning unless Google has verified the app. 0: never; members connect from /workspace instead.',
+            'help' => 'org (default): only someone signing in with an organisation address is also asked for Gmail, Calendar, Drive and Chat access. all: everybody is — a personal Gmail account then sees an “unverified app” warning unless Google has verified the app. 0: never; members connect from the portal instead (Today, or the Google account in the side bar).',
+        ],
+        'AV_GWS_MEMBER_ACCESS' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Members’ own Google', 'secret' => false, 'type' => 'enum',
+            'options' => ['delegated', 'oauth'],
+            'help' => 'delegated (default): with the service account below, the site reads each organisation member’s own inbox, calendar, Drive and Chat by acting as them — nobody connects anything and nothing expires. Needs the member scopes in domain-wide delegation (the test lists them). oauth: each member connects their own account, as before.',
         ],
         'AV_GDRIVE_SERVICE_ACCOUNT' => [
             'group' => 'Google sign-in & Workspace', 'label' => 'Service account key (JSON)', 'secret' => true, 'type' => 'json',
@@ -153,6 +169,11 @@ final class AvSettings
             'ph' => 'meetings@afrovanguard.org.ng',
             'help' => 'A licensed Workspace mailbox that owns every meeting the site makes (its calendar holds the events, its Drive the recordings). Recording, transcripts and notes are switched on as this mailbox, and attendance and transcripts read back as it. Blank uses the shared calendar, then the admin above. Needs Business Standard or higher for recording and transcripts.',
         ],
+        'AV_MEET_HOST' => [
+            'group' => 'Google Meet', 'label' => 'Whose calendar a meeting goes on', 'secret' => false, 'type' => 'enum',
+            'options' => ['organiser', 'shared'],
+            'help' => 'organiser: the person scheduling (an organisation member) — the event is theirs, the invite comes from them and they own the Meet, so they can record, admit guests and end it for everyone. shared: the organiser mailbox / shared calendar above owns every meeting. Blank: organiser, unless a meeting organiser mailbox is set.',
+        ],
         'AV_MEET_ARTIFACTS' => [
             'group' => 'Google Meet', 'label' => 'What Google captures', 'secret' => false, 'type' => 'enum',
             'options' => ['all', 'transcript', 'off'],
@@ -185,6 +206,17 @@ final class AvSettings
             'group' => 'CACENTRE gate', 'label' => 'Gate address', 'secret' => false, 'type' => 'url',
             'ph' => 'https://cacentre.afrovanguard.org.ng',
             'help' => 'Where the gate runs. Used to withdraw a member’s pass when they are suspended. Nothing after the hostname.',
+        ],
+        /* ── CACENTRE finance (CFIS) ───────────────────────────────────── */
+        'CFIS_SECRET' => [
+            'group' => 'CACENTRE finance (CFIS)', 'label' => 'Property key', 'secret' => true, 'type' => 'text',
+            'ph' => 'the CFIS_SECRET cfis:connect printed',
+            'help' => 'Finance requests and the CFIS checkout are on as soon as this is set. CACENTRE’s finance team mints it with `php artisan cfis:connect avg` and hands it over privately. Minting a new one stops the old one working.',
+        ],
+        'CFIS_URL' => [
+            'group' => 'CACENTRE finance (CFIS)', 'label' => 'Finance address', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://cacentre.afrovanguard.org.ng/finance',
+            'help' => 'Where CFIS runs. Blank uses https://cacentre.afrovanguard.org.ng/finance.',
         ],
         /* ── NextGen Genius ─────────────────────────────────────────────── */
         'NGG_WEBHOOK_SECRET' => [
@@ -494,6 +526,25 @@ final class AvSettings
     }
 
     /**
+     * Whether a row for this setting exists at all, and who wrote it when —
+     * never the value. "Not set up" covers both "never saved" and "saved and
+     * since lost"; this is what tells them apart without a database console.
+     *
+     * @return array{by:string,at:string}|null
+     */
+    public static function storedRow(string $key): ?array
+    {
+        try {
+            self::ensure();
+            $q = Database::pdo()->prepare('SELECT updated_by, updated_at FROM av_settings WHERE setting_key = ?');
+            $q->execute([$key]);
+            $r = $q->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) { return null; }
+
+        return $r ? ['by' => (string) $r['updated_by'], 'at' => (string) $r['updated_at']] : null;
+    }
+
+    /**
      * Why a stored setting cannot be read, in words an operator can act on,
      * or '' when the store itself is fine (the value may simply be unset —
      * that is the caller's own business to describe).
@@ -712,7 +763,13 @@ final class AvSettings
             $val = trim((string) $raw);
 
             // Unchanged masked secret — nothing to do.
-            if (!empty($d['secret']) && ($val === self::MASK || strpos($val, '…') !== false)) continue;
+            if (!empty($d['secret']) && $val === self::MASK) continue;
+            /* The masked preview copied by hand. Skipping it quietly reported
+               the save as fine while nothing was stored; say what happened. */
+            if (!empty($d['secret']) && strpos($val, '…') !== false) {
+                $errors[$key] = 'That is the masked preview, not the value — paste the real one (it never contains “…”).';
+                continue;
+            }
 
             if ($val === '') {
                 try {
@@ -745,6 +802,22 @@ final class AvSettings
                 $db->prepare('DELETE FROM av_settings WHERE setting_key = ?')->execute([$key]);
                 $db->prepare('INSERT INTO av_settings (setting_key, value, is_secret, updated_by, updated_at) VALUES (?,?,?,?,?)')
                    ->execute([$key, $store, $isSecret, mb_substr($actor, 0, 191), gmdate('c')]);
+                /* Read it back before calling it saved. A secret that went in
+                   and will not come out is the state every screen then reports
+                   as "not set up" — catch it here, while the operator is still
+                   looking at the field. */
+                if ($isSecret) {
+                    $back = $db->prepare('SELECT value FROM av_settings WHERE setting_key = ?');
+                    $back->execute([$key]);
+                    $got = $back->fetchColumn();
+                    if ($got === false || self::dec((string) $got) !== $val) {
+                        $errors[$key] = $got === false
+                            ? 'The database accepted the value but does not have it — nothing is stored. Check System → health → Database.'
+                            : 'Stored, but it does not read back as what was pasted (the stored copy was cut short or cannot be decrypted). Nothing usable is stored; check System → health.';
+                        $db->prepare('DELETE FROM av_settings WHERE setting_key = ?')->execute([$key]);
+                        continue;
+                    }
+                }
                 $saved++;
             } catch (Throwable $e) {
                 error_log('[settings] save: ' . $e->getMessage());
@@ -968,7 +1041,12 @@ final class AvSettings
             ['key' => 'search',    'label' => 'Web search', 'ready' => class_exists('AvWeb') && AvWeb::searchProvider() !== ''],
             ['key' => 'apps_script', 'label' => 'Apps Script mail', 'ready' => class_exists('AppsScriptMail') && AppsScriptMail::configured()],
             ['key' => 'google_signin', 'label' => 'Google sign-in', 'ready' => class_exists('GoogleAuth') && GoogleAuth::configured()],
-            ['key' => 'google_workspace', 'label' => 'Google Workspace', 'ready' => class_exists('GoogleWorkspace') && GoogleWorkspace::configured()],
+            ['key' => 'google_workspace', 'label' => 'Google Workspace', 'ready' => class_exists('GoogleWorkspace') && GoogleWorkspace::configured(),
+             /* Why it is not ready, said beside the button. A key set in
+                config.php that this site cannot read (defined twice, left on
+                the empty template line, under another name) made the button
+                disabled and the press silent — "testing does nothing". */
+             'why' => class_exists('GoogleWorkspace') && !GoogleWorkspace::configured() ? GoogleWorkspace::whyNotConfigured() : ''],
         ];
     }
 
@@ -1090,17 +1168,35 @@ final class AvSettings
         if (!GoogleWorkspace::configured()) return ['ok' => false, 'detail' => GoogleWorkspace::whyNotConfigured()];
         $p = GoogleWorkspace::probe();
         if (empty($p['token_ok'])) {
-            return ['ok' => false, 'detail' => 'Google refused the service account: ' . (string) ($p['error'] ?? 'no reason given')
-                . (($p['subject'] ?? '') !== '' ? '. If this says unauthorized_client, domain-wide delegation has not been granted to client ID '
-                    . (string) ($p['client_id'] ?? '') . ' for these scopes in the Google Admin console.' : '')];
+            /* The cause, by name. "Google refused" was said for every failure —
+               including a key this server could not sign with, a server that
+               could not reach Google, and a clock Google would not accept —
+               and each of those is fixed somewhere different. */
+            $err = (string) ($p['error'] ?? '');
+            $who = 'Service account ' . (string) ($p['service_account'] ?? '?') . ' (client ID ' . (string) ($p['client_id'] ?? '?') . ')'
+                . ((string) ($p['subject'] ?? '') !== '' ? ', acting for ' . $p['subject'] : ', acting for nobody — set “Admin to act as”');
+            $clock = isset($p['clock_skew']) && $p['clock_skew'] !== null && abs((int) $p['clock_skew']) > 120
+                ? ' This server’s clock is ' . abs((int) $p['clock_skew']) . ' seconds ' . ((int) $p['clock_skew'] > 0 ? 'ahead of' : 'behind') . ' Google’s.' : '';
+            if (str_contains($err, 'unauthorized_client')) {
+                $fix = 'In the Google Admin console → Security → API controls → Domain-wide delegation, add client ID ' . (string) ($p['client_id'] ?? '')
+                    . ' with exactly these scopes: ' . GoogleWorkspace::delegationLine() . '. It can take a while to take effect.';
+            } else {
+                $fix = GoogleWorkspace::explain($err !== '' ? $err : 'no reason given');
+            }
+            return ['ok' => false, 'detail' => $who . ' — ' . ($err !== '' ? $err : 'no reason given') . '. ' . $fix . $clock];
         }
         $bits = ['signed in as ' . (string) $p['service_account'] . ((string) ($p['subject'] ?? '') !== '' ? ' acting for ' . $p['subject'] : '')];
-        foreach (['calendar_read' => 'calendar', 'drive' => 'Drive folder', 'directory' => 'directory', 'groups' => 'groups'] as $k => $label) {
-            if (($p[$k] ?? null) === null) continue;
+        foreach (['calendar_read' => 'calendar', 'drive' => 'Drive folder', 'directory' => 'directory', 'groups' => 'groups',
+                  'schedule' => 'scheduling a meeting with a Meet link' . ((string) ($p['schedule_as'] ?? '') !== '' ? ' (as ' . $p['schedule_as'] . ')' : ''),
+                  'meet_api' => 'Meet API (attendance, transcripts)', 'chat_api' => 'Google Chat API'] as $k => $label) {
             $e = (string) ($p[$k === 'calendar_read' ? 'calendar_error' : $k . '_error'] ?? '');
+            if ($k === 'drive' && (string) ($p['drive_folder'] ?? '') === '') { $bits[] = 'Drive folder not set (optional — documents stay on this site)'; continue; }
+            if (($p[$k] ?? null) === null && $e === '') continue;
             $bits[] = $label . ($e !== '' ? ' ✗ ' . $e : ' ✓');
         }
-        $bad = array_filter(['calendar_error', 'drive_error', 'directory_error', 'groups_error'], static fn($k) => (string) ($p[$k] ?? '') !== '');
+        if (!empty($p['member_access'])) $bits[] = 'members’ own mail, calendar, Drive and Chat are read through this account — nobody needs to connect';
+        /* Chat is reported, not failed on: a site can run without it. */
+        $bad = array_filter(['calendar_error', 'drive_error', 'directory_error', 'groups_error', 'schedule_error', 'meet_api_error'], static fn($k) => (string) ($p[$k] ?? '') !== '');
         /* Every scope the features use, not only the four read above: a scope left out of
            domain-wide delegation fails only when its feature runs, so this used to say ✓
            while scheduling and Meet were refused. */

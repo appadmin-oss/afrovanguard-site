@@ -73,7 +73,7 @@ ck('wsprobe: and none of them is reported as refused',
 $r = AvSettings::test('google_workspace');
 ck('wsprobe: an incomplete test is not reported as a pass', $r['ok'] === false);
 ck('wsprobe: and says it ran out of time rather than blaming delegation',
-   str_contains((string) $r['detail'], 'ran out of time') || str_contains((string) $r['detail'], 'refused the service account'));
+   str_contains((string) $r['detail'], 'ran out of time') || str_contains((string) $r['detail'], 'no response from Google'));
 
 /* The budget is derived from what the host allows, not hard-coded. */
 ck('wsprobe: the budget leaves the request room to answer',

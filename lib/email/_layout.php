@@ -38,12 +38,12 @@ function av_email_render(string $template, array $v): array
     require __DIR__ . "/templates/{$template}.php";
     $body = ob_get_clean();
     ob_start();
-    require __DIR__ . ($frame === 'card' ? '/_frame_card.php' : '/_frame.php');
+    require __DIR__ . (['card' => '/_frame_card.php', 'vq' => '/_frame_vq.php'][$frame] ?? '/_frame.php');
     $html = ob_get_clean();
-    return ['subject' => $subject, 'html' => $html, 'text' => av_email_text($subject, $body)];
+    return ['subject' => $subject, 'html' => $html, 'text' => av_email_text($subject, $body, $frame === 'vq' ? 'VanQuest' : 'Afrovanguard')];
 }
 
-function av_email_text(string $subject, string $html): string
+function av_email_text(string $subject, string $html, string $signed = 'Afrovanguard'): string
 {
     $html = preg_replace('/<!--.*?-->/s', '', $html);
     $html = preg_replace('/<\?php.*?\?>/s', '', $html);
@@ -52,7 +52,7 @@ function av_email_text(string $subject, string $html): string
     $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $text = preg_replace("/[ \t]+/", ' ', $text);
     $text = preg_replace("/\n\s*\n+/", "\n\n", $text);
-    return trim($subject . "\n\n" . trim($text)) . "\n\n— Afrovanguard\n";
+    return trim($subject . "\n\n" . trim($text)) . "\n\n— " . $signed . "\n";
 }
 
 function av_send_email(\PHPMailer\PHPMailer\PHPMailer $mail, string $to, string $template, array $v): bool

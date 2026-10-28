@@ -57,6 +57,26 @@ final class CfisRequests
     /** What a member may be asked for, in naira, before finance would rather talk. */
     private const MIN_NGN = 100;
 
+    /**
+     * ON BY DEFAULT. Asking used to need CFIS connected first, so on a site
+     * without the key every member read "not switched on" and could not ask
+     * at all. Now a member can always ask: when finance is not connected, or
+     * cannot be reached, the request is KEPT here under its own reference,
+     * the office is told by email, and it is sent by itself (sendPending,
+     * from the cron) the moment finance can take it. The reference never
+     * changes, so a request that did arrive is never a second one.
+     *
+     * The kinds of spending are finance's. With finance not answering, the
+     * form offers CFIS's own default headings (its config/cfis.php
+     * member_requests.categories), and CFIS still decides on arrival: a
+     * heading it no longer takes comes back refused, with its reason, on the
+     * member's request.
+     */
+    public const DEFAULT_CATEGORIES = ['transport', 'materials', 'equipment', 'venue', 'internet', 'facilitation'];
+
+    /** Kept requests older than this are no longer sent by themselves; the member sends them again. */
+    private const PENDING_DAYS = 60;
+
     public static function configured(): bool
     {
         return CfisCheckout::configured();
@@ -86,6 +106,13 @@ final class CfisRequests
         );
         CREATE UNIQUE INDEX IF NOT EXISTS idx_cfisreq_ref ON cfis_member_requests (ref);
         CREATE INDEX IF NOT EXISTS idx_cfisreq_user ON cfis_member_requests (user_id, id)");
+        /* Where to pay them, kept with a request that waits, so it goes
+           with it when it is sent later. */
+        foreach (['bank' => 'TEXT', 'asker_name' => "VARCHAR(160) NOT NULL DEFAULT ''", 'asker_email' => "VARCHAR(191) NOT NULL DEFAULT ''"] as $col => $decl) {
+            try {
+                if (!Database::columnExists('cfis_member_requests', $col)) Database::pdo()->exec("ALTER TABLE cfis_member_requests ADD COLUMN $col $decl");
+            } catch (Throwable $e) {}
+        }
     }
 
     /* ── asking ─────────────────────────────────────────────────────── */
@@ -97,10 +124,6 @@ final class CfisRequests
     public static function submit(int $userId, array $in, string $name, string $email): array
     {
         self::table();
-
-        if (!self::configured()) {
-            return ['ok' => false, 'error' => 'Requests to finance are not switched on yet.'];
-        }
 
         $title    = trim((string) ($in['title'] ?? ''));
         $purpose  = trim((string) ($in['purpose'] ?? ''));
@@ -135,11 +158,21 @@ final class CfisRequests
 
         $pdo = Database::pdo();
         $st = $pdo->prepare("INSERT INTO cfis_member_requests
-            (user_id, ref, title, purpose, category, amount_minor, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'unsent', ?, ?)");
-        $st->execute([$userId, $ref, mb_substr($title, 0, 160), $purpose, $category, $minor, $now, $now]);
+            (user_id, ref, title, purpose, category, amount_minor, status, created_at, updated_at, bank, asker_name, asker_email)
+            VALUES (?, ?, ?, ?, ?, ?, 'unsent', ?, ?, ?, ?, ?)");
+        $st->execute([$userId, $ref, mb_substr($title, 0, 160), $purpose, $category, $minor, $now, $now, (string) json_encode($bank),
+                      mb_substr($name, 0, 160), mb_substr(strtolower($email), 0, 191)]);
+        $id = (int) $pdo->lastInsertId();
 
-        return self::send((int) $pdo->lastInsertId(), $ref, [
+        if (!self::configured()) {
+            $pdo->prepare("UPDATE cfis_member_requests SET last_error = ? WHERE id = ?")
+                ->execute(['Kept here: it goes to finance as soon as finance is connected.', $id]);
+            self::tellOffice($ref, $name, $email, $title, $purpose, $category, $amount);
+            return ['ok' => true, 'queued' => true, 'ref' => $ref,
+                    'message' => 'Asked. Your request is kept under ' . $ref . ' and goes to finance by itself as soon as finance is connected. The office has been told.'];
+        }
+
+        $r = self::send($id, $ref, [
             'ref'      => $ref,
             'email'    => $email,
             'name'     => $name,
@@ -149,6 +182,78 @@ final class CfisRequests
             'currency' => 'NGN',
             'category' => $category,
         ] + $bank);
+        /* Finance not answering is not the member's problem to solve: the
+           request is kept and goes when it can. A refusal FROM finance (a
+           heading not on offer, over the ceiling) is still said as such. */
+        if (empty($r['ok']) && !empty($r['unreachable'])) {
+            self::tellOffice($ref, $name, $email, $title, $purpose, $category, $amount);
+            return ['ok' => true, 'queued' => true, 'ref' => $ref,
+                    'message' => 'Asked. Finance could not be reached just now, so your request is kept under ' . $ref . ' and goes by itself as soon as it can.'];
+        }
+        return $r;
+    }
+
+    /**
+     * Send the requests that are waiting: never reached finance, made in the
+     * last PENDING_DAYS. For the cron. Stops at the first sign finance is
+     * still not answering, rather than timing out once per request.
+     *
+     * @return array{sent:int, refused:int, waiting:int}
+     */
+    public static function sendPending(int $limit = 20): array
+    {
+        self::table();
+        $out = ['sent' => 0, 'refused' => 0, 'waiting' => 0];
+        if (!self::configured()) return $out;
+        /* Who asked, as they were when they asked; their account now, for a
+           request kept from before these were written down. */
+        $st = Database::pdo()->prepare("SELECT r.*, COALESCE(NULLIF(r.asker_email, ''), u.email, '') AS email, COALESCE(NULLIF(r.asker_name, ''), u.name, '') AS name
+            FROM cfis_member_requests r LEFT JOIN lms_users u ON u.id = r.user_id
+            WHERE r.cfis_reference = '' AND r.status = 'unsent' AND r.created_at >= ? ORDER BY r.id LIMIT " . max(1, min(100, $limit)));
+        $st->execute([gmdate('c', time() - self::PENDING_DAYS * 86400)]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            if (!filter_var((string) $row['email'], FILTER_VALIDATE_EMAIL)) continue;   // nobody for finance to answer
+            $r = self::send((int) $row['id'], (string) $row['ref'], self::claimsOf($row, (string) $row['name'], (string) $row['email']));
+            if (!empty($r['ok'])) { $out['sent']++; continue; }
+            if (!empty($r['unreachable'])) { $out['waiting']++; break; }
+            $out['refused']++;
+        }
+        return $out;
+    }
+
+    /** What CFIS is sent for a stored request. */
+    private static function claimsOf(array $row, string $name, string $email): array
+    {
+        $bank = json_decode((string) ($row['bank'] ?? ''), true);
+        return [
+            'ref' => (string) $row['ref'], 'email' => $email, 'name' => $name,
+            'title' => (string) $row['title'], 'purpose' => (string) $row['purpose'],
+            'amount' => number_format(((int) $row['amount_minor']) / 100, 2, '.', ''),
+            'currency' => 'NGN', 'category' => (string) $row['category'],
+        ] + (is_array($bank) ? $bank : []);
+    }
+
+    /**
+     * Somebody at the office hears of a request finance has not got yet, so
+     * it is not money asked for into a void. Best effort: the request is
+     * kept whatever the mail does.
+     */
+    private static function tellOffice(string $ref, string $name, string $email, string $title, string $purpose, string $category, float $amount): void
+    {
+        if (!class_exists('Mailer')) return;
+        $to = '';
+        foreach (['AV_FINANCE_EMAIL', 'ADMIN_EMAIL'] as $k) {
+            $v = class_exists('Config') ? (string) Config::get($k, '') : (string) (getenv($k) ?: '');
+            if (filter_var($v, FILTER_VALIDATE_EMAIL)) { $to = $v; break; }
+        }
+        if ($to === '') return;
+        try {
+            Mailer::send($to, 'Finance request waiting: ' . $title, Mailer::shell('A finance request is waiting', [
+                'Reference' => $ref, 'From' => $name . ' <' . $email . '>', 'For' => $title,
+                'Why' => $purpose, 'Kind' => $category, 'Amount' => '₦' . number_format($amount, 2),
+                'Where it is' => self::configured() ? 'Finance could not be reached; it is sent again by itself.' : 'Finance (CFIS) is not connected yet. It is sent by itself once CFIS_SECRET is set in Studio → Rules & AI → Setup.',
+            ]), ['replyTo' => $email]);
+        } catch (Throwable $e) { error_log('[cfis-requests] tell office: ' . $e->getMessage()); }
     }
 
     /**
@@ -169,7 +274,8 @@ final class CfisRequests
             $pdo->prepare("UPDATE cfis_member_requests SET last_error = ?, updated_at = ? WHERE id = ?")
                 ->execute([mb_substr((string) ($r['error'] ?? 'Finance could not be reached.'), 0, 400), gmdate('c'), $id]);
 
-            return ['ok' => false, 'error' => (string) ($r['error'] ?? 'Finance could not be reached. Your request is saved — try sending it again.'), 'ref' => $ref];
+            return ['ok' => false, 'error' => (string) ($r['error'] ?? 'Finance could not be reached. Your request is saved — try sending it again.'), 'ref' => $ref,
+                    'unreachable' => !empty($r['unreachable'])];
         }
 
         $pdo->prepare("UPDATE cfis_member_requests
@@ -190,12 +296,8 @@ final class CfisRequests
         if (!$row) return ['ok' => false, 'error' => 'No such request.'];
         if (($row['cfis_reference'] ?? '') !== '') return ['ok' => true, 'reference' => $row['cfis_reference']];
 
-        return self::send((int) $row['id'], (string) $row['ref'], [
-            'ref' => (string) $row['ref'], 'email' => $email, 'name' => $name,
-            'title' => (string) $row['title'], 'purpose' => (string) $row['purpose'],
-            'amount' => number_format(((int) $row['amount_minor']) / 100, 2, '.', ''),
-            'currency' => 'NGN', 'category' => (string) $row['category'],
-        ]);
+        if (!self::configured()) return ['ok' => false, 'error' => 'Finance is not connected yet. Your request is kept and goes by itself as soon as it is.'];
+        return self::send((int) $row['id'], (string) $row['ref'], self::claimsOf($row, $name, $email));
     }
 
     /* ── looking ────────────────────────────────────────────────────── */
@@ -253,9 +355,14 @@ final class CfisRequests
             /* Never a local copy. If finance cannot be reached the form
                says so, rather than offering a list that may no longer be
                what CFIS accepts. */
-            'categories' => array_values((array) ($live['categories'] ?? [])),
+            'categories' => $reachable ? array_values((array) ($live['categories'] ?? [])) : self::DEFAULT_CATEGORIES,
             'max' => (string) ($live['max'] ?? ''),
             'finance_reachable' => $reachable,
+            /* Not set up is not "cannot be reached just now": one is a
+               setting an administrator makes once, the other passes. */
+            'finance_configured' => self::configured(),
+            /* Asking is always open: what finance cannot take yet is kept. */
+            'accepting' => true,
         ];
     }
 
@@ -303,7 +410,7 @@ final class CfisRequests
     private static function post(string $path, array $claims): array
     {
         if (!self::configured()) {
-            return ['ok' => false, 'error' => 'Finance is not connected.'];
+            return ['ok' => false, 'error' => 'Finance is not connected.', 'unreachable' => true];
         }
 
         $token = CfisCheckout::mint($claims);
@@ -324,12 +431,12 @@ final class CfisRequests
         curl_close($ch);
 
         if ($body === false || $code === 0) {
-            return ['ok' => false, 'error' => 'Finance could not be reached' . ($err !== '' ? ' (' . $err . ')' : '') . '.'];
+            return ['ok' => false, 'error' => 'Finance could not be reached' . ($err !== '' ? ' (' . $err . ')' : '') . '.', 'unreachable' => true];
         }
 
         $json = json_decode((string) $body, true);
         if (!is_array($json)) {
-            return ['ok' => false, 'error' => 'Finance answered with something unreadable.'];
+            return ['ok' => false, 'error' => 'Finance answered with something unreadable.', 'unreachable' => $code >= 500 || $code === 404];
         }
 
         /* A refusal from CFIS is a sentence written for the member — the

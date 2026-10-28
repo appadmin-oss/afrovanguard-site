@@ -199,14 +199,14 @@ final class MeetingLive
     }
 
     /**
-     * Who to read Meet records as: the organiser (who owns every space the
-     * site makes), then the meeting's creator for one made before.
+     * Who to read Meet records as: the host whose calendar the meeting is on
+     * (they own its space), the site's organiser, then the meeting's creator.
      */
     private static function readers(array $m): array
     {
         $st = Database::pdo()->prepare('SELECT email FROM lms_users WHERE id = ?');
         $st->execute([(int) $m['creator_id']]);
-        return array_values(array_unique(array_filter([GoogleWorkspace::organiser(), strtolower((string) ($st->fetchColumn() ?: ''))])));
+        return array_values(array_unique(array_filter([strtolower((string) ($m['google_host'] ?? '')), GoogleWorkspace::organiser(), strtolower((string) ($st->fetchColumn() ?: ''))])));
     }
 
     /** Read who is in the Meet now (and who has left), into the log. */

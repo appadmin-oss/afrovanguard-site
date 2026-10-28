@@ -587,14 +587,17 @@ final class LmsRepository
     {
         // Renewals extend from the LATER of now or the member's current paid-through
         // date, so paying dues early (or twice) never forfeits time already paid for.
-        $cur  = $this->latestMembership($userId);
         /* UTC, as isMember() compares and SQLite's datetime('now') writes. This
            used date() — local time — so on a server set to Lagos every paid
-           membership ended an hour after the date it showed. */
-        $base = $cur && !empty($cur['expires_at']) ? max(time(), (int) strtotime((string) $cur['expires_at'] . ' UTC')) : time();
+           membership ended an hour after the date it showed.
+           And from Membership::nextBase, the one answer to "where do these
+           months begin": a member behind on dues pays the OLDEST month owed
+           first. Extending from today forgave every month between their
+           lapse and the day they paid. */
+        $base = Membership::nextBase($userId);
         $exp = gmdate('Y-m-d H:i:s', (int) strtotime("+$months months", $base));
         $this->db->prepare("INSERT INTO memberships (user_id, tier, status, started_at, expires_at) VALUES (?, 'member', 'active', ?, ?)")
-            ->execute([$userId, gmdate('Y-m-d H:i:s'), $exp]);
+            ->execute([$userId, gmdate('Y-m-d H:i:s', min($base, time())), $exp]);
     }
 
     /** Extend a member's membership by N months, found by email (recurring dues). */
@@ -630,8 +633,8 @@ final class LmsRepository
      */
     public function duesStatus(int $userId): array
     {
-        $annualNgn  = defined('AV_DUES_ANNUAL_NGN')  ? (int) AV_DUES_ANNUAL_NGN  : 12000;
-        $monthlyNgn = defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000;
+        $annualNgn  = Membership::annual();
+        $monthlyNgn = Membership::monthly();
         $amountNgn = $annualNgn;
         $m = $this->latestMembership($userId);
         $paidThrough = $m['expires_at'] ?? null;
@@ -680,6 +683,9 @@ final class LmsRepository
             'last_paid_at'  => $lastPaid ? gmdate('c', (int) strtotime((string) $lastPaid)) : null,
             'total_paid_ngn' => $totalPaidNgn,   // cumulative dues contributed
             'payments_count' => (int) $totRow['n'],
+            /* What they are behind by, and why they owe at all — the same
+               figure the office sees (Membership::arrears). */
+            'arrears'       => Membership::arrears($userId),
             /* Can money be taken AT ALL — by us or on our behalf — not "do
                we hold keys". The narrow question hid the Pay button on a
                site whose dues CACENTRE can collect perfectly well. */

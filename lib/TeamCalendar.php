@@ -187,25 +187,17 @@ final class TeamCalendar
             foreach (self::nativeRange($uid, $from, $to) as $it) $items[] = $it;
         }
 
-        // 2) AFG published events.
+        // 2) Events: Afrovanguard's own (those this member may see) and Africa
+        //    GATES', in Lagos time (lib/SiteEvents.php). They used to be AFG's
+        //    only, from a feed that did not exist, and shown in UTC.
         try {
-            if (class_exists('AvEvents')) {
-                foreach (AvEvents::latest(12) as $e) {
-                    $iso = (string) ($e['iso'] ?? '');
-                    $ts  = $iso ? strtotime($iso) : 0;
-                    if (!$ts) continue;
-                    $d = gmdate('Y-m-d', $ts);
-                    if (!$inRange($d)) continue;
-                    $items[] = [
-                        'kind' => 'afg', 'id' => 0, 'title' => (string) $e['title'],
-                        'date' => $d, 'time' => gmdate('H:i', $ts) === '00:00' ? '' : gmdate('H:i', $ts), 'end' => '',
-                        'all_day' => gmdate('H:i', $ts) === '00:00',
-                        'location' => (string) ($e['location'] ?? ''), 'note' => (string) ($e['excerpt'] ?? ''),
-                        'url' => (string) ($e['url'] ?? ''), 'who' => 'Afrovanguard', 'mine' => false, 'can_delete' => false,
-                    ];
-                }
+            if (class_exists('SiteEvents')) {
+                /* The audiences follow the account: members see members' events, the team the team's. */
+                $who = ['id' => $uid, 'email' => '', 'role' => $isOrg ? 'coordinator' : 'member'];
+                try { $st = Database::pdo()->prepare('SELECT * FROM lms_users WHERE id = ?'); $st->execute([$uid]); $who = $st->fetch(PDO::FETCH_ASSOC) ?: $who; } catch (Throwable $e) {}
+                foreach (SiteEvents::calendarItems($uid > 0 ? $who : null, $from, $to) as $it) $items[] = $it;
             }
-        } catch (Throwable $e) { error_log('[calendar] afg: ' . $e->getMessage()); }
+        } catch (Throwable $e) { error_log('[calendar] events: ' . $e->getMessage()); }
 
         // 3) Mentorship sessions for this user.
         try {

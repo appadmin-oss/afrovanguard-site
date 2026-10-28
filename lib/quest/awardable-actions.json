@@ -1,0 +1,143 @@
+{
+    "$schema": "schema/awardable-actions.schema.json",
+    "source": [
+        "doctrine/sources/2026-10-22-pyramid-manual.md — Section 2, Awardable actions and their points (both documents, identical)",
+        "doctrine/sources/2026-10-22-pyramid-manual.md — weekly points table: 'Mentee growth verified' only",
+        "The owner's answers, 22 October 2026: Section 2 is the catalogue; attendance counts"
+    ],
+    "note": "The priced catalogue. A mentor picks an action; the points are the catalogue's, not the mentor's. Every action can be switched off or re-priced in the Quest desk (QuestRules in afrovanguard-site), which records who changed what; this file is the manual's price.",
+    "currency": "points",
+    "max_per_award": 100,
+    "groups": [
+        {
+            "id": "excellence",
+            "label": "Excellence & Diligence"
+        },
+        {
+            "id": "leadership",
+            "label": "Leadership & Communal Spirit"
+        },
+        {
+            "id": "growth",
+            "label": "Growth & Self-Development"
+        },
+        {
+            "id": "innovation",
+            "label": "Innovation & Responsibility"
+        },
+        {
+            "id": "reproduction",
+            "label": "Reproduction"
+        }
+    ],
+    "actions": [
+        {
+            "id": "punctuality",
+            "group": "excellence",
+            "label": "Consistent early resumption and punctuality",
+            "points": 30,
+            "cadence": "weekly",
+            "note": "Reviewed weekly."
+        },
+        {
+            "id": "exceeded_target",
+            "group": "excellence",
+            "label": "Exceeding project target or performance goals",
+            "points": 100
+        },
+        {
+            "id": "exceptional_execution",
+            "group": "excellence",
+            "label": "Exceptional execution of assigned tasks",
+            "points": 50
+        },
+        {
+            "id": "early_completion",
+            "group": "excellence",
+            "label": "Completing assignments before deadline",
+            "points": 25
+        },
+        {
+            "id": "extra_responsibility",
+            "group": "leadership",
+            "label": "Volunteering for additional responsibilities",
+            "points": 40
+        },
+        {
+            "id": "conflict_resolved",
+            "group": "leadership",
+            "label": "Resolving team conflicts peacefully",
+            "points": 50
+        },
+        {
+            "id": "mentoring_assist",
+            "group": "leadership",
+            "label": "Mentoring or assisting a fellow member",
+            "points": 30
+        },
+        {
+            "id": "team_harmony",
+            "group": "leadership",
+            "label": "Promoting harmony and team cohesion",
+            "points": 20
+        },
+        {
+            "id": "books_courses",
+            "group": "growth",
+            "label": "Completing 2 books and 2 online courses monthly",
+            "points": 50,
+            "cadence": "monthly"
+        },
+        {
+            "id": "optional_training",
+            "group": "growth",
+            "label": "Attending optional workshops or trainings",
+            "points": 30
+        },
+        {
+            "id": "progress_savings_report",
+            "group": "growth",
+            "label": "Submitting monthly progress and savings report",
+            "points": 20,
+            "cadence": "monthly"
+        },
+        {
+            "id": "significant_growth",
+            "group": "growth",
+            "label": "Showing significant personal or professional growth",
+            "points": 40
+        },
+        {
+            "id": "operations_idea",
+            "group": "innovation",
+            "label": "Introducing an idea that improves operations",
+            "points": 50
+        },
+        {
+            "id": "cost_time_saving",
+            "group": "innovation",
+            "label": "Saving organization's cost or time through innovation",
+            "points": 60
+        },
+        {
+            "id": "accountability_transparency",
+            "group": "innovation",
+            "label": "Demonstrating high accountability and transparency",
+            "points": 40
+        },
+        {
+            "id": "clean_quarter",
+            "group": "innovation",
+            "label": "Consistent discipline for 3 months without fine",
+            "points": 80,
+            "cadence": "quarterly"
+        },
+        {
+            "id": "mentee_rises",
+            "group": "reproduction",
+            "label": "Mentee growth verified (mentee crosses next level)",
+            "points": 50,
+            "note": "From the weekly points table. Granted to the mentor when a mentee's promotion is confirmed, once per mentee per level."
+        }
+    ]
+}

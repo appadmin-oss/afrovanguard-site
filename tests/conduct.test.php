@@ -5,16 +5,17 @@
  * The promises: a mentor proposes only for their OWN active mentee; nothing
  * is owed or granted until the compliance committee or a superadmin approves;
  * nobody decides a case they proposed or one about themselves; a fine needs
- * an NGV account and lands on it through NgvFines; an award's points are
+ * an NGV account and lands on it through NgvFines; an award's QUEST points are
  * granted once; rejecting needs a reason.
  */
 declare(strict_types=1);
 $db = Database::pdo();
 $nf = NgvDb::pdo();
-Conduct::ensure(); MentorPortal::ensure(); GateAttendance::ensure();
+Conduct::ensure(); MentorPortal::ensure(); GateAttendance::ensure(); QuestPoints::ensure();
 foreach (['conduct_cases', 'compliance_members', 'mentorships'] as $t) { try { $db->exec('DELETE FROM ' . $t); } catch (Throwable $e) {} }
 $db->exec('DELETE FROM lms_users WHERE id BETWEEN 9300 AND 9399');
 $db->exec("DELETE FROM gate_points WHERE member_id BETWEEN 9300 AND 9399");
+$db->exec("DELETE FROM quest_points WHERE member_id BETWEEN 9300 AND 9399");
 foreach (['ngv_charges', 'ngv_fine_meta'] as $t) { try { $nf->exec("DELETE FROM $t WHERE " . ($t === 'ngv_charges' ? 'member_id' : 'charge_id') . ' > 0'); } catch (Throwable $e) {} }
 $nf->exec('DELETE FROM ngv_participants WHERE member_id BETWEEN 9300 AND 9399');
 
@@ -27,6 +28,8 @@ $db->prepare("INSERT INTO mentorships (id, mentor_id, mentee_id, status, created
 $db->prepare("INSERT INTO mentorships (id, mentor_id, mentee_id, status, created_at, updated_at) VALUES (93002, 9301, 9303, 'active', ?, ?)")->execute([$now, $now]);
 $db->prepare("INSERT INTO mentorships (id, mentor_id, mentee_id, status, created_at, updated_at) VALUES (93003, 9306, 9303, 'ended', ?, ?)")->execute([$now, $now]);
 AdminRoles::add('eze.cd@afrovanguard.org.ng', 'superadmin', 'test');
+/* These tests pin the decision itself; the member's notice period is tests/questappeals.test.php's. */
+AvRules::save(['quest.notice_days' => '0'], 'test');
 $U = static fn(int $id): array => ['id' => $id, 'name' => $people[$id][0], 'email' => $people[$id][1]];
 $today = date('Y-m-d');
 $ev = 'Arrived and shouted at a facilitator in front of the group on Saturday morning.';
@@ -36,7 +39,7 @@ ck('conduct: a mentor cannot propose for somebody else\'s mentee', !Conduct::pro
 ck('conduct: an ended pairing cannot be used', !Conduct::propose(9306, 93003, ['kind' => 'award', 'reason' => 'growth', 'points' => 5, 'occurred_on' => $today, 'evidence' => $ev])['ok']);
 $r = Conduct::propose(9301, 93001, ['kind' => 'fine', 'reason' => 'conduct', 'amount' => '2,000', 'occurred_on' => $today, 'evidence' => 'Was rude.']);
 ck('conduct: evidence of a sentence or two is required', !$r['ok']);
-$r = Conduct::propose(9301, 93001, ['kind' => 'fine', 'reason' => 'conduct', 'amount' => '2,000', 'occurred_on' => date('Y-m-d', strtotime('+1 day')), 'evidence' => $ev]);
+$r = Conduct::propose(9301, 93001, ['kind' => 'fine', 'reason' => 'conduct', 'amount' => '2,000', 'occurred_on' => date('Y-m-d', strtotime(av_today_tz() . ' +1 day')), 'evidence' => $ev]);
 ck('conduct: a future day is refused', !$r['ok']);
 $r = Conduct::propose(9301, 93001, ['kind' => 'fine', 'reason' => 'conduct', 'amount' => '999999', 'occurred_on' => $today, 'evidence' => $ev]);
 ck('conduct: a fine above the cap is refused', !$r['ok']);
@@ -47,9 +50,14 @@ ck('conduct: a mentor proposes a fine for their own NGV mentee', $fine['ok']);
 ck('conduct: the same thing twice on one day is refused', !Conduct::propose(9301, 93001, ['kind' => 'fine', 'reason' => 'conduct', 'amount' => '2000', 'occurred_on' => $today, 'evidence' => $ev])['ok']);
 $owedBefore = (int) $nf->query("SELECT COUNT(*) FROM ngv_charges WHERE member_id = 9302 AND kind = 'fine'")->fetchColumn();
 ck('conduct: proposing posts nothing to the account', $owedBefore === 0);
-$award = Conduct::propose(9301, 93002, ['kind' => 'award', 'reason' => 'leadership', 'title' => 'Led the Saturday clean-up', 'points' => 10, 'occurred_on' => $today,
+$custom = Conduct::propose(9301, 93002, ['kind' => 'award', 'reason' => 'leadership', 'title' => 'Led the Saturday clean-up', 'points' => 10, 'occurred_on' => $today,
+    'evidence' => 'Organised twelve members, brought the tools, and stayed until the street was clear.']);
+ck('conduct: a mentor no longer prices an award — the catalogue does', !$custom['ok'] && str_contains($custom['error'], 'catalogue'));
+$award = Conduct::propose(9301, 93002, ['kind' => 'award', 'action' => 'extra_responsibility', 'title' => 'Led the Saturday clean-up', 'points' => 10, 'occurred_on' => $today,
     'evidence' => 'Organised twelve members, brought the tools, and stayed until the street was clear.']);
 ck('conduct: any mentee can be given an award', $award['ok']);
+ck('conduct: at the catalogue\'s price, whatever the form said', (int) Conduct::find($award['id'])['points'] === 40
+   && Conduct::find($award['id'])['action_id'] === 'extra_responsibility' && Conduct::caseLabel(Conduct::find($award['id'])) === 'Volunteering for additional responsibilities');
 
 /* ── deciding ── */
 ck('conduct: a mentor is not a decider', !Conduct::decide($fine['id'], $U(9301), true, '')['ok']);
@@ -71,15 +79,16 @@ $d2 = Conduct::decide($award['id'], $U(9305), true, '');
 ck('conduct: a superadmin approves an award', $d2['ok']);
 $nt = (string) $db->query("SELECT title FROM user_notifications WHERE user_id = 9301 AND kind = 'conduct' ORDER BY id DESC LIMIT 1")->fetchColumn();
 ck('conduct: the mentor is told whose award was decided', $nt === 'The award you proposed for Mentee Chi was approved');
-$pts = (int) $db->query("SELECT SUM(points) FROM gate_points WHERE member_id = 9303")->fetchColumn();
-ck('conduct: an approved award grants its points', $pts === 10);
-GateAttendance::grant(9303, $today, 'award:' . $award['id'], 10, 'again');
-ck('conduct: an award\'s points are granted once', (int) $db->query("SELECT SUM(points) FROM gate_points WHERE member_id = 9303")->fetchColumn() === 10);
+ck('conduct: an approved award grants its points', QuestPoints::total(9303) === 40);
+ck('conduct: and grants them to the QUEST ledger, not the gate\'s',
+   (int) $db->query("SELECT COALESCE(SUM(points),0) FROM gate_points WHERE member_id = 9303")->fetchColumn() === 0);
+ck('conduct: an award\'s points are granted once',
+   !QuestPoints::grant(9303, 10, 'award:' . $award['id'], 'leadership', 'again') && QuestPoints::total(9303) === 40);
 ck('conduct: the mentee sees their award', count(Conduct::awardsFor(9303)) === 1 && Conduct::awardsFor(9302) === []);
 
 /* Nobody decides what they proposed or what is about them. */
 Conduct::addMember('mentor.cd@x.test', $U(9305));
-$own = Conduct::propose(9301, 93002, ['kind' => 'award', 'reason' => 'growth', 'points' => 3, 'occurred_on' => $today, 'evidence' => 'Kept a reading streak going for six weeks without a gap.']);
+$own = Conduct::propose(9301, 93002, ['kind' => 'award', 'action' => 'significant_growth', 'occurred_on' => $today, 'evidence' => 'Kept a reading streak going for six weeks without a gap.']);
 ck('conduct: a committee member cannot approve their own proposal', !Conduct::decide($own['id'], $U(9301), true, '')['ok']);
 Conduct::addMember('chi.cd@x.test', $U(9305));
 ck('conduct: a committee member cannot decide a case about themselves', !Conduct::decide($own['id'], $U(9303), true, '')['ok']);
@@ -90,7 +99,7 @@ ck('conduct: nobody else can withdraw it', !Conduct::withdraw(9306, $award['id']
 ck('conduct: pairings start as Academy mentorships', Conduct::pairing(9301, 93001)['kind'] === 'academy');
 ck('conduct: the committee marks a Vanguard Quest mentorship', Conduct::setPairingKind(93001, 'vquest', $U(9304))['ok'] && Conduct::pairing(9301, 93001)['kind'] === 'vquest');
 ck('conduct: a mentor cannot mark their own pairing', !Conduct::setPairingKind(93002, 'vquest', $U(9306))['ok']);
-$vq = Conduct::propose(9301, 93001, ['kind' => 'award', 'reason' => 'values', 'points' => 4, 'occurred_on' => $today, 'evidence' => 'Spoke about their family story with pride at the chapter session.']);
+$vq = Conduct::propose(9301, 93001, ['kind' => 'award', 'action' => 'team_harmony', 'occurred_on' => $today, 'evidence' => 'Spoke about their family story with pride at the chapter session.']);
 ck('conduct: a case records which kind of mentor asked', Conduct::find($vq['id'])['mentor_kind'] === 'vquest');
 
 /* The pages and endpoint. */
@@ -103,3 +112,4 @@ ck('conduct css: tokens only', !preg_match('/#[0-9a-fA-F]{3,8}\b/', (string) fil
 
 $db->exec('DELETE FROM conduct_cases'); $db->exec('DELETE FROM compliance_members');
 $db->exec("DELETE FROM admin_users WHERE email = 'eze.cd@afrovanguard.org.ng'");
+AvRules::reset('quest.notice_days', 'test');

@@ -3,9 +3,9 @@
  * academy/ngv/fines.php — NextGen Vanguard fines, for staff.
  *
  * One desk for fines (lib/NgvFines.php): what is owing, every fine with where
- * it stands, issuing a fine to one vanguard or a whole group, the usual amount
+ * it stands, issuing a fine to one member or a whole group, the usual amount
  * for each reason, and importing fines from a spreadsheet — each row assigned
- * to the vanguard it is for, and any row that could be two people shown with
+ * to the member it is for — any Afrovanguard member, NGV or not (NgvFines) — and any row that could be two people shown with
  * the candidates for a person to choose. The import sheet can be corrected
  * right here, row by row, and checked again before anything is charged.
  *
@@ -37,6 +37,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     }
     if ($act === 'waive') json_out(NgvFines::waiveOne((int) ($in['id'] ?? 0), (string) ($in['why'] ?? ''), $by));
     if ($act === 'void') json_out(NgvFines::voidOne((int) ($in['id'] ?? 0), (string) ($in['why'] ?? ''), $by));
+    if ($act === 'pay') json_out(NgvFines::payOne((int) ($in['id'] ?? 0), $in['amount'] ?? '', (string) ($in['method'] ?? ''), (string) ($in['reference'] ?? ''), $by));
     if ($act === 'catalogue') {
         $r = NgvFines::saveCatalogue((array) ($in['amounts'] ?? []));
         if ($r['ok'] && class_exists('AdminAudit')) AdminAudit::log('ngv', 'ngv_fine_catalogue', 'ngv:fines', 'Usual fine amounts changed');
@@ -45,16 +46,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if ($act === 'import') {
         $rows = $in['rows'] ?? null;
         $cols = null; $unknown = [];
+        $readAs = '';
         if (!is_array($rows)) {
-            $p = NgvFines::parseCsv((string) ($in['csv'] ?? ''));
+            /* A workbook, a CSV with or without headings, or a typed list (NgvFines::parseAny). */
+            $p = NgvFines::parseAny((string) ($in['csv'] ?? ''), (string) ($in['xlsx'] ?? ''));
             if (!$p['ok']) json_out($p);
-            $rows = $p['rows']; $cols = $p['columns']; $unknown = $p['unknown_columns'];
+            $rows = $p['rows']; $cols = $p['columns']; $unknown = $p['unknown_columns']; $readAs = (string) ($p['read_as'] ?? '');
         }
         if (count($rows) > NgvFines::MAX_ROWS) json_out(['ok' => false, 'error' => 'Too many rows in one import.']);
         $rows = array_map(static fn($r) => array_intersect_key(array_merge(array_fill_keys(NgvFines::COLUMNS, ''), array_map('strval', (array) $r)), array_flip(NgvFines::COLUMNS)), array_values($rows));
         $r = NgvFines::import($rows, ['apply' => !empty($in['apply']), 'expect_digest' => (string) ($in['digest'] ?? ''), 'notify' => !empty($in['notify']),
                                       'by' => $by, 'source' => (string) ($in['source'] ?? '')]);
-        json_out($r + ['sheet' => $rows, 'columns' => $cols, 'unknown_columns' => $unknown]);
+        json_out($r + ['sheet' => $rows, 'columns' => $cols, 'unknown_columns' => $unknown, 'read_as' => $readAs]);
     }
     json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
 }
@@ -174,14 +177,14 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
 </header>
 <main class="wrap">
   <section class="stats" aria-label="Fines at a glance">
-    <div class="stat"><div class="k">Outstanding</div><div class="v"><?= $nm((int) $sum['outstanding']) ?></div><div class="s"><?= (int) $sum['owing_members'] ?> vanguard<?= (int) $sum['owing_members'] === 1 ? '' : 's' ?> owing</div></div>
+    <div class="stat"><div class="k">Outstanding</div><div class="v"><?= $nm((int) $sum['outstanding']) ?></div><div class="s"><?= (int) $sum['owing_members'] ?> member<?= (int) $sum['owing_members'] === 1 ? '' : 's' ?> owing</div></div>
     <div class="stat"><div class="k">This month</div><div class="v"><?= $nm((int) $sum['this_month']) ?></div><div class="s"><?= (int) $sum['this_month_n'] ?> fine<?= (int) $sum['this_month_n'] === 1 ? '' : 's' ?> issued</div></div>
     <div class="stat"><div class="k">Settled</div><div class="v"><?= (int) $sum['settled'] ?></div><div class="s">paid in full</div></div>
     <div class="stat"><div class="k">Waived</div><div class="v"><?= (int) $sum['waived'] ?></div><div class="s">set aside, kept on record</div></div>
   </section>
 
   <section class="card" aria-labelledby="h-issue" id="issue">
-    <header><h2 id="h-issue">Issue a fine</h2><span class="sp"></span><span class="sub">to one vanguard, or a whole group at once</span></header>
+    <header><h2 id="h-issue">Issue a fine</h2><span class="sp"></span><span class="sub">to one member, or a whole group at once — NGV or not</span></header>
     <div class="body">
       <div class="row">
         <div class="lbl picker">Who
@@ -208,12 +211,12 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
   <section class="card" aria-labelledby="h-imp" id="import">
     <header><h2 id="h-imp">Import fines</h2><span class="sp"></span><a class="btn sm" id="tpl" href="#" download="ngv-fines.csv">Download a template</a></header>
     <div class="body">
-      <p class="sub" style="margin-top:0">A spreadsheet saved as CSV, one fine a row. Say who with any of <b>NGV ID</b>, <b>Email</b>, <b>Phone</b> or <b>Name</b> — each row is matched to the vanguard it is for, close spellings included. A row that could be two people is never guessed: you choose. <b>Amount</b> blank takes the usual amount; <b>Reason</b> can be plain words (“came in late”, “no ID card”); <b>Date</b> blank is today. Nothing is charged until you have checked the sheet and press Import.</p>
+      <p class="sub" style="margin-top:0">An Excel workbook, a CSV, or a list pasted from anywhere — WhatsApp, a note, an email — one fine a line (“Tunde Bakare – late – 12 Oct – 2k”). Columns are read by their headings, or worked out from what is in them when there are none. Say who with any of <b>NGV ID</b>, <b>Email</b>, <b>Phone</b> or <b>Name</b> — each row is matched to the member it is for — any Afrovanguard member, NGV or not — close spellings included. A row that could be two people is never guessed: you choose. <b>Amount</b> blank takes the usual amount; <b>Reason</b> can be plain words (“came in late”, “no ID card”); <b>Date</b> blank is today. Nothing is charged until you have checked the sheet and press Import. A fine the gate or the desk already gave for the same thing that day is not charged twice; someone fined for the same thing often is pointed out; and when you choose who a row is for, the next sheet that says it the same way is matched for you.</p>
       <div class="row">
-        <label>File <input type="file" id="m_file" accept=".csv,text/csv,text/plain"></label>
-        <label class="check"><input type="checkbox" id="m_notify"> Tell each vanguard (email and portal)</label>
+        <label>File <input type="file" id="m_file" accept=".xlsx,.csv,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+        <label class="check"><input type="checkbox" id="m_notify"> Tell each member (email and portal)</label>
       </div>
-      <details style="margin-top:10px"><summary class="sub" style="cursor:pointer">…or paste it</summary>
+      <details style="margin-top:10px"><summary class="sub" style="cursor:pointer">…or paste it — a sheet or a typed list</summary>
         <textarea id="m_csv" placeholder="Name,NGV ID,Amount,Reason,Date,Note&#10;Adebayo Bello,A-NGV-25-0001,,late,29/09/2026,"></textarea>
       </details>
       <div class="row" style="margin-top:10px"><button class="btn primary" id="m_check" type="button">Check the sheet</button><span class="sub" id="m_out" role="status"></span></div>
@@ -254,7 +257,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
       <div class="scroll" style="margin-top:12px">
       <?php if (!$list): ?><p class="sub"><?= $filtered ? 'No fine matches.' : 'No fines yet.' ?></p><?php else: ?>
       <table>
-        <thead><tr><th>Day</th><th>Vanguard</th><th>Reason</th><th class="num">Amount</th><th class="num">Owing</th><th>Standing</th><th></th></tr></thead>
+        <thead><tr><th>Day</th><th>Member</th><th>Reason</th><th class="num">Amount</th><th class="num">Owing</th><th>Standing</th><th></th></tr></thead>
         <tbody>
         <?php foreach ($shown as $r): $s = (string) $r['status']; $open = in_array($s, ['owing', 'part'], true); ?>
           <tr>
@@ -264,7 +267,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
             <td class="num"><?= $nm((int) $r['amount']) ?></td>
             <td class="num"><?= $open ? $nm((int) $r['owing']) : '—' ?></td>
             <td><span class="pill s-<?= $e($s) ?>"><?= $e($stLabel[$s] ?? $s) ?></span></td>
-            <td style="white-space:nowrap"><?php if ($open): ?><button class="btn sm" data-waive="<?= (int) $r['id'] ?>">Waive</button> <?php endif; ?><?php if ($s !== 'voided'): ?><button class="btn sm" data-void="<?= (int) $r['id'] ?>">Void</button><?php endif; ?></td>
+            <td style="white-space:nowrap"><?php if ($open): ?><button class="btn sm" data-pay="<?= (int) $r['id'] ?>" data-owing="<?= (int) $r['owing'] ?>">Record payment</button> <button class="btn sm" data-waive="<?= (int) $r['id'] ?>">Waive</button> <?php endif; ?><?php if ($s !== 'voided'): ?><button class="btn sm" data-void="<?= (int) $r['id'] ?>">Void</button><?php endif; ?></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
@@ -272,7 +275,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
       <?php if (count($list) > count($shown)): ?><p class="sub">Showing the newest <?= count($shown) ?>. Narrow the filters to see others.</p><?php endif; ?>
       <?php endif; ?>
       </div>
-      <p class="sub" style="margin-bottom:0"><b>Waive</b> sets aside what is left of a fine, with a reason — it stays on record. <b>Void</b> says it should never have been issued. A payment is recorded on the vanguard's account on the <a href="/academy/ngv/members.php">Vanguards</a> page.</p>
+      <p class="sub" style="margin-bottom:0"><b>Waive</b> sets aside what is left of a fine, with a reason — it stays on record. <b>Void</b> says it should never have been issued. <b>Record payment</b> takes money paid at the office or by transfer against a fine — for any member, NGV or not; a vanguard's payments can also be recorded on their account on the <a href="/academy/ngv/members.php">Vanguards</a> page.</p>
     </div>
   </section>
 
@@ -313,7 +316,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
         post({ action: 'people', q: q }).then(function (r) {
           if (mine !== seq) return;
           var list = (r && r.people) || [];
-          box.innerHTML = list.length ? list.map(function (p) { return '<button type="button" data-id="' + p.id + '" data-name="' + esc(p.name) + '">' + esc(p.name) + '<small>' + esc(p.detail) + '</small></button>'; }).join('') : '<div class="sub" style="padding:.5rem .7rem">No vanguard by that.</div>';
+          box.innerHTML = list.length ? list.map(function (p) { return '<button type="button" data-id="' + p.id + '" data-name="' + esc(p.name) + '">' + esc(p.name) + '<small>' + esc(p.detail) + '</small></button>'; }).join('') : '<div class="sub" style="padding:.5rem .7rem">Nobody by that.</div>';
           box.hidden = false;
         });
       }, 180);
@@ -332,7 +335,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
   function drawChips() {
     $('i_chips').innerHTML = chosen.length ? chosen.map(function (p, i) { return '<span class="chip">' + esc(p.name) + '<button type="button" aria-label="Remove ' + esc(p.name) + '" data-rm="' + i + '">×</button></span>'; }).join('') : '<span class="sub">Nobody chosen yet.</span>';
     $('i_go').disabled = !chosen.length;
-    $('i_go').textContent = chosen.length > 1 ? 'Fine ' + chosen.length + ' vanguards' : 'Issue fine';
+    $('i_go').textContent = chosen.length > 1 ? 'Fine ' + chosen.length + ' members' : 'Issue fine';
   }
   $('i_chips').addEventListener('click', function (ev) { var b = ev.target.closest('[data-rm]'); if (b) { chosen.splice(+b.getAttribute('data-rm'), 1); drawChips(); } });
   picker($('i_find'), $('i_found'), function (p) { if (!chosen.some(function (c) { return c.id === p.id; })) chosen.push(p); drawChips(); });
@@ -363,6 +366,22 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
     });
   });
 
+  /* ── A payment against one fine: at the office, by transfer ── */
+  document.querySelectorAll('[data-pay]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var owing = +b.getAttribute('data-owing');
+      var amt = prompt('How much was paid? (₦' + owing.toLocaleString() + ' is owing on this fine.) Like every payment, it comes off this member\'s oldest fine first.', String(owing));
+      if (amt === null) return;
+      var how = prompt('How was it paid? cash, transfer, pos or other', 'cash');
+      if (how === null) return;
+      var ref = prompt('A reference, if there is one (a transfer reference, a receipt book number). Leave it blank if not.', '');
+      if (ref === null) return;
+      post({ action: 'pay', id: +b.getAttribute('data-pay'), amount: amt.replace(/[^\d.]/g, ''), method: how.trim().toLowerCase(), reference: ref }).then(function (r) {
+        if (r.ok) location.reload(); else toast(r.error || 'Not saved.', false);
+      });
+    });
+  });
+
   /* ── Catalogue ── */
   $('c_save').addEventListener('click', function () {
     var a = {}; document.querySelectorAll('[data-cat]').forEach(function (i) { a[i.getAttribute('data-cat')] = i.value.replace(/[^\d.]/g, '') || '0'; });
@@ -371,31 +390,38 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
 
   /* ── Import ── */
   var COLS = [['name', 'Name'], ['id', 'NGV ID'], ['email', 'Email'], ['phone', 'Phone'], ['amount', 'Amount'], ['reason', 'Reason'], ['date', 'Date'], ['note', 'Note']];
-  var sheet = null, report = null, digest = '', dirty = false, source = '', view = 'attention';
+  var sheet = null, report = null, digest = '', dirty = false, source = '', view = 'attention', xlsx = '';
   $('tpl').href = 'data:text/csv;charset=utf-8,' + encodeURIComponent('Name,NGV ID,Email,Phone,Amount,Reason,Date,Note\nAdebayo Bello,A-NGV-25-0001,,,,late,29/09/2026,Came in at 7:40\n');
   $('m_file').addEventListener('change', function () {
     var f = this.files && this.files[0]; if (!f) return;
     source = f.name;
+    /* A workbook goes as it is (base64); the server reads its first sheet. */
+    if (/\.xlsx$/i.test(f.name)) {
+      var rb = new FileReader(); rb.onload = function () { var u8 = new Uint8Array(rb.result), bin = ''; for (var i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); xlsx = btoa(bin); $('m_csv').value = ''; check(true); }; rb.readAsArrayBuffer(f);
+      return;
+    }
+    xlsx = '';
     var rd = new FileReader(); rd.onload = function () { $('m_csv').value = String(rd.result || ''); check(true); }; rd.readAsText(f);
   });
-  $('m_check').addEventListener('click', function () { if (!$('m_file').files.length) source = 'pasted'; check(true); });
+  $('m_check').addEventListener('click', function () { if (!$('m_file').files.length) { source = 'pasted'; xlsx = ''; } check(true); });
   $('m_recheck').addEventListener('click', function () { check(false); });
   function check(fromText) {
     $('m_out').textContent = 'Checking…';
     var body = { action: 'import', notify: $('m_notify').checked, source: source };
-    if (fromText || !sheet) body.csv = $('m_csv').value; else body.rows = sheet;
+    if (fromText || !sheet) { if (xlsx) body.xlsx = xlsx; else body.csv = $('m_csv').value; } else body.rows = sheet;
     post(body).then(function (r) {
       if (!r.ok) { $('m_out').textContent = r.error || 'Could not read it.'; return; }
       sheet = r.sheet; report = r; digest = r.digest; dirty = false;
       var c = r.counts;
       $('m_out').textContent = c.ready + ' ready to charge (' + money(r.total) + ')' + (c.ambiguous ? ' · ' + c.ambiguous + ' to choose' : '') + (c.unmatched ? ' · ' + c.unmatched + ' nobody found' : '')
         + (c.invalid ? ' · ' + c.invalid + ' to fix' : '') + (c.already ? ' · ' + c.already + ' already imported' : '') + (c.duplicate ? ' · ' + c.duplicate + ' repeated' : '')
-        + (r.unknown_columns && r.unknown_columns.length ? ' · ignored columns: ' + r.unknown_columns.join(', ') : '');
+        + (r.unknown_columns && r.unknown_columns.length ? ' · ignored columns: ' + r.unknown_columns.join(', ') : '')
+        + (r.read_as ? ' · read as ' + r.read_as : '');
       if (view === 'attention' && !(c.ambiguous + c.unmatched + c.invalid)) view = 'all';
       draw();
     });
   }
-  function counts() { var c = report.counts; return [['attention', 'Needs you', c.ambiguous + c.unmatched + c.invalid], ['ready', 'Ready', c.ready], ['all', 'All rows', sheet.length], ['already', 'Already imported', c.already + c.duplicate]]; }
+  function counts() { var c = report.counts; return [['attention', 'Needs you', c.ambiguous + c.unmatched + c.invalid], ['ready', 'Ready', c.ready], ['all', 'All rows', sheet.length], ['already', 'Already fined', c.already + c.duplicate]]; }
   function draw() {
     $('m_result').hidden = false;
     $('m_tabs').innerHTML = counts().map(function (t) { return '<a href="#" role="tab" aria-selected="' + (view === t[0]) + '" class="' + (view === t[0] ? 'on' : '') + '" data-view="' + t[0] + '">' + t[1] + ' · ' + t[2] + '</a>'; }).join('');
@@ -411,7 +437,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
       if (r.member) who = '<b>' + esc(r.member.name) + '</b><div class="why">by ' + esc(r.how) + '</div>';
       else if (r.status === 'ambiguous') who = '<select data-assign="' + r.i + '" aria-label="Who row ' + (r.i + 2) + ' is for"><option value="">Choose who…</option>' + r.candidates.map(function (c) { return '<option value="' + c.id + '">' + esc(c.name) + ' (' + c.score + '%) ' + esc(c.detail) + '</option>'; }).join('') + '</select>';
       else who = '';
-      if (!r.member) who += '<div class="picker" style="min-width:9rem;margin-top:4px"><input data-find="' + r.i + '" placeholder="Find a vanguard" autocomplete="off"><div class="found" hidden></div></div>';
+      if (!r.member) who += '<div class="picker" style="min-width:9rem;margin-top:4px"><input data-find="' + r.i + '" placeholder="Find a member" autocomplete="off"><div class="found" hidden></div></div>';
       var notes = (r.errors || []).map(function (x) { return '<div class="why err">' + esc(x) + '</div>'; }).join('') + (r.warnings || []).map(function (x) { return '<div class="why">' + esc(x) + '</div>'; }).join('');
       var label = { ready: 'Ready', fined: 'Fined', ambiguous: 'Choose', unmatched: 'Nobody found', invalid: 'Fix', already: 'Already', duplicate: 'Repeated' }[r.status] || r.status;
       var extra = r.status === 'ready' || r.status === 'fined' ? '<div class="why">' + money(r.amount) + ' · ' + esc(r.reason_label) + ' · ' + esc(r.day) + '</div>' : '';
@@ -447,7 +473,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
   });
   $('m_apply').addEventListener('click', function () {
     var n = report.counts.ready, held = report.counts.ambiguous + report.counts.unmatched + report.counts.invalid;
-    if (!confirm('Charge ' + n + ' fine' + (n === 1 ? '' : 's') + ' (' + money(report.total) + ')?' + (held ? '\n\n' + held + ' row' + (held === 1 ? '' : 's') + ' that need you will NOT be charged.' : '') + ($('m_notify').checked ? '\n\nEach vanguard will be told.' : ''))) return;
+    if (!confirm('Charge ' + n + ' fine' + (n === 1 ? '' : 's') + ' (' + money(report.total) + ')?' + (held ? '\n\n' + held + ' row' + (held === 1 ? '' : 's') + ' that need you will NOT be charged.' : '') + ($('m_notify').checked ? '\n\nEach member will be told.' : ''))) return;
     var btn = this; btn.disabled = true; btn.textContent = 'Importing…';
     post({ action: 'import', rows: sheet, apply: true, digest: digest, notify: $('m_notify').checked, source: source }).then(function (r) {
       if (!r.ok) { $('m_out').textContent = r.error || 'Not imported.'; if (r.code === 'changed') check(false); else sync(); return; }

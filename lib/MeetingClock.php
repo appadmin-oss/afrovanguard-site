@@ -219,7 +219,8 @@ final class MeetingClock
     public static function setResolved(int $uid, int $meetingId, int $index, bool $done): array
     {
         self::ensure();
-        if (!class_exists('Meetings') || !Meetings::get($uid, $meetingId)) {
+        /* The people in it tick the agenda, not every member who can see it. */
+        if (!class_exists('Meetings') || !Meetings::isParticipant($uid, $meetingId)) {
             return ['ok' => false, 'error' => 'Not your meeting.'];
         }
         $s = self::state($meetingId);

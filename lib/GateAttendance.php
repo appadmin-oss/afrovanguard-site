@@ -175,6 +175,57 @@ final class GateAttendance
         return in_array(strtolower(gmdate('D', $t)), self::programmeDays(), true) && !in_array($day, self::holidays(), true);
     }
 
+    /** @var array<int,string> member id => centre, for one request */
+    private static array $centreOf = [];
+
+    /**
+     * A programme day for THIS member: by their centre's calendar from
+     * CACENTRE — the days that location meets, inside the terms it runs, not
+     * on its holidays — and never on one of the portal's own holidays. A
+     * member at no centre, or at one with no calendar, keeps the portal's
+     * days (isProgrammeDay). So a member at a location that meets on
+     * Saturdays is never marked absent on a Friday, nor out of term.
+     */
+    public static function isProgrammeDayFor(int $memberId, string $day): bool
+    {
+        if (in_array($day, self::holidays(), true)) return false;
+        $cal = class_exists('Centres') ? Centres::calendarFor(self::centreOf($memberId)) : null;
+        return $cal ? self::meetsOn($cal, $day) : self::isProgrammeDay($day);
+    }
+
+    /** Does a CACENTRE location's calendar meet on $day? */
+    public static function meetsOn(array $cal, string $day): bool
+    {
+        $t = strtotime($day . 'T12:00:00Z');
+        if ($t === false) return false;
+        if (!in_array((int) gmdate('N', $t), array_map('intval', (array) ($cal['weekdays'] ?? [])), true)) return false;
+        if (in_array($day, (array) ($cal['holidays'] ?? []), true)) return false;
+        $terms = (array) ($cal['terms'] ?? []);
+        if ($terms) {
+            foreach ($terms as $tm) if ($day >= (string) ($tm['start'] ?? '9') && $day <= (string) ($tm['end'] ?? '0')) return true;
+            return false;
+        }
+        if ((string) ($cal['term_start'] ?? '') !== '' && $day < (string) $cal['term_start']) return false;
+        if ((string) ($cal['term_end'] ?? '') !== '' && $day > (string) $cal['term_end']) return false;
+        return true;
+    }
+
+    /** A member's centre, read once per request — the sweep asks for every member on every day. */
+    private static function centreOf(int $memberId): string
+    {
+        if (!array_key_exists($memberId, self::$centreOf)) {
+            if (!self::$centreOf) {
+                try { foreach (Database::pdo()->query("SELECT user_id, centre FROM member_profiles WHERE centre <> ''")->fetchAll() as $r) self::$centreOf[(int) $r['user_id']] = (string) $r['centre']; }
+                catch (Throwable $e) { /* no profiles table: nobody has a centre */ }
+            }
+            self::$centreOf[$memberId] = self::$centreOf[$memberId] ?? '';
+        }
+        return self::$centreOf[$memberId];
+    }
+
+    /** For tests, and after a member's centre changes in the same request. */
+    public static function forgetCentres(): void { self::$centreOf = []; }
+
     /* ══ Who somebody is, to the gate ═══════════════════════════════════════ */
 
     private static function user(int $id): ?array
@@ -496,8 +547,9 @@ final class GateAttendance
         catch (Throwable $e) { error_log('[gate] sweep: ' . $e->getMessage()); }
         $pdo = Database::pdo(); $n = 0;
         foreach ($days as $d) {
-            if (!self::isProgrammeDay($d)) continue;
             foreach ($members as $mid) {
+                /* By the member's own location's calendar (isProgrammeDayFor). */
+                if (!self::isProgrammeDayFor($mid, $d)) continue;
                 if (self::row($mid, $d)) continue;
                 $ex = self::excuse($mid, $d);
                 $status = $ex && (string) $ex['status'] === 'approved' ? 'excused' : 'absent';
@@ -764,7 +816,7 @@ final class GateAttendance
      */
     public static function award(int $memberId, string $day): void
     {
-        if (!self::isProgrammeDay($day)) return;
+        if (!self::isProgrammeDayFor($memberId, $day)) return;
         $r = self::pointRules();
         if ($r['on_time'] > 0) self::give($memberId, $day, 'day:' . $day, $r['on_time'], 'On time');
         [$run, $start] = self::runEndingOn($memberId, $day);
@@ -820,7 +872,7 @@ final class GateAttendance
         $s = self::statuses($memberId, $from, $day);
         $n = 0; $start = $day;
         for ($d = $day; $d >= $from; $d = date('Y-m-d', strtotime($d . ' -1 day'))) {
-            if (!self::isProgrammeDay($d)) continue;
+            if (!self::isProgrammeDayFor($memberId, $d)) continue;
             $v = $s[$d] ?? '';
             if ($v === 'excused') continue;
             if ($v !== 'present') break;
@@ -838,7 +890,7 @@ final class GateAttendance
         $s = self::statuses($memberId, $mon, $sun);
         $any = false;
         for ($d = $mon; $d <= $sun; $d = date('Y-m-d', strtotime($d . ' +1 day'))) {
-            if (!self::isProgrammeDay($d)) continue;
+            if (!self::isProgrammeDayFor($memberId, $d)) continue;
             $v = $s[$d] ?? '';
             if ($v === 'excused') continue;
             if ($v !== 'present') return false;
@@ -921,7 +973,8 @@ final class GateAttendance
         $missing = [];
         try {
             foreach (NgvDb::pdo()->query("SELECT member_id, name FROM ngv_participants WHERE status = 'active' ORDER BY name")->fetchAll() as $p) {
-                if (!in_array((int) $p['member_id'], $seen, true)) $missing[] = ['member_id' => (int) $p['member_id'], 'name' => (string) $p['name']];
+                /* Expected only where their location meets that day. */
+                if (!in_array((int) $p['member_id'], $seen, true) && self::isProgrammeDayFor((int) $p['member_id'], $day)) $missing[] = ['member_id' => (int) $p['member_id'], 'name' => (string) $p['name']];
             }
         } catch (Throwable $e) { /* no NGV database: nobody is expected */ }
         $n = ['present' => 0, 'late' => 0, 'absent' => 0, 'excused' => 0];

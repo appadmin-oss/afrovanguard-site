@@ -65,7 +65,8 @@ $ah = $headOf(['chrome' => 'app', 'body_class' => 'portal-app']);
 ck('nav: an app shell keeps its own head (no Home chrome, its theme boot)',
    !str_contains($ah, 'avh.css') && !str_contains($ah, 'avh-page') && str_contains($ah, "localStorage.getItem('av.theme')"));
 av_chrome_mode('site');
-foreach (['portal/index.php', 'workspace.php', 'mentorship/mentor/index.php'] as $shell) {
+/* workspace.php was an app shell; it only sends people to the portal now (lib/GoogleHub.php). */
+foreach (['portal/index.php', 'mentorship/mentor/index.php'] as $shell) {
     ck("nav: $shell opts out as an app shell", str_contains((string) file_get_contents(AV_ROOT . '/' . $shell), "'chrome'     => 'app'"));
 }
 

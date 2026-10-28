@@ -55,6 +55,8 @@
         <button class="tab" data-tab="people"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5.2 6.5-5.2s6.5 1.9 6.5 5.2"/><path d="M17 8.2a3 3 0 0 1 0 5.6"/><path d="M19 20c0-2.2-1-3.7-2.6-4.6"/></svg><span>People</span></button>
         <button class="tab" data-tab="mentorship"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="9" r="2.6"/><circle cx="16.5" cy="8" r="2.2"/><path d="M3.5 19c0-2.8 2.1-4.3 4.5-4.3s4.5 1.5 4.5 4.3"/><path d="M14.5 14.4c2-.3 4 .9 4 3.1"/><path d="M12 13l2.5-2.4"/></svg><span>Mentorship</span></button>
         <button class="tab" data-tab="celebrations"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="9" width="18" height="12" rx="1.5"/><path d="M3 13h18M12 9v12"/><path d="M12 9c-1.5-2.5-5-2.5-5-.5 0 1 .8 1.5 2 1.5h3zM12 9c1.5-2.5 5-2.5 5-.5 0 1-.8 1.5-2 1.5h-3z"/></svg><span>Celebrations</span></button>
+        <button class="tab" data-tab="sessions"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M7 13h4v4H7z"/></svg><span>Sessions</span><span class="tab-badge tab-badge--live" id="psLiveBadge" hidden>Live</span></button>
+        <button class="tab" data-tab="events"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M12 12.5l1.1 2.2 2.4.3-1.8 1.7.5 2.4-2.2-1.2-2.2 1.2.5-2.4-1.8-1.7 2.4-.3z"/></svg><span>Events</span></button>
       </div>
       <div class="nav-group">
         <p class="nav-group-h">Community</p>
@@ -437,9 +439,12 @@
       <button class="subtab active" data-mv="dash" role="tab">Dashboard</button>
       <button class="subtab" data-mv="roster" role="tab">Roster</button>
       <button class="subtab" data-mv="roles" role="tab">Roles</button>
+      <button class="subtab" data-mv="centres" role="tab">Centres</button>
+      <button class="subtab" data-mv="approvals" role="tab">Approvals <span class="badge draft" id="apprBadge" hidden></span></button>
       <button class="subtab" data-mv="import" role="tab">Import</button>
       <button class="subtab" data-mv="volunteers" role="tab">Volunteers</button>
       <button class="subtab" data-mv="dups" role="tab">Duplicates</button>
+      <button class="subtab" data-mv="dues" role="tab">Dues</button>
       <button class="subtab" data-mv="offline" role="tab">Offline payments <span class="badge draft" id="offHeldBadge" hidden></span></button>
     </div>
 
@@ -449,7 +454,7 @@
         <label class="fld"><span>Name</span><input id="mc_name" placeholder="Full name" autocomplete="off" /></label>
         <label class="fld"><span>Email</span><input id="mc_email" type="email" placeholder="name@example.com" autocomplete="off" /></label>
         <label class="fld"><span>Phone</span><input id="mc_phone" inputmode="tel" placeholder="0803 000 0000" /></label>
-        <label class="fld"><span>Centre</span><input id="mc_centre" placeholder="Egbeda" /></label>
+        <label class="fld"><span>Centre</span><select id="mc_centre" data-centre-pick><option value="">No centre</option></select></label>
         <label class="fld"><span>Access level</span><select id="mc_role"></select></label>
         <label class="fld"><span>Membership level</span><select id="mc_level"></select></label>
         <label class="fld"><span>Birthday</span><input id="mc_bday" placeholder="1998-07-14 or 07-14" maxlength="10" /></label>
@@ -490,7 +495,7 @@
         <select id="memVolunteer" aria-label="Volunteers"><option value="">Volunteers or not</option><option value="yes">Volunteers</option><option value="no">Not volunteers</option></select>
         <select id="memMissing" aria-label="Members with something missing"><option value="">Complete or not</option><option value="phone">No phone</option><option value="birthday">No birthday</option><option value="card">No gate card</option></select>
         <select id="memSegment" aria-label="Dashboard list"><option value="">Any record</option></select>
-        <select id="memMembership" aria-label="Filter by dues"><option value="">Any dues</option><option value="member">Paying dues</option><option value="lifetime">Lifetime dues</option><option value="current">Dues paid</option><option value="due_soon">Dues due within 30 days</option><option value="lapsed">Dues lapsed</option><option value="cancelled">Dues ended by the office</option><option value="never">Never paid dues</option></select>
+        <select id="memMembership" aria-label="Filter by dues"><option value="">Any dues</option><option value="member">Paying dues</option><option value="lifetime">Lifetime dues</option><option value="current">Dues paid</option><option value="due_soon">Dues due within 30 days</option><option value="lapsed">Dues lapsed</option><option value="cancelled">Dues ended by the office</option><option value="never">Never paid dues</option><option value="owing">Behind on dues</option><option value="obliged">Owe dues (behind or not)</option></select>
         <select id="memSort" aria-label="Order"><option value="">Newest first</option><option value="name">Name A–Z</option><option value="centre">Centre</option><option value="role">Access level</option></select>
       </div>
       <div class="mem-chips-bar" id="memChips" aria-live="polite"></div>
@@ -501,16 +506,6 @@
         <button class="btn btn-outline btn-sm" id="memBulkAll" hidden></button>
         <select id="memBulkAction" aria-label="Action for the chosen members">
           <option value="">Choose an action…</option>
-          <option value="status:active">Reactivate</option>
-          <option value="status:suspended">Suspend</option>
-          <option value="centre">Set centre…</option>
-          <option value="level">Set level…</option>
-          <option value="membership_grant">Give months of dues (waiver or reason)…</option>
-          <option value="membership_cancel">End dues…</option>
-          <option value="volunteer_add">Make volunteers</option>
-          <option value="volunteer_remove">Remove from volunteers</option>
-          <option value="work_role_add">Give a work role…</option>
-          <option value="work_role_remove">Take away a work role…</option>
         </select>
         <select id="memBulkRole" hidden aria-label="Work role"></select>
         <input id="memBulkValue" hidden aria-label="Value for the action" />
@@ -541,7 +536,7 @@
         <p class="muted">Save the sheet as CSV. The first row names the columns: <b>Name</b> and <b>Email</b> (both required), Phone, Centre, Access level, Level, Date of birth, Date joined, <b>NGV number</b> (the number on a card they already hold), Card code (an older card read by a format below). An email that already has an account <b>is</b> that account: the row fills it in and links it — and any NGV application under the same email — rather than making a second. Importing twice updates the same people.</p>
         <label class="btn btn-outline btn-sm mem-file">Choose CSV…<input type="file" id="miFile" accept=".csv,text/csv" hidden /></label>
         <span class="muted tiny" id="miFileName"></span>
-        <div class="mem-create-grid" style="margin-top:12px">
+        <div class="mem-create-grid mem-gap-top">
           <label class="fld"><span>What the ID column holds</span><select id="miIdFormat" aria-describedby="miIdHelp"></select></label>
           <label class="fld"><span>Cards these members already hold</span><select id="miFormat"></select></label>
           <label class="fld mem-check"><input type="checkbox" id="miOverwrite" /> <span>Replace values a record already has (default: fill blanks only)</span></label>
@@ -565,6 +560,33 @@
         <div class="editor-actions"><button class="btn btn-outline btn-sm" id="miCheck" disabled>Check what would change</button><button class="btn btn-primary btn-sm" id="miApply" hidden>Import</button></div>
         <div id="miResult"></div>
       </div>
+    </section>
+
+    <!-- Dues: who owes them, what they cost, and who is behind (lib/Membership.php) -->
+    <section class="mem-pane" data-pane="dues" hidden>
+      <div class="mem-dash">
+        <div class="side-card">
+          <h3>The rules</h3>
+          <p class="muted tiny">Every member at or above the level below owes dues each month, from the later of the start date and the day they joined. NextGen Vanguards are not charged here: their membership is on the NGV account. A payment covers the oldest month owed first.</p>
+          <form class="dues-rules" id="duesRules" autocomplete="off" novalidate>
+            <label class="mem-check"><input type="checkbox" id="dr_enabled"> <span>Members owe dues</span></label>
+            <label class="fld"><span>A month (₦)</span><input id="dr_monthly" inputmode="numeric" maxlength="8"></label>
+            <label class="fld"><span>A year (₦)</span><input id="dr_annual" inputmode="numeric" maxlength="8"></label>
+            <label class="fld"><span>Owed from</span><input id="dr_start" type="date"></label>
+            <label class="fld"><span>Owed from level</span><select id="dr_level"></select></label>
+            <div class="mem-errors" id="dr_errors" role="alert" hidden></div>
+            <p class="muted tiny" id="dr_note"></p>
+            <div class="editor-actions"><button type="submit" class="btn btn-primary btn-sm" id="dr_save">Save the rules</button></div>
+          </form>
+        </div>
+        <div class="side-card">
+          <h3>Behind on dues</h3>
+          <div class="ov-grid mem-tiles" id="duesTotals" aria-live="polite"></div>
+          <div class="mem-tools"><button class="btn btn-outline btn-sm" id="duesOpenRoster">Open them in the roster</button></div>
+        </div>
+      </div>
+      <h2 class="mem-audit-h">Largest debts first</h2>
+      <div class="entry-list" id="duesOwing" aria-live="polite"></div>
     </section>
 
     <section class="mem-pane" data-pane="offline" hidden>
@@ -609,6 +631,29 @@
       <div id="memRolesList"><p class="muted">Loading…</p></div>
     </section>
 
+    <section class="mem-pane" data-pane="approvals" hidden>
+      <p class="muted">An admin's acts that take somebody's access away — suspending members, or ending dues for several at once — wait here for a second person, as NGG's do. A Super Admin or another admin approves or rejects them; nobody decides their own. Approved, the request runs exactly as it was asked, as the person who asked. A request nobody decides in 14 days expires.</p>
+      <label class="fld appr-filter"><span>Show</span><select id="apprStatus"><option value="pending">Waiting</option><option value="approved">Approved</option><option value="rejected">Not approved</option><option value="failed">Could not run</option><option value="withdrawn">Withdrawn</option><option value="expired">Expired</option><option value="all">Everything</option></select></label>
+      <h3 class="appr-h3">From members</h3>
+      <p class="muted tiny">What members ask for from their own portal → Membership: another centre, corrected details, pausing or leaving. Approved, a change of centre or details is applied to their record at once; anything else is answered, and you act on it.</p>
+      <div id="mreqList" aria-live="polite"><p class="muted">Loading…</p></div>
+      <h3 class="appr-h3">From admins</h3>
+      <div id="apprList" aria-live="polite"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section class="mem-pane" data-pane="centres" hidden>
+      <p class="muted">The centres members belong to, one list with a short code, as NGG keeps its centres. A member's centre is one of these or none. Renaming a centre renames it on every member there; a centre in use is retired, not deleted — its members keep it, and nobody new is put there.</p>
+      <p class="mem-cac-note" id="centreCacNote" role="status" hidden><b>Centres come from CACENTRE.</b> Its locations list is the only list of places: a location added, renamed or taken off in CACENTRE → Attendance → Desks and settings → Locations is added, renamed (with its members) or retired here within minutes, and each centre's days and terms decide when its members are expected. The code is still set here. <span id="centreCacWhen"></span></p>
+      <form class="mem-centre-new" id="centreNew" autocomplete="off">
+        <label class="fld"><span>New centre</span><input id="centreNewName" maxlength="60" placeholder="Egbeda" required /></label>
+        <label class="fld"><span>Code</span><input id="centreNewCode" class="mem-centre-code" maxlength="8" placeholder="EG" aria-describedby="centreCodeHelp" /></label>
+        <button class="btn btn-primary btn-sm" type="submit">Add centre</button>
+      </form>
+      <p class="muted tiny" id="centreCodeHelp">Leave the code blank and one is made from the name.</p>
+      <p class="muted tiny" id="centreMsg" role="status" aria-live="polite"></p>
+      <div id="memCentresList"><p class="muted">Loading…</p></div>
+    </section>
+
     <section class="mem-pane" data-pane="dups" hidden>
       <p class="muted">Records that look like one person — the same name, or the same phone. Shown, never merged: a person decides.</p>
       <div id="memDups"></div>
@@ -624,7 +669,7 @@
           <label class="fld"><span>Name</span><input id="md_name" /></label>
           <label class="fld"><span>Email</span><input id="md_email" type="email" /></label>
           <label class="fld"><span>Phone</span><input id="md_phone" inputmode="tel" /></label>
-          <label class="fld"><span>Centre</span><input id="md_centre" /></label>
+          <label class="fld"><span>Centre</span><select id="md_centre" data-centre-pick><option value="">No centre</option></select></label>
           <label class="fld"><span>Access level</span><select id="md_role"></select></label>
           <label class="fld"><span>Membership level</span><select id="md_level"></select></label>
           <label class="fld"><span>Birthday</span><input id="md_bday" maxlength="10" placeholder="1998-07-14 or 07-14" /></label>
@@ -686,7 +731,7 @@
         <div class="mem-cardphoto" id="mdCardPhoto">
           <div class="mem-cp-frame"><img id="mdCpImg" alt="Card photo" hidden><span id="mdCpNone">No photo — the card prints initials.</span></div>
           <div class="mem-cp-side">
-            <div class="editor-actions" style="justify-content:flex-start;padding:0;border:0">
+            <div class="editor-actions is-inline">
               <button class="btn btn-outline btn-sm" id="mdCpPick" type="button">Add photo</button>
               <button class="btn btn-outline btn-sm" id="mdCpClear" type="button" hidden>Remove photo</button>
             </div>
@@ -788,6 +833,122 @@
     </div>
     <p class="muted tiny cel-note">These run by themselves, with this year’s real dates. Edit one to change its words or move its date (Eid follows the announced sighting); turn one off to skip it.</p>
     <div class="entry-list" id="celBuiltins"></div>
+  </main>
+
+  <!-- PROGRAMME SESSIONS (kept on CACENTRE; lib/ProgrammeSessions.php reads them) -->
+  <main class="studio-main" id="sessionsView" hidden>
+    <div class="studio-head">
+      <div><h1>Programme sessions</h1><p class="muted">TONI, MEDI, SUMMER and DOMI. CACENTRE keeps one calendar for every site. The portal shows the session that is running, and the homepage counts down to the next one.</p></div>
+      <div class="editor-actions">
+        <button type="button" class="btn btn-outline btn-sm" id="psRefreshBtn">Fetch now</button>
+        <a class="btn btn-primary" id="psEditLink" href="#" target="_blank" rel="noopener" hidden>Edit in CACENTRE ↗</a>
+      </div>
+    </div>
+    <p class="ps-src" id="psSrc" aria-live="polite"></p>
+    <div class="ps-now" id="psNow" aria-live="polite"></div>
+    <div class="cel-yearhead">
+      <h2 class="cel-h2">Sessions in <span id="psYearH"></span></h2>
+      <div class="cel-yearnav" role="group" aria-label="Year">
+        <button type="button" class="btn btn-outline btn-sm" id="psYearPrev" aria-label="Previous year">‹</button>
+        <span class="cel-year" id="psYear" aria-live="polite"></span>
+        <button type="button" class="btn btn-outline btn-sm" id="psYearNext" aria-label="Next year">›</button>
+      </div>
+    </div>
+    <div class="entry-list" id="psList"></div>
+  </main>
+
+  <!-- EVENTS: ours (lib/SiteEvents.php) and Africa GATES's (lib/AvEvents.php) -->
+  <main class="studio-main" id="eventsView" hidden>
+    <div class="studio-head">
+      <div><h1>Events</h1><p class="muted">Afrovanguard’s own events go on the site’s <a href="/events/" target="_blank" rel="noopener" style="text-decoration:underline">events page</a>, the homepage and the portal calendar. Africa GATES events are added there and shown here beside ours.</p></div>
+      <div class="editor-actions">
+        <a class="btn btn-outline btn-sm" href="/events/calendar.ics" target="_blank" rel="noopener">Calendar feed (.ics)</a>
+        <button type="button" class="btn btn-primary" id="evNewBtn">New event</button>
+      </div>
+    </div>
+    <p class="ps-src" id="evGoogle" aria-live="polite"></p>
+    <h2 class="cel-h2">Coming up</h2>
+    <div class="entry-list" id="evUpList"></div>
+    <div class="cel-yearhead">
+      <h2 class="cel-h2">From Africa GATES</h2>
+      <div class="editor-actions">
+        <button type="button" class="btn btn-outline btn-sm" id="evGatesRefresh">Fetch now</button>
+        <a class="btn btn-outline btn-sm" id="evGatesAdmin" href="#" target="_blank" rel="noopener">Manage on Africa GATES ↗</a>
+      </div>
+    </div>
+    <p class="ps-src" id="evGatesSrc" aria-live="polite"></p>
+    <div class="entry-list" id="evGatesList"></div>
+    <details class="ev-past"><summary class="cel-h2">Past events</summary><div class="entry-list" id="evPastList"></div></details>
+  </main>
+
+  <!-- EVENT EDITOR -->
+  <main class="studio-main" id="evEditView" hidden>
+    <div class="studio-head">
+      <button class="btn btn-outline btn-sm" id="evBackBtn">← All events</button>
+      <div class="editor-actions">
+        <a class="btn btn-outline btn-sm" id="evViewLink" href="#" target="_blank" rel="noopener" hidden>View ↗</a>
+        <button class="btn btn-outline btn-sm" id="evDeleteBtn" hidden>Delete</button>
+        <button class="btn btn-primary btn-sm" id="evSaveBtn">Save</button>
+      </div>
+    </div>
+    <form id="evForm" class="editor-grid" novalidate>
+      <div class="editor-main">
+        <h2 class="cel-h2" id="evEditH" tabindex="-1">New event</h2>
+        <label class="fld"><span>Title</span><input id="ev_title" maxlength="200" required placeholder="e.g. Leadership Roundtable: Lagos" /></label>
+        <label class="fld"><span>One-line summary</span><input id="ev_summary" maxlength="255" placeholder="Shown on the cards and in search results." /></label>
+        <label class="fld"><span>Description</span><textarea id="ev_body" rows="7" maxlength="8000" placeholder="What happens, who it is for, what to bring. Blank lines start new paragraphs."></textarea></label>
+        <div class="fld-row">
+          <label class="fld"><span>Starts</span><input id="ev_start" type="datetime-local" required /></label>
+          <label class="fld"><span>Ends (optional)</span><input id="ev_end" type="datetime-local" /></label>
+        </div>
+        <label class="fld checkbox"><input type="checkbox" id="ev_allday" /> <span>All day (no times)</span></label>
+        <div class="fld-row">
+          <label class="fld"><span>Venue</span><input id="ev_venue" maxlength="200" placeholder="e.g. CACENTRE Hall" /></label>
+          <label class="fld"><span>City or area</span><input id="ev_location" maxlength="160" placeholder="e.g. Ikeja, Lagos" /></label>
+        </div>
+        <label class="fld"><span>Online link (optional)</span><input id="ev_online" type="url" placeholder="https://meet.google.com/…" /></label>
+        <label class="fld"><span>RSVP or registration link (optional)</span><input id="ev_rsvp" type="url" placeholder="https://…" /></label>
+      </div>
+      <aside class="editor-side">
+        <div class="side-card">
+          <h3>Publishing</h3>
+          <label class="fld"><span>Status</span><select id="ev_status"></select></label>
+          <label class="fld"><span>Who sees it</span><select id="ev_audience"></select></label>
+          <p class="muted tiny">Only “Everyone” events get a public page and appear on the homepage. The others show in the portal for those signed in.</p>
+          <label class="fld"><span>Category</span><select id="ev_category"><option value="">None</option></select></label>
+        </div>
+        <div class="side-card">
+          <h3>Cover</h3>
+          <div class="cover-preview" id="evCoverPreview"><span>No cover</span></div>
+          <label class="btn btn-outline btn-sm">Upload image<input type="file" id="evCoverFile" accept="image/*" hidden /></label>
+          <button type="button" class="btn btn-outline btn-sm" id="evCoverClear" hidden>Remove</button>
+        </div>
+        <div class="side-card" id="evGoogleCard" hidden>
+          <h3>Google Calendar</h3>
+          <p class="muted tiny" id="evGoogleNote"></p>
+        </div>
+      </aside>
+    </form>
+  </main>
+
+  <!-- PROGRAMME SESSION: what happened here in it -->
+  <main class="studio-main" id="psEditView" hidden>
+    <div class="studio-head">
+      <button class="btn btn-outline btn-sm" id="psBackBtn">← All sessions</button>
+    </div>
+    <div class="editor-grid">
+      <div class="editor-main">
+        <h2 class="cel-h2" id="psEditH" tabindex="-1"></h2>
+        <p id="psDetail" class="ps-detail"></p>
+        <div class="cover-preview ps-cover" id="psCoverPreview" hidden></div>
+      </div>
+      <aside class="editor-side">
+        <div class="side-card" id="psReport">
+          <h3>Here, in this session</h3>
+          <div id="psReportBody" aria-live="polite"></div>
+        </div>
+      </aside>
+    </div>
   </main>
 
   <!-- CELEBRATION EDITOR -->

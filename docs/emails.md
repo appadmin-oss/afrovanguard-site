@@ -20,8 +20,9 @@ guess. A template name the module does not know throws, and `sendTemplate()`
 turns that into `false` plus a logged `Mailer::$lastError` rather than sending
 a half-rendered message.
 
-Two frames exist: the Academy templates sit on the card frame
-(`_frame_card.php`), everything else on the centre frame (`_frame.php`).
+Three frames exist: the Academy templates sit on the card frame
+(`_frame_card.php`), `vanquest_welcome` on the VanQuest frame (`_frame_vq.php`),
+everything else on the centre frame (`_frame.php`).
 
 ## The eighteen templates and what fires them
 
@@ -80,3 +81,33 @@ illustrations are ever redrawn.
 referenced GIF must be hidden from Outlook, must have a PNG beside it at the
 same dimensions, and that PNG must carry real ink rather than being another
 blank frame.
+
+## VanQuest
+
+Two mails are not part of the designer's handoff. They belong to VanQuest, the
+game at `vquest.afrovanguard.org.ng` (source: `appadmin-oss/van-quest`, `site/`),
+whose players live here in `lib/VanQuest.php` and talk to `vanquest/api.php`.
+
+| Template | Fired by | What it does |
+| --- | --- | --- |
+| `vanquest_welcome` | `VanQuest::join()` (the VanQuest join form; `process-contact.php` with `source=vanquest` hands over to it) | How the game works, their status, the players already in, and "Confirm your seat" |
+| `vanquest_onboard` | `VanQuest::tick()`, fifteen minutes after the seat is confirmed | Greets them by name with their avatar, picks their next step (placement test, else interview), shows who joined since them, and "Enter the community" |
+
+The journey: join, mail 1, the seat page (first name, Male / Female) confirms the
+seat and so the address, the community page, mail 2 fifteen minutes later.
+Community **numbers** (active and inactive volunteers, centres, leaders at C and
+above, players) appear on the community page only, never in a mail.
+
+`VanQuest::tick()` runs from `tasks/cron.php`, the web cron every other timed job
+uses (`/tasks/cron.php?key=...` every few minutes). Every call to `vanquest/api.php`
+also runs a small tick, so the mail still goes on a host whose cron is not set up.
+
+Both mails sit on their own frame, `_frame_vq.php`, built from the pieces in
+`_vq_parts.php`: dark ground, one orange accent, Geist and Geist Mono, pixel art.
+Rank names come from `lib/quest/ranks.json`.
+
+The illustrations are the `vq*` files in `assets/site/email/`, drawn from VanQuest's
+own pixel icons by `php tools/make-vanquest-email-art.php`, which also writes each
+PNG fallback (the last frame). They are not 100x75: the hero is 192x120 and the
+quest icons 40x40; the test requires only that each PNG takes its GIF's box.
+Player avatars are drawn on request by `vanquest/api.php?action=avatar`.

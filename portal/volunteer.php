@@ -77,7 +77,11 @@ $in = static fn(string $k, $d = '') => $body[$k] ?? $_GET[$k] ?? $d;
 try {
     switch ($action) {
         case 'hub':          json_out(Volunteers::hub($u));
-        case 'people':       json_out(['ok' => true, 'people' => Volunteers::people((string) $in('q'))]);
+        case 'people':
+            /* Only those who add people to teams, and not as a way to list everyone. */
+            if (!Volunteers::canSearchPeople($u)) json_out(['ok' => false, 'error' => 'Only a team lead or a coordinator can look people up.'], 403);
+            if (!av_rate_ok('vol_people_' . $uid, 40, 300)) json_out(['ok' => false, 'error' => 'Too many searches. Wait a few minutes.'], 429);
+            json_out(['ok' => true, 'people' => Volunteers::people((string) $in('q'))]);
         case 'team': {
             $id = (int) $in('id', 0);
             $t = Volunteers::team($id);

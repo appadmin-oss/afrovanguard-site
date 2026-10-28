@@ -96,18 +96,31 @@ try {
         // Provider credentials. Super Admin only — these are the organisation's keys.
         'setup_get', 'setup_save', 'setup_test',
         // A card format decides what opens the front door.
-        'card_format_save'];
+        'card_format_save',
+        // What every member is charged in dues, and from when.
+        'dues_settings_save'];
     $managementOnly = [ // not available to editors
         'mem_list', 'mem_save', 'mem_create',
         // The member desk names every member, their phone and their birthday.
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
-        'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
+        'roster_membership', 'roster_membership_change', 'dues_settings', 'dues_owing', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
         'roles_list', 'role_save', 'role_delete',
+        'centres_list', 'centre_save', 'centre_status', 'centre_delete',
+        'approvals_list', 'approval_decide', 'approval_withdraw', 'member_requests_list', 'member_request_decide',
+        // Programme sessions (kept on CACENTRE): who served in each.
+        'psess_list', 'psess_refresh', 'psess_report',
+        // Academy learners: the roster and its CSV name and email every learner
+        // (NGV youth among them); enrolment, grants and certificates change
+        // their records. Content editors write courses, not people.
+        'ac_roster', 'ac_export', 'ac_grants', 'ac_grant', 'ac_revoke',
+        'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke',
+        // Events: ours are written here; Africa GATES events are read from there.
+        'sev_list', 'sev_refresh', 'sev_save', 'sev_delete',
         'roster_export', 'roster_centres', 'member_notes', 'member_note_add', 'member_note_delete', 'member_activity', 'member_message',
         'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
         'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
-        'card_formats', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_get', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake', 'ngv_intake_email',
+        'card_formats', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_get', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake', 'ngv_intake_email', 'ngv_intake_consent',
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
         'ngv_reset', 'ngv_restore',
@@ -145,6 +158,9 @@ try {
     if ($role === 'editor' && in_array($action, $managementOnly, true)) {
         json_out(['ok' => false, 'error' => 'Editors can manage content only.'], 403);
     }
+    /* An editor moderates what people wrote, not who they are: their addresses stay out of the queues. */
+    $noEmails = static fn(array $rows): array => $role !== 'editor' ? $rows
+        : array_map(static fn($r) => is_array($r) ? array_filter($r, static fn($k) => !is_string($k) || stripos($k, 'email') === false, ARRAY_FILTER_USE_KEY) : $r, $rows);
 
     $repo = new DiaryRepository();
     $ac   = new AcademyRepository();
@@ -155,6 +171,24 @@ try {
         $me = class_exists('LmsAuth') ? LmsAuth::user() : null;
         return ['studio_role' => $role, 'self_id' => (int) ($me['id'] ?? 0)];
     };
+
+    /* The member-desk writes a second person may have to approve, run one way
+       whether they come straight from the screen or out of the queue. */
+    $runMemberOp = static function (string $op, array $args, string $actor, array $ctx): array {
+        if ($op === 'roster_bulk') return MemberRoster::bulk((array) ($args['ids'] ?? []), (string) ($args['action'] ?? ''), (array) ($args['value'] ?? []), $actor, $ctx);
+        if ($op === 'roster_update') {
+            $patch = array_intersect_key($args, array_flip(['name', 'email', 'phone', 'centre', 'role', 'status', 'level', 'birthday', 'joined_on', 'notes', 'work_roles', 'about']));
+            return MemberRoster::update((int) ($args['id'] ?? 0), $patch, $actor, $ctx);
+        }
+        return ['ok' => false, 'error' => 'Unknown action.'];
+    };
+    /* One seam: an admin's sensitive member act is kept for a second person
+       (lib/Approvals.php) before any screen's handler can run it. */
+    if ($method === 'POST' && in_array($action, ['roster_bulk', 'roster_update', 'mem_save'], true)) {
+        /* The older console's save is the desk's update by another door (see mem_save), so it waits the same way. */
+        $op = $action === 'mem_save' ? 'roster_update' : $action;
+        if ($held = Approvals::intercept($op, $body, $memberCtx(), av_admin_actor())) json_out($held, 202);
+    }
 
     // Enterprise audit trail: record EVERY state-changing admin action centrally
     // (actor + proxy-validated client IP + action + best-effort target). This is
@@ -1277,7 +1311,8 @@ try {
                 + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'work_role', 'sort', 'dir', 'page', 'page_size']))));
         /* ── The day-to-day desk, as NGG's admin has it (lib/MemberDesk.php) ── */
         case 'roster_centres':
-            json_out(['ok' => true, 'centres' => array_values(array_filter(array_map('strval', Database::pdo()->query("SELECT DISTINCT centre FROM member_profiles WHERE centre <> '' ORDER BY centre")->fetchAll(PDO::FETCH_COLUMN))))]);
+            /* The office's list: open centres to put people in, every centre to filter by. */
+            json_out(['ok' => true, 'centres' => array_column(Centres::all(), 'name'), 'open' => Centres::names()]);
         case 'roster_export':
             /* The filtered list, or the chosen members within it. It names people and
                their phones, so who took it, and how many, goes in the audit log. */
@@ -1307,6 +1342,32 @@ try {
             $r = MemberDesk::message((array) ($body['ids'] ?? []), (string) ($body['title'] ?? ''), (string) ($body['body'] ?? ''), !empty($body['email']), av_admin_actor());
             json_out($r, $r['ok'] ? 200 : 422);
         /* ── Work roles, one list with descriptions (lib/MemberRoles.php) ── */
+        case 'psess_list':
+        case 'psess_refresh':
+            /* CACENTRE keeps the calendar; this is what it last sent. */
+            $psCal = ProgrammeSessions::calendar($action === 'psess_refresh');
+            $psYear = max(2000, min(2100, (int) ($_GET['year'] ?? date('Y'))));
+            json_out(['ok' => true, 'year' => $psYear, 'sessions' => ProgrammeSessions::forYear($psYear), 'now' => ProgrammeSessions::now(),
+                'source' => ['fetched_at' => $psCal['fetched_at'] ? gmdate('c', $psCal['fetched_at']) : '', 'stale' => $psCal['stale'], 'error' => $psCal['error'], 'edit_url' => ProgrammeSessions::consoleUrl()]]);
+        /* ── Events: ours (lib/SiteEvents.php) and Africa GATES's (lib/AvEvents.php) ── */
+        case 'sev_list':
+        case 'sev_refresh':
+            $sevAll = SiteEvents::all();
+            json_out(['ok' => true, 'upcoming' => $sevAll['upcoming'], 'past' => array_slice($sevAll['past'], 0, 30),
+                'gates' => AvEvents::status($action === 'sev_refresh'), 'gates_events' => AvEvents::latest(12),
+                'audiences' => SiteEvents::AUDIENCES, 'statuses' => SiteEvents::STATUSES, 'categories' => SiteEvents::CATEGORIES,
+                'google' => class_exists('GoogleWorkspace') && GoogleWorkspace::calendarWriteEnabled()]);
+        case 'sev_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = SiteEvents::save((array) $body, av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'sev_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = SiteEvents::delete((int) ($body['id'] ?? 0), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 404);
+        case 'psess_report':
+            $r = ProgrammeSessions::report((string) ($_GET['sid'] ?? ''));
+            json_out($r ? ['ok' => true] + $r : ['ok' => false, 'error' => 'CACENTRE no longer lists that session.'], $r ? 200 : 404);
         case 'roles_list':
             json_out(['ok' => true, 'roles' => MemberRoles::all()]);
         case 'role_save':
@@ -1317,6 +1378,39 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = MemberRoles::delete((int) ($body['id'] ?? 0), av_admin_actor());
             json_out($r, $r['ok'] ? 200 : 404);
+        /* ── Approvals: an admin's sensitive acts, kept for a second person (lib/Approvals.php) ── */
+        case 'approvals_list':
+            json_out(Approvals::list((string) ($_GET['status'] ?? 'pending'), av_admin_actor()));
+        case 'approval_decide':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Approvals::decide((int) ($body['id'] ?? 0), (string) ($body['decision'] ?? ''), (string) ($body['reason'] ?? ''), av_admin_actor(), $runMemberOp);
+            json_out($r, $r['ok'] ? 200 : (($r['code'] ?? '') === 'own_request' ? 403 : 409));
+        case 'approval_withdraw':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Approvals::withdraw((int) ($body['id'] ?? 0), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 404);
+        /* ── What members ask for from their own portal (lib/MemberRequests.php) ── */
+        case 'member_requests_list':
+            json_out(MemberRequests::queue((string) ($_GET['status'] ?? 'pending')));
+        case 'member_request_decide':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberRequests::decide((int) ($body['id'] ?? 0), (string) ($body['decision'] ?? ''), (string) ($body['reason'] ?? ''), av_admin_actor(), $memberCtx());
+            json_out($r, $r['ok'] ? 200 : 409);
+        /* ── Centres, one list with codes (lib/Centres.php) ── */
+        case 'centres_list':
+            json_out(['ok' => true, 'centres' => Centres::all(), 'cacentre' => Centres::cacentreState()]);
+        case 'centre_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Centres::save(['id' => $body['id'] ?? 0, 'name' => $body['name'] ?? '', 'code' => $body['code'] ?? ''], av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'centre_status':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Centres::setStatus((int) ($body['id'] ?? 0), (string) ($body['status'] ?? ''), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'centre_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Centres::delete((int) ($body['id'] ?? 0), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 409);
         case 'roster_get':
             $m = MemberRoster::get((int) ($_GET['id'] ?? 0));
             json_out($m ? ['ok' => true, 'member' => $m] : ['ok' => false, 'error' => 'No such member.'], $m ? 200 : 404);
@@ -1325,6 +1419,10 @@ try {
         case 'ngv_intake_email':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = NgvIntake::supplyEmail((string) ($body['ngg_member_id'] ?? ''), (string) ($body['email'] ?? ''));
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'ngv_intake_consent':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = NgvIntake::recordConsent((string) ($body['ngg_member_id'] ?? ''), (string) ($body['method'] ?? ''), (string) ($body['guardian'] ?? ''), av_admin_actor());
             json_out($r, $r['ok'] ? 200 : 422);
         case 'roster_duplicates':
             json_out(['ok' => true, 'groups' => MemberRoster::duplicates()]);
@@ -1335,7 +1433,7 @@ try {
         case 'roster_update':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $patch = array_intersect_key($body, array_flip(['name', 'email', 'phone', 'centre', 'role', 'status', 'level', 'birthday', 'joined_on', 'notes', 'work_roles', 'about']));
-            $r = MemberRoster::update((int) ($body['id'] ?? 0), $patch, av_admin_actor(), $memberCtx());
+            $r = $runMemberOp('roster_update', ['id' => $body['id'] ?? 0] + $patch, av_admin_actor(), $memberCtx());
             json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['own_account', 'staff_account', 'role_ceiling', 'admin_email', 'org_email'], true) ? 403 : 422));
         /* ── Dues membership (lib/Membership.php) ── */
         case 'roster_membership':
@@ -1358,6 +1456,28 @@ try {
                 default     => ['ok' => false, 'error' => 'Unknown membership change.'],
             };
             json_out($r, $r['ok'] ? 200 : 422);
+        /* ── Dues: the rules, and who is behind (lib/Membership.php) ── */
+        case 'dues_settings':
+            json_out(['ok' => true, 'settings' => Membership::settings(), 'levels' => class_exists('Levels') ? Levels::order() : ['O'],
+                      'owing_levels' => Membership::owingLevels(), 'plan' => defined('AV_DUES_PLAN_CODE') && AV_DUES_PLAN_CODE,
+                      'can_edit' => $role === 'superadmin', 'obliged' => Membership::countWhere(Membership::obligedSql())] + ['owing' => Membership::owingSummary()]);
+        case 'dues_settings_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Membership::saveSettings(array_intersect_key($body, array_flip(['enabled', 'monthly_ngn', 'annual_ngn', 'start', 'from_level'])), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'dues_owing':
+            /* The largest debts first, with names: the list the office calls from. */
+            $o = Membership::owingSummary(max(1, min(500, (int) ($_GET['limit'] ?? 100))));
+            $who = [];
+            if (!empty($o['top'])) {
+                $ids = array_map('intval', array_keys($o['top']));
+                $st = Database::pdo()->query('SELECT u.id, u.name, u.email, u.level, p.phone, p.centre FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id WHERE u.id IN (' . implode(',', $ids) . ')');
+                foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $who[(int) $r['id']] = $r;
+            }
+            $list = [];
+            foreach ($o['top'] ?? [] as $id => $a) $list[] = ($who[$id] ?? ['id' => $id]) + $a;
+            unset($o['top']);
+            json_out(['ok' => true, 'summary' => $o, 'members' => $list]);
         /* ── Offline payments (lib/OfflinePayments.php): credited only once the receipt is checked ── */
         case 'offline_list':
             json_out(['ok' => true, 'payments' => OfflinePayments::queue((string) ($_GET['status'] ?? '')), 'counts' => OfflinePayments::counts(),
@@ -1427,7 +1547,7 @@ try {
             json_out(['ok' => true] + MemberRoster::ids(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'work_role']))));
         case 'roster_bulk':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            $r = MemberRoster::bulk((array) ($body['ids'] ?? []), (string) ($body['action'] ?? ''), (array) ($body['value'] ?? []), av_admin_actor(), $memberCtx());
+            $r = $runMemberOp('roster_bulk', $body, av_admin_actor(), $memberCtx());
             json_out($r, $r['ok'] ? 200 : 422);
         case 'roster_timeline':
             json_out(['ok' => true, 'events' => MemberRoster::timeline((int) ($_GET['id'] ?? 0))]);
@@ -1440,7 +1560,7 @@ try {
             if ($apply && $role !== 'superadmin' && $role !== 'admin') json_out(['ok' => false, 'error' => 'Importing members needs an Admin. Anybody here can read the dry run.'], 403);
             $r = MemberRoster::import($parsed['rows'], ['apply' => $apply, 'expect_digest' => (string) ($body['expect_digest'] ?? ''),
                 'overwrite' => !empty($body['overwrite']), 'card_format' => (string) ($body['card_format'] ?? ''), 'id_format' => (string) ($body['id_format'] ?? ''),
-                'source' => mb_substr((string) ($body['source'] ?? ''), 0, 200), 'actor' => av_admin_actor()]);
+                'source' => mb_substr((string) ($body['source'] ?? ''), 0, 200), 'actor' => av_admin_actor(), 'ctx' => $memberCtx()]);
             json_out($r + ['columns' => $parsed['columns'], 'unknown_columns' => $parsed['unknown_columns']], $r['ok'] ? 200 : 422);
         case 'card_formats':
             $o = ['ok' => true, 'formats' => MemberCards::formats()];
@@ -1663,7 +1783,7 @@ try {
         /* ── Vanguard Diary — member-submission moderation ──
            Only public submissions surface here; private/event entries never do. */
         case 'mod_queue':
-            json_out(['ok' => true, 'entries' => (new DiaryJournal())->pendingPublic()]);
+            json_out(['ok' => true, 'entries' => $noEmails((new DiaryJournal())->pendingPublic())]);
         case 'mod_approve':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $res = (new DiaryJournal())->approve((int) ($body['id'] ?? 0), $repo); // promotes into the feed
@@ -1677,7 +1797,7 @@ try {
         /* ── Diary comments — the moderation queue ──
            Nothing a reader writes is public until it passes through here. */
         case 'dc_queue':
-            json_out(['ok' => true, 'comments' => $repo->moderationQueue(200), 'count' => $repo->moderationCount()]);
+            json_out(['ok' => true, 'comments' => $noEmails($repo->moderationQueue(200)), 'count' => $repo->moderationCount()]);
         case 'dc_publish':
         case 'dc_remove': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

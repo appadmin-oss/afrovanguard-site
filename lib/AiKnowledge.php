@@ -115,8 +115,8 @@ final class AiKnowledge
 
         // Dues (kept separate from progression so one failing never hides the other).
         try {
-            $monthly = defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000;
-            $annual  = defined('AV_DUES_ANNUAL_NGN') ? (int) AV_DUES_ANNUAL_NGN : 12000;
+            $monthly = Membership::monthly();
+            $annual  = Membership::annual();
             $lines[] = 'Membership contribution from Level A is voluntary at ₦' . number_format($monthly) . '/month or ₦'
                 . number_format($annual) . '/year (pay or renew in the member Portal); from Level C upward, dues are mandatory. '
                 . 'Servant-leadership culture: arrive early (30 min, or 2–3 hours for major events) and serve before attending.';

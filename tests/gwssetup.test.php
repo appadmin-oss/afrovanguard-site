@@ -104,6 +104,65 @@ ck('workspace: and is not told a key is stored when none is',
    !str_contains(GoogleWorkspace::whyNotConfigured(), 'IS stored'));
 ck('workspace: nothing stored is not "unreadable"',
    AvSettings::unreadable() === []);
+ck('workspace: and it says no key was ever saved here, so a Save that never landed shows',
+   str_contains(GoogleWorkspace::whyNotConfigured(), 'no service account key has ever been saved here'));
+ck('workspace: storedRow() knows there is no row, without reading the value',
+   AvSettings::storedRow('AV_GDRIVE_SERVICE_ACCOUNT') === null);
+
+/* ── a save is reported only when it really stored something ─────────── */
+
+$r = AvSettings::save(['AV_GDRIVE_SERVICE_ACCOUNT' => '{ "type": "service_account", … }'], 'tester');
+ck('workspace: the masked preview pasted back is refused with a reason, not skipped as if saved',
+   ($r['saved'] ?? 0) === 0 && str_contains((string) ($r['errors']['AV_GDRIVE_SERVICE_ACCOUNT'] ?? ''), 'masked preview'));
+$r = AvSettings::save(['AV_GDRIVE_SERVICE_ACCOUNT' => $sa], 'tester');
+AvSettings::flush();
+ck('workspace: a real key is read back before it is called saved',
+   ($r['saved'] ?? 0) === 1 && empty($r['errors']) && GoogleWorkspace::configured());
+ck('workspace: storedRow() names who saved it',
+   (AvSettings::storedRow('AV_GDRIVE_SERVICE_ACCOUNT')['by'] ?? '') === 'tester');
+Database::pdo()->prepare("DELETE FROM av_settings WHERE setting_key = 'AV_GDRIVE_SERVICE_ACCOUNT'")->execute();
+AvSettings::flush();
+AvSettings::apply();
+
+/* ── a key put in config.php ──────────────────────────────────────────── */
+
+$saArr = json_decode($sa, true);
+/* The JSON written inside double quotes: PHP turned each \n in the private
+   key into a real line break, which JSON forbids. */
+$dq = str_replace('\n', "\n", $sa);
+ck('workspace: config.php: the JSON in double quotes is still read',
+   json_decode($dq, true) === null && (GoogleWorkspace::parseKey($dq)['private_key'] ?? '') === $saArr['private_key']);
+ck('workspace: config.php: a PHP array is read as the key', GoogleWorkspace::parseKey($saArr) !== null);
+ck('workspace: config.php: half a file is still refused', GoogleWorkspace::parseKey('{"type":"service_account"') === null);
+
+$cfgDir = sys_get_temp_dir() . '/av-gwcfg-' . getmypid();
+@mkdir($cfgDir, 0775, true);
+$cfgCase = static function (string $src) use ($cfgDir): string {
+    file_put_contents("$cfgDir/config.php", $src);
+    GoogleWorkspace::$configPath = "$cfgDir/config.php";
+    $f = GoogleWorkspace::configFileFinding();
+    GoogleWorkspace::$configPath = null;
+    return $f;
+};
+$tpl = "<?php\n/* Drive */\ndefine('AV_GDRIVE_SERVICE_ACCOUNT', getenv('AV_GDRIVE_SERVICE_ACCOUNT') ?: '');\n";
+$f = $cfgCase($tpl . "\n\ndefine('AV_GDRIVE_SERVICE_ACCOUNT', '" . $sa . "');\n");
+ck('workspace: config.php: a key defined after the template line is named, with both lines',
+   str_contains($f, '2 times (lines 3, 6)') && str_contains($f, 'keeps only the FIRST'));
+ck('workspace: config.php: and the finding never prints the key',
+   !str_contains($f, 'PRIVATE KEY') && !str_contains($f, 'gserviceaccount'));
+ck('workspace: config.php: the template line left empty is named',
+   str_contains($cfgCase($tpl), "line 3, but its value is empty"));
+ck('workspace: config.php: a key under another name is named',
+   str_contains($cfgCase("<?php\ndefine('GOOGLE_SERVICE_ACCOUNT', '" . $sa . "');\n"), 'under GOOGLE_SERVICE_ACCOUNT (line 2)'));
+ck('workspace: config.php: a key in a variable is named',
+   str_contains($cfgCase("<?php\n\$serviceAccount = '" . $sa . "';\n"), 'variable $serviceAccount'));
+ck('workspace: config.php: a config without the key says nothing',
+   $cfgCase("<?php\ndefine('SITE_URL', 'x');\n") === '');
+@unlink("$cfgDir/config.php"); @rmdir($cfgDir);
+
+$js = (string) file_get_contents(dirname(__DIR__) . '/admin/app.js');
+ck('workspace: the Save button does not say "Saved." for a request the server refused',
+   str_contains($js, "'Not saved — '") && str_contains($js, "'Nothing was saved.'"));
 
 /* ── the fallback key, named while it still works ─────────────────────── */
 

@@ -19,6 +19,13 @@
  *     spellings included — and a row that could be more than one person is
  *     never guessed at: it is shown with the candidates, and a person picks.
  *
+ * ANY MEMBER can be fined, not only NGV participants: every active portal
+ * member (MemberRoster::memberWhere) is on the roll. A member who is not in
+ * NGV has the same ledger line (ngv_charges, kind `fine`, keyed by their
+ * portal id — one id space for both), sees their fines under Fines in their
+ * own portal, and pays at the office: the desk records it (payOne). The NGV
+ * account's other lines — fees, Paystack, reminders — stay NGV-only.
+ *
  * An import is a dry run until the dry run that was read is applied, and a row
  * already imported is never charged twice (each row's identity is its member,
  * reason, amount, day and note, used as the ledger's idempotency key).
@@ -86,16 +93,18 @@ final class NgvFines
         }
         $note = trim($note);
         $dated = $day !== self::today() ? ($note !== '' ? $note . ' ' : '') . '(' . date('j M Y', (int) strtotime($day . 'T12:00:00')) . ')' : $note;
-        if ($key === '') {
+        $isNgv = (bool) NgvMember::participant($memberId);
+        if (!$isNgv && !self::isMember($memberId)) return ['ok' => false, 'status' => 'refused', 'error' => 'Not an active member.'];
+        if ($key === '' && $isNgv) {
             $r = NgvLedger::charge($memberId, 'fine', $n, $reason, $dated, $by);
             if (empty($r['ok'])) return ['ok' => false, 'status' => 'refused', 'error' => (string) ($r['error'] ?? 'Not posted.')];
             $id = (int) $r['entryId'];
         } else {
-            /* An imported fine: the same row the ledger's own charge() writes,
-               but under the row's identity, so a re-import is one fine. */
-            if (!NgvMember::participant($memberId)) return ['ok' => false, 'status' => 'refused', 'error' => 'Not an NGV participant.'];
+            /* An imported fine, or one for a member outside NGV: the same row
+               the ledger's own charge() writes. An import's is under the row's
+               identity, so a re-import is one fine. */
             $label = NgvLedger::FINE_REASONS[$reason];
-            $id = NgvLedger::postCharge($memberId, 'fine', $n, 'imp:' . $key,
+            $id = NgvLedger::postCharge($memberId, 'fine', $n, $key !== '' ? 'imp:' . $key : 'fine:' . bin2hex(random_bytes(5)),
                 ['reason' => $reason, 'note' => $dated !== '' ? $label . ' — ' . $dated : $label, 'source' => 'staff', 'by' => $by]);
             if ($id === null) return ['ok' => true, 'status' => 'already', 'amount' => $n];
             if (class_exists('AdminAudit')) {
@@ -106,6 +115,37 @@ final class NgvFines
         $pdo->prepare('INSERT INTO ngv_fine_meta (charge_id, occurred_on, import_run) VALUES (?, ?, ?)')->execute([$id, $day, mb_substr($importRun, 0, 64)]);
         if ($notify) self::tell($memberId, $id, $reason, $n, $note, $day);
         return ['ok' => true, 'status' => 'fined', 'entryId' => $id, 'amount' => $n, 'overCap' => !empty($r['overCap'])];
+    }
+
+    /** An active portal member, NGV or not: somebody a fine can be for. */
+    public static function isMember(int $memberId): bool
+    {
+        if ($memberId <= 0) return false;
+        try {
+            $where = class_exists('MemberRoster') ? ' AND ' . MemberRoster::memberWhere() : '';
+            $st = Database::pdo()->prepare("SELECT 1 FROM lms_users u WHERE u.id = ? AND u.status = 'active'{$where}");
+            $st->execute([$memberId]);
+            return (bool) $st->fetchColumn();
+        } catch (Throwable $e) { return false; }
+    }
+
+    /**
+     * Money received for a fine — at the office, by transfer — recorded on
+     * the member's fines line. Like every payment on the ledger it comes off
+     * their oldest fine (the first recorded) first, not necessarily the one
+     * clicked; capped at what is owing on the fine it was recorded from. Any
+     * member: this is how one outside NGV pays.
+     */
+    public static function payOne(int $chargeId, $amount, string $method, string $reference, int $by): array
+    {
+        $f = self::find($chargeId);
+        if (!$f) return ['ok' => false, 'error' => 'No such fine.'];
+        if ((int) $f['owing'] <= 0) return ['ok' => false, 'error' => 'Nothing is owing on this fine.'];
+        $n = NgvLedger::money($amount);
+        if ($n <= 0) $n = (int) $f['owing'];
+        if ($n > (int) $f['owing']) return ['ok' => false, 'error' => 'That is more than is owing on this fine (' . NgvLedger::money_text((int) $f['owing']) . ').'];
+        $method = in_array($method, ['cash', 'transfer', 'pos', 'other'], true) ? $method : 'cash';
+        return NgvLedger::payment((int) $f['member_id'], 'fine', $n, ['method' => $method, 'reference' => trim($reference), 'note' => 'Fine: ' . (string) $f['label']], $by);
     }
 
     /** Fine several members the same way. One result per member. */
@@ -128,21 +168,30 @@ final class NgvFines
         $p = NgvDb::pdo()->prepare('SELECT name, email FROM ngv_participants WHERE member_id = ?');
         $p->execute([$memberId]);
         $who = $p->fetch(PDO::FETCH_ASSOC) ?: [];
+        $ngv = (bool) $who;
+        if (!$who) {
+            $u = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?');
+            $u->execute([$memberId]);
+            $who = $u->fetch(PDO::FETCH_ASSOC) ?: [];
+        }
+        $where = $ngv ? 'NGV account' : 'Afrovanguard account';
+        $href = $ngv ? '/portal/#ngv-fines' : '/portal/#fines';
         $label = NgvLedger::FINE_REASONS[$reason] ?? 'Fine';
         $line = NgvLedger::money_text($amount) . ' — ' . $label . ($note !== '' ? ': ' . $note : '') . ', ' . date('j M Y', (int) strtotime($day . 'T12:00:00')) . '.';
         $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : '';
         if (class_exists('Mailer') && !empty($who['email'])) {
             $first = trim(explode(' ', trim((string) ($who['name'] ?? '')))[0]) ?: 'there';
             $esc = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-            $html = Mailer::shell('A fine on your NGV account', [
+            $html = Mailer::shell('A fine on your ' . $where, [
                 'Hi ' . $esc($first) . ',',
-                'A fine has been recorded on your NextGen Vanguard account: <b>' . $esc($line) . '</b>',
-                'You can see it, and everything else on your account, in your portal. If you think it is wrong, or this is a hard month, say so from there — a person will answer.',
-            ], ['url' => $site . '/portal/#ngv-fines', 'text' => 'See my fines'], $line);
-            try { @Mailer::send((string) $who['email'], 'A fine on your NGV account — ' . NgvLedger::money_text($amount), $html); } catch (Throwable $e) { error_log('[fines] mail: ' . $e->getMessage()); }
+                'A fine has been recorded on your ' . ($ngv ? 'NextGen Vanguard' : 'Afrovanguard') . ' account: <b>' . $esc($line) . '</b>',
+                $ngv ? 'You can see it, and everything else on your account, in your portal. If you think it is wrong, or this is a hard month, say so from there — a person will answer.'
+                     : 'You can see it in your portal, under Fines, with how to pay it. If you think it is wrong, tell the office — a person will answer.',
+            ], ['url' => $site . $href, 'text' => 'See my fines'], $line);
+            try { @Mailer::send((string) $who['email'], 'A fine on your ' . $where . ' — ' . NgvLedger::money_text($amount), $html); } catch (Throwable $e) { error_log('[fines] mail: ' . $e->getMessage()); }
         }
         if (class_exists('Notifications')) {
-            try { Notifications::push($memberId, 'ngv_fees', 'A fine on your NGV account', $line, '/portal/#ngv-fines'); } catch (Throwable $e) {}
+            try { Notifications::push($memberId, 'ngv_fees', 'A fine on your ' . $where, $line, $href); } catch (Throwable $e) {}
         }
         NgvDb::pdo()->prepare('UPDATE ngv_fine_meta SET notified_at = ' . NgvDb::nowExpr() . ' WHERE charge_id = ?')->execute([$chargeId]);
     }
@@ -167,6 +216,15 @@ final class NgvFines
                               WHERE c.kind = 'fine'" . ($one > 0 ? ' AND c.member_id = ?' : '') . " ORDER BY c.id ASC");
         $st->execute($one > 0 ? [$one] : []);
         $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+        /* A member outside NGV has no participant row: their name is the portal's. One query. */
+        $missing = array_values(array_unique(array_map(static fn($r) => (int) $r['member_id'], array_filter($rows, static fn($r) => (string) ($r['name'] ?? '') === ''))));
+        if ($missing) {
+            $names = [];
+            try { foreach (Database::pdo()->query('SELECT id, name, email FROM lms_users WHERE id IN (' . implode(',', $missing) . ')')->fetchAll(PDO::FETCH_ASSOC) as $u) $names[(int) $u['id']] = $u; }
+            catch (Throwable $e) { /* names stay blank */ }
+            foreach ($rows as &$r0) if ((string) ($r0['name'] ?? '') === '' && isset($names[(int) $r0['member_id']])) { $r0['name'] = (string) $names[(int) $r0['member_id']]['name']; $r0['email'] = (string) $names[(int) $r0['member_id']]['email']; }
+            unset($r0);
+        }
         $credits = [];
         $st = $pdo->prepare("SELECT member_id, credit_kind, SUM(amount) s FROM ngv_payments WHERE kind = 'fine' AND voided = 0" . ($one > 0 ? ' AND member_id = ?' : '') . " GROUP BY member_id, credit_kind");
         $st->execute($one > 0 ? [$one] : []);
@@ -303,6 +361,277 @@ final class NgvFines
         return ['ok' => true, 'rows' => $rows, 'columns' => array_values(array_unique($map)), 'unknown_columns' => $unknown];
     }
 
+    /* ══ Reading any sheet ══════════════════════════════════════════════════
+     *
+     * People keep fines in whatever they have: an Excel workbook, a CSV, a
+     * list typed into WhatsApp ("Tunde Bakare – late – 12 Oct – 2k"). The
+     * desk takes all of them. Named columns are read by their names; a sheet
+     * with no header row, or with headings nobody planned for, is read by
+     * what is IN each column (an email, a phone, a date, an amount, a reason,
+     * a name); and a pasted list is read a line at a time, each piece by what
+     * it looks like. What was guessed is said, so a person can check it.
+     */
+
+    /**
+     * Any sheet to rows: an .xlsx (base64), or text — CSV with or without a
+     * header, or a typed list.
+     *
+     * @return array{ok:bool, rows?:array, columns?:array, unknown_columns?:array, read_as?:string, error?:string}
+     */
+    public static function parseAny(string $text, string $xlsxBase64 = ''): array
+    {
+        if ($xlsxBase64 !== '') {
+            $bin = base64_decode($xlsxBase64, true);
+            if ($bin === false || strlen($bin) > 5 * 1024 * 1024) return ['ok' => false, 'error' => 'That workbook could not be read. Save it again, or as CSV.'];
+            $grid = self::xlsxGrid($bin);
+            if ($grid === null) return ['ok' => false, 'error' => 'That workbook could not be read. Save it as CSV and try again.'];
+            return self::parseGrid($grid, 'workbook');
+        }
+        $text = preg_replace('/^\xEF\xBB\xBF/', '', $text) ?? $text;
+        $lines = array_values(array_filter(preg_split('/\r\n|\n|\r/', trim($text)) ?: [], static fn($l) => trim($l) !== ''));
+        if (!$lines) return ['ok' => false, 'error' => 'The file is empty.'];
+        $first = $lines[0];
+        $sep = substr_count($first, ';') > substr_count($first, ',') ? ';' : (substr_count($first, "\t") > substr_count($first, ',') ? "\t" : ',');
+        $head = array_map(static fn($h) => strtolower(trim(preg_replace('/[_\s]+/', ' ', (string) $h) ?? '')), str_getcsv($first, $sep, '"', '\\'));
+        if (array_intersect($head, array_keys(self::HEADERS))) {
+            $r = self::parseCsv($text);
+            return $r + ['read_as' => 'columns by their headings'];
+        }
+        /* No header. A table when every line splits into the same number of
+           cells; otherwise a typed list. */
+        $widths = array_unique(array_map(static fn($l) => count(str_getcsv($l, $sep, '"', '\\')), $lines));
+        if (count($widths) === 1 && reset($widths) >= 2 && $sep !== ',' || (count($widths) === 1 && reset($widths) >= 3)) {
+            return self::parseGrid(array_map(static fn($l) => str_getcsv($l, $sep, '"', '\\'), $lines), 'a table with no headings');
+        }
+        $rows = [];
+        foreach ($lines as $line) {
+            $r = self::readLine($line);
+            if ($r) $rows[] = $r;
+            if (count($rows) > self::MAX_ROWS) return ['ok' => false, 'error' => 'More than ' . self::MAX_ROWS . ' fines in one go. Split the list.'];
+        }
+        if (!$rows) return ['ok' => false, 'error' => 'No fines could be read from that. Put one fine on each line: who, what for, and the day.'];
+        return ['ok' => true, 'rows' => $rows, 'columns' => self::COLUMNS, 'unknown_columns' => [], 'read_as' => 'a typed list, one fine a line'];
+    }
+
+    /** What one cell looks like: email, phone, id, date, amount, reason, name or note. */
+    public static function kindOf(string $cell): string
+    {
+        $t = trim($cell);
+        if ($t === '') return 'blank';
+        if (filter_var($t, FILTER_VALIDATE_EMAIL)) return 'email';
+        if (preg_match('/^[A-Z]{1,4}-?NGV-?\d{2}-?\d{3,5}$/i', $t) || preg_match('/^[A-Z]{1,3}-\d{2}-\d{3,5}$/i', $t)) return 'id';
+        $digits = preg_replace('/\D/', '', $t) ?? '';
+        if (preg_match('/^\+?[\d\s()\-]{10,18}$/', $t) && strlen($digits) >= 10 && strlen($digits) <= 14) return 'phone';
+        if (self::amountOf($t) !== null) return 'amount';
+        if (preg_match('/\d/', $t) && (preg_match('#[/.\-]#', $t) || preg_match('/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i', $t)) && self::day($t) !== null) return 'date';
+        if (in_array(mb_strtolower($t), ['today', 'yesterday'], true)) return 'date';
+        if (self::reasonOf($t) !== 'other') return 'reason';
+        if (preg_match('/^[\p{L}][\p{L}\'’.\- ]{1,60}$/u', $t) && count(preg_split('/\s+/', $t) ?: []) <= 4) return 'name';
+        return 'note';
+    }
+
+    /** "₦2,000", "2000", "2k", "N1500" to naira; null when it is not an amount. */
+    public static function amountOf(string $t): ?int
+    {
+        $t = strtolower(trim(str_replace([',', ' '], '', $t)));
+        if (!preg_match('/^(?:₦|n|ngn)?(\d+(?:\.\d+)?)(k)?(?:naira)?$/u', $t, $m)) return null;
+        $n = (float) $m[1] * (!empty($m[2]) ? 1000 : 1);
+        /* A bare four-to-five-digit number that is not a round amount is more
+           likely a year or a serial than money; amounts are round. */
+        if (empty($m[2]) && $n >= 1000 && fmod($n, 50) != 0.0) return null;
+        return $n > 0 && $n <= 10_000_000 ? (int) round($n) : null;
+    }
+
+    /** One typed line — "Tunde Bakare – late – 12 Oct – 2k" — to a row. */
+    private static function readLine(string $line): ?array
+    {
+        $parts = preg_split('/\s+[-–—|:]\s+|\t|;|,(?!\d{3})/u', trim($line)) ?: [];
+        $r = array_fill_keys(self::COLUMNS, '');
+        $notes = [];
+        foreach ($parts as $p) {
+            $p = trim($p, " \t.");
+            if ($p === '') continue;
+            $k = self::kindOf($p);
+            if ($k === 'amount' && $r['amount'] === '') $r['amount'] = (string) self::amountOf($p);
+            elseif (in_array($k, ['email', 'phone', 'id'], true) && $r[$k] === '') $r[$k] = $p;
+            elseif ($k === 'date' && $r['date'] === '') $r['date'] = $p;
+            elseif ($k === 'reason' && $r['reason'] === '') $r['reason'] = $p;
+            elseif ($k === 'name' && $r['name'] === '') $r['name'] = $p;
+            else $notes[] = $p;
+        }
+        if ($r['name'] === '' && $notes && self::kindOf($notes[0]) !== 'note') $r['name'] = array_shift($notes);
+        $r['note'] = implode(' — ', $notes);
+        if ($r['reason'] === '' && $r['note'] !== '' && self::reasonOf($r['note']) !== 'other') { $r['reason'] = $r['note']; $r['note'] = ''; }
+        return ($r['name'] . $r['email'] . $r['phone'] . $r['id']) !== '' ? $r : null;
+    }
+
+    /** A grid of cells, with a header row or not, to rows. */
+    private static function parseGrid(array $grid, string $how): array
+    {
+        $grid = array_values(array_filter($grid, static fn($r) => implode('', array_map('strval', (array) $r)) !== ''));
+        if (!$grid) return ['ok' => false, 'error' => 'There are no fines in it.'];
+        $head = array_map(static fn($h) => strtolower(trim(preg_replace('/[_\s]+/', ' ', (string) $h) ?? '')), (array) $grid[0]);
+        $map = []; $unknown = [];
+        foreach ($head as $i => $h) { if (isset(self::HEADERS[$h])) $map[$i] = self::HEADERS[$h]; }
+        if ($map) {
+            foreach ($head as $i => $h) if (!isset($map[$i]) && $h !== '') $unknown[] = $h;
+            array_shift($grid);
+            $read = $how . ', columns by their headings';
+        } else {
+            /* No headings we know: each column is what most of its cells are. */
+            $width = max(array_map('count', $grid));
+            $taken = [];
+            for ($i = 0; $i < $width; $i++) {
+                $votes = [];
+                foreach ($grid as $row) { $k = self::kindOf((string) ($row[$i] ?? '')); if ($k !== 'blank') $votes[$k] = ($votes[$k] ?? 0) + 1; }
+                arsort($votes);
+                $k = (string) array_key_first($votes);
+                /* An Excel date arrives as a day number (46000 is 2025). */
+                if ($k === 'amount' && self::looksLikeSerials($grid, $i)) $k = 'date';
+                $field = ['email' => 'email', 'phone' => 'phone', 'id' => 'id', 'date' => 'date', 'amount' => 'amount', 'reason' => 'reason', 'name' => 'name', 'note' => 'note'][$k] ?? null;
+                if ($field === null) continue;
+                if (isset($taken[$field])) { if ($field === 'name' || $field === 'reason') $field = 'note'; else continue; }
+                if (isset($taken[$field])) continue;
+                $map[$i] = $field; $taken[$field] = true;
+            }
+            $read = $how . ' — columns worked out from what is in them: ' . implode(', ', array_map(static fn($f) => $f === 'id' ? 'NGV ID' : ucfirst($f), $map));
+        }
+        if (!array_intersect($map, ['name', 'email', 'phone', 'id'])) return ['ok' => false, 'error' => 'There is no column saying who: a name, email, phone or NGV ID.'];
+        $rows = [];
+        foreach ($grid as $cells) {
+            $r = array_fill_keys(self::COLUMNS, '');
+            foreach ($map as $i => $field) {
+                $v = trim((string) ($cells[$i] ?? ''));
+                if ($field === 'date' && preg_match('/^\d{5}(\.\d+)?$/', $v)) $v = gmdate('Y-m-d', ((int) $v - 25569) * 86400);
+                if ($field === 'amount' && $v !== '' && ($a = self::amountOf($v)) !== null) $v = (string) $a;
+                $r[$field] = $v;
+            }
+            if (implode('', $r) !== '') $rows[] = $r;
+            if (count($rows) > self::MAX_ROWS) return ['ok' => false, 'error' => 'More than ' . self::MAX_ROWS . ' rows in one import. Split the file.'];
+        }
+        if (!$rows) return ['ok' => false, 'error' => 'There are no fines in it, only a header.'];
+        return ['ok' => true, 'rows' => $rows, 'columns' => array_values(array_unique($map)), 'unknown_columns' => $unknown, 'read_as' => $read];
+    }
+
+    private static function looksLikeSerials(array $grid, int $i): bool
+    {
+        $n = 0; $all = 0;
+        foreach ($grid as $row) { $v = trim((string) ($row[$i] ?? '')); if ($v === '') continue; $all++; if (preg_match('/^\d{5}$/', $v) && (int) $v >= 40000 && (int) $v <= 60000) $n++; }
+        return $all > 0 && $n === $all;
+    }
+
+    /** The first sheet of an .xlsx as rows of strings. Null when it is not one. */
+    private static function xlsxGrid(string $bin): ?array
+    {
+        if (!class_exists('ZipArchive')) return null;
+        $tmp = tempnam(sys_get_temp_dir(), 'fx');
+        if ($tmp === false) return null;
+        file_put_contents($tmp, $bin);
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($tmp) !== true) return null;
+            $strings = [];
+            if (($ss = $zip->getFromName('xl/sharedStrings.xml')) !== false) {
+                $x = @simplexml_load_string($ss, 'SimpleXMLElement', LIBXML_NONET);
+                if ($x) foreach ($x->si as $si) { $t = ''; if (isset($si->t)) $t = (string) $si->t; else foreach ($si->r as $run) $t .= (string) $run->t; $strings[] = $t; }
+            }
+            $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
+            if ($sheet === false) return null;
+            $x = @simplexml_load_string($sheet, 'SimpleXMLElement', LIBXML_NONET);
+            if (!$x || !isset($x->sheetData)) return null;
+            $grid = [];
+            foreach ($x->sheetData->row as $row) {
+                $cells = [];
+                foreach ($row->c as $c) {
+                    $ref = (string) $c['r'];
+                    $col = 0;
+                    foreach (str_split(preg_replace('/\d+/', '', $ref) ?? '') as $ch) $col = $col * 26 + (ord($ch) - 64);
+                    $type = (string) $c['t'];
+                    $v = $type === 's' ? ($strings[(int) $c->v] ?? '') : ($type === 'inlineStr' ? (string) $c->is->t : (string) $c->v);
+                    $cells[max(0, $col - 1)] = $v;
+                    if (count($grid) > self::MAX_ROWS + 1) break 2;
+                }
+                if ($cells) { $w = max(array_keys($cells)); $grid[] = array_map(static fn($i) => (string) ($cells[$i] ?? ''), range(0, $w)); }
+            }
+            return $grid;
+        } finally {
+            $zip->close();
+            @unlink($tmp);
+        }
+    }
+
+    /* ══ Remembering who people meant ═════════════════════════════════════
+     *
+     * When a person picks who a row is for — a name the sheet spelled its own
+     * way, a nickname, a phone the roll does not have — that choice is
+     * remembered, so the next sheet that says the same thing is matched
+     * without asking. Only choices that were imported are learned, and a
+     * remembered name that has since become two people is asked again.
+     */
+    private const META_ALIASES = 'ngv_fine_aliases';
+    private const ALIASES_MAX = 3000;
+
+    /** @return array<string,int> */
+    private static function aliases(): array
+    {
+        $v = json_decode((string) (Database::metaGet(self::META_ALIASES) ?? ''), true);
+        return is_array($v) ? array_map('intval', $v) : [];
+    }
+
+    /** @return list<string> the keys a row is known by */
+    private static function aliasKeys(array $row): array
+    {
+        $k = [];
+        if (($n = self::normName((string) ($row['name'] ?? ''))) !== '') $k[] = 'n:' . $n;
+        if (($e = strtolower(trim((string) ($row['email'] ?? '')))) !== '') $k[] = 'e:' . $e;
+        if (($p = self::phoneKey((string) ($row['phone'] ?? ''))) !== '') $k[] = 'p:' . $p;
+        return $k;
+    }
+
+    private static function remember(array $row, int $memberId): void
+    {
+        $keys = self::aliasKeys($row);
+        if (!$keys || $memberId <= 0) return;
+        $all = self::aliases();
+        foreach ($keys as $k) { unset($all[$k]); $all[$k] = $memberId; }
+        if (count($all) > self::ALIASES_MAX) $all = array_slice($all, -self::ALIASES_MAX, null, true);
+        Database::metaSet(self::META_ALIASES, (string) json_encode($all));
+    }
+
+    /* ══ What else is on the member's record ══════════════════════════════ */
+
+    /** Already fined for this reason on this day, any way (the gate, the desk, an import)? Says how. */
+    private static function alreadyThatDay(int $memberId, string $reason, string $day, string $exceptPeriod): ?string
+    {
+        $st = NgvDb::pdo()->prepare("SELECT c.period, c.created_at, m.occurred_on FROM ngv_charges c LEFT JOIN ngv_fine_meta m ON m.charge_id = c.id
+                                      WHERE c.member_id = ? AND c.kind = 'fine' AND c.reason = ? AND c.voided = 0 AND c.period <> ?");
+        $st->execute([$memberId, $reason, $exceptPeriod]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            $period = (string) $c['period'];
+            $d = preg_match('/^(late|absent|nocard):(\d{4}-\d{2}-\d{2})$/', $period, $m) ? $m[2] : (string) ($c['occurred_on'] ?: substr((string) $c['created_at'], 0, 10));
+            if ($d !== $day) continue;
+            if ($m) return 'at the CACENTRE gate';
+            if (str_starts_with($period, 'imp:')) return 'by an earlier import';
+            return 'at the desk';
+        }
+        return null;
+    }
+
+    /** How many fines for this reason the member had in the 30 days up to $day. */
+    private static function recentCount(int $memberId, string $reason, string $day): int
+    {
+        $from = date('Y-m-d', (int) strtotime($day . ' -30 days'));
+        $st = NgvDb::pdo()->prepare("SELECT c.period, c.created_at, m.occurred_on FROM ngv_charges c LEFT JOIN ngv_fine_meta m ON m.charge_id = c.id
+                                      WHERE c.member_id = ? AND c.kind = 'fine' AND c.reason = ? AND c.voided = 0");
+        $st->execute([$memberId, $reason]);
+        $n = 0;
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            $d = preg_match('/:(\d{4}-\d{2}-\d{2})$/', (string) $c['period'], $m) ? $m[1] : (string) ($c['occurred_on'] ?: substr((string) $c['created_at'], 0, 10));
+            if ($d >= $from && $d <= $day) $n++;
+        }
+        return $n;
+    }
+
     /** Free text to a reason: "came in late", "no ID card", "broke the projector". */
     public static function reasonOf(string $text): ?string
     {
@@ -329,7 +658,11 @@ final class NgvFines
         if ($s === '') return self::today();
         if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $s, $m)) $d = [(int) $m[1], (int) $m[2], (int) $m[3]];
         elseif (preg_match('#^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$#', $s, $m)) $d = [(int) $m[3] < 100 ? 2000 + (int) $m[3] : (int) $m[3], (int) $m[2], (int) $m[1]];
-        elseif (($t = strtotime($s . ' 12:00')) !== false) $d = [(int) date('Y', $t), (int) date('n', $t), (int) date('j', $t)];
+        elseif (($t = strtotime($s . ' 12:00')) !== false || ($t = strtotime($s)) !== false) {
+            $d = [(int) date('Y', $t), (int) date('n', $t), (int) date('j', $t)];
+            /* "12 Dec" written in October meant last December, not a future one. */
+            if (!preg_match('/\b\d{4}\b/', $s) && sprintf('%04d-%02d-%02d', $d[0], $d[1], $d[2]) > self::today()) $d[0]--;
+        }
         else return null;
         if (!checkdate($d[1], $d[2], $d[0])) return null;
         $iso = sprintf('%04d-%02d-%02d', $d[0], $d[1], $d[2]);
@@ -376,8 +709,18 @@ final class NgvFines
         $pop = [];
         foreach (NgvDb::pdo()->query("SELECT member_id, name, email, status FROM ngv_participants")->fetchAll(PDO::FETCH_ASSOC) as $p) {
             $pop[(int) $p['member_id']] = ['id' => (int) $p['member_id'], 'name' => (string) $p['name'], 'email' => strtolower((string) $p['email']),
-                'status' => (string) $p['status'], 'phone' => '', 'cards' => [], 'emails' => array_filter([strtolower((string) $p['email'])])];
+                'status' => (string) $p['status'], 'phone' => '', 'cards' => [], 'emails' => array_filter([strtolower((string) $p['email'])]), 'ngv' => true];
         }
+        /* And every active portal member who is not in NGV: anybody can be fined. */
+        try {
+            $where = class_exists('MemberRoster') ? ' AND ' . MemberRoster::memberWhere() : '';
+            foreach (Database::pdo()->query("SELECT u.id, u.name, u.email FROM lms_users u WHERE u.status = 'active'{$where}")->fetchAll(PDO::FETCH_ASSOC) as $u) {
+                $id = (int) $u['id'];
+                if (isset($pop[$id])) continue;
+                $pop[$id] = ['id' => $id, 'name' => (string) $u['name'], 'email' => strtolower((string) $u['email']), 'status' => 'active',
+                    'phone' => '', 'cards' => [], 'emails' => array_filter([strtolower((string) $u['email'])]), 'ngv' => false];
+            }
+        } catch (Throwable $e) { error_log('[ngvfines] members: ' . $e->getMessage()); }
         if (!$pop) return self::$pop = $pop;
         $ids = implode(',', array_keys($pop));
         $main = Database::pdo();
@@ -403,7 +746,8 @@ final class NgvFines
     private static function shape(array $p, int $score = 100): array
     {
         $card = $p['cards'][0] ?? '';
-        return ['id' => $p['id'], 'name' => $p['name'], 'detail' => trim(implode(' · ', array_filter([$card, $p['emails'][0] ?? $p['email'], $p['status'] !== 'active' ? $p['status'] : '']))), 'score' => $score];
+        return ['id' => $p['id'], 'name' => $p['name'], 'ngv' => !empty($p['ngv']),
+                'detail' => trim(implode(' · ', array_filter([empty($p['ngv']) ? 'member' : 'NGV', $card, $p['emails'][0] ?? $p['email'], $p['status'] !== 'active' ? $p['status'] : '']))), 'score' => $score];
     }
 
     /**
@@ -427,7 +771,7 @@ final class NgvFines
         if ($assign !== '') {
             $id = (int) ltrim($assign, '#');
             if (isset($pop[$id])) return ['status' => 'matched', 'member' => self::shape($pop[$id]), 'how' => 'chosen by you', 'warnings' => []];
-            return ['status' => 'unmatched', 'warnings' => ['the person chosen is not an NGV participant any more']];
+            return ['status' => 'unmatched', 'warnings' => ['the person chosen is not an active member any more']];
         }
         $idv = strtoupper(preg_replace('/\s+/', '', (string) $row['id']) ?? '');
         if ($idv !== '') {
@@ -437,13 +781,25 @@ final class NgvFines
         $email = strtolower(trim((string) $row['email']));
         if ($email !== '') {
             foreach ($pop as $p) if (in_array($email, $p['emails'] ?? [$p['email']], true)) { $nameCheck($p); return ['status' => 'matched', 'member' => self::shape($p), 'how' => 'email', 'warnings' => $warn]; }
-            $warn[] = 'no vanguard has the email ' . $email;
+            $warn[] = 'no member has the email ' . $email;
         }
         $ph = self::phoneKey((string) $row['phone']);
         if ($ph !== '') {
             $hits = array_values(array_filter($pop, static fn($p) => self::phoneKey($p['phone']) === $ph));
             if (count($hits) === 1) { $nameCheck($hits[0]); return ['status' => 'matched', 'member' => self::shape($hits[0]), 'how' => 'phone', 'warnings' => $warn]; }
             if (count($hits) > 1) return ['status' => 'ambiguous', 'candidates' => array_map([self::class, 'shape'], $hits), 'warnings' => array_merge($warn, ['that phone is on more than one record'])];
+        }
+        /* Somebody chose who this name, email or phone meant before, and imported it. */
+        $known = self::aliases();
+        foreach (self::aliasKeys($row) as $k) {
+            $id = $known[$k] ?? 0;
+            if (!$id || !isset($pop[$id])) continue;
+            /* A remembered name only stands while nobody else on the roll has it exactly. */
+            if (str_starts_with($k, 'n:')) {
+                $same = array_filter($pop, static fn($p) => $p['id'] !== $id && self::normName($p['name']) === substr($k, 2));
+                if ($same) continue;
+            }
+            return ['status' => 'matched', 'member' => self::shape($pop[$id]), 'how' => 'what you chose before', 'warnings' => $warn];
         }
         $name = trim((string) $row['name']);
         if ($name !== '') {
@@ -457,7 +813,7 @@ final class NgvFines
             }
             if ($scored) return ['status' => 'ambiguous', 'candidates' => array_slice($scored, 0, 5), 'warnings' => $warn];
         }
-        return ['status' => 'unmatched', 'warnings' => $warn ?: ['nothing on the row matches a vanguard']];
+        return ['status' => 'unmatched', 'warnings' => $warn ?: ['nothing on the row matches a member']];
     }
 
     /** What an import would DO, as a hash: row order and blanks do not change it. */
@@ -523,11 +879,19 @@ final class NgvFines
             $st = NgvDb::pdo()->prepare("SELECT 1 FROM ngv_charges WHERE member_id = ? AND kind = 'fine' AND period = ?");
             $st->execute([$mid, 'imp:' . $key]);
             if ($st->fetchColumn()) { $out['status'] = 'already'; $out['warnings'][] = 'already imported — not charged again'; $rep['counts']['already']++; $rep['rows'][] = $out; continue; }
+            if ($how = self::alreadyThatDay($mid, $reason, (string) $day, 'imp:' . $key)) {
+                $out['status'] = 'already'; $out['warnings'][] = 'already fined for ' . mb_strtolower(NgvLedger::FINE_REASONS[$reason]) . ' that day ' . $how . ' — not charged twice';
+                $rep['counts']['already']++; $rep['rows'][] = $out; continue;
+            }
+            $before = self::recentCount($mid, $reason, (string) $day);
+            if ($before >= 2) $out['warnings'][] = self::ordinal($before + 1) . ' ' . mb_strtolower(NgvLedger::FINE_REASONS[$reason]) . ' fine in 30 days';
             if ($apply) {
                 $r = self::issue($mid, $reason, $amount, $note, (string) $day, $notify, $by, $key, $run);
                 if (!$r['ok']) { $out['status'] = 'invalid'; $out['errors'][] = (string) ($r['error'] ?? 'not posted'); $rep['counts']['invalid']++; $rep['rows'][] = $out; continue; }
                 $out['status'] = $r['status'] === 'already' ? 'already' : 'fined';
                 $rep['counts'][$out['status']]++;
+                /* A person chose who this row is for: next time, the sheet's words are enough. */
+                if (trim((string) $row['assign']) !== '') self::remember($row, $mid);
                 if ($out['status'] === 'fined') $rep['total'] += $amount;
             } else {
                 $out['status'] = 'ready'; $rep['counts']['ready']++; $rep['total'] += $amount;
@@ -545,14 +909,22 @@ final class NgvFines
         return $rep;
     }
 
+    private static function ordinal(int $n): string
+    {
+        $s = ($n % 100 >= 11 && $n % 100 <= 13) ? 'th' : (['th', 'st', 'nd', 'rd'][$n % 10] ?? 'th');
+        return $n . $s;
+    }
+
     private static function nameOf(int $mid): string
     {
         $st = NgvDb::pdo()->prepare('SELECT name FROM ngv_participants WHERE member_id = ?');
         $st->execute([$mid]);
-        return (string) ($st->fetchColumn() ?: ('#' . $mid));
+        $n = (string) ($st->fetchColumn() ?: '');
+        if ($n === '') { $u = Database::pdo()->prepare('SELECT name FROM lms_users WHERE id = ?'); $u->execute([$mid]); $n = (string) ($u->fetchColumn() ?: ''); }
+        return $n !== '' ? $n : '#' . $mid;
     }
 
-    /** Vanguards by name, for "who is this fine for" pickers. */
+    /** Members by name — NGV or not — for "who is this fine for" pickers. */
     public static function people(string $q): array
     {
         $q = trim($q);

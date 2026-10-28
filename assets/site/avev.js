@@ -1,5 +1,5 @@
 /* Events (/events/). Prefix avev-. Vanilla, no dependencies.
-   "What's coming up": loads the events feed (/events-feed.php → AvEvents), then
+   "What's coming up": loads the events feed (/events-feed.php → SiteEvents: ours and Africa GATES'), then
    filters it in the browser by when (Upcoming / This month / Past) and category.
    States: loading (skeleton at final height), empty, error with retry.
    Feed text is only ever set with textContent. */
@@ -32,9 +32,11 @@
     const date = /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(0, 10) : '';
     const parts = String(x.when || '').split(' · ');
     const time = parts.length > 1 ? parts[parts.length - 1] : '';
-    const st = x.ongoing || date === today ? 'live' : date && date < today ? 'past' : 'up';
+    const st = x.past ? 'past' : x.ongoing || date === today ? 'live' : date && date < today ? 'past' : 'up';
+    const known = ['Leadership', 'Learning', 'Arts', 'Community'];
     return { title, date, time, st, url: safeUrl(x.url || '') || 'https://afg.afrovanguard.org.ng/events', when: String(x.when || ''), location: String(x.location || ''),
-      excerpt: String(x.excerpt || ''), image: safeUrl(x.image || ''), cat: cat(title), month: date.slice(0, 7) };
+      excerpt: String(x.excerpt || ''), image: safeUrl(x.image || ''), cat: known.includes(x.category) ? x.category : cat(title), month: date.slice(0, 7),
+      host: String(x.host || ''), cancelled: !!x.cancelled, own: x.source === 'av' };
   }
 
   /* ---- render ---- */
@@ -53,12 +55,15 @@
     const ul = el('ul', 'avev-grid');
     list.forEach(e => {
       const li = el('li'), a = el('a', 'avev-card');
-      a.href = e.url; a.target = '_blank'; a.rel = 'noopener';
+      a.href = e.url;
+      if (!e.own) { a.target = '_blank'; a.rel = 'noopener'; }   /* our own events have a page here */
       const media = el('div', 'avev-card-media');
       if (e.image) { const im = el('img'); im.src = e.image; im.alt = ''; im.loading = 'lazy'; media.append(im); } else media.append(cover(e));
       const body = el('div', 'avev-card-body');
-      const kick = el('span', 'avev-kick' + (e.st === 'live' ? ' is-live' : e.st === 'past' ? ' is-past' : ''), e.st === 'live' ? 'Today' : e.st === 'past' ? 'Took place' : 'Upcoming');
+      const kick = el('span', 'avev-kick' + (e.cancelled ? ' is-past' : e.st === 'live' ? ' is-live' : e.st === 'past' ? ' is-past' : ''),
+        e.cancelled ? 'Cancelled' : e.st === 'live' ? 'Happening now' : e.st === 'past' ? 'Took place' : 'Upcoming');
       body.append(kick, el('h3', null, e.title), el('span', 'avev-when', [e.when, e.location].filter(Boolean).join(' · ')), el('span', 'avev-ex', e.excerpt));
+      if (e.host) body.append(el('span', 'avev-host', 'Hosted by ' + e.host));
       a.append(media, body); li.append(a); ul.append(li);
     });
     host.replaceChildren(ul);
@@ -82,7 +87,8 @@
         clearTimeout(t);
         if (!d || !Array.isArray(d.events)) throw new Error('bad feed');
         // Our own summit is featured above the list, so it is not repeated here.
-        all = d.events.filter(x => x && x.title && x.source !== 'afrovanguard').map(norm);
+        all = d.events.filter(x => x && x.title && x.source !== 'afrovanguard').map(norm)
+          .concat((Array.isArray(d.past) ? d.past : []).filter(x => x && x.title).map(x => norm(Object.assign({}, x, { past: true }))));
         render();
       })
       .catch(() => { clearTimeout(t); state(['We couldn’t load the calendar just now.', 'Check your connection, or see the full calendar on Africa GATES.'], true); });

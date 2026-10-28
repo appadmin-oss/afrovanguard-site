@@ -168,7 +168,9 @@ final class MeetingMinutes
     public static function canSee(array $u, int $meetingId): bool
     {
         $uid = (int) $u['id'];
-        if (Meetings::isParticipant($uid, $meetingId)) return true;
+        /* The people in it, and — unless the organiser kept the minutes
+           private — every member (Meetings::canReadMinutes). */
+        if (Meetings::canReadMinutes($uid, $meetingId)) return true;
         $m = self::meeting($meetingId);
         if (!$m) return false;
         $t = self::teamOf($m);

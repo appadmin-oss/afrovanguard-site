@@ -50,15 +50,67 @@ if ($path === '/token') {
     if ($g === 'urn:ietf:params:oauth:grant-type:jwt-bearer') {
         $p = explode('.', (string) ($_POST['assertion'] ?? ''));
         $c = json_decode((string) base64_decode(strtr($p[1] ?? '', '-_', '+/')), true) ?: [];
-        if (str_starts_with((string) ($c['sub'] ?? ''), 'nodwd')) {
+        $sub = (string) ($c['sub'] ?? '');
+        /* "nogmail…": delegation granted, but not the Gmail scope. */
+        if (str_starts_with($sub, 'nogmail') && str_contains((string) ($c['scope'] ?? ''), 'gmail')) {
+            $out(401, ['error' => 'unauthorized_client', 'error_description' => 'Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested.']);
+            return true;
+        }
+        if (str_starts_with($sub, 'nodwd')) {
             $out(401, ['error' => 'unauthorized_client', 'error_description' => 'Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested.']);
         } else {
-            $out(200, ['access_token' => 'sa-' . bin2hex(random_bytes(4)), 'expires_in' => 3599, 'token_type' => 'Bearer']);
+            /* The token says who it acts as, so a call can be checked for it (see $who). */
+            $out(200, ['access_token' => 'sa.' . $b64u($sub) . '.' . bin2hex(random_bytes(4)), 'expires_in' => 3599, 'token_type' => 'Bearer']);
         }
         return true;
     }
     $out(400, ['error' => 'unsupported_grant_type']); return true;
 }
+/* Who the call acts as ('' = the bare service account), and a log of writes the
+   test reads back: GSTUB_LOG, one JSON line per call. */
+$auth = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
+$who = preg_match('~^Bearer sa\.([A-Za-z0-9_-]*)\.~', $auth, $wm) ? (string) base64_decode(strtr($wm[1], '-_', '+/')) : '';
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$raw = (string) file_get_contents('php://input');
+$log = (string) getenv('GSTUB_LOG');
+if ($log !== '' && $method !== 'GET') @file_put_contents($log, json_encode(['m' => $method, 'path' => $path, 'q' => (string) ($_SERVER['QUERY_STRING'] ?? ''), 'who' => $who]) . "\n", FILE_APPEND);
+$link = 'https://meet.google.com/abc-defg-hij';
+
+/* Calendar writes. A title with "pending" gets a conference Google has not
+   finished making: no link on create, none on read back (id "evp-…"). */
+if (preg_match('~^/calendar/v3/calendars/([^/]+)/events$~', $path, $cm) && $method === 'POST') {
+    $ev = json_decode($raw, true) ?: [];
+    $pending = str_contains(strtolower((string) ($ev['summary'] ?? '')), 'pending');
+    $id = ($pending ? 'evp-' : 'ev-') . bin2hex(random_bytes(4));
+    $body = ['id' => $id, 'htmlLink' => 'https://calendar.google.com/event?eid=' . $id, 'organizer' => ['email' => $who ?: urldecode($cm[1])]];
+    if (isset($ev['conferenceData'])) {
+        $body['conferenceData'] = ['createRequest' => ['status' => ['statusCode' => $pending ? 'pending' : 'success']]];
+        if (!$pending) $body['hangoutLink'] = $link;
+    }
+    $out(200, $body); return true;
+}
+if (preg_match('~^/calendar/v3/calendars/[^/]+/events/([^/]+)$~', $path, $cm)) {
+    if ($method === 'DELETE') { http_response_code(204); return true; }
+    $id = urldecode($cm[1]);
+    $out(200, ['id' => $id] + (str_starts_with($id, 'evp-') ? [] : ['hangoutLink' => $link])); return true;
+}
+/* Each member's own Google, read as them. */
+if ($path === '/gmail/v1/users/me/labels/UNREAD') { $out(200, ['messagesTotal' => 3]); return true; }
+if ($path === '/gmail/v1/users/me/messages') { $out(200, ['messages' => [['id' => 'm1']]]); return true; }
+if (str_starts_with($path, '/gmail/v1/users/me/messages/')) {
+    $out(200, ['id' => 'm1', 'snippet' => 'Hello', 'labelIds' => ['INBOX', 'UNREAD'], 'payload' => ['headers' => [
+        ['name' => 'From', 'value' => 'Ada Obi <ada@afrovanguard.org.ng>'], ['name' => 'Subject', 'value' => 'Agenda for ' . $who]]]]);
+    return true;
+}
+if ($path === '/upload/drive/v3/files' && $method === 'POST') {
+    $out(200, ['id' => 'f1', 'webViewLink' => 'https://drive.google.com/file/d/f1/view']); return true;
+}
+if ($path === '/v2/conferenceRecords') { $out(200, ['conferenceRecords' => []]); return true; }
+if ($path === '/v1/spaces') { $out(200, ['spaces' => [['name' => 'spaces/AAA1', 'displayName' => 'Volunteers', 'spaceType' => 'SPACE']]]); return true; }
+if (str_starts_with($path, '/v2/spaces') && $method === 'POST') {
+    $out(200, ['name' => 'spaces/S1', 'meetingUri' => 'https://meet.google.com/qqq-rrrr-sss', 'meetingCode' => 'qqq-rrrr-sss']); return true;
+}
+if (str_starts_with($path, '/v2/spaces/') && $method === 'PATCH') { $out(200, ['name' => 'spaces/S1']); return true; }
 if (str_starts_with($path, '/calendar/v3/calendars/')) {
     $out(200, ['items' => [['id' => 'ev1', 'summary' => 'Stub event', 'start' => ['dateTime' => '2030-01-01T09:00:00Z'], 'end' => ['dateTime' => '2030-01-01T10:00:00Z']]]]);
     return true;

@@ -27,3 +27,12 @@ foreach ($it as $f) {
     if (str_contains($h, '<!-- avh:nav -->')) ck("avh chrome: $rel nav in sync (php tools/build-avh-chrome.php)", str_contains($h, "<!-- avh:nav -->\n" . $c['nav'] . "\n<!-- /avh:nav -->"));
     if (str_contains($h, '<!-- avh:foot -->')) ck("avh chrome: $rel footer in sync (php tools/build-avh-chrome.php)", str_contains($h, "<!-- avh:foot -->\n" . $c['foot'] . "\n<!-- /avh:foot -->"));
 }
+
+/* The hero on phones (owner, 2026-10-11): the words take the full width, the
+   hero fits the screen under the nav (svh, so the browser's bars do not make
+   it jump), next/play are full-size and clear of the Chioma button, and a
+   phone turned sideways still shows the headline. */
+$avhCss = (string) file_get_contents(AV_ROOT . '/assets/site/avh.css');
+ck('avh hero: on a phone the text and the controls stack, full width', (bool) preg_match('~@media \(max-width:639px\)\{\s*\.avh-hero\{height:auto;min-height:min\(calc\(100vh - 69px\),720px\);min-height:min\(calc\(100svh - 69px\),720px\)\}\s*\.avh-hero-in\{flex-direction:column~', $avhCss));
+ck('avh hero: phone controls are 44px', str_contains($avhCss, '.avh-hero-ctrl button{width:44px;height:44px;font-size:18px}'));
+ck('avh hero: a phone held sideways fits the hero to the screen', (bool) preg_match('~@media \(orientation:landscape\) and \(max-height:500px\)\{\s*\.avh-hero\{height:auto;min-height:calc\(100vh - 69px\);min-height:calc\(100svh - 69px\)\}~', $avhCss) && str_contains($avhCss, '.avh-hero-ctrl{margin-right:76px}'));

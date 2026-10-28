@@ -105,7 +105,7 @@ final class MemberDesk
 
     public const EXPORT_COLUMNS = ['id' => 'ID', 'name' => 'Name', 'email' => 'Email', 'phone' => 'Phone', 'centre' => 'Centre', 'role' => 'Access level',
         'level' => 'Level', 'status' => 'Status', 'work_roles' => 'Work roles', 'about' => 'What they do', 'card' => 'Gate card', 'membership' => 'Dues',
-        'paid_through' => 'Dues paid through', 'volunteer' => 'Volunteer', 'ngv' => 'NextGen Vanguard', 'joined_on' => 'Joined', 'created_at' => 'Account made', 'last_login' => 'Last sign-in'];
+        'paid_through' => 'Dues paid through', 'owes_months' => 'Months of dues owed', 'owes_ngn' => 'Dues owed (₦)', 'volunteer' => 'Volunteer', 'ngv' => 'NextGen Vanguard', 'joined_on' => 'Joined', 'created_at' => 'Account made', 'last_login' => 'Last sign-in'];
 
     /**
      * The roster as CSV rows: the members a filter matches, or just $ids when
@@ -121,7 +121,7 @@ final class MemberDesk
             foreach ($r['members'] as $m) {
                 if ($want !== null && !isset($want[(int) $m['id']])) continue;
                 if (count($rows) >= self::EXPORT_MAX) { $capped = true; break 2; }
-                $rows[] = $m;
+                $rows[] = $m + ['owes_months' => $m['owes']['months'] ?? '', 'owes_ngn' => $m['owes']['amount_ngn'] ?? ''];
             }
             if ($page * 200 >= (int) $r['total'] || !$r['members']) break;
         }

@@ -33,7 +33,9 @@
   var csrf = root.getAttribute('data-csrf') || '';
   var key = 'tdp.' + (root.getAttribute('data-key') || 'x') + '.';
   var data = null, open = false, launcher = null, panel = null, live = null;
-  var tab = 'now', undoTimer = 0, lastDone = null;
+  var tab = 'now', undoTimer = 0, lastDone = null, scrim = null, more = {};
+  /* A section shows this many rows until asked for the rest: a short list reads, a long one is skimmed. */
+  var SHOW = 5;
 
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(key + k); localStorage.setItem(key + k, String(v)); } catch (e) { return null; } return null; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -118,6 +120,10 @@
     panel.id = 'tdpPanel'; panel.className = 'tdp-panel'; panel.hidden = true;
     panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'false'); panel.setAttribute('aria-labelledby', 'tdpH');
     root.appendChild(panel);
+    /* On a phone the sheet dims the page behind it; a tap there closes it. */
+    scrim = document.createElement('div'); scrim.className = 'tdp-scrim'; scrim.hidden = true;
+    scrim.addEventListener('click', function () { hide(true); });
+    root.insertBefore(scrim, root.firstChild);
     panel.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -133,25 +139,14 @@
     root.hidden = false;
   }
 
-  function greeting() {
-    var h = new Date().getHours();
-    var g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-    return data.role && data.role.first ? g + ', ' + data.role.first : 'To do';
-  }
-
-  function ring(done, left) {
-    var total = done + left, pct = total ? done / total : 1, r = 15, c = 2 * Math.PI * r;
-    return '<svg class="tdp-ring" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><circle class="tdp-ring-bg" cx="18" cy="18" r="' + r + '"/>'
-      + (pct > 0 ? '<circle class="tdp-ring-fg" cx="18" cy="18" r="' + r + '" stroke-dasharray="' + (c * pct).toFixed(1) + ' ' + c.toFixed(1) + '"/>' : '') + '</svg>'
-      + '<span class="tdp-ring-n" aria-hidden="true">' + (left === 0 ? icon('check', 'tdp-ring-ok') : left) + '</span>';
-  }
-
-  function badge(b) {
+  function badge(b, sec) {
     if (!b || !b.text) return '';
+    /* "Overdue" under a heading that already says so is noise: the date, in red, says it once. */
+    if (sec && b.tone === 'red' && /^overdue$/i.test(b.text) && /due|overdue/i.test(sec.title || '')) return '';
     return '<span class="tdp-badge tdp-badge--' + esc(b.tone || 'muted') + '">' + esc(b.text) + '</span>';
   }
 
-  function item(it) {
+  function item(it, sec) {
     var btns = '';
     if (it.take) btns += '<button type="button" class="tdp-btn tdp-btn--primary" data-id="' + esc(it.id) + '" data-kind="take">' + esc(it.take.label || 'Take it') + '<span class="tdp-sr">: ' + esc(it.title) + '</span></button>';
     (it.acts || []).forEach(function (a, i) {
@@ -163,10 +158,17 @@
     var title = it.href ? '<a href="' + esc(it.href) + '">' + esc(it.title) + '</a>' : esc(it.title);
     return '<li class="tdp-item' + (it.urgent ? ' is-urgent' : '') + '" data-id="' + esc(it.id) + '">' + lead
       + '<div class="tdp-txt"><span class="tdp-title">' + title + '</span>'
-      + '<span class="tdp-meta">' + badge(it.badge) + (it.goal ? '<span class="tdp-goal">' + icon('goal', 'tdp-goal-i') + '<span class="tdp-sr">Goal: </span>' + esc(it.goal) + '</span>' : '') + (it.urgent && !(it.badge && it.badge.tone === 'red') ? '<span class="tdp-sr">Urgent. </span>' : '') + (it.meta ? '<span>' + esc(it.meta) + '</span>' : '') + '</span>'
+      + '<span class="tdp-meta' + (it.urgent ? ' is-late' : '') + '">' + badge(it.badge, sec) + (it.goal ? '<span class="tdp-goal">' + icon('goal', 'tdp-goal-i') + '<span class="tdp-sr">Goal: </span>' + esc(it.goal) + '</span>' : '') + (it.urgent && !(it.badge && it.badge.tone === 'red') ? '<span class="tdp-sr">Urgent. </span>' : '') + (it.meta ? '<span>' + esc(it.meta) + '</span>' : '') + '</span>'
       + (typeof it.progress === 'number' ? '<span class="tdp-bar" role="img" aria-label="' + Math.round(it.progress * 100) + '% done"><span style="width:' + Math.round(it.progress * 100) + '%"></span></span>' : '')
       + (btns ? '<span class="tdp-acts">' + btns + '</span>' : '')
       + '</div></li>';
+  }
+
+  /* A section's rows: the first SHOW, then a button for the rest. */
+  function list(s, sid) {
+    var all = more[sid] || s.items.length <= SHOW + 1, rows = all ? s.items : s.items.slice(0, SHOW);
+    return '<ul>' + rows.map(function (it) { return item(it, s); }).join('') + '</ul>'
+      + (all ? '' : '<button type="button" class="tdp-more" data-kind="more" data-sec="' + sid + '">Show ' + (s.items.length - SHOW) + ' more</button>');
   }
 
   function tabs() {
@@ -189,9 +191,10 @@
     launcher.hidden = open || !(data.sections || []).length;
     launcher.classList.toggle('has-urgent', u > 0);
 
-    var role = data.role && data.role.parts ? data.role.parts : (data.role && data.role.label ? [data.role.label] : []);
-    var initial = data.role && data.role.first ? data.role.first.charAt(0).toUpperCase() : '';
-    var summary = n === 0 ? 'All clear for now' : n + ' to do' + (u ? ' · <b>' + u + ' urgent</b>' : '');
+    var pct = n + done ? Math.round(done / (n + done) * 100) : 100;
+    var sub = [esc(new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }))];
+    if (u) sub.push('<b>' + u + ' urgent</b>');
+    if (done) sub.push(done + ' done today');
     var secs = ordered();
     var empty = tab === 'now'
       ? '<div class="tdp-empty">' + icon('check', 'tdp-empty-i') + '<p class="tdp-empty-t">You’re all caught up</p><p class="tdp-empty-s">' + (has('suggested') ? 'Want something to do? Look under For you.' : 'New work will show up here the moment it lands.') + '</p></div>'
@@ -201,15 +204,11 @@
     panel.innerHTML =
       '<div class="tdp-grab" aria-hidden="true"></div>'
       + '<header class="tdp-head">'
-      +   (initial ? '<span class="tdp-av" aria-hidden="true">' + esc(initial) + '</span>' : '<span class="tdp-av" aria-hidden="true">' + icon('list') + '</span>')
-      +   '<div class="tdp-hi"><h2 id="tdpH" tabindex="-1">' + esc(greeting()) + '</h2>'
-      +   (role.length ? '<p class="tdp-role">' + role.map(function (r) { return '<span class="tdp-chip">' + esc(r) + '</span>'; }).join('') + '</p>' : '')
-      +   '</div>'
+      +   '<div class="tdp-hi"><h2 id="tdpH" tabindex="-1">To do' + (n ? ' <span class="tdp-hn">' + n + '</span>' : '') + '</h2>'
+      +   '<p class="tdp-sub">' + sub.join(' · ') + '</p></div>'
       +   '<button type="button" class="tdp-x" data-kind="close" aria-label="Close the to-do list">' + icon('close') + '</button>'
       + '</header>'
-      + '<div class="tdp-sum"><span class="tdp-ringw">' + ring(done, n) + '</span>'
-      +   '<p class="tdp-sum-t"><span class="tdp-sum-big">' + summary + '</span><span class="tdp-sum-s">' + esc(new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }))
-      +   (done ? ' · ' + done + ' done today' : '') + '</span></p></div>'
+      + '<div class="tdp-prog" role="img" aria-label="' + done + ' of ' + (n + done) + ' done today"><span style="width:' + pct + '%"></span></div>'
       + tabs()
       + '<div class="tdp-body">' + (secs.length ? secs.map(function (s) {
           var sid = esc(s.id || s.key);
@@ -220,9 +219,9 @@
               + (s.sub ? '<span class="tdp-goalhead-s">' + esc(s.sub) + '</span>' : '')
               + (typeof s.progress === 'number' ? '<span class="tdp-bar" role="img" aria-label="Goal ' + pct + '% done"><span style="width:' + pct + '%"></span></span>' : '')
               + '</div><span class="tdp-goalhead-p" aria-hidden="true">' + (typeof s.progress === 'number' ? pct + '%' : '') + '</span></div>'
-              + '<ul>' + s.items.map(item).join('') + '</ul></section>';
+              + list(s, sid) + '</section>';
           }
-          return '<section class="tdp-sec tdp-sec--' + esc(s.key) + '" aria-labelledby="tdpS' + sid + '"><h3 id="tdpS' + sid + '">' + esc(s.title) + ' <span class="tdp-c">' + s.items.length + '</span></h3><ul>' + s.items.map(item).join('') + '</ul></section>';
+          return '<section class="tdp-sec tdp-sec--' + esc(s.key) + '" aria-labelledby="tdpS' + sid + '"><h3 id="tdpS' + sid + '">' + esc(s.title) + ' <span class="tdp-c">' + s.items.length + '</span></h3>' + list(s, sid) + '</section>';
         }).join('') : empty) + '</div>'
       + '<div class="tdp-toast" hidden></div>'
       + '<footer class="tdp-foot"><a href="' + esc(data.all || '#') + '" class="tdp-all">All tasks' + icon('arrow', 'tdp-all-i') + '</a>'
@@ -242,13 +241,13 @@
 
   /* ── Opening and closing ───────────────────────────────────────────── */
   function show(byHand) {
-    open = true; draw(); panel.hidden = false; launcher.hidden = true;
+    open = true; draw(); panel.hidden = false; launcher.hidden = true; if (scrim) scrim.hidden = false;
     store('day', today()); var nw = newest(); if (nw) store('seen', nw);
     if (byHand) { var h = panel.querySelector('#tdpH'); if (h) h.focus(); }
     else { var n = count(); say('To do: ' + n + ' thing' + (n === 1 ? '' : 's') + ' waiting. Press Alt+Shift+T to open or close the list.'); }
   }
   function hide(byHand) {
-    open = false; panel.hidden = true; launcher.hidden = !(data.sections || []).length;
+    open = false; panel.hidden = true; if (scrim) scrim.hidden = true; launcher.hidden = !(data.sections || []).length;
     if (byHand && !launcher.hidden) launcher.focus();
   }
 
@@ -274,6 +273,11 @@
     var b = e.target.closest('button[data-kind]'); if (!b) return;
     var kind = b.getAttribute('data-kind');
     if (kind === 'close') { hide(true); return; }
+    if (kind === 'more') {
+      var sk = b.getAttribute('data-sec'); more[sk] = true; draw();
+      var nx = panel.querySelectorAll('[aria-labelledby="tdpS' + sk + '"] .tdp-item')[SHOW]; var fb = nx && nx.querySelector('button, a'); if (fb) fb.focus();
+      return;
+    }
     if (kind === 'tab') { tab = b.getAttribute('data-tab'); draw(); var nb = panel.querySelector('[data-tab="' + tab + '"]'); if (nb) nb.focus(); return; }
     if (kind === 'snooze') {
       var m = panel.querySelector('#tdpSnooze'); m.hidden = !m.hidden; b.setAttribute('aria-expanded', String(!m.hidden));
@@ -347,7 +351,11 @@
       var fresh = newest() !== '' && newest() > String(store('seen') || '');
       var due = (d.sections || []).some(function (s) { return s.nudge === undefined ? (s.key === 'due' || s.key === 'cac' || s.key === 'assigned') : !!s.nudge; });
       if (fresh) launcher.classList.add('is-new');
-      if (!snoozed && (fresh || (due && store('day') !== today()))) show(false);
+      if (!snoozed && (fresh || (due && store('day') !== today()))) {
+        /* A phone has no room to spare: the sheet would cover the screen somebody opened. The button nudges instead. */
+        if (window.innerWidth < 600) { launcher.classList.add('is-new'); store('day', today()); return; }
+        show(false);
+      }
     }).catch(function () {});
   }
 

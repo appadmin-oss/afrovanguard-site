@@ -103,7 +103,7 @@ declare(strict_types=1);
         <!-- Shifts & events -->
         <div class="vh-panel" role="tabpanel" id="vp-opps" aria-labelledby="vt-opps" hidden>
           <h2 class="vh-sr">Shifts and events</h2>
-          <div class="vh-toolbar"><p class="vh-note" style="margin:0">Shifts and events that need hands. Sign up; when it is over, your hours are added for you.</p>
+          <div class="vh-toolbar"><p class="vh-note vh-m0">Shifts and events that need hands. Sign up; when it is over, your hours are added for you.</p>
             <button type="button" class="avp-btn avp-btn--ink" id="vhOppNew" hidden>Post a shift or event</button></div>
           <div class="vh-opps" id="vhOpps"></div>
         </div>
@@ -157,7 +157,7 @@ declare(strict_types=1);
                   <button class="avp-btn avp-btn--ink avp-form-wide" type="submit">Log</button>
                   <p class="vh-err avp-form-wide" id="lhErr" role="alert"></p>
                 </form>
-                <p class="vh-note" style="padding:0 20px 16px">Meetings, shifts and NGG sessions are added for you.</p>
+                <p class="vh-note vh-note--pad">Meetings, shifts and NGG sessions are added for you.</p>
               </section>
               <section class="avp-card" aria-labelledby="vhByProjH">
                 <div class="avp-card-head"><h2 id="vhByProjH">By project</h2></div>
@@ -165,7 +165,7 @@ declare(strict_types=1);
               </section>
 <?php if (($hasGate ?? false) || ($isNgv ?? false)): ?>
               <section class="avp-card"><div class="avp-card-head"><h2>At the gate</h2></div>
-                <div class="avp-card-body"><p class="vh-note" id="vhGateLine" style="margin:0 0 10px"></p><a class="avp-btn avp-btn--sq" href="#attendance" data-goto="attendance">Attendance &amp; pass →</a></div></section>
+                <div class="avp-card-body"><p class="vh-note vh-mb10" id="vhGateLine"></p><a class="avp-btn avp-btn--sq" href="#attendance" data-goto="attendance">Attendance &amp; pass →</a></div></section>
 <?php endif; ?>
             </div>
           </div>

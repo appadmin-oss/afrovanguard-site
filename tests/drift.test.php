@@ -148,6 +148,8 @@ $knownMetaKeys = [
     // switched on, which under-charges rather than back-charging a roster.
     'ngv_fees',
     'ngv_fine_catalogue',   // NgvFines: the usual amount for each fine reason
+    'ngv_fine_aliases',     // NgvFines: who a name, email or phone on a fines sheet meant, as a person chose it
+    'av_dues_settings',     // Membership: dues prices, the day dues began, and the level they are owed from
     // NGV accrual's place in the roster (NgvLedger::accrueAll). Reviewed: gates
     // no migration. Lost, the next run starts at the first participant again —
     // accrual is idempotent per (member, kind, period), so it charges nothing
@@ -181,6 +183,10 @@ $knownMetaKeys = [
     // Lost, the import runs again and finds nothing new to bring (it only
     // fills a draft or a first version that is not already there).
     'cms_legacy_imported',
+    // The centres directory (lib/Centres). Reviewed: gates no migration. Marks
+    // that the centres already typed on members were taken into av_centres
+    // once. Lost, the adoption runs again and adds only names not yet listed.
+    'av_centres_adopted',
     // Google (lib/GoogleAuth, lib/GoogleWorkspace). Reviewed: gate no migration.
     // The last failed Google round-trip and the last directory sync, shown on
     // the System page. Lost, the page says "none recorded" / "not run yet" and
@@ -207,6 +213,9 @@ $knownMetaKeys = [
     // The daily task report (lib/TaskReport). Reviewed: gates no migration.
     // The day it last went out; lost, that day's report is sent once more.
     'task_report_day',
+    // Programme sessions (lib/ProgrammeSessions). Reviewed: gates no migration.
+    // The last calendar CACENTRE sent; lost, it is fetched again.
+    'programme_sessions_cache',
     // The resumable SQLite→server migration (lib/DbMigrateJob). Reviewed:
     // gates no migration of its own — it IS the migration's progress, the
     // table list and the per-table cursor, so a run survives the request
@@ -216,6 +225,16 @@ $knownMetaKeys = [
     // needs "replace what is there", which empties it and starts over —
     // slower, never wrong.
     'db_migrate_job',
+    // The Quest's two once-a-day sweeps (QuestLadder, QuestMoney): the day
+    // each last ran, so a five-minute cron sweeps once. Losing one runs the
+    // sweep again that day, and both are idempotent by source key.
+    'quest_ladder_sweep_day',
+    'quest_money_sweep_day',
+    // VanQuest's community numbers, cached ten minutes. Reviewed: content, gates no migration.
+    'vq_metrics',
+    // When the daily backup last ran (lib/Backups). Reviewed: gates no
+    // migration. Lost, the next cron tick takes one more backup that day.
+    'backup_last',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {

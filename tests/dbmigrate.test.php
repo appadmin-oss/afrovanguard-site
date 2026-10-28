@@ -151,7 +151,7 @@ $api = (string) file_get_contents(AV_ROOT . '/admin/api.php');
 foreach (['db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify'] as $a) {
     ck("migrate: {$a} is dispatched", str_contains($api, "case '{$a}'"));
     ck("migrate: {$a} is superadmin-only", (bool) preg_match(
-        "~\\$superadminOnly = \[(?:[^;]*?)'{$a}'~s", $api));
+        '~\$superadminOnly = \[(?:[^;]*?)\'' . $a . '\'~s', $api));
 }
 ck('migrate: reading the job state is dispatched too', str_contains($api, "case 'db_job_state'"));
 

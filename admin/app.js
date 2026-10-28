@@ -13,6 +13,10 @@
     // Content: editors draft the site and manage media; publishing checks admin at the API.
     site: 'editor', homepage: 'editor', pages: 'editor', media: 'editor',
     inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
+    // Session notes are the office's; the dates and themes are public anyway.
+    sessions: 'admin',
+    // Events go public; the API keeps them with management, like the homepage's publishing.
+    events: 'admin',
     // Seat claims carry names, emails and phone numbers — admin, like the rest of the PII.
     summit: 'admin',
     mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin',
@@ -42,7 +46,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), sessions: $('#sessionsView'), psEdit: $('#psEditView'), events: $('#eventsView'), evEdit: $('#evEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
     site: $('#siteView'), media: $('#mediaView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
@@ -117,6 +121,8 @@
     else if (which === 'summit') { show('summit'); loadSummit(); }
     else if (which === 'people') { show('people'); loadTeam(); }
     else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
+    else if (which === 'sessions') { show('sessions'); loadSessions(); }
+    else if (which === 'events') { show('events'); loadEvents(); }
     else if (which === 'communities') { show('communities'); loadCommunities(); }
     else if (which === 'webhooks') { show('webhooks'); loadWebhooks(); loadAppTokens(); }
     else if (which === 'system') { show('system'); loadSystem(); }
@@ -801,6 +807,184 @@
   var celYear = new Date().getFullYear(), celData = null, celPrefill = null;
   var CEL_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], CEL_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function celDay(iso) { var d = new Date(iso + 'T12:00:00'); return CEL_DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + CEL_MON[d.getMonth()]; }
+  /* ---- Programme sessions: kept on CACENTRE, read by lib/ProgrammeSessions.php ---- */
+  var psYear = new Date().getFullYear();
+  function psState(x) {
+    if (x.state === 'live') return '<span class="badge published">Live · week ' + x.week_of + ' of ' + x.total_weeks + '</span>';
+    if (x.state === 'upcoming') return '<span class="badge draft">Starts in ' + x.days_to_start + ' day' + (x.days_to_start === 1 ? '' : 's') + '</span>';
+    return '<span class="badge draft">Over</span>';
+  }
+  function psSource(src) {
+    var el = $('#psSrc'), when = src.fetched_at ? new Date(src.fetched_at).toLocaleString() : '';
+    var link = $('#psEditLink');
+    link.hidden = !src.edit_url; if (src.edit_url) link.href = src.edit_url;
+    if (!src.stale) { el.className = 'ps-src'; el.textContent = 'From CACENTRE' + (when ? ' · fetched ' + when : '') + '.'; return; }
+    el.className = 'ps-src is-stale';
+    el.textContent = src.error === 'not-configured'
+      ? 'CACENTRE’s address (CAC_SITE_URL) is not set, so there is no calendar to show.'
+      : 'CACENTRE did not answer' + (when ? '. Showing the copy fetched ' + when + '.' : ', and no copy has been fetched yet.');
+  }
+  function loadSessions(action) {
+    var box = $('#psList');
+    box.innerHTML = '<p class="muted">Loading…</p>';
+    $('#psYear').textContent = psYear; $('#psYearH').textContent = psYear;
+    api((action || 'psess_list') + '&year=' + psYear).then(function (r) {
+      if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load the sessions. <button type="button" class="btn btn-outline btn-sm" data-psretry>Try again</button></p>'; return; }
+      psSource(r.data.source || {});
+      var n = r.data.now || {}, cur = n.current, nx = n.countdown;
+      $('#psLiveBadge').hidden = !cur;
+      $('#psNow').innerHTML = (cur ? '<p><b>Running now:</b> ' + escapeHtml(cur.label) + ' · week ' + cur.week_of + ' of ' + cur.total_weeks + ' · ' + cur.days_left + ' day' + (cur.days_left === 1 ? '' : 's') + ' left</p>' : '<p><b>No session is running today.</b></p>') +
+        (nx ? '<p>The homepage counts down to <b>' + escapeHtml(nx.label) + '</b>, starting ' + escapeHtml(nx.dates.split(' – ')[0]) + (nx.featured ? ' (featured on CACENTRE)' : '') + '.</p>' : '');
+      var rows = r.data.sessions || [];
+      box.innerHTML = rows.length ? rows.map(function (x, i) {
+        return '<div class="entry-row ps-row' + (x.state === 'live' ? ' is-next' : '') + '">' +
+          (x.cover_url ? '<img class="ps-thumb" src="' + escapeHtml(x.cover_url) + '" alt="" loading="lazy" />' : '<span class="ps-thumb ps-thumb--code" aria-hidden="true">' + escapeHtml(x.code.slice(0, 4)) + '</span>') +
+          '<div class="entry-info"><div class="entry-title">' + escapeHtml(x.label) + ' ' + psState(x) + (x.featured ? ' <span class="badge published">On the homepage</span>' : '') + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(x.session_id) + ' · ' + escapeHtml(x.dates) + ' · ' + x.total_weeks + ' weeks' + (x.theme ? ' · ' + escapeHtml(x.theme) : '') + '</div></div>' +
+          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-psopen="' + i + '" aria-label="What happened here in ' + escapeHtml(x.label) + '">Report</button></div></div>';
+      }).join('') : '<p class="muted">CACENTRE lists no sessions in ' + psYear + '.</p>';
+      box._rows = rows;
+    });
+  }
+  function openSession(x) {
+    $('#psEditH').textContent = x.label;
+    $('#psDetail').innerHTML = escapeHtml(x.dates) + ' · ' + x.total_weeks + ' weeks · ' + psState(x) + (x.theme ? '<br><i>“' + escapeHtml(x.theme) + '”</i>' : '');
+    var pv = $('#psCoverPreview'); pv.hidden = !x.cover_url;
+    pv.innerHTML = x.cover_url ? '<img src="' + escapeHtml(x.cover_url) + '" alt="Cover of ' + escapeHtml(x.label) + '" />' : '';
+    var body = $('#psReportBody');
+    if (x.state === 'upcoming') body.innerHTML = '<p class="muted tiny">It has not started yet.</p>';
+    else {
+      body.innerHTML = '<p class="muted tiny">Loading…</p>';
+      api('psess_report&sid=' + encodeURIComponent(x.session_id)).then(function (r) {
+        var d = r.data;
+        if (!d || !d.ok) { body.innerHTML = '<p class="muted tiny">' + escapeHtml((d && d.error) || 'Could not load what happened in it.') + '</p>'; return; }
+        body.innerHTML = '<dl class="ps-stats">' +
+          '<div><dt>Gate visits</dt><dd>' + d.visits + '</dd></div><div><dt>Members who came</dt><dd>' + d.visitors + '</dd></div>' +
+          '<div><dt>Volunteer hours</dt><dd>' + d.volunteer_hours + '</dd></div><div><dt>Volunteers</dt><dd>' + d.volunteers + '</dd></div>' +
+          '<div><dt>Tasks finished</dt><dd>' + d.tasks_done + '</dd></div></dl>' +
+          (d.top_volunteers.length ? '<p class="muted tiny">Most hours given</p><ol class="ps-top">' + d.top_volunteers.map(function (v) { return '<li>' + escapeHtml(v.name) + ' — ' + v.hours + ' h</li>'; }).join('') + '</ol>' : '');
+      });
+    }
+    show('psEdit');
+    $('#psEditH').focus();
+  }
+  $('#psYearPrev').addEventListener('click', function () { psYear--; loadSessions(); });
+  $('#psYearNext').addEventListener('click', function () { psYear++; loadSessions(); });
+  $('#psRefreshBtn').addEventListener('click', function () { loadSessions('psess_refresh'); });
+  $('#psBackBtn').addEventListener('click', function () { show('sessions'); loadSessions(); });
+  $('#psList').addEventListener('click', function (e) {
+    if (e.target.closest('[data-psretry]')) { loadSessions(); return; }
+    var b = e.target.closest('[data-psopen]'); if (!b) return;
+    var x = ($('#psList')._rows || [])[parseInt(b.getAttribute('data-psopen'), 10)];
+    if (x) openSession(x);
+  });
+
+  /* ---- Events: ours (lib/SiteEvents.php) and Africa GATES's, read from there (lib/AvEvents.php) ---- */
+  var evData = null, editingEv = 0, evCover = '';
+  function evBadge(x) {
+    if (x.status === 'draft') return ' <span class="badge draft">Draft</span>';
+    if (x.status === 'cancelled') return ' <span class="badge draft">Cancelled</span>';
+    return ' <span class="badge published">Published</span>';
+  }
+  function evWhen(x) {
+    var s = x.starts_at || '', e = x.ends_at || '';
+    var out = s.replace('T', ' ');
+    if (e) out += ' – ' + (e.slice(0, 10) === s.slice(0, 10) ? e.slice(11) : e);
+    return out + (+x.all_day ? ' (all day)' : '');
+  }
+  function evRow(x) {
+    return '<div class="entry-row ps-row">' +
+      (x.cover_url ? '<img class="ps-thumb" src="' + escapeHtml(x.cover_url) + '" alt="" loading="lazy" />' : '<span class="ps-thumb ps-thumb--code" aria-hidden="true">' + escapeHtml(x.starts_at.slice(8, 10)) + '</span>') +
+      '<div class="entry-info"><div class="entry-title">' + escapeHtml(x.title) + evBadge(x) + (x.audience !== 'public' ? ' <span class="badge draft">' + escapeHtml((evData.audiences || {})[x.audience] || x.audience) + '</span>' : '') + (x.google_event_id ? ' <span class="badge published">In Google Calendar</span>' : '') + '</div>' +
+      '<div class="entry-meta">' + escapeHtml(evWhen(x)) + (x.venue || x.location ? ' · ' + escapeHtml([x.venue, x.location].filter(Boolean).join(', ')) : '') + '</div></div>' +
+      '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-evopen="' + x.id + '" aria-label="Edit ' + escapeHtml(x.title) + '">Edit</button></div></div>';
+  }
+  function loadEvents(action) {
+    var up = $('#evUpList'), past = $('#evPastList'), gl = $('#evGatesList');
+    up.innerHTML = '<p class="muted">Loading…</p>';
+    api(action || 'sev_list').then(function (r) {
+      if (!r.data || !r.data.ok) { up.innerHTML = '<p class="muted">' + escapeHtml((r.data && r.data.error) || 'Could not load the events.') + '</p>'; return; }
+      evData = r.data;
+      up.innerHTML = evData.upcoming.length ? evData.upcoming.map(evRow).join('') : '<p class="muted">No events of ours coming up. <b>New event</b> adds one.</p>';
+      past.innerHTML = evData.past.length ? evData.past.map(evRow).join('') : '<p class="muted">None yet.</p>';
+      $('#evGoogle').textContent = evData.google
+        ? 'Published events are copied to the shared Google Calendar, and kept in step when you edit or cancel them.'
+        : 'Google Calendar is not connected, so events stay on the site only. Connect it under System → Google Workspace.';
+      var g = evData.gates || {}, when = g.fetched_at ? new Date(g.fetched_at).toLocaleString() : '';
+      $('#evGatesAdmin').href = g.admin_url || '#';
+      var src = $('#evGatesSrc');
+      if (g.error) { src.className = 'ps-src is-stale'; src.textContent = g.error + (when ? '. Showing the copy fetched ' + when + '.' : '.'); }
+      else { src.className = 'ps-src'; src.textContent = 'From ' + (g.source || 'Africa GATES') + (when ? ' · fetched ' + when : '') + '. Refreshed every half hour.'; }
+      var ge = evData.gates_events || [];
+      gl.innerHTML = ge.length ? ge.map(function (x) {
+        return '<div class="entry-row ps-row">' +
+          (x.image ? '<img class="ps-thumb" src="' + escapeHtml(x.image) + '" alt="" loading="lazy" />' : '<span class="ps-thumb ps-thumb--code" aria-hidden="true">' + escapeHtml(x.day) + '</span>') +
+          '<div class="entry-info"><div class="entry-title">' + escapeHtml(x.title) + (x.ongoing ? ' <span class="badge published">On now</span>' : '') + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(x.when) + (x.location ? ' · ' + escapeHtml(x.location) : '') + (x.host && x.host !== 'Africa GATES' ? ' · ' + escapeHtml(x.host) : '') + '</div></div>' +
+          '<div class="entry-ops"><a class="btn btn-outline btn-sm" href="' + escapeHtml(x.url) + '" target="_blank" rel="noopener">Open ↗</a></div></div>';
+      }).join('') : '<p class="muted">Africa GATES lists nothing coming up.</p>';
+    });
+  }
+  function evLocal(v, allDay) { return v ? (allDay ? v.slice(0, 10) + 'T00:00' : v.replace(' ', 'T')) : ''; }
+  function evFill(selId, map, val) {
+    var sel = $(selId), html = selId === '#ev_category' ? '<option value="">None</option>' : '';
+    if (Array.isArray(map)) map.forEach(function (c) { html += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
+    else Object.keys(map).forEach(function (k) { html += '<option value="' + escapeHtml(k) + '">' + escapeHtml(map[k]) + '</option>'; });
+    sel.innerHTML = html; sel.value = val;
+  }
+  function setEvCover(u) {
+    evCover = u || '';
+    $('#evCoverPreview').innerHTML = evCover ? '<img src="' + escapeHtml(evCover) + '" alt="Event cover" />' : '<span>No cover</span>';
+    $('#evCoverClear').hidden = !evCover;
+  }
+  function openEvent(id) {
+    var all = evData ? evData.upcoming.concat(evData.past) : [];
+    var x = all.filter(function (e) { return +e.id === id; })[0] || { id: 0, title: '', summary: '', body: '', starts_at: '', ends_at: '', all_day: 0, venue: '', location: '', online_url: '', rsvp_url: '', cover_url: '', status: 'draft', audience: 'public', category: '' };
+    editingEv = +x.id || 0;
+    $('#evEditH').textContent = editingEv ? x.title : 'New event';
+    $('#ev_title').value = x.title; $('#ev_summary').value = x.summary; $('#ev_body').value = x.body || '';
+    $('#ev_allday').checked = !!+x.all_day;
+    $('#ev_start').value = evLocal(x.starts_at, !!+x.all_day); $('#ev_end').value = evLocal(x.ends_at, !!+x.all_day);
+    $('#ev_venue').value = x.venue; $('#ev_location').value = x.location; $('#ev_online').value = x.online_url; $('#ev_rsvp').value = x.rsvp_url;
+    evFill('#ev_status', evData.statuses, x.status); evFill('#ev_audience', evData.audiences, x.audience); evFill('#ev_category', evData.categories, x.category);
+    setEvCover(x.cover_url);
+    $('#evDeleteBtn').hidden = !editingEv;
+    var link = $('#evViewLink'); link.hidden = !(editingEv && x.audience === 'public' && x.status !== 'draft'); link.href = '/events/' + encodeURIComponent(x.slug || '') + '/';
+    $('#evGoogleCard').hidden = !evData.google;
+    $('#evGoogleNote').textContent = x.google_event_id ? 'On the shared calendar. Saving updates it; drafting or cancelling takes it off.' : 'Publishing adds it to the shared calendar.';
+    show('evEdit'); $('#evEditH').focus();
+  }
+  $('#evNewBtn').addEventListener('click', function () { if (evData) openEvent(0); });
+  $('#evBackBtn').addEventListener('click', function () { show('events'); loadEvents(); });
+  $('#evGatesRefresh').addEventListener('click', function () { loadEvents('sev_refresh'); });
+  ['#evUpList', '#evPastList'].forEach(function (id) {
+    $(id).addEventListener('click', function (e) { var b = e.target.closest('[data-evopen]'); if (b) openEvent(parseInt(b.getAttribute('data-evopen'), 10)); });
+  });
+  $('#evCoverFile').addEventListener('change', function () {
+    if (!this.files[0]) return;
+    uploadFile(this.files[0]).then(function (r) { r.data && r.data.ok ? (setEvCover(r.data.url), toast('Cover uploaded')) : toast((r.data && r.data.error) || 'Upload failed'); });
+    this.value = '';
+  });
+  $('#evCoverClear').addEventListener('click', function () { setEvCover(''); });
+  $('#evSaveBtn').addEventListener('click', function () {
+    var allDay = $('#ev_allday').checked, cut = function (v) { return v ? (allDay ? v.slice(0, 10) : v.replace('T', ' ').slice(0, 16)) : ''; };
+    if (!$('#ev_title').value.trim() || !$('#ev_start').value) { toast('A title and a start are required.'); return; }
+    var btn = this; btn.disabled = true;
+    post('sev_save', {
+      id: editingEv, title: $('#ev_title').value.trim(), summary: $('#ev_summary').value.trim(), body: $('#ev_body').value,
+      starts_at: cut($('#ev_start').value), ends_at: cut($('#ev_end').value), all_day: allDay ? 1 : 0,
+      venue: $('#ev_venue').value.trim(), location: $('#ev_location').value.trim(), online_url: $('#ev_online').value.trim(), rsvp_url: $('#ev_rsvp').value.trim(),
+      cover_url: evCover, status: $('#ev_status').value, audience: $('#ev_audience').value, category: $('#ev_category').value
+    }).then(function (r) {
+      btn.disabled = false;
+      if (r.data && r.data.ok) { toast('Saved.'); show('events'); loadEvents(); } else toast((r.data && r.data.error) || 'Could not save.');
+    });
+  });
+  $('#evDeleteBtn').addEventListener('click', function () {
+    if (!editingEv || !confirm('Delete this event? Cancelling it instead keeps it on the page marked “Cancelled”.')) return;
+    post('sev_delete', { id: editingEv }).then(function (r) { if (r.data && r.data.ok) { toast('Deleted.'); show('events'); loadEvents(); } else toast((r.data && r.data.error) || 'Could not delete.'); });
+  });
+
   function loadCelebrations() {
     var box = $('#celList'), bi = $('#celBuiltins');
     box.innerHTML = '<p class="muted">Loading…</p>'; bi.innerHTML = '';
@@ -1770,10 +1954,13 @@
 
     var tests = $('#setupTests');
     if (tests) {
+      /* Every test can be pressed. One that is not set up answers with WHY
+         (the server's own reason), instead of a disabled button whose press
+         did nothing and whose reason lived in a tooltip. */
       tests.innerHTML = (d.testable || []).map(function (t) {
-        return '<button type="button" class="btn btn-outline btn-sm setup-test" data-what="' + escapeHtml(t.key) + '"'
-          + (t.ready ? '' : ' disabled title="Nothing configured to test yet"') + '>Test ' + escapeHtml(t.label) + '</button>'
-          + '<span class="setup-test-out" id="stout_' + escapeHtml(t.key) + '"></span>';
+        return '<button type="button" class="btn btn-outline btn-sm setup-test" data-what="' + escapeHtml(t.key) + '">Test ' + escapeHtml(t.label) + '</button>'
+          + '<span class="setup-test-out' + (t.ready ? '' : ' is-bad') + '" id="stout_' + escapeHtml(t.key) + '">'
+          + (t.ready ? '' : '✗ ' + escapeHtml(t.why || 'Not set up yet.')) + '</span>';
       }).join('');
     }
 
@@ -1842,7 +2029,7 @@
     post('setup_save', { values: vals }).then(function (r) {
       var d = r.data || {};
       if (d.saved) { toast('Cleared.'); renderSetup(d); setupDirty = {}; }
-      else toast('Could not clear that.');
+      else toast('Could not clear that' + (d.error ? ' — ' + d.error : '.'));
     });
   });
 
@@ -1855,8 +2042,17 @@
       var d = r.data || {};
       var errs = d.errors || {};
       var names = Object.keys(errs);
+      /* "Saved." only when the server says it stored something. A refused
+         request — a firewall page, an expired session, a PHP fatal — has no
+         per-field errors either, and used to read as success: the operator
+         was told a key was saved that never reached the database. */
       if (names.length) {
         $('#setupMsg').textContent = names.map(function (k) { return k + ': ' + errs[k]; }).join(' · ');
+      } else if (!d.groups) {
+        $('#setupMsg').textContent = 'Not saved — ' + (d.error || 'the server sent no usable answer') + ' Your changes are still in the form; try again.';
+        return;
+      } else if (!d.saved) {
+        $('#setupMsg').textContent = 'Nothing was saved.';
       } else {
         $('#setupMsg').textContent = 'Saved.';
         toast('Setup saved.');
@@ -1898,7 +2094,9 @@
       var d = r.data || {};
       if (!out) return;
       out.className = 'setup-test-out ' + (d.ok ? 'is-ok' : 'is-bad');
-      out.textContent = (d.ok ? '✓ ' : '✗ ') + (d.detail || '') + (d.ms != null ? ' (' + d.ms + 'ms)' : '');
+      /* A refusal before the test (signed out, not a Super Admin, rate
+         limited) has `error`, not `detail`: it printed a bare ✗. */
+      out.textContent = (d.ok ? '✓ ' : '✗ ') + (d.detail || d.error || ('The server answered ' + (r.status || 'nothing') + ' with no explanation.')) + (d.ms != null ? ' (' + d.ms + 'ms)' : '');
     }).catch(function (e) {
       if (settled) return; settled = true; clearTimeout(giveUp);
       b.disabled = false;
@@ -3199,7 +3397,7 @@
   var memSel = {}, memPageIds = [], memTotal = 0, memMember = null;
   /* Dues — not the same as being an Afrovanguard member: a learner can pay
      dues and stay a learner, and a member can have none. */
-  var MS_LABEL = { lifetime: 'Lifetime dues', current: 'Dues paid', due_soon: 'Dues due soon', lapsed: 'Dues lapsed', cancelled: 'Dues ended by the office', never: 'Never paid dues', member: 'Paying dues', none: 'No dues' };
+  var MS_LABEL = { lifetime: 'Lifetime dues', current: 'Dues paid', due_soon: 'Dues due soon', lapsed: 'Dues lapsed', cancelled: 'Dues ended by the office', never: 'Never paid dues', member: 'Paying dues', none: 'No dues', owing: 'Behind on dues', obliged: 'Owe dues' };
   function memFill(sel, list, keep, label) {
     var el = $(sel); if (!el) return;
     var v = keep !== undefined ? keep : el.value;
@@ -3218,10 +3416,13 @@
     if (which === 'dash') loadMemDash();
     if (which === 'roster') loadMemRoster();
     if (which === 'roles') loadMemRoles();
+    if (which === 'centres') loadMemCentres();
+    if (which === 'approvals') loadApprovals();
     if (which === 'import') loadMemFormats();
     if (which === 'dups') loadMemDups();
     if (which === 'volunteers') { loadVolProjects(); vsStatus(); }
     if (which === 'offline') loadOffline();
+    if (which === 'dues') loadDues();
   }
   function loadMembers() { memTab(($('.subtab[data-mv].active') || { getAttribute: function () { return 'dash'; } }).getAttribute('data-mv')); }
 
@@ -3252,9 +3453,11 @@
       + '<h2 class="mem-tiles-h">Dues</h2><div class="ov-grid mem-tiles">'
       + dues('member', 'Paying dues', 'any account — a learner can pay') + dues('due_soon', 'Due within 30 days')
       + dues('lapsed', 'Lapsed') + dues('lifetime', 'Lifetime') + dues('cancelled', 'Ended by the office')
+      + dues('owing', 'Behind on dues', naira(du.owing_ngn) + ' owed · ' + (du.owing_months || 0) + ' month' + (du.owing_months === 1 ? '' : 's'))
+      + dues('obliged', 'Owe dues', 'members from level ' + ((du.rules || {}).from_level || 'O') + ' up, not NGV')
       + memTile(naira(du.received_12m_ngn), 'Dues received', '', 'last 12 months')
       + memTile((b.offline || {}).held || 0, 'Offline payments to check', 'data-offline="1"', 'held — not credited')
-      + '</div><p class="mem-tiles-note">Dues open paid courses. They are not membership: paying them changes nobody’s access level.</p>'
+      + '</div><p class="mem-tiles-note">Members owe dues every month' + ((du.rules || {}).enabled === false ? ' — <b>switched off</b>' : ' at ' + naira((du.rules || {}).monthly_ngn) + ' a month or ' + naira((du.rules || {}).annual_ngn) + ' a year') + '. Learners may pay them too, to open paid courses; paying changes nobody’s access level. Set the rules under Members → Dues.</p>'
       + '<h2 class="mem-tiles-h">Progression</h2><div class="ov-grid mem-tiles">'
       + seg('level_raised', 'Level raised', 'last 12 months') + seg('review_open', 'Promotion to decide', 'open reviews')
       + '</div>';
@@ -3270,21 +3473,23 @@
         + Object.keys(d.by_role || {}).map(function (k) { return memChip(d.by_role[k], k); }).join('');
       var max = Math.max.apply(null, (d.joined || []).map(function (m) { return m.joined; }).concat([1]));
       $('#memJoined').innerHTML = (d.joined || []).map(function (m) {
-        return '<span style="height:' + Math.max(2, Math.round(m.joined / max * 100)) + '%" title="' + escapeHtml(m.month) + ': ' + m.joined + ' joined"><i>' + escapeHtml(m.month.slice(5)) + '</i></span>';
+        return '<span class="h' + Math.min(100, Math.max(5, Math.round(m.joined / max * 20) * 5)) + '" title="' + escapeHtml(m.month) + ': ' + m.joined + ' joined"><i>' + escapeHtml(m.month.slice(5)) + '</i></span>';
       }).join('');
       var q = d.quality || {}, keys = Object.keys(q);
       $('#memQuality').innerHTML = keys.length ? '<div class="mem-quality">' + keys.map(function (k) {
         return '<a href="#" data-missing="' + escapeHtml(k) + '"><span>' + escapeHtml(q[k].label) + '</span><b>' + q[k].n + '</b></a>';
       }).join('') + '</div>' : '<p class="muted">Nothing to fix. Every record is complete.</p>';
       var c = d.by_centre || {};
-      $('#memCentres').innerHTML = Object.keys(c).map(function (k) { return '<div class="mem-card-row"><span>' + escapeHtml(k) + '</span><b style="margin-left:auto">' + c[k] + '</b></div>'; }).join('') || '<p class="muted">No centres recorded.</p>';
+      $('#memCentres').innerHTML = Object.keys(c).map(function (k) { return '<div class="mem-card-row"><span>' + escapeHtml(k) + '</span><b class="ml-auto">' + c[k] + '</b></div>'; }).join('') || '<p class="muted">No centres recorded.</p>';
     });
     api('ngv_intake').then(function (r) {
       var w = (r.data && r.data.waiting) || [];
       $('#memIntake').hidden = !w.length;
       $('#memIntakeList').innerHTML = w.map(function (x) {
         return '<div class="mem-try" data-ngg="' + escapeHtml(x.ngg_member_id) + '"><span><b>' + escapeHtml(x.name) + '</b> <span class="muted tiny">' + escapeHtml(x.ngg_member_id) + ' · ' + escapeHtml(x.detail) + '</span></span>'
-          + '<input type="email" placeholder="their email" value="' + escapeHtml(x.email || '') + '" aria-label="Email for ' + escapeHtml(x.name) + '"><button class="btn btn-primary btn-sm mem-intake-go">Create account</button></div>';
+          + (x.status === 'needs_consent'
+            ? '<input type="text" placeholder="parent or guardian" aria-label="Guardian who consented for ' + escapeHtml(x.name) + '"><select aria-label="How they consented"><option value="signed_form">Signed form</option><option value="in_person">In person</option><option value="phone">Phone call</option><option value="email">Email</option></select><button class="btn btn-primary btn-sm mem-intake-consent">Record consent</button></div>'
+            : '<input type="email" placeholder="their email" value="' + escapeHtml(x.email || '') + '" aria-label="Email for ' + escapeHtml(x.name) + '"><button class="btn btn-primary btn-sm mem-intake-go">Create account</button></div>');
       }).join('');
     });
     api('mem_list').then(function (r) {
@@ -3297,7 +3502,8 @@
     var badges = (m.ngv ? ' <span class="badge published" title="Enrolled in NextGen Vanguard, or holds an NGV ID card">NGV</span>' : '')
       + (m.volunteer ? ' <span class="badge published" title="On the volunteer roster, a team, NGG\'s volunteer list or the People page">Volunteer</span>' : '')
       + (m.status === 'suspended' ? ' <span class="badge draft">suspended</span>' : '')
-      + (m.membership && m.membership !== 'none' ? ' <span class="badge ' + (m.membership === 'due_soon' ? 'draft' : 'published') + '" title="' + escapeHtml(m.paid_through ? 'Paid through ' + String(m.paid_through).slice(0, 10) : 'Does not expire') + '">' + escapeHtml(MS_LABEL[m.membership]) + '</span>' : '');
+      + (m.membership && m.membership !== 'none' ? ' <span class="badge ' + (m.membership === 'due_soon' ? 'draft' : 'published') + '" title="' + escapeHtml(m.paid_through ? 'Paid through ' + String(m.paid_through).slice(0, 10) : 'Does not expire') + '">' + escapeHtml(MS_LABEL[m.membership]) + '</span>' : '')
+      + (m.owes && m.owes.months > 0 ? ' <span class="badge mem-owes" title="' + escapeHtml(m.owes.months + ' month' + (m.owes.months === 1 ? '' : 's') + ' of dues owed since ' + m.owes.since) + '">Owes ' + escapeHtml(naira(m.owes.amount_ngn)) + '</span>' : '');
     var meta = [m.email, m.phone, m.centre, 'level ' + (m.level || 'O'), m.role].filter(Boolean).map(escapeHtml).join(' · ');
     return '<div class="entry-row mem-row" data-id="' + m.id + '">'
       + '<input type="checkbox" class="mem-pick" data-id="' + m.id + '"' + (memSel[m.id] ? ' checked' : '') + ' aria-label="Choose ' + escapeHtml(m.name || 'member') + '">'
@@ -3306,7 +3512,8 @@
       + (m.work_roles || m.about ? '<div class="entry-meta mem-row-roles">' + (m.work_roles ? String(m.work_roles).split(/\s*,\s*/).map(function (r) { return '<span class="mem-role-tag">' + escapeHtml(r) + '</span>'; }).join('') : '<span class="muted">No work role</span>')
           + (m.about ? ' <span class="mem-row-about">' + escapeHtml(String(m.about).slice(0, 120)) + '</span>' : '') + '</div>' : '')
       + '<div class="entry-meta">' + (m.card ? 'Gate card <code>' + escapeHtml(m.card) + '</code>' : '<b>No gate card</b>') + ' · joined ' + escapeHtml(String(m.joined_on || m.created_at || '').slice(0, 10)) + '</div></div>'
-      + '<div class="entry-ops"><button class="btn btn-outline btn-sm mem-open" data-id="' + m.id + '">Open</button></div></div>';
+      + '<div class="entry-ops"><select class="mem-row-act" data-id="' + m.id + '" aria-label="Act on ' + escapeHtml(m.name || 'this member') + '"><option value="">Actions…</option>' + memActionOptions('row') + '</select>'
+      + '<button class="btn btn-outline btn-sm mem-open" data-id="' + m.id + '">Open</button></div></div>';
   }
   function loadMemRoster() {
     var box = $('#memList'); if (!box) return;
@@ -3339,12 +3546,112 @@
       return '<button type="button" class="mem-fchip" data-clear="' + f[0] + '" aria-label="Remove the filter ' + escapeHtml(f[1] + ': ' + txt) + '">' + escapeHtml(f[1]) + ': <b>' + escapeHtml(txt) + '</b> ✕</button>';
     }).join('') + (on.length > 1 ? '<button type="button" class="mem-fchip mem-fchip--all" data-clear="*">Clear all</button>' : '');
   }
+  /* Centres come from the office's list (lib/Centres.php): every centre to
+     filter by, only the open ones to put somebody in. */
+  var CENTRES = { all: [], open: [] };
   function memCentresFill() {
-    api('roster_centres').then(function (r) {
+    return api('roster_centres').then(function (r) {
+      CENTRES = { all: (r.data && r.data.centres) || [], open: (r.data && r.data.open) || [] };
       var el = $('#memCentre'), keep = el.value;
-      el.innerHTML = '<option value="">Any centre</option>' + ((r.data && r.data.centres) || []).map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
+      el.innerHTML = '<option value="">Any centre</option>' + CENTRES.all.map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
       el.value = keep;
+      document.querySelectorAll('select[data-centre-pick]').forEach(function (s) { centrePick(s, s.value); });
     }).catch(function () {});
+  }
+  /* A picker of the open centres — and the member's own, even if it has since been retired. */
+  function centrePick(sel, current) {
+    if (!sel) return;
+    var list = CENTRES.open.slice();
+    if (current && list.indexOf(current) < 0) list.push(current);
+    sel.innerHTML = '<option value="">No centre</option>' + list.map(function (c) {
+      return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + (CENTRES.open.indexOf(c) < 0 ? ' (retired)' : '') + '</option>';
+    }).join('');
+    sel.value = current || '';
+  }
+
+  /* ── Approvals: an admin's sensitive acts, waiting for a second person ── */
+  /* The badge counts both: admins' acts and members' requests. */
+  function approvalsBadge() {
+    return Promise.all([api('approvals_list&status=pending'), api('member_requests_list&status=pending')]).then(function (x) {
+      var n = ((x[0].data && x[0].data.pending) || 0) + ((x[1].data && x[1].data.pending) || 0), b = $('#apprBadge');
+      if (b) { b.hidden = !n; b.textContent = n; }
+    }).catch(function () {});
+  }
+  var MREQ_WORDS = { pending: 'Waiting', approved: 'Approved', rejected: 'Not approved', withdrawn: 'Withdrawn', deciding: 'Being decided' };
+  function loadMemberRequests() {
+    var box = $('#mreqList'); if (!box) return;
+    var st = ($('#apprStatus') || {}).value || 'pending';
+    if (['pending', 'approved', 'rejected', 'withdrawn', 'all'].indexOf(st) < 0) st = 'all';
+    api('member_requests_list&status=' + encodeURIComponent(st)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load members’ requests. <button type="button" class="btn btn-outline btn-sm" data-mreq-retry>Try again</button></p>'; return; }
+      var rows = d.requests || [];
+      box.innerHTML = rows.length ? rows.map(function (q) {
+        return '<div class="appr-row" data-mreq="' + q.id + '">'
+          + '<div class="appr-main"><div class="appr-sum">' + escapeHtml(q.summary) + '</div>'
+          + '<div class="muted tiny">' + escapeHtml(q.member.email) + (q.member.centre ? ' · at ' + escapeHtml(q.member.centre) : '') + ' · ' + escapeHtml(String(q.created_at).slice(0, 16)) + ' UTC</div>'
+          + (q.reason ? '<div class="muted tiny">Why: ' + escapeHtml(q.reason) + '</div>' : '')
+          + (q.outcome ? '<div class="muted tiny">' + escapeHtml(q.outcome) + '</div>' : '') + '</div>'
+          + '<div class="appr-ops"><span class="badge ' + (q.status === 'pending' ? 'draft' : q.status === 'approved' ? 'published' : '') + '">' + escapeHtml(MREQ_WORDS[q.status] || q.status) + '</span>'
+          + (q.status === 'pending' ? '<button type="button" class="btn btn-primary btn-sm" data-mreq-do="approve">Approve</button><button type="button" class="btn btn-outline btn-sm" data-mreq-do="reject">Reject</button>' : '')
+          + '<button type="button" class="btn btn-outline btn-sm mem-open" data-id="' + q.member.id + '">Open record</button>'
+          + '</div></div>';
+      }).join('') : '<p class="muted">' + (st === 'pending' ? 'No member is waiting for an answer.' : 'No requests here.') + '</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load members’ requests. <button type="button" class="btn btn-outline btn-sm" data-mreq-retry>Try again</button></p>'; });
+  }
+  var APPR_WORDS = { pending: 'Waiting', approved: 'Approved', rejected: 'Not approved', failed: 'Approved, could not run', withdrawn: 'Withdrawn', expired: 'Expired', running: 'Running' };
+  function loadApprovals() {
+    loadMemberRequests();
+    var box = $('#apprList'); if (!box) return;
+    var st = ($('#apprStatus') || {}).value || 'pending';
+    box.innerHTML = '<p class="muted">Loading…</p>';
+    api('approvals_list&status=' + encodeURIComponent(st)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load the requests. <button type="button" class="btn btn-outline btn-sm" data-appr-retry>Try again</button></p>'; return; }
+      var b = $('#apprBadge'); if (b) { b.hidden = !d.pending; b.textContent = d.pending; }
+      var rows = d.approvals || [];
+      box.innerHTML = rows.length ? rows.map(function (a) {
+        return '<div class="appr-row" data-id="' + a.id + '">'
+          + '<div class="appr-main"><div class="appr-sum">' + escapeHtml(a.summary) + '</div>'
+          + '<div class="muted tiny">Asked by ' + escapeHtml(a.mine ? 'you' : a.requester) + ' · ' + escapeHtml(String(a.created_at).slice(0, 16)) + ' UTC'
+          + (a.decided_by && a.status !== 'pending' ? ' · ' + escapeHtml(APPR_WORDS[a.status] || a.status) + ' by ' + escapeHtml(a.decided_by) : '') + '</div>'
+          + (a.reason ? '<div class="muted tiny">Why: ' + escapeHtml(a.reason) + '</div>' : '')
+          + (a.outcome ? '<div class="muted tiny">' + escapeHtml(a.outcome) + '</div>' : '') + '</div>'
+          + '<div class="appr-ops"><span class="badge ' + (a.status === 'pending' ? 'draft' : a.status === 'approved' ? 'published' : '') + '">' + escapeHtml(APPR_WORDS[a.status] || a.status) + '</span>'
+          + (a.can_decide ? '<button type="button" class="btn btn-primary btn-sm" data-appr="approve">Approve</button><button type="button" class="btn btn-outline btn-sm" data-appr="reject">Reject</button>' : '')
+          + (a.mine && a.status === 'pending' ? '<button type="button" class="btn btn-outline btn-sm" data-appr="withdraw">Withdraw</button>' : '')
+          + (a.mine && a.status === 'pending' ? '<span class="muted tiny">Waiting for a second admin</span>' : '')
+          + '</div></div>';
+      }).join('') : '<p class="muted">' + (st === 'pending' ? 'Nothing is waiting for approval.' : 'No requests here.') + '</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the requests. <button type="button" class="btn btn-outline btn-sm" data-appr-retry>Try again</button></p>'; });
+  }
+
+  function centreSaid(t, bad) { var m = $('#centreMsg'); if (m) { m.textContent = t || ''; m.classList.toggle('is-bad', !!bad); } }
+  function loadMemCentres() {
+    var box = $('#memCentresList'); if (!box) return;
+    api('centres_list').then(function (r) {
+      var cs = (r.data && r.data.centres) || [];
+      if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load the centres. <button type="button" class="btn btn-outline btn-sm" data-centre-retry>Try again</button></p>'; return; }
+      /* Once CACENTRE's list has arrived it decides the places: no adding here,
+         and a linked centre's name and status are changed there. */
+      var cac = r.data.cacentre || null;
+      $('#centreCacNote').hidden = !cac; $('#centreNew').hidden = !!cac; $('#centreCodeHelp').hidden = !!cac;
+      $('#centreCacWhen').textContent = cac && cac.at ? 'Last update from CACENTRE: ' + String(cac.at).replace('T', ' ').slice(0, 16) + ' UTC.' : '';
+      box.innerHTML = cs.length ? '<div class="mem-centres">' + cs.map(function (c) {
+        var retired = c.status !== 'active', linked = !!c.cac_id;
+        return '<form class="mem-centre-row' + (retired ? ' is-retired' : '') + '" data-id="' + c.id + '">'
+          + '<label class="fld"><span>Centre' + (linked ? ' · from CACENTRE' : '') + '</span><input name="name" maxlength="60" value="' + escapeHtml(c.name) + '" required' + (linked ? ' readonly aria-describedby="centreCacNote"' : '') + ' /></label>'
+          + '<label class="fld"><span>Code</span><input name="code" class="mem-centre-code" maxlength="8" value="' + escapeHtml(c.code) + '" required /></label>'
+          + '<div class="mem-centre-ops">'
+          + '<button type="button" class="btn btn-outline btn-sm" data-centre-members="' + escapeHtml(c.name) + '">' + c.members + ' member' + (c.members === 1 ? '' : 's') + '</button>'
+          + (retired ? '<span class="badge draft">Retired</span>' : '')
+          + (linked ? '<span class="badge">CACENTRE</span>' : (cac ? '<span class="badge draft">Not a CACENTRE location</span>' : ''))
+          + '<button type="submit" class="btn btn-primary btn-sm">Save</button>'
+          + (linked ? '' : '<button type="button" class="btn btn-outline btn-sm" data-centre-status="' + (retired ? 'active' : 'retired') + '" data-name="' + escapeHtml(c.name) + '">' + (retired ? 'Reopen' : 'Retire') + '</button>'
+          + '<button type="button" class="btn btn-outline btn-sm" data-centre-del data-n="' + c.members + '" data-name="' + escapeHtml(c.name) + '">Delete</button>')
+          + '</div></form>';
+      }).join('') + '</div>' : '<p class="muted">No centres yet. Add the first above — Egbeda, Ayobo…</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the centres. <button type="button" class="btn btn-outline btn-sm" data-centre-retry>Try again</button></p>'; });
   }
   /* One member's activity and notes, in the drawer. */
   function memNotesLoad(id) {
@@ -3378,6 +3685,49 @@
      The count is read before the confirm, and the server's per-row verdicts
      are reported as they are: a run where some were refused is partial. */
   function memSelIds() { return Object.keys(memSel).map(Number); }
+  /* ── One declaration per member action ──
+     The bulk bar and each row's menu are drawn from this list and run through
+     one runner (memRunAction), so an action and its bulk twin cannot drift
+     into asking differently or doing different things — NGG's rule
+     (components.jsx runAdminAction). `value` names the input an action
+     needs; `warn` is said before it runs; `bulkHidden` / `rowHidden` keep it
+     off one surface. The server decides who may: lib/MemberRoster::bulk. */
+  var MEMBER_ACTIONS = [
+    { id: 'status:active', label: 'Reactivate' },
+    { id: 'status:suspended', label: 'Suspend', warn: 'They are signed out, and their gate pass stops at the door.' },
+    { id: 'centre', label: 'Set centre…', value: 'centre' },
+    { id: 'level', label: 'Set level…', value: 'level' },
+    { id: 'membership_grant', label: 'Give months of dues (waiver or reason)…', value: 'months' },
+    { id: 'membership_cancel', label: 'End dues…', value: 'reason' },
+    { id: 'volunteer_add', label: 'Make volunteers', rowLabel: 'Make a volunteer', value: 'project', warn: 'Each gets the Volunteer dashboard and a notification.' },
+    { id: 'volunteer_remove', label: 'Remove from volunteers', warn: 'They leave their volunteer teams; their hours stay on record.' },
+    { id: 'work_role_add', label: 'Give a work role…', value: 'role' },
+    { id: 'work_role_remove', label: 'Take away a work role…', value: 'role' }
+  ];
+  function memAction(id) { return MEMBER_ACTIONS.filter(function (a) { return a.id === id; })[0] || null; }
+  function memActionOptions(surface) {
+    return MEMBER_ACTIONS.filter(function (a) { return !(surface === 'bulk' ? a.bulkHidden : a.rowHidden); })
+      .map(function (a) { return '<option value="' + escapeHtml(a.id) + '">' + escapeHtml(surface === 'row' && a.rowLabel ? a.rowLabel : a.label) + '</option>'; }).join('');
+  }
+  /* The one runner. Never throws; per-row verdicts win over the top-level ok. */
+  function memRunAction(id, ids, value) {
+    var action = id, v = value || {};
+    if (id.indexOf('status:') === 0) { action = 'status'; v = { status: id.slice(7) }; }
+    return post('roster_bulk', { ids: ids, action: action, value: v }).then(function (r) {
+      var d = r.data || {};
+      if (d.code === 'approval_pending') { approvalsBadge(); return { ran: false, queued: true, ok: 0, failed: 0, error: d.error, summary: d.summary, results: [] }; }
+      if (!d.ok) return { ran: false, ok: 0, failed: ids.length, error: d.error || 'Refused.', results: [] };
+      return { ran: true, ok: d.applied, unchanged: d.unchanged, failed: d.refused, partial: !!d.partial, results: d.results || [] };
+    }).catch(function () { return { ran: false, ok: 0, failed: ids.length, error: 'Network error — nothing was changed.', results: [] }; });
+  }
+  function memRunSummary(res) {
+    if (res.queued) return '<p class="mem-bulk-sum mem-queued"><b>Sent for approval</b> — ' + escapeHtml(res.summary || '') + '. Nothing changes until a second admin approves it in Approvals.</p>';
+    if (!res.ran) return '<div class="mem-errors">' + escapeHtml(res.error) + '</div>';
+    var refused = res.results.filter(function (x) { return x.outcome === 'refused'; });
+    return '<p class="mem-bulk-sum"><b>' + (res.partial ? 'Partly done' : 'Done') + '</b> — ' + res.ok + ' changed · ' + (res.unchanged || 0) + ' already so · ' + res.failed + ' refused</p>'
+      + refused.slice(0, 50).map(function (x) { return '<div class="muted tiny">↳ ' + escapeHtml((x.name || '#' + x.id) + ': ' + x.error) + '</div>'; }).join('');
+  }
+
   function memBulkSync() {
     var n = memSelIds().length;
     $('#memBulk').hidden = n === 0;
@@ -3388,8 +3738,10 @@
     var onPage = memPageIds.filter(function (i) { return memSel[i]; }).length, sp = $('#memSelPage');
     sp.checked = memPageIds.length > 0 && onPage === memPageIds.length;
     sp.indeterminate = onPage > 0 && onPage < memPageIds.length;
-    var a = $('#memBulkAction').value, v = $('#memBulkValue');
-    v.hidden = !(a === 'centre' || a === 'level' || a === 'membership_grant' || a === 'membership_cancel');
+    var sel = $('#memBulkAction');
+    if (sel.options.length < 2) sel.insertAdjacentHTML('beforeend', memActionOptions('bulk'));
+    var a = sel.value, v = $('#memBulkValue'), decl = memAction(a) || {};
+    v.hidden = ['centre', 'level', 'months', 'reason'].indexOf(decl.value) < 0;
     $('#memBulkProject').hidden = $('#memBulkType').hidden = a !== 'volunteer_add';
     $('#memBulkRole').hidden = a.indexOf('work_role_') !== 0;
     if (a.indexOf('work_role_') === 0) roleFill('#memBulkRole', 'Choose the role');
@@ -3397,6 +3749,34 @@
     v.placeholder = a === 'centre' ? 'Centre name' : a === 'level' ? 'Level (' + memLevels.join(', ') + ')' : a === 'membership_grant' ? 'Months, then a reason: 12 Scholarship' : 'Why these memberships end';
     $('#memBulkGo').disabled = !a || n === 0;
   }
+  /* A row's menu: the same action, for one member. One that needs a value
+     chooses that member alone and hands the action to the bulk bar, where its
+     value is asked for; one that does not runs here, through the same runner. */
+  document.addEventListener('change', function (e) {
+    var s = e.target.closest('.mem-row-act'); if (!s || !s.value) return;
+    var id = +s.getAttribute('data-id'), decl = memAction(s.value); s.value = '';
+    if (!decl) return;
+    if (decl.value) {
+      memSel = {}; memSel[id] = true;
+      document.querySelectorAll('.mem-pick').forEach(function (c) { c.checked = +c.getAttribute('data-id') === id; });
+      $('#memBulkAction').value = decl.id; memBulkSync();
+      var first = ['#memBulkValue', '#memBulkRole', '#memBulkProject'].map(function (q) { return $(q); }).filter(function (el) { return el && !el.hidden; })[0];
+      $('#memBulk').scrollIntoView({ block: 'nearest' }); if (first) first.focus();
+      return;
+    }
+    var name = (s.closest('.mem-row') && s.closest('.mem-row').querySelector('.entry-title')) ? s.closest('.mem-row').querySelector('.entry-title').firstChild.textContent : 'this member';
+    if (!confirm(decl.label.replace(/…$/, '') + ' — ' + name + '?' + (decl.warn ? ' ' + decl.warn : ''))) return;
+    s.disabled = true;
+    memRunAction(decl.id, [id]).then(function (res) {
+      s.disabled = false;
+      var one = res.results[0] || {};
+      if (res.queued) toast(res.error);
+      else if (!res.ran) toast(res.error);
+      else if (one.outcome === 'refused') toast(one.error || 'Refused.');
+      else { toast(one.outcome === 'unchanged' ? 'Already so.' : 'Done.'); loadMemRoster(); }
+    });
+  });
+
   function memBulkRun() {
     var ids = memSelIds(), n = ids.length, a = $('#memBulkAction').value, raw = $('#memBulkValue').value.trim(), action = a, value = {};
     if (a.indexOf('status:') === 0) { action = 'status'; value.status = a.slice(7); }
@@ -3406,17 +3786,16 @@
     else if (a === 'membership_cancel') value.note = raw;
     else if (a.indexOf('work_role_') === 0) { value.role = $('#memBulkRole').value; if (!value.role) { toast('Choose the work role.'); return; } }
     else if (a === 'volunteer_add') { value.project_id = +$('#memBulkProject').value; value.type = $('#memBulkType').value; if (!value.project_id) { toast('Choose the project they volunteer on.'); return; } }
-    var label = $('#memBulkAction').selectedOptions[0].textContent.replace(/…$/, '');
-    if (!confirm(label + ' — ' + n + ' account' + (n === 1 ? '' : 's') + '?' + (action === 'status' && value.status === 'suspended' ? ' They are signed out, and their gate pass stops at the door.' : '') + (action === 'volunteer_add' ? ' Each gets the Volunteer dashboard and a notification.' : action === 'volunteer_remove' ? ' They leave their volunteer teams; their hours stay on record.' : ''))) return;
+    /* The count is read before the confirm, so a list refreshing underneath
+       cannot change what was agreed to. */
+    var decl = memAction(a) || { label: a };
+    if (!confirm(decl.label.replace(/…$/, '') + ' — ' + n + ' account' + (n === 1 ? '' : 's') + '?' + (decl.warn ? ' ' + decl.warn : ''))) return;
     var b = $('#memBulkGo'); b.disabled = true;
-    post('roster_bulk', { ids: ids, action: action, value: value }).then(function (r) {
-      var d = r.data || {};
-      if (!d.ok) { $('#memBulkResult').innerHTML = '<div class="mem-errors">' + escapeHtml(d.error || 'Refused.') + '</div>'; return; }
-      var refused = (d.results || []).filter(function (x) { return x.outcome === 'refused'; });
-      $('#memBulkResult').innerHTML = '<p class="mem-bulk-sum"><b>' + (d.partial ? 'Partly done' : 'Done') + '</b> — ' + d.applied + ' changed · ' + d.unchanged + ' already so · ' + d.refused + ' refused</p>'
-        + refused.slice(0, 50).map(function (x) { return '<div class="muted tiny">↳ ' + escapeHtml((x.name || '#' + x.id) + ': ' + x.error) + '</div>'; }).join('');
-      memSel = {}; loadMemRoster();
-    }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; memBulkSync(); });
+    memRunAction(a, ids, value).then(function (res) {
+      $('#memBulkResult').innerHTML = memRunSummary(res);
+      if (res.ran) { memSel = {}; loadMemRoster(); }
+      b.disabled = false; memBulkSync();
+    });
   }
 
   /* ── One member's membership ── */
@@ -3428,7 +3807,11 @@
       : ms.state === 'lapsed' ? 'Dues lapsed' + (ms.paid_through ? ' on ' + when(ms.paid_through) : '')
       : ms.state === 'cancelled' ? 'Dues ended by the office' + (ms.ended && ms.ended.at ? ' on ' + when(ms.ended.at) + ' by ' + escapeHtml(ms.ended.by) : '') + (ms.ended && ms.ended.note ? ' — “' + escapeHtml(ms.ended.note) + '”' : '')
       : 'Never paid dues';
-    return '<p class="mem-ms-line">' + line + '</p><p class="muted tiny">Dues paid to date: ₦' + Number(ms.total_paid_ngn || 0).toLocaleString('en-NG') + ' in ' + ms.payments + ' payment' + (ms.payments === 1 ? '' : 's') + (ms.last_paid_at ? ' · last ' + when(ms.last_paid_at) : '') + '</p>';
+    var ar = ms.arrears || {};
+    var owe = ar.months > 0
+      ? '<p class="mem-ms-owe">Behind by <b>' + ar.months + ' month' + (ar.months === 1 ? '' : 's') + '</b> since ' + when(ar.since) + ': <b>' + naira(ar.amount_ngn) + '</b> owed. Recording dues covers the oldest month first.</p>'
+      : '<p class="muted tiny">' + escapeHtml(ar.why || '') + (ar.owes && ar.next_due ? ' Next due ' + when(ar.next_due) + '.' : '') + '</p>';
+    return '<p class="mem-ms-line">' + line + '</p>' + owe + '<p class="muted tiny">Dues paid to date: ₦' + Number(ms.total_paid_ngn || 0).toLocaleString('en-NG') + ' in ' + ms.payments + ' payment' + (ms.payments === 1 ? '' : 's') + (ms.last_paid_at ? ' · last ' + when(ms.last_paid_at) : '') + '</p>';
   }
   function loadMemMembership() {
     if (!memOpen) return;
@@ -3465,6 +3848,51 @@
     }).catch(function () { toast('Network error.'); });
   }
 
+  /* ── Dues: the rules, and who is behind ── */
+  var duesCfg = null;
+  function loadDues() {
+    var box = $('#duesOwing'); box.innerHTML = '<p class="muted">Loading…</p>';
+    api('dues_settings').then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { $('#duesTotals').innerHTML = '<p class="muted">Could not load the dues rules. <button class="btn btn-outline btn-sm" id="duesRetry">Retry</button></p>'; return; }
+      duesCfg = d; var s = d.settings || {};
+      $('#dr_enabled').checked = !!s.enabled; $('#dr_monthly').value = s.monthly_ngn; $('#dr_annual').value = s.annual_ngn; $('#dr_start').value = s.start;
+      $('#dr_level').innerHTML = (d.levels || []).map(function (l) { return '<option' + (l === s.from_level ? ' selected' : '') + '>' + escapeHtml(l) + '</option>'; }).join('');
+      ['#dr_enabled', '#dr_monthly', '#dr_annual', '#dr_start', '#dr_level', '#dr_save'].forEach(function (x) { $(x).disabled = !d.can_edit; });
+      $('#dr_note').textContent = (d.can_edit ? '' : 'Only a Super Admin changes the rules. ')
+        + (d.plan ? 'Monthly dues renew through a Paystack plan: change its amount in Paystack too when the monthly price changes. ' : '')
+        + (s.updated_at ? 'Last changed ' + String(s.updated_at).slice(0, 10) + ' by ' + s.updated_by + '.' : '');
+      var o = d.owing || {};
+      $('#duesTotals').innerHTML = memTile(o.members || 0, 'Behind', '', 'of ' + (d.obliged || 0) + ' who owe dues')
+        + memTile(naira(o.amount_ngn), 'Owed in all', '', (o.months || 0) + ' month' + (o.months === 1 ? '' : 's'));
+    }).catch(function () { $('#duesTotals').innerHTML = '<p class="muted">Could not load the dues rules. <button class="btn btn-outline btn-sm" id="duesRetry">Retry</button></p>'; });
+    api('dues_owing&limit=200').then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load who is behind. <button class="btn btn-outline btn-sm" id="duesRetry">Retry</button></p>'; return; }
+      box.innerHTML = (d.members || []).length ? d.members.map(function (m) {
+        return '<div class="entry-row mem-row" data-id="' + m.id + '"><div class="entry-info"><div class="entry-title">' + escapeHtml(m.name || '(no name)') + ' <span class="badge mem-owes">' + escapeHtml(naira(m.amount_ngn)) + '</span></div>'
+          + '<div class="entry-meta">' + [m.email, m.phone, m.centre, 'level ' + (m.level || 'O')].filter(Boolean).map(escapeHtml).join(' · ') + '</div>'
+          + '<div class="entry-meta">' + m.months + ' month' + (m.months === 1 ? '' : 's') + ' since ' + escapeHtml(m.since) + (m.paid_through ? ' · paid through ' + escapeHtml(String(m.paid_through).slice(0, 10)) : ' · never paid') + '</div></div>'
+          + '<div class="entry-ops"><button class="btn btn-outline btn-sm dues-open" data-id="' + m.id + '">Open</button></div></div>';
+      }).join('') : '<p class="muted">Nobody is behind on dues.</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load who is behind. <button class="btn btn-outline btn-sm" id="duesRetry">Retry</button></p>'; });
+  }
+  function saveDues(e) {
+    e.preventDefault();
+    var payload = { enabled: $('#dr_enabled').checked, monthly_ngn: $('#dr_monthly').value.trim(), annual_ngn: $('#dr_annual').value.trim(), start: $('#dr_start').value, from_level: $('#dr_level').value };
+    var s = (duesCfg || {}).settings || {};
+    var msg = 'Save the dues rules?';
+    if (s.start && payload.start < s.start) msg += ' Moving the start back to ' + payload.start + ' makes members owe the months before ' + s.start + '.';
+    if (!confirm(msg)) return;
+    $('#dr_save').disabled = true;
+    post('dues_settings_save', payload).then(function (r) {
+      var d = r.data || {}; $('#dr_save').disabled = false;
+      var err = $('#dr_errors');
+      if (!d.ok) { err.hidden = false; err.textContent = d.error || 'Not saved.'; return; }
+      err.hidden = true; toast(d.unchanged ? 'Nothing changed.' : 'Dues rules saved.'); loadDues();
+    }).catch(function () { $('#dr_save').disabled = false; toast('Network error — nothing was saved.'); });
+  }
+
   /* ── Offline payments: credited only once the receipt is checked ── */
   var OFF_LABEL = { verified: 'Checked and credited', held: 'Held — not credited', rejected: 'Rejected', pending: 'Being checked' };
   var OFF_CHECK = { evidence: 'Is a payment receipt', amount: 'Amount', payee: 'Paid to Afrovanguard', date: 'Date', reference: 'Reference', reused: 'Not used before', tampering: 'No sign of editing', confidence: 'Legible', reader: 'Reader', credit: 'Credit' };
@@ -3497,7 +3925,7 @@
       var g = (r.data && r.data.groups) || [];
       $('#memDups').innerHTML = g.length ? g.map(function (x) {
         return '<div class="side-card"><h3>' + escapeHtml(x.why) + '</h3>' + x.members.map(function (m) {
-          return '<div class="mem-card-row"><span>' + escapeHtml(m.name) + '</span><span class="muted">' + escapeHtml(m.email) + (m.phone ? ' · ' + escapeHtml(m.phone) : '') + '</span><button class="btn btn-outline btn-sm mem-open" data-id="' + m.id + '" style="margin-left:auto">Open</button></div>';
+          return '<div class="mem-card-row"><span>' + escapeHtml(m.name) + '</span><span class="muted">' + escapeHtml(m.email) + (m.phone ? ' · ' + escapeHtml(m.phone) : '') + '</span><button class="btn btn-outline btn-sm mem-open ml-auto" data-id="' + m.id + '">Open</button></div>';
         }).join('') + '</div>';
       }).join('') : '<p class="muted">No records look like the same person.</p>';
     });
@@ -3508,7 +3936,7 @@
     return (cards || []).filter(function (c) { return c.status === 'active'; }).map(function (c) {
       var kind = c.kind === 'secure' ? 'Secure card' : c.kind === 'ngv' ? (/-NGV-/i.test(c.code) ? 'NGV ID' : 'Member ID') : 'Old printed card (' + escapeHtml(c.format) + ')';
       /* A secure card's QR opens /q/<code>: its live card and standing, and what the gate will say. */
-      var open = c.kind === 'secure' ? ' <a class="btn btn-outline btn-sm" style="margin-left:auto" target="_blank" rel="noopener" href="/q/' + encodeURIComponent(c.code) + '">Card &amp; status</a>' : '';
+      var open = c.kind === 'secure' ? ' <a class="btn btn-outline btn-sm ml-auto" target="_blank" rel="noopener" href="/q/' + encodeURIComponent(c.code) + '">Card &amp; status</a>' : '';
       return '<div class="mem-card-row"><span class="badge published">' + kind + '</span><code>' + escapeHtml(c.code) + '</code>' + open + '</div>';
     }).join('') || '<p class="muted">No card yet — the gate can only find them by name.</p>';
   }
@@ -3557,7 +3985,8 @@
       var m = r.data && r.data.member; if (!m) { toast('Could not open.'); return; }
       $('#mdTitle').textContent = m.name + (m.ngv ? ' · NextGen Vanguard' : m.learner ? ' · Academy learner (not a member)' : '');
       memFill('#md_role', memRoles, m.role); memFill('#md_level', memLevels, m.level || 'O', function (x) { return 'Level ' + x; });
-      ['name', 'email', 'phone', 'centre', 'notes', 'work_roles', 'about'].forEach(function (k) { $('#md_' + k).value = m[k] || ''; });
+      ['name', 'email', 'phone', 'notes', 'work_roles', 'about'].forEach(function (k) { $('#md_' + k).value = m[k] || ''; });
+      centrePick($('#md_centre'), m.centre || '');
       roleChips(); memNotesLoad(memOpen);
       $('#md_bday').value = m.birthday || ''; $('#md_joined').value = m.joined_on || '';
       $('#mdCards').innerHTML = memCardsHTML(m.cards);
@@ -3638,7 +4067,7 @@
       var v = (r.data && r.data.volunteers) || [], box = $('#vpMembers');
       box.hidden = false;
       box.innerHTML = '<h3>' + escapeHtml(name) + ' · ' + v.length + ' volunteer' + (v.length === 1 ? '' : 's') + '</h3>'
-        + (v.length ? v.map(function (x) { return '<div class="mem-card-row"><span>' + escapeHtml(x.name) + '</span><span class="badge">' + escapeHtml(x.type_label) + '</span><span class="muted tiny">since ' + escapeHtml(x.since) + '</span><button class="btn btn-outline btn-sm mem-open" data-id="' + x.id + '" style="margin-left:auto">Open</button></div>'; }).join('')
+        + (v.length ? v.map(function (x) { return '<div class="mem-card-row"><span>' + escapeHtml(x.name) + '</span><span class="badge">' + escapeHtml(x.type_label) + '</span><span class="muted tiny">since ' + escapeHtml(x.since) + '</span><button class="btn btn-outline btn-sm mem-open ml-auto" data-id="' + x.id + '">Open</button></div>'; }).join('')
           : '<p class="muted">Nobody placed yet. Choose members on the Roster → “Make volunteers”.</p>');
     });
   }
@@ -3676,11 +4105,11 @@
     var own = why.indexOf('roster') >= 0 || why.indexOf('team') >= 0;
     box.innerHTML = '<div class="mem-card-row">' + (why.length ? '<span class="badge published">Volunteer</span><span class="muted">' + why.map(function (w) { return escapeHtml(VOL_WHY[w] || w); }).join(' · ') + '</span>'
         : '<span class="muted">Not a volunteer. Place them on a project to make them one.</span>')
-      + (own ? '<button class="btn btn-outline btn-sm" style="margin-left:auto" id="mdVolOff">Remove from volunteers</button>' : '') + '</div>'
+      + (own ? '<button class="btn btn-outline btn-sm ml-auto" id="mdVolOff">Remove from volunteers</button>' : '') + '</div>'
       + projs.map(function (p) {
           return '<div class="mem-card-row"><span class="badge">' + escapeHtml(p.name) + '</span><span>' + escapeHtml(p.type_label) + '</span>'
             + '<span class="muted tiny">' + (p.source === 'ngg' ? 'placed by NGG' + (p.centre ? ' · ' + escapeHtml(p.centre) : '') : 'since ' + escapeHtml(p.since || '')) + '</span>'
-            + (p.source === 'ngg' ? '' : '<button class="btn btn-outline btn-sm vp-un" style="margin-left:auto" data-p="' + p.project_id + '">End</button>') + '</div>';
+            + (p.source === 'ngg' ? '' : '<button class="btn btn-outline btn-sm vp-un ml-auto" data-p="' + p.project_id + '">End</button>') + '</div>';
         }).join('');
     volFillPickers('#mdVolProject', '#mdVolType');
     var off = $('#mdVolOff');
@@ -3701,13 +4130,14 @@
   }
   function memVolSet(action, value) {
     var id = memOpen;
-    post('roster_bulk', { ids: [id], action: action, value: value || {} }).then(function (r) {
-      var d = r.data || {}, x = (d.results || [])[0] || {};
-      if (!d.ok || x.outcome === 'refused') { toast((x && x.error) || d.error || 'Refused.'); }
+    /* The drawer's volunteer buttons are the same declared actions, run the same way. */
+    memRunAction(action, [id], value).then(function (res) {
+      var x = res.results[0] || {};
+      if (!res.ran || x.outcome === 'refused') { toast(x.error || res.error || 'Refused.'); }
       else toast(action === 'volunteer_add' ? 'Placed on the project.' : 'Removed from volunteers.');
       memVolRefresh(); volMeta = null;
       loadMemRoster();
-    }).catch(function () { toast('Network error.'); });
+    });
   }
 
   /* Import */
@@ -3769,9 +4199,20 @@
       ['#memRole', '#memStatus', '#memMissing', '#memMembership', '#memSegment', '#memWorkRole', '#memCentre', '#memLevel', '#memVolunteer'].forEach(function (x) { $(x).value = ''; });
       $('#memQ').value = ''; $('#memKind').value = '';
       if (a.getAttribute('data-kind')) $('#memKind').value = a.getAttribute('data-kind');
-      else if (a.getAttribute('data-ms')) { $('#memMembership').value = a.getAttribute('data-ms'); $('#memKind').value = 'all'; }
+      /* Owing dues is a MEMBER's obligation, so those two lists stay on members;
+         the other dues states are over every account, learners included. */
+      else if (a.getAttribute('data-ms')) { $('#memMembership').value = a.getAttribute('data-ms'); $('#memKind').value = /^(owing|obliged)$/.test(a.getAttribute('data-ms')) ? '' : 'all'; }
       else $('#memSegment').value = a.getAttribute('data-seg');
       memPage = 1; memSel = {}; memTab('roster');
+    });
+    $('#duesRules').addEventListener('submit', saveDues);
+    $('[data-pane="dues"]').addEventListener('click', function (e) {
+      if (e.target.closest('#duesRetry')) { loadDues(); return; }
+      var o = e.target.closest('.dues-open'); if (o) { openMember(+o.getAttribute('data-id')); return; }
+      if (e.target.closest('#duesOpenRoster')) {
+        ['#memRole', '#memStatus', '#memMissing', '#memSegment', '#memWorkRole', '#memCentre', '#memLevel', '#memVolunteer', '#memKind'].forEach(function (x) { $(x).value = ''; });
+        $('#memQ').value = ''; $('#memMembership').value = 'owing'; memPage = 1; memSel = {}; memTab('roster');
+      }
     });
     $('#memList').addEventListener('change', function (e) {
       var c = e.target.closest('.mem-pick'); if (!c) return;
@@ -3868,6 +4309,16 @@
     });
 
     $('#memIntakeList').addEventListener('click', function (e) {
+      var c = e.target.closest('.mem-intake-consent');
+      if (c) {
+        var cr = c.closest('[data-ngg]'); c.disabled = true;
+        post('ngv_intake_consent', { ngg_member_id: cr.getAttribute('data-ngg'), guardian: cr.querySelector('input').value.trim(), method: cr.querySelector('select').value }).then(function (r) {
+          var d = r.data || {};
+          if (d.ok && d.status !== 'needs_consent') { toast(d.status === 'needs_email' ? 'Consent recorded. They still need an email.' : 'Consent recorded and NGV account ready.'); loadMemDash(); }
+          else toast(d.error || 'The consent could not be recorded.');
+        }).finally(function () { c.disabled = false; });
+        return;
+      }
       var b = e.target.closest('.mem-intake-go'); if (!b) return;
       var row = b.closest('[data-ngg]'); b.disabled = true;
       post('ngv_intake_email', { ngg_member_id: row.getAttribute('data-ngg'), email: row.querySelector('input').value.trim() }).then(function (r) {
@@ -3941,7 +4392,7 @@
     });
     var chipT = 0;
     $('#md_work_roles').addEventListener('input', function () { clearTimeout(chipT); chipT = setTimeout(roleChips, 300); });
-    function roleSaid(t, bad) { var m = $('#roleMsg'); if (m) { m.textContent = t || ''; m.style.color = bad ? 'var(--red, #b91c1c)' : ''; } }
+    function roleSaid(t, bad) { var m = $('#roleMsg'); if (m) { m.textContent = t || ''; m.classList.toggle('is-bad', !!bad); } }
     $('#roleNew').addEventListener('submit', function (e) {
       e.preventDefault();
       post('role_save', { id: 0, name: $('#roleNewName').value.trim(), description: $('#roleNewDesc').value.trim() }).then(function (r) {
@@ -3972,6 +4423,78 @@
     });
     rolesGet().catch(function () {});
 
+    $('#apprStatus').addEventListener('change', loadApprovals);
+    $('#mreqList').addEventListener('click', function (e) {
+      if (e.target.closest('[data-mreq-retry]')) { loadMemberRequests(); return; }
+      var b = e.target.closest('[data-mreq-do]'); if (!b) return;
+      var row = b.closest('[data-mreq]'), id = +row.getAttribute('data-mreq'), what = b.getAttribute('data-mreq-do');
+      var reason = '';
+      if (what === 'reject') { reason = prompt('Why not? The member sees this.'); if (reason === null) return; if (!reason.trim()) { toast('Say why — the member sees it.'); return; } }
+      else if (!confirm('Approve?\n\n' + row.querySelector('.appr-sum').textContent)) return;
+      b.disabled = true;
+      post('member_request_decide', { id: id, decision: what, reason: reason }).then(function (r) {
+        var d = r.data || {};
+        toast(d.ok ? (d.status === 'approved' ? 'Approved' + (d.outcome ? ' — ' + d.outcome : '') + '. The member is told.' : 'Not approved. The member is told why.') : (d.error || 'That did not go through.'));
+        loadMemberRequests(); approvalsBadge(); if (d.ok) loadMemRoster();
+      });
+    });
+    $('#apprList').addEventListener('click', function (e) {
+      if (e.target.closest('[data-appr-retry]')) { loadApprovals(); return; }
+      var b = e.target.closest('[data-appr]'); if (!b) return;
+      var id = +b.closest('.appr-row').getAttribute('data-id'), what = b.getAttribute('data-appr');
+      var sum = b.closest('.appr-row').querySelector('.appr-sum').textContent;
+      if (what === 'withdraw') {
+        if (!confirm('Withdraw this request? Nothing will happen.')) return;
+        post('approval_withdraw', { id: id }).then(function (r) { var d = r.data || {}; toast(d.ok ? 'Withdrawn.' : (d.error || 'That did not go through.')); loadApprovals(); });
+        return;
+      }
+      var reason = '';
+      if (what === 'reject') { reason = prompt('Why not? The person who asked is told.'); if (reason === null) return; if (!reason.trim()) { toast('Say why, so they know.'); return; } }
+      else if (!confirm('Approve and run it now?\n\n' + sum)) return;
+      b.disabled = true;
+      post('approval_decide', { id: id, decision: what, reason: reason }).then(function (r) {
+        var d = r.data || {};
+        toast(d.ok ? (d.status === 'approved' ? 'Approved and done — ' + d.outcome : d.status === 'failed' ? 'Approved, but it could not run: ' + d.outcome : 'Not approved. They are told why.') : (d.error || 'That did not go through.'));
+        loadApprovals(); if (d.ok && d.status === 'approved') loadMemRoster();
+      });
+    });
+    approvalsBadge();
+
+    $('#centreNew').addEventListener('submit', function (e) {
+      e.preventDefault();
+      post('centre_save', { id: 0, name: $('#centreNewName').value.trim(), code: $('#centreNewCode').value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { centreSaid(d.error || 'Could not add it.', true); return; }
+        centreSaid('Added ' + d.centre.name + ' (' + d.centre.code + ').'); $('#centreNewName').value = ''; $('#centreNewCode').value = '';
+        loadMemCentres(); memCentresFill();
+      });
+    });
+    $('#memCentresList').addEventListener('submit', function (e) {
+      var f = e.target.closest('.mem-centre-row'); if (!f) return;
+      e.preventDefault();
+      post('centre_save', { id: +f.getAttribute('data-id'), name: f.elements.name.value.trim(), code: f.elements.code.value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { centreSaid(d.error || 'Could not save it.', true); return; }
+        centreSaid(d.moved ? 'Saved — ' + d.moved + ' member' + (d.moved === 1 ? '' : 's') + ' moved with the new name.' : 'Saved.');
+        loadMemCentres(); memCentresFill();
+      });
+    });
+    $('#memCentresList').addEventListener('click', function (e) {
+      var st = e.target.closest('[data-centre-status]'), del = e.target.closest('[data-centre-del]'), see = e.target.closest('[data-centre-members]');
+      if (e.target.closest('[data-centre-retry]')) { loadMemCentres(); return; }
+      var id = +((e.target.closest('.mem-centre-row') || { getAttribute: function () { return 0; } }).getAttribute('data-id'));
+      if (st) {
+        var to = st.getAttribute('data-centre-status');
+        if (to === 'retired' && !confirm('Retire ' + st.getAttribute('data-name') + '? Its members keep it; nobody new can be put there.')) return;
+        post('centre_status', { id: id, status: to }).then(function (r) { var d = r.data || {}; centreSaid(d.ok ? (to === 'retired' ? 'Retired.' : 'Reopened.') : (d.error || 'That did not go through.'), !d.ok); loadMemCentres(); memCentresFill(); });
+      } else if (del) {
+        if (!confirm('Delete ' + del.getAttribute('data-name') + '? A centre with members is refused — retire it instead.')) return;
+        post('centre_delete', { id: id }).then(function (r) { var d = r.data || {}; centreSaid(d.ok ? 'Deleted.' : (d.error || 'That did not go through.'), !d.ok); loadMemCentres(); memCentresFill(); });
+      } else if (see) {
+        memCentresFill().then(function () { $('#memCentre').value = see.getAttribute('data-centre-members'); memPage = 1; memSel = {}; memTab('roster'); });
+      }
+    });
+
     $('#mdSave').addEventListener('click', function () {
       var p = { id: memOpen, name: $('#md_name').value.trim(), email: $('#md_email').value.trim(), phone: $('#md_phone').value.trim(), centre: $('#md_centre').value.trim(),
                 role: $('#md_role').value, level: $('#md_level').value, birthday: $('#md_bday').value.trim(), joined_on: $('#md_joined').value, notes: $('#md_notes').value,
@@ -3990,7 +4513,12 @@
     $('#mdSuspend').addEventListener('click', function () {
       var to = this.getAttribute('data-to');
       if (to === 'suspended' && !confirm('Suspend this member? They are signed out, and their gate pass and card stop at the door.')) return;
-      post('roster_update', { id: memOpen, status: to }).then(function (r) { if (r.data && r.data.ok) { toast(to === 'suspended' ? 'Member suspended.' : 'Member reactivated.'); closeMember(); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.'); });
+      post('roster_update', { id: memOpen, status: to }).then(function (r) {
+        var d = r.data || {};
+        /* An admin's suspension waits for a second person (lib/Approvals.php). */
+        if (d.code === 'approval_pending') { toast(d.error); closeMember(); approvalsBadge(); return; }
+        if (d.ok) { toast(to === 'suspended' ? 'Member suspended.' : 'Member reactivated.'); closeMember(); loadMembers(); } else toast(d.error || 'Refused.');
+      });
     });
     function reissue(voidPrinted) {
       if (!confirm(voidPrinted ? 'Retire the old printed card and issue a new secure one? Both old cards stop at the gate now.' : 'Issue a new secure card? The current one stops at the gate now.')) return;

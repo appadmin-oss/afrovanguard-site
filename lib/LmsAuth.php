@@ -166,9 +166,7 @@ final class LmsAuth
             if ($u && class_exists('Events')) Events::emit('member.created', ['email' => $email, 'name' => (string) $u['name'], 'role' => (string) $u['role'], 'via' => 'otp']);
         } else {
             if (($u['status'] ?? 'active') !== 'active') return ['ok' => false, 'error' => 'This account is not active. Please contact us.'];
-            if ((int) ($u['email_verified'] ?? 0) === 0) {
-                $db->prepare('UPDATE lms_users SET email_verified = 1, verify_hash = NULL, verify_expires = NULL WHERE id = ?')->execute([$u['id']]);
-            }
+            if ((int) ($u['email_verified'] ?? 0) === 0) self::claimUnverified((int) $u['id']);
             if (self::isOrgEmail($email) && self::rank((string) $u['role']) < self::ROLE_RANK['member']) {
                 $db->prepare("UPDATE lms_users SET role = 'member' WHERE id = ?")->execute([$u['id']]);
                 $u['role'] = 'member';
@@ -181,6 +179,23 @@ final class LmsAuth
         return ['ok' => true, 'user' => self::publicUser($u), 'has_password' => self::hasPassword((int) $u['id'])];
     }
 
+    /**
+     * The address's owner has just proved it (an emailed code, or Google) on an
+     * account that was never verified. Whoever registered that account first
+     * chose its password without ever proving the address, so that password is
+     * not the owner's: it is discarded, with any session, before the owner is
+     * signed in. Kept, it let somebody register a member's email in advance and
+     * sign in as them the moment the member first used a code or Google.
+     */
+    private static function claimUnverified(int $id): void
+    {
+        self::ensureSecurity();
+        $db = Database::pdo();
+        $db->prepare('UPDATE lms_users SET email_verified = 1, verify_hash = NULL, verify_expires = NULL, password_hash = ?, has_password = 0 WHERE id = ? AND email_verified = 0')
+           ->execute([password_hash(bin2hex(random_bytes(18)), PASSWORD_BCRYPT), $id]);
+        $db->prepare('DELETE FROM lms_sessions WHERE user_id = ?')->execute([$id]);
+    }
+
     /** Set (or change) the signed-in member's password — the "add a password
      *  after verifying" path. Validated against the live security policy. */
     public static function setPassword(int $userId, string $new): array
@@ -190,6 +205,10 @@ final class LmsAuth
         self::ensureSecurity();
         Database::pdo()->prepare('UPDATE lms_users SET password_hash = ?, has_password = 1 WHERE id = ?')
             ->execute([password_hash($new, PASSWORD_BCRYPT), $userId]);
+        /* Every other device signs in again; this one stays signed in. */
+        $mine = (string) ($_COOKIE[self::COOKIE] ?? '');
+        Database::pdo()->prepare('DELETE FROM lms_sessions WHERE user_id = ? AND token_hash <> ?')
+            ->execute([$userId, preg_match('/^[a-f0-9]{40}$/', $mine) ? hash('sha256', $mine) : '']);
         if (class_exists('Events')) { try { Events::emit('member.password.set', ['user_id' => $userId]); } catch (Throwable $e) {} }
         return ['ok' => true, 'message' => 'Password saved. You can now sign in with it.'];
     }
@@ -322,9 +341,7 @@ final class LmsAuth
         } else {
             if (($u['status'] ?? 'active') !== 'active') return ['ok' => false, 'code' => 'inactive', 'error' => 'This account is not active. Please contact us.'];
             // A successful OAuth sign-in proves email ownership — clear any pending verification.
-            if ($emailVerified && (int) ($u['email_verified'] ?? 0) === 0) {
-                $db->prepare('UPDATE lms_users SET email_verified = 1, verify_hash = NULL, verify_expires = NULL WHERE id = ?')->execute([$u['id']]);
-            }
+            if ($emailVerified && (int) ($u['email_verified'] ?? 0) === 0) self::claimUnverified((int) $u['id']);
             if ($orgVerified && self::rank((string) $u['role']) < self::ROLE_RANK['member']) {
                 $db->prepare("UPDATE lms_users SET role = 'member' WHERE id = ?")->execute([$u['id']]);
                 $u['role'] = 'member';

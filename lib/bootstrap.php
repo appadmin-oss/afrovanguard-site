@@ -309,10 +309,15 @@ require_once __DIR__ . '/MemberCards.php';      /* the secure and printed cards 
 require_once __DIR__ . '/NgvCard.php';          /* the NGV ID card and the one standing it prints */
 require_once __DIR__ . '/MemberRoster.php';     /* the member desk: create, manage, import */
 require_once __DIR__ . '/MemberDesk.php';       /* notes, activity, export and messages on the member desk */
+require_once __DIR__ . '/Centres.php';
+require_once __DIR__ . '/VanQuest.php';     /* VanQuest players: seats, onboarding, community */
+require_once __DIR__ . '/Approvals.php';
+require_once __DIR__ . '/MemberRequests.php';   /* a member asks from their own portal; an admin decides */        /* an admin's sensitive member acts wait for a second person (as NGG's do) */          /* the centres members belong to, one list with codes (as NGG keeps them) */
 require_once __DIR__ . '/MemberRoles.php';      /* the work roles members hold, kept as one list with descriptions */
 require_once __DIR__ . '/Membership.php';       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited once the receipt is verified */
 require_once __DIR__ . '/NgvIntake.php';        /* NGG promotions to NGV become NGV accounts here */
+require_once __DIR__ . '/Backups.php';          /* daily encrypted copies of both databases (tasks/cron.php) */
 require_once __DIR__ . '/NgvFines.php';         /* NGV fines: catalogue, issue, list, import with smart assignment */
 require_once __DIR__ . '/CacTasks.php';   /* the console's tasks, read for the portal */
 require_once __DIR__ . '/CacWeek.php';    /* this week at CACENTRE; portal tasks that count toward it */
@@ -341,10 +346,20 @@ require_once __DIR__ . '/AvRouter.php';   // which model answers which job, and 
 require_once __DIR__ . '/AiOps.php';     // cron heartbeat, model spend, and the alert list
 require_once __DIR__ . '/ChatBot.php';   // the Google Chat task bot
 require_once __DIR__ . '/AvEvents.php';
+require_once __DIR__ . '/SiteEvents.php';       /* our own events, and Africa GATES', as one list */
 require_once __DIR__ . '/Mentorship.php';
 require_once __DIR__ . '/MentorAcademy.php';  // what a mentor must know before accepting anyone
 require_once __DIR__ . '/MentorPortal.php';   // the read model behind /mentorship/mentor/
+require_once __DIR__ . '/Quest.php';          // the Quest's rules, vendored from van-quest
+require_once __DIR__ . '/QuestRules.php';     // every priced line of the Quest, switchable
+require_once __DIR__ . '/QuestPoints.php';    // the Quest's points, kept apart from the gate's
 require_once __DIR__ . '/Conduct.php';        // a mentor's fines and awards, approved by the compliance committee
+require_once __DIR__ . '/QuestRecord.php';    // a member's Quest record
+require_once __DIR__ . '/QuestMoney.php';     // points against fines by income bracket, month by month
+require_once __DIR__ . '/PortalNav.php';      // the member portal's sections, one registry
+require_once __DIR__ . '/QuestLadder.php';    // demotions, suspensions and fines the manual calls for, suggested to a person
+require_once __DIR__ . '/QuestAdvisor.php';   // figures and AI proposals on the catalogue; a person applies them
+require_once __DIR__ . '/QuestDesk.php';      // the read model behind the Quest desk (/mentorship/compliance/)
 require_once __DIR__ . '/SiteHome.php';       // the homepage hero as content: draft, preview, publish, history
 require_once __DIR__ . '/Media.php';          // the Studio's media library: chunked upload, image edits
 require_once __DIR__ . '/SitePages.php';          // the Studio's Pages editor: every public page's words, links, pictures
@@ -368,6 +383,9 @@ require_once __DIR__ . '/Collab.php';
 require_once __DIR__ . '/AttendeeBot.php';
 require_once __DIR__ . '/Recurrence.php';  /* how a meeting repeats: one rule for Google, the list, the clock and the minutes */
 require_once __DIR__ . '/Meetings.php';
+require_once __DIR__ . '/CacInbound.php';     /* one check for every door CACENTRE calls */
+require_once __DIR__ . '/CacMeetings.php';
+require_once __DIR__ . '/CacSend.php';        /* CACENTRE's email, sent by this site's mail */    /* CACENTRE staff schedule and read meetings here */
 require_once __DIR__ . '/Storage.php';
 require_once __DIR__ . '/CardPhoto.php';   /* member card photos: framed, resampled, enhanced */
 require_once __DIR__ . '/Tts.php';
@@ -406,11 +424,13 @@ require_once __DIR__ . '/CrmAudiencePush.php';  /* this site's people, pushed (s
 require_once __DIR__ . '/NggVolunteers.php';    /* NGG's volunteers, fetched (signed) from NGG */
 require_once __DIR__ . '/VolunteerSeeds.php';   /* NGG volunteers seeded from a file, linked as they sign in */
 require_once __DIR__ . '/TaskReport.php';       /* the day's tasks: done, undone, unclaimed */
+require_once __DIR__ . '/ProgrammeSessions.php';  /* the year's programme sessions: TONI, MEDI, SUMMER, DOMI */
 require_once __DIR__ . '/TaskLedger.php';       /* what people did with the work they were given */
 require_once __DIR__ . '/TaskMatch.php';        /* who a task fits, from people's labels (+ AI) */
 require_once __DIR__ . '/Todo.php';             /* the to-do pop-up: one list across both sites */
 require_once __DIR__ . '/GoalPlanner.php';      /* tasks come from goals */
 require_once __DIR__ . '/GoalTrack.php';        /* how a goal is measured, judged and forecast, and how its steps move it */
+require_once __DIR__ . '/GoogleHub.php';        /* Google Workspace, as part of the portal */
 require_once __DIR__ . '/VolunteerWork.php';    /* opportunities, kudos, people, the service letter */      /* live capture: Google Meet, notetaker, QR check-in, room captions */
 require_once __DIR__ . '/AvSettings.php';
 // Publish Studio-managed credentials into the process environment, so classes
@@ -435,6 +455,7 @@ av_harden_errors();
 AiKnowledge::boot();
 // Membership progression: capture referrals on sign-up.
 Levels::boot();
+QuestLadder::boot();
 // Workspace automation: subscribe event handlers (onboarding, real-time, etc.).
 AvAutomation::register();
 // Collaboration: feed domain events into the team activity stream.

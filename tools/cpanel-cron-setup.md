@@ -14,6 +14,11 @@ has a script that does it for you through the browser.
 `YOUR_KEY` must match the server's `AV_CRON_KEY` (or, if that isn't set,
 `AV_ADMIN_TOKEN`). See the header of `tasks/cron.php`.
 
+The same cron also takes the **daily backup** of both databases
+(`lib/Backups.php`) into `db/private/backups`. Set `AV_BACKUP_KEY` to encrypt
+them, and `AV_BACKUP_DRIVE_FOLDER` to keep a copy off this server; keep the
+key somewhere other than the server. Restore with `tools/backup-decrypt.php`.
+
 ## Automatic (browser) — `cpanel-cron-setup.mjs`
 
 Runs on **your** machine, logs into cPanel in a real browser, then uses

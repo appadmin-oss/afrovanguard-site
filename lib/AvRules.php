@@ -162,6 +162,120 @@ final class AvRules
             'help'  => 'Leave OFF. The report is explicit (§20, §23): the AI recommends and leadership decides. On, the engine writes levels without human approval.',
         ],
 
+        /* ── The Vanguard Quest (the Pyramid Manual, owner's decisions 22 Oct 2026) ──
+           Every rule the manual sets is a switch here; each catalogue action,
+           deduction and fine is a switch of its own in QuestRules. */
+        'levels.quest_pyramid' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
+            'label' => 'Promote on the Pyramid Manual\'s floors',
+            'help'  => 'On: a level is recommended only when the member has the next level\'s Quest points AND its direct-mentee floor (Pyramid Manual, levels O–G). The other level rules still apply. Recommends only — a person promotes.',
+        ],
+        'levels.quest_titles' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
+            'label' => 'Use the manual\'s level titles',
+            'help'  => 'On: levels are named as in the Pyramid Manual (Ordinary Member … Grandfather). Off: the older ladder names.',
+        ],
+        'levels.quest_titles_on_card' => [
+            'type' => 'bool', 'default' => false, 'group' => 'Vanguard Quest',
+            'label' => 'Print the manual\'s titles on ID cards',
+            'help'  => 'Off: the ID card keeps the level names already printed in members\' wallets ("Senior Multiplier"), whatever the screens say. On: new cards print the manual\'s ("Excellent Member"). A card already printed is never reissued for this.',
+        ],
+        'quest.awards_enabled' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
+            'label' => 'Awards from the catalogue',
+            'help'  => 'Mentors propose awards by picking an action from the priced catalogue (the manual\'s Section 2). Off: no award can be proposed.',
+        ],
+        'quest.awards_custom' => [
+            'type' => 'bool', 'default' => false, 'group' => 'Vanguard Quest',
+            'label' => 'Allow a custom award outside the catalogue',
+            'help'  => 'On: a mentor may propose "Other" with their own number of points (up to 50), as before the catalogue. Off by default — two mentors pricing one deed differently is what the catalogue ends.',
+        ],
+        'quest.deductions_enabled' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
+            'label' => 'Point deductions',
+            'help'  => 'Mentors may propose a deduction from the manual\'s penalty table; the committee approves it like an award. Off: no deduction can be proposed.',
+        ],
+        'quest.monthly_ceiling' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
+            'label' => 'Monthly point ceiling by level',
+            'help'  => 'The manual caps what a member can earn in a month: O–C 499, D–E 999, F–G no cap. On: an award that would pass the ceiling is approved only up to it.',
+        ],
+        'quest.promotion_monthly_points' => [
+            'type' => 'int', 'default' => 150, 'min' => 0, 'max' => 2000, 'group' => 'Vanguard Quest',
+            'label' => 'Points needed each month for promotion',
+            'help'  => 'Scoring Board §4: a minimum of 150 points a month for three months. 0 switches the check off.',
+        ],
+        'quest.promotion_months' => [
+            'type' => 'int', 'default' => 3, 'min' => 1, 'max' => 12, 'group' => 'Vanguard Quest',
+            'label' => '…for how many months',
+            'help'  => 'How many recent whole months must each reach the monthly figure above.',
+        ],
+        'quest.promotion_needs_mentee_promoted' => [
+            'type' => 'bool', 'default' => false, 'group' => 'Vanguard Quest',
+            'label' => 'Promotion needs a mentee promoted',
+            'help'  => 'Scoring Board §4: "at least one mentee promoted". Off by default because, taken literally, nobody could ever leave the first levels; switch it on once the ladder has people on it.',
+        ],
+        'quest.mentor_reward_on_rise' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
+            'label' => 'Reward the mentor when a mentee rises',
+            'help'  => 'When a promotion is confirmed, the mentee\'s mentor receives the catalogue\'s "mentee rises" award (+50), once per mentee per level.',
+        ],
+        'quest.demotion_suggestions' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
+            'label' => 'Suggest demotions',
+            'help'  => 'The manual\'s "loss of current level" is raised as a suggestion for the committee — never applied. Off: no suggestions are raised.',
+        ],
+        'quest.inactive_days' => [
+            'type' => 'int', 'default' => 30, 'min' => 7, 'max' => 365, 'group' => 'Vanguard Quest',
+            'label' => 'Inactive after (days)',
+            'help'  => 'Scoring Board §3: inactivity for 30 days. No session, no grant and no gate sign-in for this long counts as inactive.',
+        ],
+        'quest.money_enabled' => [
+            'type' => 'bool', 'default' => false, 'group' => 'Vanguard Quest',
+            'label' => 'Monthly points-to-naira reconciliation',
+            'help'  => 'Section 3: points are monetised by income bracket and offset against the month\'s fines. Leave OFF until the brackets and the value of a point are set on the Quest desk.',
+        ],
+        'quest.money_settle_days' => [
+            'type' => 'int', 'default' => 14, 'min' => 1, 'max' => 90, 'group' => 'Vanguard Quest',
+            'label' => 'Days to settle a balance',
+            'help'  => 'Section 3.5: the balance is paid within two weeks.',
+        ],
+        'quest.money_overdue_fine' => [
+            'type' => 'int', 'default' => 2000, 'min' => 0, 'max' => 100000, 'group' => 'Vanguard Quest',
+            'label' => 'Overdue balance fine (₦)',
+            'help'  => 'Section 3.6: an unsettled balance brings a one-week suspension and ₦2,000 more. Both are suggested to the committee, not imposed. 0 switches the fine off.',
+        ],
+        'quest.reward_pool_pct' => [
+            'type' => 'int', 'default' => 0, 'min' => 0, 'max' => 100, 'group' => 'Vanguard Quest',
+            'label' => 'Reward Pool share of fines (%)',
+            'help'  => 'Section 3.8: "a percentage of all collected fines is reserved for the Reward Pool". The manual does not say how much; 0 until leadership does.',
+        ],
+        'quest.self_report' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
+            'label' => 'Members may report themselves',
+            'help'  => 'A member reports a fine or a deduction against their own record, from the catalogue. It is decided like any other case, by somebody else.',
+        ],
+        'quest.notice_days' => [
+            'type' => 'int', 'default' => 2, 'min' => 0, 'max' => 14, 'group' => 'Vanguard Quest',
+            'label' => 'Days a member has to answer a fine',
+            'help'  => 'A proposed fine or deduction is put to the member like a bill: they accept it or give their side. The committee may not approve it before they answer or this many days pass; it may always reject. 0: no wait.',
+        ],
+        'quest.appeals_enabled' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
+            'label' => 'Appeals',
+            'help'  => 'A member may appeal an approved fine or deduction once. Somebody who had no part in it hears the appeal, and may uphold, overturn or reduce it.',
+        ],
+        'quest.appeal_days' => [
+            'type' => 'int', 'default' => 14, 'min' => 1, 'max' => 90, 'group' => 'Vanguard Quest',
+            'label' => 'Days to appeal',
+            'help'  => 'How long after the decision an appeal may be lodged.',
+        ],
+        'quest.ai_advisor' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Vanguard Quest',
+            'label' => 'AI advisor on the catalogue',
+            'help'  => 'Reads how the catalogue is actually used and proposes changes — prices, gaps, retirements. Proposals only: a person applies them.',
+        ],
+
         /* ── Commitments (report §11, §39.2) ── */
         'commitments.default_due_days' => [
             'type' => 'int', 'default' => 7, 'min' => 1, 'max' => 180, 'group' => 'Commitments',

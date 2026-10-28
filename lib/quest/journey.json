@@ -1,0 +1,41 @@
+{
+    "$schema": "schema/journey.schema.json",
+    "source": [
+        "The owner's brief, 21 October 2026",
+        "doctrine/sources/2026-10-22-consolidated-record.md (17 September 2026)"
+    ],
+    "note": "Numbered 0 to 4, as the owner numbers them: Visitor is 0. A separate axis from points and ranks; neither is computed from the other. ngv_journey.level in afrovanguard-site carries a range of 0-5, which is a near-match and not a confirmed one - see inventory/conflicts.md finding 4.",
+    "levels": [
+        {
+            "id": "visitor",
+            "order": 0,
+            "name": "Visitor",
+            "meaning": "Encounter the culture"
+        },
+        {
+            "id": "explorer",
+            "order": 1,
+            "name": "Explorer",
+            "meaning": "Examine yourself"
+        },
+        {
+            "id": "practitioner",
+            "order": 2,
+            "name": "Practitioner",
+            "meaning": "Practise the values with evidence"
+        },
+        {
+            "id": "contributor",
+            "order": 3,
+            "name": "Contributor",
+            "meaning": "Become useful"
+        },
+        {
+            "id": "vanguard",
+            "order": 4,
+            "name": "Vanguard",
+            "meaning": "Carry the culture beyond CACENTRE and develop others"
+        }
+    ],
+    "meanings_fuller": "doctrine/04-journey.md carries the September wording for each level."
+}

@@ -347,7 +347,9 @@ final class IdCard
         if (str_contains($printed, '-NGV-')) return 'NextGen Vanguard';
         try {
             if (class_exists('Levels')) {
-                $label = Levels::labelOf(self::level($id));
+                /* What is printed changes only on its own switch: a card in a
+                   wallet is not reissued because a screen's wording moved. */
+                $label = Levels::printedLabelOf(self::level($id));
                 $label = trim((string) preg_replace('/^Level [A-Z] — /u', '', $label));
                 if ($label !== '') return $label;
             }

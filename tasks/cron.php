@@ -65,12 +65,23 @@ if (class_exists('LmsRepository') && class_exists('CfisCheckout') && CfisCheckou
     catch (Throwable $e) { error_log('[cron] hosted payments: ' . $e->getMessage()); }
 }
 
+/* Every tick: finance requests members made while finance was not connected
+   or not answering go now, if it can take them (lib/CfisRequests.php). */
+if (class_exists('CfisRequests') && CfisRequests::configured()) {
+    try { $result['finance_requests'] = CfisRequests::sendPending(); }
+    catch (Throwable $e) { error_log('[cron] finance requests: ' . $e->getMessage()); }
+}
+
 // Every tick: turn due reminders + imminent sessions into notifications
 // (idempotent via dedupe keys; emails too when a Mailer is configured).
 if (class_exists('Notifications')) {
     try { $result['notifications'] = Notifications::dispatchDue(); }
     catch (Throwable $e) { error_log('[cron] notifications: ' . $e->getMessage()); }
 }
+
+// Every tick: the VanQuest onboarding mail, fifteen minutes after a seat is confirmed.
+try { $result['vanquest'] = VanQuest::tick(50); }
+catch (Throwable $e) { error_log('[cron] vanquest: ' . $e->getMessage()); }
 
 // Every tick: send the AI notetaker into meetings that are about to start.
 // Covers providers that cannot be told to join later, and retries any dispatch
@@ -230,6 +241,16 @@ if (class_exists('VolunteerWork')) {
 if (class_exists('Promotion')) {
     $result['promotions'] = AiOps::run('promotions', static fn() => Promotion::sweep());
 }
+/* The Pyramid Manual's "loss of current level" for 30 days' inactivity — raised
+   as a suggestion for the committee, once a day (lib/QuestLadder.php). */
+if (class_exists('QuestLadder')) {
+    $result['quest_ladder'] = AiOps::run('quest_ladder', static fn() => QuestLadder::sweep());
+}
+/* The Pyramid Manual's Section 3: a balance past its day brings a suspension and
+   a fine — suggested, once a day, while the reconciliation is switched on. */
+if (class_exists('QuestMoney')) {
+    $result['quest_money'] = AiOps::run('quest_money', static fn() => QuestMoney::sweep());
+}
 
 // The leadership brief (report §21). Weekly and monthly, each self-limiting to
 // one per period, so a five-minute tick produces one brief a week — not 2,016.
@@ -313,6 +334,12 @@ if (is_file(AV_ROOT . '/lib/people.php')) {
 if (class_exists('Birthdays')) {
     try { $result['member_birthdays'] = Birthdays::emailToday(); }
     catch (Throwable $e) { error_log('[cron] member birthdays: ' . $e->getMessage()); }
+}
+
+/* Daily: both databases copied, encrypted and sent off-site (lib/Backups.php). */
+if (class_exists('Backups')) {
+    try { $result['backup'] = Backups::runIfDue(); }
+    catch (Throwable $e) { $result['backup'] = ['ok' => false, 'error' => $e->getMessage()]; error_log('[cron] backup: ' . $e->getMessage()); }
 }
 
 if ($cli) { fwrite(STDOUT, $result['at'] . ' ' . json_encode($result) . "\n"); }

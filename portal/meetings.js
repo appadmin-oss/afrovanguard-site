@@ -56,6 +56,11 @@
     var t = m.transcript;
     var up = new Date(m.when_iso) > new Date();
     var wrap = '<div class="meet-tr" data-id="' + m.id + '">';
+    /* Every member sees every meeting; the minutes of one kept private are
+       for the people in it. Said, rather than looking unminuted. */
+    if (m.minutes_hidden) return wrap + '<p class="meet-tr-note">🔒 The organiser kept the minutes to the people in this meeting.</p></div>';
+    /* Adding a transcript is for the people in it, not everyone who can see it. */
+    if (!t && m.invited === false && m.creator_id !== ME && !m.can_edit) return wrap + '</div>';
     if (t && t.structured) {
       wrap += '<div class="meet-min">';
       if (t.summary) wrap += '<p class="meet-min-sum">' + esc(t.summary) + '</p>';
@@ -153,6 +158,12 @@
     /* A series says when it comes round next, after this one. */
     var then = (m.upcoming || []).slice(1, 4);
     if (then.length) h += '<p class="meet-then">Then ' + then.map(function (d) { return esc(new Date(d).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })); }).join(' · ') + '</p>';
+    /* Who called it, whether you are in it, and whether its minutes are open. */
+    var who = [];
+    if (m.organiser) who.push('Organised by ' + esc(m.organiser) + (m.from_cacentre ? ' · CACENTRE staff' : ''));
+    if (m.invited) who.push('<span class="meet-tag is-in">You’re invited</span>');
+    if (m.minutes_private) who.push('<span class="meet-tag">🔒 Minutes private</span>');
+    if (who.length) h += '<p class="meet-who">' + who.join(' · ') + '</p>';
     if (m.agenda) h += '<p class="meet-agenda">' + esc(m.agenda) + '</p>';
     h += captureHtml(m, isOwner);
     h += clockHtml(m);
@@ -310,7 +321,8 @@
       title: ($('tlMeetTitle').value || '').trim(), when: $('tlMeetWhen').value || '',
       duration: +$('tlMeetDur').value || 30, repeat: REP ? REP.value() : { freq: 'once' },
       attendees: ($('tlMeetWho').value || '').trim(), agenda: $('tlMeetAgenda').value || '',
-      auto_record: !!($('tlMeetRec') && $('tlMeetRec').checked)
+      auto_record: !!($('tlMeetRec') && $('tlMeetRec').checked),
+      minutes_private: !!($('tlMeetPriv') && $('tlMeetPriv').checked)
     };
   }
   function startEdit(m) {
@@ -320,6 +332,7 @@
     setDur(m.duration_min); if (REP) REP.set(m.repeat || null);
     $('tlMeetWho').value = who; $('tlMeetAgenda').value = m.agenda || '';
     if ($('tlMeetRec')) $('tlMeetRec').checked = !!m.auto_record;
+    if ($('tlMeetPriv')) $('tlMeetPriv').checked = !!m.minutes_private;
     EDIT = { id: m.id, orig: formVals() };
     var sub = form.querySelector('[type=submit]'); if (sub) { sub.setAttribute('data-label', sub.textContent); sub.textContent = 'Save changes'; }
     if ($('tlMeetNow')) $('tlMeetNow').hidden = true;

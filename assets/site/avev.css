@@ -57,6 +57,7 @@
 .avev-when{font-size:14.5px;color:var(--av-slate)}
 .avev-ex{font-size:14.5px;line-height:1.55;color:var(--av-nav-sub);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .avev-ex:empty{display:none}
+.avev-host{margin-top:6px;font-size:12.5px;font-weight:600;letter-spacing:.02em;color:var(--av-nav-sub)}
 .avev-state{text-align:center;padding:56px 20px;background:var(--av-stone);border-radius:14px}
 .avev-state p{margin:0;font-size:15px;color:var(--av-slate)}
 .avev-state p:first-child{font-size:17px;margin:0 0 6px;font-weight:600;color:var(--av-ink)}
@@ -116,3 +117,25 @@
 
 /* Touch: 44px tap height. */
 @media (pointer: coarse) { .avev-full { min-height: 44px; } }
+/* One event (/events/{slug}/, events/view.php) */
+.avev-one{padding-top:28px;padding-bottom:56px}
+.avev-one-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:28px;margin-top:18px}
+@media (min-width:900px){.avev-one-grid{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);align-items:start}}
+.avev-one-flag{display:inline-block;margin:0 0 12px;padding:4px 12px;border-radius:999px;font-size:12.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--av-stone);color:var(--av-ink)}
+.avev-one-flag.is-live{background:var(--av-green-bg);color:var(--av-green)}
+.avev-one-flag.is-off{background:var(--av-red-bg,#fde8e4);color:var(--av-red,#9a2a0a)}
+.avev-one-h{font-family:var(--av-serif);font-size:clamp(30px,4.4vw,48px);line-height:1.1;margin:0 0 12px;color:var(--av-ink)}
+.avev-one-lede{font-size:18px;line-height:1.55;margin:0 0 20px;color:var(--av-body)}
+.avev-one-facts{display:grid;gap:10px;margin:0 0 22px}
+.avev-one-facts div{display:grid;grid-template-columns:110px 1fr;gap:12px}
+.avev-one-facts dt{font-weight:700;color:var(--av-ink)}
+.avev-one-facts dd{margin:0;color:var(--av-body)}
+.avev-one-facts a{color:var(--av-link,inherit);text-decoration:underline}
+.avev-one-acts{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 26px}
+.avev-one-body p{font-size:16.5px;line-height:1.7;margin:0 0 14px;color:var(--av-body)}
+.avev-one-cover{margin:0;border-radius:16px;overflow:hidden;background:var(--av-stone)}
+.avev-one-cover img{display:block;width:100%;height:auto}
+.avev-one-back{margin:28px 0 0}
+.avev-one-back a{font-weight:600;color:var(--av-ink)}
+@media (max-width:560px){.avev-one-facts div{grid-template-columns:1fr;gap:2px}}
+.avev-links{display:flex;gap:18px;flex-wrap:wrap;align-items:center}

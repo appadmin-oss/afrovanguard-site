@@ -55,3 +55,6 @@ data/tts/
 
 # Private PII data stores (donations/contacts) — never commit
 db/private/
+
+# Africa GATES events, cached by lib/AvEvents.php
+data/afg-events.json

@@ -350,3 +350,105 @@ than writing a fourth boolean. `tests/mailsetup.test.php` documents the trap.
 Equally: **do not let a timeout be reported as a refusal.** It sends an
 operator to the Google Admin console to fix a delegation that may be fine.
 That distinction is why `SCOPE_UNCHECKED` exists.
+
+---
+
+## 9. Follow-up, 2026-10-21 — a save that was never a save
+
+Found by reading the client, not the server. §4.3 says "the save path refuses
+loudly", and the SERVER does — but the Setup screen's Save handler only
+looked at the per-field `errors` map. Any reply without one read as success:
+a firewall or host error page, an expired session the retry could not
+recover, a PHP fatal, a 413. The screen said **"Saved."**, toasted
+**"Setup saved."**, and nothing had reached `av_settings`. Every screen then
+correctly said "not set up". That fits the operator's report exactly, and §6's
+"ruled out" list did not cover it.
+
+Fixed:
+
+| Where | What |
+|---|---|
+| `admin/app.js` (Save) | "Saved." only when the reply carries `groups` and `saved > 0`. A refused request says **"Not saved — <the server's reason>"** and keeps the form; a reply that stored nothing says **"Nothing was saved."** Clear shows the reason too. |
+| `AvSettings::save()` | A secret containing "…" (the masked preview copied by hand) is now an error with a reason, not a silent `continue` that counted as fine. |
+| `AvSettings::save()` | Every secret is **read back and decrypted** before it is counted as saved; a value that does not come back is removed and reported against the field. |
+| `AvSettings::storedRow()` | Whether a row exists and who wrote it when — never the value. |
+| `GoogleWorkspace::whyNotConfigured()` | When nothing is stored, says **"no service account key has ever been saved here"** and that a Save which looked fine did not reach the database. This is the `db row` line from the §4b script, built in — the drop-in script is no longer needed for that question. |
+
+Tests: six more in `tests/gwssetup.test.php`.
+
+Also checked: the live site's Cloudflare passes a POST carrying a
+key-shaped body to the app (it answered the app's own `401 Unauthorized.`
+JSON). A full-size key body was not sent.
+
+**What the operator does now:** deploy this branch, open Setup, paste the
+key and press Save, then read the message beside the button. If it says
+"Not saved — …", the reason is printed. If it says "Saved.", the key is in
+the database and reads back. Then press Test Google Workspace: a failure
+there is delegation or egress (§4.5), not configuration.
+
+## 10. The key is in config.php, not the Studio — 2026-10-21
+
+The operator confirmed the key was added to **config.php**. §4 assumed a
+Studio paste throughout. Two config.php mistakes both end in "not set up",
+and both were reproduced here:
+
+1. **Defined twice.** `config.example.php` already carries
+   `define('AV_GDRIVE_SERVICE_ACCOUNT', getenv(…) ?: '');`. A second
+   `define(...)` further down is ignored (PHP keeps the first), so the
+   constant is `''` while the key sits plainly in the file.
+2. **The JSON in double quotes.** PHP turns each `\n` in `private_key` into a
+   real line break; `json_decode()` refuses it ("Control character error").
+
+Now:
+
+- `GoogleWorkspace::parseKey()` (also used by `lib/Drive.php`) reads the
+  double-quoted form by escaping line breaks inside string values only, and
+  accepts a PHP array.
+- `GoogleWorkspace::configFileFinding()` reads config.php's **source** and
+  names, by line number and never by value: a key defined more than once, the
+  template line left empty, a key under another constant name, or one put in
+  a `$variable`; and says when config.php was not loaded at all.
+  `whyNotConfigured()` asks it first, so the Studio banner, System health and
+  the Test button all say it.
+
+Tests: nine more in `tests/gwssetup.test.php`.
+
+## 11. Research, 2026-10-22 — what still fails once the key is found
+
+**Deployed state first.** On 2026-10-22 the live `admin/app.js` was byte-for-byte
+commit `5af9a8d` — so the config.php fixes (`e12ecab`) and everything after
+were NOT on the server when "still not functional" was reported. Re-check the
+same way before trusting any report: fetch `/admin/app.js` and
+`git log --find-object=$(git hash-object app.js)`.
+
+Code paths audited from the key to a token (`accessToken()`, `http()`), with
+four failure modes fixed — two of which failed with no reason at all:
+
+| Failure | Before | Now |
+|---|---|---|
+| Key's `\n` doubled when pasted into config.php | `openssl_sign` false → `return null`, lastError empty | `privateKey()` restores the line breaks; a key that still cannot sign says "could not sign … (openssl's reason)" |
+| Server cannot reach Google (CA bundle, DNS, firewall) | "no response (network or TLS)", curl's reason only in error_log | curl's own sentence on screen, with the host-side fix |
+| Server clock a few seconds fast | `iat = now` → Google: `invalid_grant: Invalid JWT …iat and exp`; explained as "key deleted" | `iat = now − 60`, `exp = iat + 3600` (Google's 1h limit); skew measured from Google's `Date` header and shown |
+| `AV_WS_SUBJECT` empty | fell back to `ADMIN_EMAIL`, often a non-Workspace mailbox → `invalid_grant: Invalid email or User ID` | falls back only to an organisation address |
+
+The Test button now names the service account, its client ID, who it acts
+for, Google's exact words, and the fix for that cause — not "Google refused
+the service account" for everything.
+
+`tests/wstoken.test.php` runs a stand-in for Google's token endpoint that
+verifies the RS256 signature against the key's public half, the audience and
+the times, exactly as Google does, and reproduces each failure above.
+
+**What only the Google side can fix** (documented causes):
+- `unauthorized_client` — the service account's numeric Client ID (the JSON's
+  `client_id`) is not in Admin console → Security → API controls → Domain-wide
+  delegation, or a scope is missing. Paste `GoogleWorkspace::delegationLine()`.
+- `invalid_grant: Invalid email or User ID` — "Admin to act as" is not an
+  active user in that Workspace.
+- `invalid_grant: Invalid JWT Signature` — the key was deleted/disabled in
+  Google Cloud, or belongs to a different service account.
+- `HTTP 403 … has not been used in project … or it is disabled` — enable the
+  API (Calendar, Drive, Admin SDK, Meet, Chat) in the SAME Cloud project as the
+  service account.
+- No key can be made at all — Cloud organisations created on/after 3 May 2024
+  enforce `iam.managed.disableServiceAccountKeyCreation` by default.

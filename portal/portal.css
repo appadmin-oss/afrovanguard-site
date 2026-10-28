@@ -1226,14 +1226,14 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
   white-space:nowrap; text-overflow:ellipsis; }
 .cal-pill b { font-weight:800; }
 .cal-pill.is-done { opacity:.55; text-decoration:line-through; }
-.cal-pill--event { background:var(--c-event); } .cal-pill--afg { background:var(--c-afg); }
+.cal-pill--event, .cal-pill--site { background:var(--c-event); } .cal-pill--afg { background:var(--c-afg); }
 .cal-pill--session { background:var(--c-session); } .cal-pill--task { background:var(--c-task); }
 .cal-pill--reminder { background:var(--c-reminder); }
 .cal-more { font-size:10px; font-weight:700; color:var(--muted); padding-left:4px; }
 .cal-legend { display:flex; flex-wrap:wrap; gap:10px 14px; margin-top:12px; }
 .cal-key { position:relative; font-size:11.5px; color:var(--muted); padding-left:15px; }
 .cal-key::before { content:""; position:absolute; left:0; top:50%; transform:translateY(-50%); width:9px; height:9px; border-radius:3px; }
-.cal-key--event::before { background:var(--c-event); } .cal-key--afg::before { background:var(--c-afg); }
+.cal-key--event::before, .cal-key--site::before { background:var(--c-event); } .cal-key--afg::before { background:var(--c-afg); }
 .cal-key--session::before { background:var(--c-session); } .cal-key--task::before { background:var(--c-task); }
 .cal-key--reminder::before { background:var(--c-reminder); }
 
@@ -1242,7 +1242,7 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .cal-agenda { display:flex; flex-direction:column; gap:8px; }
 .cal-ev { display:flex; align-items:flex-start; gap:9px; border:1px solid var(--border); border-left:3px solid var(--border);
   border-radius:9px; padding:8px 10px; background:var(--surface); }
-.cal-ev--event { border-left-color:var(--c-event); } .cal-ev--afg { border-left-color:var(--c-afg); }
+.cal-ev--event, .cal-ev--site { border-left-color:var(--c-event); } .cal-ev--afg { border-left-color:var(--c-afg); }
 .cal-ev--session { border-left-color:var(--c-session); } .cal-ev--task { border-left-color:var(--c-task); }
 .cal-ev--reminder { border-left-color:var(--c-reminder); }
 .cal-ev.is-done { opacity:.6; }
@@ -2046,3 +2046,8 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 @media (max-width:380px) {
   .pkpis { grid-template-columns:1fr 1fr; }
 }
+
+/* Meetings are open to every member and staff member: who called one, whether you are in it, and whether its minutes are private. */
+.meet-who { margin:4px 0 0; font-size:12px; color:var(--muted,#6b7280); }
+.meet-tag { font-weight:700; color:var(--body,#374151); }
+.meet-tag.is-in { color:var(--gold-deep,#b07e08); }

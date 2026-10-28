@@ -179,6 +179,14 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 /* ── shared parts ──────────────────────────────────────────────────────── */
 .avp .avp-h1 { font-family: var(--av-serif); font-weight: 500; font-size: clamp(34px, 4vw, 48px); line-height: 1.05; letter-spacing: -.01em; margin: 0 0 8px; color: var(--avp-ink); }
 .avp-lede { margin: 0; font-size: 16.5px; color: var(--avp-text-2); }
+.avp-session { margin: 10px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14.5px; color: var(--avp-text-2); }
+.avp-session b { color: var(--avp-ink); }
+.avp-session-tag { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; background: var(--avp-indigo-bg); color: var(--avp-indigo-tx); }
+.avp-session.is-live .avp-session-tag { background: var(--avp-green-bg); color: var(--avp-green-tx); }
+.avp-session.is-live .avp-session-tag::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; margin-right: 6px; }
+.avp-session-theme { font-style: italic; }
+@media (prefers-reduced-motion: no-preference) { .avp-session.is-live .avp-session-tag::before { animation: avpPulse 1.8s ease-in-out infinite; } }
+@keyframes avpPulse { 50% { opacity: .35; } }
 .avp-view-head { margin-bottom: 24px; }
 .avp .avp-btn { height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--avp-input);
   background: var(--avp-bg); color: var(--avp-ink); font-size: 14.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
@@ -244,6 +252,12 @@ body.avp a:hover { color: var(--avp-gold-tx); }
    is set for "₦128,000"; "Foundation Member" at that size wrapped out of
    its own card. Same row, same weight, read as text. */
 .avp-kpi-v--text { font-size: 19px; line-height: 1.2; }
+/* A KPI that goes somewhere: the whole tile is the link, to the section
+   where the figure is explained. */
+a.avp-kpi--link { display: block; color: inherit; text-decoration: none; transition: border-color .15s ease; }
+a.avp-kpi--link:hover { border-color: var(--avp-ink); }
+a.avp-kpi--link:focus-visible { outline: 2px solid var(--avp-gold); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { a.avp-kpi--link { transition: none; } }
 .avp-cols { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
 .avp-col { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
 .avp-col--main { flex: 1 1 560px; }
@@ -337,6 +351,10 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 .avp-dues-total span { font-size: 14px; color: var(--avp-muted); }
 .avp-dues-total strong { font-size: 30px; font-weight: 600; letter-spacing: -.01em; }
 .avp-dues-total .avp-dues-n { color: var(--avp-faint); }
+/* Behind on dues: what is owed, in the red tone. */
+.avp-dues-owe { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 14px; border-radius: 10px; background: var(--avp-red-bg); color: var(--avp-red-tx); }
+.avp-dues-owe span { font-size: 14px; }
+.avp-dues-owe strong { font-size: 26px; font-weight: 600; letter-spacing: -.01em; }
 .avp-dues-line { margin: 0; font-size: 15px; font-weight: 600; }
 .avp-dues-line.is-ok { color: var(--avp-green-tx); }
 .avp-dues-line.is-warn { color: var(--avp-red-tx); }
@@ -489,3 +507,124 @@ body.avp a:hover { color: var(--avp-gold-tx); }
   .avp .avp-head-link, .avp .pcard-link { display: inline-flex; align-items: center; min-height: 44px; }
   .avp details > summary { min-height: 44px; display: flex; align-items: center; }
 }
+
+/* Requests (views/requests.php) */
+.avp-req-intro { margin: 0 0 16px; color: var(--avp-muted); max-width: 62ch; }
+.avp-req-h3 { margin: 18px 0 8px; font-size: 15px; }
+.avp-today-ask { margin: 0 0 16px; }
+
+/* A member's own fines (views/fines.php), for a member outside NGV. */
+.avp-fines-intro { margin: 0 0 16px; color: var(--avp-text-2); }
+.avp-fines-total { font-weight: 600; color: var(--avp-text-2); }
+.avp-fines-list { list-style: none; margin: 0; padding: 0; }
+.avp-fine { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--avp-line-2); }
+.avp-fine:last-child { border-bottom: 0; }
+.avp-fine-what { display: flex; flex-direction: column; gap: 2px; }
+.avp-fine-what b { color: var(--avp-ink); }
+.avp-fine-what span { color: var(--avp-muted); font-size: 13px; }
+.avp-fine-amt { flex: 0 0 auto; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--avp-pill); color: var(--avp-ink); white-space: nowrap; }
+.avp-fine-amt.is-red { background: var(--avp-red-bg); color: var(--avp-red-tx); }
+.avp-fine-amt.is-gold { background: var(--avp-gold-bg); color: var(--avp-gold-tx); }
+.avp-fine-amt.is-green { background: var(--avp-green-bg); color: var(--avp-green-tx); }
+.avp-fine-amt.is-indigo { background: var(--avp-indigo-bg); color: var(--avp-indigo-tx); }
+.avp-fines-how { margin: 14px 0 0; color: var(--avp-text-2); font-size: 14px; }
+
+/* The Quest (views/quest.php) */
+.avp-quest-intro { margin: 0 0 16px; color: var(--avp-muted); max-width: 62ch; }
+.avp-quest .avp-kpis { margin-bottom: 0; }
+.avp-quest-levels { margin-bottom: 14px; }
+.avp-quest-values { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.avp-quest-values th, .avp-quest-values td { padding: 9px 0; border-bottom: 1px solid var(--avp-line); text-align: left; }
+.avp-quest-values thead th { font-size: 12.5px; font-weight: 600; color: var(--avp-muted); }
+.avp-quest-values tbody th { font-weight: 600; color: var(--avp-ink); }
+.avp-quest-values td { text-align: right; }
+.avp-quest-values thead th:not(:first-child) { text-align: right; }
+.avp-quest-values + .avp-note { margin-top: 14px; }
+.avp-quest-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14.5px; }
+.avp-quest-list:last-child { margin-bottom: 0; }
+.avp-quest-feeds { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.avp-quest-feeds:last-child { margin-bottom: 0; }
+.avp-quest-feeds a { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--avp-line); border-radius: 10px; color: inherit; text-decoration: none; }
+.avp-quest-feeds a:hover { border-color: var(--avp-ink); }
+.avp-quest-feeds a:focus-visible { outline: 2px solid var(--avp-gold); outline-offset: 2px; }
+.avp-quest-feeds b { font-size: 14.5px; font-weight: 600; }
+.avp-quest-feeds span { font-size: 13.5px; color: var(--avp-muted); }
+
+/* Bills & appeals (views/bills.php) */
+.avp-bill-flash { margin: 0 0 16px; padding: 10px 14px; border-radius: 10px; font-size: 14.5px; }
+.avp-bill-flash.is-ok { background: var(--avp-green-bg); color: var(--avp-green-tx); }
+.avp-bill-flash.is-bad { background: var(--avp-red-bg); color: var(--avp-red-tx); }
+.avp-bills-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.avp-bill { border: 1px solid var(--avp-line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.avp-bill-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 15px; }
+.avp-bill-price { font-weight: 600; white-space: nowrap; }
+.avp-bill-meta { margin: 0; font-size: 13.5px; color: var(--avp-muted); }
+.avp-bill-meta time { white-space: nowrap; }
+.avp-bill-note { margin: 0; font-size: 14px; color: var(--avp-text-2); }
+.avp-bill-ev summary { cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--avp-text-2); }
+.avp-bill-ev p { margin: 6px 0 0; font-size: 14px; white-space: pre-wrap; }
+.avp-bill-ev .avp-form { margin-top: 10px; }
+.avp-bill-acts { display: flex; flex-direction: column; gap: 10px; }
+.avp-bill-acts > form:first-child { align-self: flex-start; }
+.avp-form textarea { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--avp-input); font-family: inherit; font-size: 14.5px; background: var(--avp-bg); color: var(--avp-ink); resize: vertical; }
+.avp-quest-pts { font-weight: 700; color: var(--avp-green-tx); }
+.avp-quest-when { font-size: 12.5px; color: var(--avp-muted); }
+.avp-quest-pts.is-minus { color: var(--avp-red-tx); }
+.avp-quest-ceiling { margin: 12px 0 0; font-size: 13.5px; color: var(--avp-muted); }
+.avp-quest-colour[data-colour="white"] { background: var(--avp-pill); color: var(--avp-ink); }
+.avp-quest-colour[data-colour="black"] { background: var(--avp-primary); color: var(--avp-on-primary); }
+.avp-quest-colour[data-colour="gold"] { background: var(--avp-gold); color: var(--av-ink); }
+/* A long answer gets the card's width; a bare .avp-form-wide only spans the grid. */
+.avp-bills .avp-form label.avp-form-wide { justify-self: stretch; }
+.avp-bills .avp-form textarea { width: 100%; }
+
+/* ── Google in the portal (lib/GoogleHub.php, portal/google.js) ─────────── */
+/* The account in the side bar: connect, or who it is and a way out. */
+.avp-google { padding: 10px 14px; border-top: 1px solid var(--avp-side-line); font-size: 13.5px; }
+.avp-google { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.avp-g-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--avp-green-tx); flex-shrink: 0; }
+.avp-g-t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.avp-g-l { font-weight: 700; color: var(--avp-ink); }
+.avp-g-e { color: var(--avp-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avp-g-out { margin: 0; }
+.avp-g-btn { background: none; border: 1px solid var(--avp-side-line); border-radius: 8px; padding: 6px 10px; min-height: 32px; font: inherit; font-size: 12.5px; color: var(--avp-text-2); cursor: pointer; }
+.avp-g-btn:hover { color: var(--avp-ink); border-color: var(--avp-text-2); }
+.avp-g-connect, .avp-g-warn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border-radius: 10px; font-weight: 700; text-decoration: none; }
+.avp-g-connect { background: var(--avp-bg); border: 1px solid var(--avp-side-line); color: var(--avp-ink); }
+.avp-g-connect:hover { border-color: var(--avp-gold-tx); }
+.avp-g-logo { width: 22px; height: 22px; border-radius: 50%; background: var(--avp-indigo-bg); color: var(--avp-indigo-tx); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+.avp-g-sub { font-weight: 400; font-size: 12px; color: var(--avp-text-2); }
+.avp-g-warn { background: var(--avp-red-bg); color: var(--avp-red-tx); }
+
+/* The connect round-trip's result, under the welcome. */
+.avp-g-notice { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--avp-green-bg); color: var(--avp-green-tx); font-weight: 600; }
+.avp-g-notice.is-err { background: var(--avp-red-bg); color: var(--avp-red-tx); }
+
+/* The Google card on Today. */
+.avp-g-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.avp-g-kpis > div { border: 1px solid var(--avp-line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.avp-g-kpis span { font-size: 12.5px; color: var(--avp-text-2); }
+.avp-g-kpis b { font-size: 20px; color: var(--avp-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avp-g-kpis #gNext { font-size: 15px; line-height: 1.6; }
+.avp-g-kpis small { font-size: 12px; color: var(--avp-text-2); }
+.avp-g-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.avp-g-h { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--avp-text-2); }
+.avp-g-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.avp-g-li a, .avp-g-li > span { display: flex; flex-direction: column; gap: 1px; padding: 7px 8px; border-radius: 8px; color: inherit; text-decoration: none; min-width: 0; }
+.avp-g-li a:hover { background: var(--avp-line-2); }
+.avp-g-li b { font-size: 14px; color: var(--avp-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.avp-g-li.is-unread b { font-weight: 800; }
+.avp-g-li span span, .avp-g-li a span { font-size: 13px; color: var(--avp-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avp-g-empty { font-size: 13.5px; color: var(--avp-text-2); padding: 6px 8px; }
+.avp-g-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.avp-g-note { margin: 0 0 12px; color: var(--avp-text-2); max-width: 62ch; }
+@media (max-width: 760px) { .avp-g-cols, .avp-g-kpis { grid-template-columns: 1fr; } }
+
+/* Events on Today (#avpEventsCard): a date tile beside each title. */
+.avp-ev-li a { flex-direction: row; align-items: center; gap: 12px; }
+.avp-ev-li .avp-ev-date { flex: none; width: 46px; display: flex; flex-direction: column; align-items: center; padding: 5px 0; border-radius: 10px; background: var(--avp-gold-bg, #FBF4E0); color: var(--avp-gold-tx); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.avp-ev-li .avp-ev-date b { font-size: 18px; line-height: 1.1; color: inherit; }
+.avp-ev-li .avp-ev-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.avp-g-empty.avp-g-err { color: var(--avp-red-tx); font-size: 12.5px; line-height: 1.45; }
+.avp-g-ask { display: grid; gap: 8px; }
+.avp-g-ask small { color: var(--avp-text-2); font-size: 12px; line-height: 1.45; }

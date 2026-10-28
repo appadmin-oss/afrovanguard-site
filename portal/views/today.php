@@ -41,6 +41,24 @@ if ($isOrg && ($tasksDue || $cacDue)) {
         'sub' => $cacDue ? 'Due today or earlier · ' . $cacDue . ' in the console' : 'Due today or earlier',
         'cta' => 'Open', 'goto' => 'tasks'];
 }
+/* The Quest's bills: one waiting for the member's answer, or a decision
+   whose appeal window is closing. The decision is the member's; Today says so. */
+if (!empty($billsUnanswered)) {
+    $b0 = $billsUnanswered[0];
+    $bLeft = Conduct::noticeLeft($b0);
+    $attn[] = ['ico' => '!', 'tone' => 'red',
+        'title' => count($billsUnanswered) === 1
+            ? ($b0['kind'] === 'fine' ? 'A fine of ₦' . number_format((int) $b0['amount']) : 'A deduction of ' . (int) $b0['points'] . ' points') . ' has been proposed'
+            : count($billsUnanswered) . ' fines or deductions are waiting for your answer',
+        'sub' => 'Accept it or give your side' . ($bLeft !== '' ? ' — the committee may decide after ' . $bLeft : ''),
+        'cta' => 'Answer', 'goto' => 'bills'];
+}
+if (!empty($billsClosing)) {
+    $attn[] = ['ico' => '⚖', 'tone' => 'gold',
+        'title' => count($billsClosing) === 1 ? 'The time to appeal ' . e(Conduct::caseLabel($billsClosing[0])) . ' ends ' . Conduct::appealOpenUntil($billsClosing[0])
+            : count($billsClosing) . ' decisions can be appealed for three more days at most',
+        'sub' => 'Only if you think it is wrong. Somebody new hears it.', 'cta' => 'See', 'goto' => 'bills'];
+}
 if ($isNgv && $ngvOwed > 0) {
     $attn[] = ['ico' => '₦', 'tone' => 'gold',
         'title' => '₦' . number_format($ngvOwed) . ' outstanding on your NGV account',
@@ -54,7 +72,7 @@ if ($mrq['unsent'] > 0) {
     $attn[] = ['ico' => '!', 'tone' => 'red',
         'title' => $mrq['unsent'] . ' money request' . ($mrq['unsent'] === 1 ? '' : 's') . ' did not reach finance',
         'sub' => 'Still saved here — send ' . ($mrq['unsent'] === 1 ? 'it' : 'them') . ' again',
-        'cta' => 'Send', 'goto' => 'overview'];
+        'cta' => 'Send', 'goto' => 'requests'];
 }
 if ($gateWhy !== '' && GatePass::ready()) {
     $attn[] = ['ico' => '×', 'tone' => 'red', 'title' => 'The CACENTRE gate cannot let you in',
@@ -75,6 +93,10 @@ if ($postsToday) {
         'sub' => 'Catch up with members', 'cta' => 'Open', 'goto' => 'community'];
 }
 
+/* The programme session running now, or the next to start (lib/ProgrammeSessions.php). */
+$prog = null;
+try { $pn = ProgrammeSessions::now(); $prog = $pn['current'] ?: $pn['next']; } catch (Throwable $e) { error_log('[portal] sessions: ' . $e->getMessage()); }
+
 /* The KPI row. Each number appears here or in a card below, never both:
    members online lives in the top bar and the Who's online card, and
    mentorship hours are spelled out in the Mentorship card's own stats. */
@@ -83,7 +105,16 @@ if ($isOrg) {
     $kpis[] = ['label' => 'Tasks open', 'value' => (string) ($openTasks + $cacOpen), 'id' => 'kpiTasks',
        'sub' => $cacOpen ? 'here and in the console' : 'across your list', 'chip' => 'Active', 'tone' => 'gold'];
 }
-$kpis[] = ['label' => 'Your stage', 'value' => (string) ($journey['label'] ?? 'Member'), 'text' => true, 'sub' => ($stageCode === 'O' ? 'Level A up next' : 'Keep building'), 'chip' => 'Level ' . $stageCode, 'tone' => 'indigo'];
+/* The level is the Quest's (Levels, on the Pyramid Manual's floors): one
+   word for it everywhere, and the way to it is the Quest page. */
+$jNeedPts = $journey['next_points'] ?? null;
+$jHavePts = max(0, (int) ($journey['quest_points'] ?? 0));
+$kpis[] = ['label' => 'Your level', 'value' => (string) ($journey['label'] ?? 'Member'), 'text' => true, 'goto' => 'quest',
+    'sub' => $journey['next'] === null ? 'The top of the pyramid'
+        : ($jNeedPts === null ? $jNextLabel . ' up next'
+            : ($jHavePts >= (int) $jNeedPts ? 'Points reached for ' . $jNextLabel . '; mentees next'
+                : number_format((int) $jNeedPts - $jHavePts) . ' Quest points to ' . $jNextLabel)),
+    'chip' => 'Level ' . $stageCode, 'tone' => 'indigo'];
 $kpis[] = ['label' => 'Mentorship hours', 'value' => $mentorHoursLabel, 'sub' => ((int) $mentorStats['attended']) . ' session' . (((int) $mentorStats['attended']) === 1 ? '' : 's') . ' attended', 'chip' => 'Logged', 'tone' => 'gold'];
 if ($dues) {
     $duesOk = $duesState === 'active' || !empty($dues['lifetime']);
@@ -97,6 +128,18 @@ if ($dues) {
           <div class="avp-hello-t">
             <h1 class="avp-h1" id="avpTodayH">Welcome back, <?= e($first) ?>.</h1>
             <p class="avp-lede"><?= $isOrg ? 'Here’s what’s happening across your Afrovanguard workspace today.' : 'Pick up where you left off in your learning.' ?></p>
+<?php if ($prog): ?>
+            <p class="avp-session<?= $prog['live'] ? ' is-live' : '' ?>" id="avpSession">
+              <span class="avp-session-tag"><?= $prog['live'] ? 'Live' : 'Next' ?></span>
+              <b><?= e($prog['label']) ?></b>
+              <span><?= $prog['live']
+                  ? 'Week ' . (int) $prog['week_of'] . ' of ' . (int) $prog['total_weeks'] . ' · ' . (int) $prog['days_left'] . ' day' . ((int) $prog['days_left'] === 1 ? '' : 's') . ' left'
+                  : 'Starts in ' . (int) $prog['days_to_start'] . ' day' . ((int) $prog['days_to_start'] === 1 ? '' : 's') . ' · ' . e(date('j M', strtotime($prog['start_date']))) ?></span>
+<?php if ($prog['theme'] !== ''): ?>
+              <span class="avp-session-theme">“<?= e($prog['theme']) ?>”</span>
+<?php endif; ?>
+            </p>
+<?php endif; ?>
           </div>
           <div class="avp-hello-actions">
 <?php if ($isOrg): ?>
@@ -166,46 +209,19 @@ if ($isOrg && !$hasPlan):
 
         <div class="avp-kpis" aria-label="At a glance">
 <?php foreach ($kpis as $k): ?>
-          <div class="avp-kpi">
+<?php $kTag = isset($k['goto']) ? 'a' : 'div'; ?>
+          <<?= $kTag ?> class="avp-kpi<?= isset($k['goto']) ? ' avp-kpi--link' : '' ?>"<?= isset($k['goto']) ? ' href="#' . e($k['goto']) . '" data-goto="' . e($k['goto']) . '"' : '' ?>>
             <div class="avp-kpi-top"><span class="avp-kpi-l"><?= e($k['label']) ?></span><span class="avp-chip avp-chip--sm avp-chip--<?= e($k['tone']) ?>"><?= e($k['chip']) ?></span></div>
             <div class="avp-kpi-v<?= empty($k['text']) ? ' av-num' : ' avp-kpi-v--text' ?>"<?= isset($k['id']) ? ' id="' . e($k['id']) . '"' : '' ?>><?= e($k['value']) ?></div>
             <div class="avp-kpi-s"><?= e($k['sub']) ?></div>
-          </div>
+          </<?= $kTag ?>>
 <?php endforeach; ?>
         </div>
 
-        <!-- Asking finance for money. Not inside the dues block above:
-             this is for every member, and a facilitator who paid a bus
-             fare out of their own pocket is exactly who it is for. Until
-             now they had to find somebody with a finance console login
-             and ask them to type it in. -->
-        <section class="avp-card" id="moneyRequests" data-csrf="<?= e(av_csrf_token()) ?>" aria-labelledby="avpMoneyReqH">
-          <div class="pcard-head"><h2 id="avpMoneyReqH">Ask finance for money</h2></div>
-          <div class="pcard-body">
-            <p class="pcard-note" data-mr-max>A claim for something you paid for, or something that needs buying.</p>
-            <p class="pcard-note" data-mr-down hidden>Finance cannot be reached just now, so requests cannot be sent. Nothing you have already sent is affected.</p>
+        <!-- Asking finance for money is its own page: Finance requests
+             (views/requests.php). A change to your record is in Membership. -->
+        <p class="avp-today-ask"><a href="#requests" data-goto="requests">Ask finance for money →</a></p>
 
-            <form class="mr-form" data-mr-form novalidate hidden>
-              <label class="mr-wide">What for <input name="title" maxlength="160" required placeholder="Bus fare to the Saturday session"></label>
-              <label class="mr-wide">Why it is needed <textarea name="purpose" rows="2" required placeholder="Four facilitators travelling to the Ikeja centre"></textarea></label>
-              <label>Kind of spending <select name="category" required></select></label>
-              <label>Amount (₦) <input name="amount" type="number" min="100" step="1" required></label>
-
-              <details data-mr-bank>
-                <summary>Where to pay it back</summary>
-                <p class="pcard-note">Asked once. Finance keeps it against your name for next time — a request that is approved and then cannot be paid helps nobody.</p>
-                <label>Account number <input name="account_number" inputmode="numeric" maxlength="20"></label>
-                <label>Bank <input name="bank_name" maxlength="60" placeholder="GTBank"></label>
-                <label>Bank code <input name="bank_code" maxlength="10" placeholder="058"></label>
-              </details>
-
-              <button type="submit" class="pbtn pbtn-gold">Send to finance</button>
-            </form>
-
-            <p class="enroll-msg" data-mr-msg role="status" hidden></p>
-            <div data-mr-list aria-live="polite"><p class="pc-empty">Loading…</p></div>
-          </div>
-        </section>
 
         <div class="avp-cols">
           <div class="avp-col avp-col--main">
@@ -234,14 +250,91 @@ if ($isOrg && !$hasPlan):
               </div>
             </section>
 <?php endif; ?>
+<?php if ($isOrg && ($google['oauth'] || $google['org'])):
+    /* Google, on Today (lib/GoogleHub.php) — what the Workspace view used to be. Filled by portal/google.js
+       from /portal/workspace.php?action=me once connected. */
+    $gDomain = (string) $google['domain'];
+    $gAct = [
+        ['Compose', av_ws_link('AV_WS_MAIL_URL', 'https://mail.google.com/a/' . $gDomain) . '#compose'],
+        ['New doc', 'https://docs.google.com/document/create'],
+        ['New event', 'https://calendar.google.com/calendar/u/0/r/eventedit'],
+        ['Start a Meet', 'https://meet.google.com/new'],
+    ];
+?>
+            <section class="avp-card avp-gcard" id="avpGoogleCard" aria-labelledby="avpGoogleH">
+              <div class="avp-card-head">
+                <div class="avp-head-pair"><h2 id="avpGoogleH">Google</h2><span class="avp-head-sub"><?= $google['connected'] ? e($google['email']) : 'Mail, calendar, Drive and Chat' ?></span></div>
+<?php if ($google['connected']): ?>
+                <span class="avp-chip avp-chip--green">Connected</span>
+<?php endif; ?>
+              </div>
+              <div class="avp-card-body">
+<?php if ($google['connected']): ?>
+                <div class="avp-g-kpis" id="gKpis">
+                  <div><span>Unread mail</span><b class="av-num" id="gUnread">—</b></div>
+                  <div><span>Next event</span><b id="gNext">—</b><small id="gNextWhen"></small></div>
+                  <div><span>Recent files</span><b class="av-num" id="gFileCount">—</b></div>
+                </div>
+                <div class="avp-g-cols">
+                  <div><h3 class="avp-g-h">Inbox</h3><ul class="avp-g-list" id="gMail" aria-live="polite"><li class="avp-g-empty">Loading…</li></ul></div>
+                  <div><h3 class="avp-g-h">Coming up</h3><ul class="avp-g-list" id="gEvents"><li class="avp-g-empty">Loading…</li></ul></div>
+                  <div><h3 class="avp-g-h">Recent files</h3><ul class="avp-g-list" id="gFiles"><li class="avp-g-empty">Loading…</li></ul></div>
+                </div>
+                <div class="avp-g-acts">
+<?php foreach ($gAct as [$gl, $gu]): ?>
+                  <a class="avp-btn" href="<?= e($gu) ?>" target="_blank" rel="noopener noreferrer"><?= e($gl) ?> <span aria-hidden="true">↗</span></a>
+<?php endforeach; ?>
+                  <a class="avp-btn" href="#chat" data-goto="chat">Google Chat in Team Chat</a>
+                </div>
+<?php elseif ($google['oauth']): ?>
+                <p class="avp-g-note">Connect your Google account to see your inbox, what is coming up in your calendar and your recent Drive files here, and your Google Chat spaces in Team Chat. You sign in with Google once and can disconnect at any time.</p>
+                <a class="avp-btn avp-btn--ink" href="<?= e($google['connect']) ?>">Connect Google</a>
+<?php else: ?>
+                <p class="avp-g-note">Your own Google account cannot be connected here yet<?= $google['admin'] ? ': ' . e($google['problem']) : ' — an administrator needs to switch it on' ?>. The Google apps are in the Suite.</p>
+                <a class="avp-btn" href="#tools" data-goto="tools">Open the Suite</a>
+<?php endif; ?>
+              </div>
+            </section>
+<?php endif; ?>
+<?php
+    /* Events (lib/SiteEvents.php): ours this member may see — members-only and team ones
+       included — and Africa GATES', soonest first. Never fails the page. */
+    $todayEvents = [];
+    try { $todayEvents = SiteEvents::listFor($u, 'upcoming', 4); } catch (Throwable $e) { error_log('[today] events: ' . $e->getMessage()); }
+    if ($todayEvents):
+?>
+            <section class="avp-card" id="avpEventsCard" aria-labelledby="avpEventsH">
+              <div class="avp-card-head">
+                <div class="avp-head-pair"><h2 id="avpEventsH">Events</h2><span class="avp-head-sub">Afrovanguard and Africa GATES</span></div>
+                <a class="avp-head-link" href="/events/">All events →</a>
+              </div>
+              <div class="avp-card-body">
+                <ul class="avp-g-list avp-ev-list">
+<?php foreach ($todayEvents as $ev):
+        $evExt = ($ev['source'] ?? '') === 'gates' || preg_match('~^https?://~', (string) $ev['url']) && !str_starts_with((string) $ev['url'], rtrim((string) (defined('SITE_URL') ? SITE_URL : ''), '/') . '/'); ?>
+                  <li class="avp-g-li avp-ev-li"><a href="<?= e((string) $ev['url']) ?>"<?= $evExt ? ' target="_blank" rel="noopener"' : '' ?>>
+                    <span class="avp-ev-date" aria-hidden="true"><b><?= e((string) $ev['day']) ?></b><?= e((string) $ev['month']) ?></span>
+                    <span class="avp-ev-txt"><b><?= e((string) $ev['title']) ?></b><span><?= e(implode(' · ', array_filter([!empty($ev['ongoing']) ? 'On now' : (string) $ev['when'], (string) ($ev['location'] ?? ''), ($ev['host'] ?? '') !== 'Afrovanguard' ? (string) ($ev['host'] ?? '') : (($ev['audience'] ?? 'public') !== 'public' ? 'Members only' : '')]))) ?></span></span>
+                  </a></li>
+<?php endforeach; ?>
+                </ul>
+              </div>
+            </section>
+<?php endif; ?>
             <section class="avp-card" aria-labelledby="avpJourneyH">
-              <div class="avp-card-head"><h2 id="avpJourneyH">Your journey</h2><a class="avp-head-link" href="/how-it-works">How progression works →</a></div>
+              <div class="avp-card-head"><h2 id="avpJourneyH">Your level</h2><a class="avp-head-link" href="#quest" data-goto="quest">The Quest →</a></div>
               <div class="avp-card-body avp-journey">
                 <ol class="avp-levels">
 <?php foreach ($jOrder as $i => $code): $st = $i === $jHere ? ' is-here' : ($i < $jHere ? ' is-done' : ''); ?>
                   <li class="avp-level<?= $st ?>"<?= $i === $jHere ? ' aria-current="step"' : '' ?>><span class="avp-level-b"><?= e($code) ?></span><?= e(Levels::labelOf($code)) ?></li>
 <?php endforeach; ?>
                 </ol>
+<?php if ($jNeedPts !== null && $journey['next'] !== null): $jPtsPct = (int) $jNeedPts > 0 ? min(100, (int) round(100 * $jHavePts / (int) $jNeedPts)) : 100; ?>
+                <div class="avp-progress">
+                  <div class="avp-bar" role="progressbar" aria-label="Quest points toward <?= e($jNextLabel) ?>" aria-valuemin="0" aria-valuemax="<?= (int) $jNeedPts ?>" aria-valuenow="<?= min((int) $jNeedPts, $jHavePts) ?>"><span style="width:<?= $jPtsPct ?>%"></span></div>
+                  <span class="avp-progress-n av-num"><?= number_format($jHavePts) ?> / <?= number_format((int) $jNeedPts) ?> Quest points</span>
+                </div>
+<?php endif; ?>
 <?php if ($journey['level'] === $jBase): ?>
                 <div class="avp-progress">
                   <div class="avp-bar" role="progressbar" aria-label="Actively mentored" aria-valuemin="0" aria-valuemax="<?= (int) ($journey['mentees_needed'] ?? 2) ?>" aria-valuenow="<?= (int) ($journey['active_mentees'] ?? 0) ?>"><span style="width:<?= $jPct ?>%"></span></div>
