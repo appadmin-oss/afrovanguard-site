@@ -228,13 +228,20 @@ final class Donations
         $campaign = (string) preg_replace('/[^a-z0-9_-]/', '', strtolower($campaign !== '' ? $campaign : 'general'));
 
         $esc = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
-        $anon = ($fields['anonymous'] ?? 'No') === 'Yes';
+        /* THE WALL IS OPT-IN, and the consent is a field of its own.
+           `anonymous` was the old opt-out, so its absence meant "publish me"
+           — and a gateway charge with no donate form behind it carries no
+           fields at all, which is how a dues payer or a course buyer came to
+           be on a public donor wall under their own name. `wall` is only
+           ever set by the donate form, by somebody who ticked it. */
+        $listed = ($fields['wall'] ?? ($meta['wall'] ?? 'No')) === 'Yes';
+        $anon = !$listed;
         $fn = trim((string) ($fields['first_name'] ?? ''));
         $ln = trim((string) ($fields['last_name'] ?? ''));
-        /* The donor wall is public. A charge with no name on the form (a
-           renewal, a dues or course payment on the same account) used to fall
-           back to the payer's EMAIL here, and get_donors published it.
-           Paystack's own customer name next, then a plain "Supporter". */
+        /* A charge with no name on the form (a renewal, a dues or course
+           payment on the same account) used to fall back to the payer's
+           EMAIL here. Paystack's own customer name next, then "Supporter".
+           It only reaches the wall if `listed` is true in any case. */
         if ($fn === '' && $ln === '') {
             $fn = trim((string) ($tx['customer']['first_name'] ?? ''));
             $ln = trim((string) ($tx['customer']['last_name'] ?? ''));
@@ -247,6 +254,7 @@ final class Donations
             'initials'   => $anon ? 'AN' : (strtoupper(substr($fn, 0, 1) . substr($ln, 0, 1)) ?: 'S'),
             'email'      => $email,
             'anonymous'  => $anon,
+            'listed'     => $listed,
             'amount'     => $amount,
             'currency'   => $currency,
             'campaign'   => $campaign,

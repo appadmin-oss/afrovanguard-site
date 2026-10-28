@@ -143,7 +143,7 @@
   const alertBox = $('[data-avdn-alert]', s2);
   const showAlert = m => { alertBox.textContent = m; alertBox.hidden = false; alertBox.focus(); };
   const fieldErr = (name, id, msg) => { const el = s2.elements[name], e = $('#' + id); e.textContent = msg || ''; e.hidden = !msg; msg ? el.setAttribute('aria-invalid', 'true') : el.removeAttribute('aria-invalid'); return !msg; };
-  const donor = () => ({ fn: s2.elements.firstName.value.trim(), ln: s2.elements.lastName.value.trim(), email: s2.elements.email.value.trim(), phone: s2.elements.phone.value.trim(), msg: s2.elements.message.value.trim(), anon: s2.elements.anonymous.checked });
+  const donor = () => ({ fn: s2.elements.firstName.value.trim(), ln: s2.elements.lastName.value.trim(), email: s2.elements.email.value.trim(), phone: s2.elements.phone.value.trim(), msg: s2.elements.message.value.trim(), wall: s2.elements.wall.checked });
   const validDetails = () => {
     const d = donor(); alertBox.hidden = true;
     const ok = [fieldErr('firstName', 'avdn-fn-err', d.fn ? '' : 'Please enter your first name.'),
@@ -162,10 +162,10 @@
       const d = validDetails(); if (!d) return;
       const amt = amount(); if (!(amt > 0)) { show(s1); return; }
       busyBtn(true, 'Connecting to Paystack…');
-      post({ action: 'init_payment', firstName: d.fn, lastName: d.ln, email: d.email, phone: d.phone, amount: amt, currency: state.cur, campaign: state.camp, frequency: state.freq, anonymous: d.anon, message: d.msg })
+      post({ action: 'init_payment', firstName: d.fn, lastName: d.ln, email: d.email, phone: d.phone, amount: amt, currency: state.cur, campaign: state.camp, frequency: state.freq, wall: d.wall, message: d.msg })
         .then(data => {
           if (data && data.success && data.authorization_url && /^https:\/\//.test(data.authorization_url)) {
-            try { sessionStorage.setItem('av_donation', JSON.stringify({ fn: d.fn, ln: d.ln, email: d.email, anon: d.anon, ref: data.reference, amount: amt, currency: state.cur, campaign: state.camp, frequency: state.freq })); } catch (err) { /* private mode: thank-you is less personal */ }
+            try { sessionStorage.setItem('av_donation', JSON.stringify({ fn: d.fn, ln: d.ln, email: d.email, wall: d.wall, ref: data.reference, amount: amt, currency: state.cur, campaign: state.camp, frequency: state.freq })); } catch (err) { /* private mode: thank-you is less personal */ }
             location.href = data.authorization_url; // → Paystack hosted checkout
             return;
           }
@@ -187,7 +187,7 @@
     let saved = {}; try { saved = JSON.parse(sessionStorage.getItem('av_donation') || '{}'); sessionStorage.removeItem('av_donation'); } catch (e) { saved = {}; }
     try { history.replaceState(null, '', location.pathname); } catch (e) { /* keep URL */ }
     $('[data-avdn-busy-text]', card).textContent = 'Confirming your gift…'; show(sBusy);
-    post({ action: 'record_donation', reference: ref, firstName: saved.fn || '', lastName: saved.ln || '', email: saved.email || '', amount: saved.amount || 0, currency: SYM[saved.currency || 'NGN'] || '₦', campaign: saved.campaign || 'general', anonymous: !!saved.anon, frequency: saved.frequency || 'One-time' }, 30000)
+    post({ action: 'record_donation', reference: ref, firstName: saved.fn || '', lastName: saved.ln || '', email: saved.email || '', amount: saved.amount || 0, currency: SYM[saved.currency || 'NGN'] || '₦', campaign: saved.campaign || 'general', wall: !!saved.wall, frequency: saved.frequency || 'One-time' }, 30000)
       .then(data => {
         if (data && data.campaigns) statCache = data.campaigns;
         if (data && data.success === false) return done('We’re still confirming', data.message || 'We could not confirm the payment yet — your receipt will arrive once it is confirmed.');
@@ -302,7 +302,9 @@
       const donors = (d && d.success && d.donors) || [];
       list.replaceChildren(); list.setAttribute('aria-busy', 'false');
       if (!donors.length) { list.hidden = true; empty.hidden = false; count.textContent = ''; return; }
-      count.textContent = (d.total || donors.length).toLocaleString('en-US') + ' gifts so far.';
+      /* The gifts, not the names: the wall is opt-in, so the number on it is
+         smaller than the number of gifts and must not be read as either. */
+      count.textContent = (d.gifts || d.total || donors.length).toLocaleString('en-US') + ' gifts so far.';
       donors.forEach(x => {
         const li = document.createElement('li'), ini = document.createElement('span'), body = document.createElement('span'), b = document.createElement('b'), sm = document.createElement('small');
         ini.className = 'avdn-ini'; ini.setAttribute('aria-hidden', 'true'); ini.textContent = String(x.initials || '').slice(0, 2);

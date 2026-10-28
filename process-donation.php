@@ -353,7 +353,16 @@ if ($method === 'GET') {
         $page  = max((int)($_GET['page']??0),0);
         $type  = $_GET['type']??'all';
         $data  = readData();
+        /* OPT-IN. The wall was opt-out — a box saying "keep my name off it" —
+           so a donor who read nothing was published, and a GATEWAY charge
+           with no donate form behind it (dues, a renewal, a course fee) fell
+           through to the payer's name and amount and went up too. Only an
+           entry carrying an explicit `listed` is shown; absence is not
+           consent, including for the entries already in the file, which
+           nobody was ever asked about. The campaign totals and donor COUNTS
+           are unaffected: they are figures, not names. */
         $all   = array_values(array_filter($data['donations'], function($d) use($type){
+            if (empty($d['listed'])) return false;
             if ($type==='monetary') return ($d['type']??'')==='card'||($d['type']??'')==='bank_static'||($d['type']??'')==='bank_va';
             if ($type==='inkind')   return ($d['type']??'')==='inkind';
             return true;
@@ -367,15 +376,21 @@ if ($method === 'GET') {
                 $display = $sym.number_format((float)($d['amount']??0));
             }
             return [
-                'name'           => $d['anonymous']?'Anonymous':($d['name']??'Donor'),
-                'initials'       => $d['anonymous']?'AN':($d['initials']??'??'),
+                'name'           => $d['name'] ?? 'Donor',
+                'initials'       => $d['initials'] ?? '??',
                 'amount_display' => $display,
                 'campaign'       => $d['campaign']??'general',
                 'type'           => $d['type']??'card',
                 'time_ago'       => timeAgo($d['created_at']??date('c')),
             ];
         }, array_slice($all,$page*$limit,$limit));
-        echo json_encode(['success'=>true,'donors'=>$donors,'total'=>$total]);
+        /* `total` is how many are ON THE WALL — what the list pages through.
+           `gifts` is how many gifts there have been, which is a figure and
+           not a name, so it is not reduced by the wall being opt-in: a
+           count that fell because donors stopped consenting to be named
+           would be a false statement about how much support there is. */
+        echo json_encode(['success'=>true,'donors'=>$donors,'total'=>$total,
+                          'gifts'=>(int) ($data['totals']['donors'] ?? $total)]);
         exit;
     }
 
@@ -483,7 +498,11 @@ if ($action==='init_payment') {
     $camp = preg_replace('/[^a-z0-9_-]/','',strtolower($input['campaign']??'general'));
     $allowed_freq = ['One-time','Monthly','Annual'];
     $freq = in_array($input['frequency']??'', $allowed_freq, true) ? $input['frequency'] : 'One-time';
-    $anon = !empty($input['anonymous']);
+    /* Listed on the wall only if they asked to be. `anonymous` was the old
+       opt-out and is still read so a checkout started before this deploy
+       finishes as the donor meant it; it is never a reason to LIST. */
+    $wall = !empty($input['wall']);
+    $anon = !$wall;
     $msg  = mb_substr(trim($input['message']??''),0,500);
     $ref  = 'AV_'.time().'_'.strtoupper(bin2hex(random_bytes(4)));
     $callback = rtrim(SITE_URL,'/').'/donate';
@@ -509,7 +528,7 @@ if ($action==='init_payment') {
             'Donation to Afrovanguard' . ($camp && $camp !== 'general' ? ' — ' . $camp : ''),
             trim("$fn $ln"),
             $callback,
-            ['campaign'=>$camp,'frequency'=>$freq,'anonymous'=>$anon?'Yes':'No',
+            ['campaign'=>$camp,'frequency'=>$freq,'anonymous'=>$anon?'Yes':'No','wall'=>$wall?'Yes':'No',
              'first_name'=>$fn,'last_name'=>$ln,'message'=>$msg ?: '—','email'=>$email]
         );
         if (empty($hosted['ok']) || ($hosted['url'] ?? '') === '') {
@@ -550,6 +569,10 @@ if ($action==='init_payment') {
                 ['display_name'=>'Campaign','variable_name'=>'campaign','value'=>$camp],
                 ['display_name'=>'Frequency','variable_name'=>'frequency','value'=>$freq],
                 ['display_name'=>'Anonymous','variable_name'=>'anonymous','value'=>$anon?'Yes':'No'],
+                /* The consent itself, not its negation: a charge that did not
+                   come from the donate form carries no `wall` field at all,
+                   and is therefore not listed. */
+                ['display_name'=>'Donor wall','variable_name'=>'wall','value'=>$wall?'Yes':'No'],
             ],
         ],
     ]);
@@ -624,13 +647,14 @@ if ($action==='record_donation') {
     $camp    =preg_replace('/[^a-z0-9_-]/','',strtolower($input['campaign']??'general'));
     $allowed_freq = ['One-time','Monthly','Annual'];
     $freq = in_array($input['frequency']??'', $allowed_freq, true) ? $input['frequency'] : 'One-time';
-    $anon    =!empty($input['anonymous']);
+    $wall    =!empty($input['wall']);
+    $anon    =!$wall;
     $initials=strtoupper(($fn[0]??'?').($ln[0]??''));
     $entry = [
         'id'=>$ref,'type'=>'card','reference'=>$ref,
         'name'=>$anon?'Anonymous':mb_substr(trim("$fn $ln"),0,100),
         'initials'=>$anon?'AN':$initials,
-        'email'=>$email,'anonymous'=>$anon,
+        'email'=>$email,'anonymous'=>$anon,'listed'=>$wall,
         'amount'=>$amount,'currency'=>$currency,
         'campaign'=>$camp,'frequency'=>$freq,
         'status'=>'confirmed','created_at'=>date('c'),
@@ -716,11 +740,12 @@ if ($action==='record_bank_transfer') {
     $ref='ZB_'.date('Ymd_His').'_'.strtoupper(substr(bin2hex(random_bytes(3)),0,6));
     $parts=explode(' ',$name,2);
     $initials=strtoupper(($parts[0][0]??'?').($parts[1][0]??''));
-    $anon=!empty($input['anonymous']);
+    $wall=!empty($input['wall']);
+    $anon=!$wall;
     $bt_entry = [
         'id'=>$ref,'type'=>'bank_static','reference'=>$ref,
         'name'=>$anon?'Anonymous':$name,'initials'=>$anon?'AN':$initials,
-        'email'=>$email,'anonymous'=>$anon,'amount'=>$amount,
+        'email'=>$email,'anonymous'=>$anon,'listed'=>$wall,'amount'=>$amount,
         'currency'=>'NGN','campaign'=>$camp,
         'frequency'=>in_array($input['frequency']??'',['One-time','Monthly','Annual'],true)?$input['frequency']:'One-time',
         'status'=>'confirmed','created_at'=>date('c'),'confirmed_by'=>'admin',
@@ -758,7 +783,7 @@ if ($action==='submit_contribute') {
     array_unshift($data['donations'],[
         'id'=>$ref,'type'=>'inkind','reference'=>$ref,
         'name'=>$name,'initials'=>$initials,'email'=>$email,
-        'anonymous'=>!empty($input['anonymous']),'amount'=>0,'currency'=>'NGN',
+        'anonymous'=>empty($input['wall']),'listed'=>!empty($input['wall']),'amount'=>0,'currency'=>'NGN',
         'campaign'=>$camp,'frequency'=>'One-time','status'=>'confirmed',
         'inkind_type'=>$tlabel,'inkind_desc'=>$desc,
         'inkind_hours'=>(int)($input['hours_per_month']??0),

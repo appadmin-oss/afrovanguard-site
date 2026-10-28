@@ -576,3 +576,29 @@ fatal on an unconfigured site rather than "not paid".
 **For the operator:** one URL in the Paystack dashboard, either address. Set
 `AV_DUES_PLAN_CODE` if monthly dues auto-renew; without it a plan charge is a
 donation, which is the safe direction. `docs/webhooks.md` has the table.
+
+## The donor wall is opt-in, and lists donations (Oct 2026)
+
+It was opt-out — a box saying "keep my name off the donor wall" — so a donor
+who read nothing was published on a public page. Worse, a GATEWAY charge with
+no donate form behind it (dues, a renewal, a course fee) carried no form
+fields at all, fell through to the payer's own name and amount, and went up as
+a donation they had never made.
+
+The consent now travels as a field of its own (`wall`), set only by the donate
+form, and the entry records `listed`. `get_donors` shows an entry only when
+`listed` is true — absence is not consent, **including for the entries already
+in the file**, which nobody was ever asked about. Expect the wall to be empty
+after this deploy and to fill as people tick the box; the page already has an
+honest empty state ("No gifts on the wall yet. Yours can be the first.").
+
+The old `anonymous` field is still written and still read on the way in, so a
+checkout started before the deploy finishes as the donor meant it — but it is
+never a reason to LIST anybody, because its absence used to mean "publish me".
+
+Figures are not names. The campaign totals, the thermometer and the donor
+count are unchanged, and `get_donors` now returns `gifts` (every gift)
+alongside `total` (how many are on the wall) so the page's "N gifts so far"
+does not shrink because people stopped consenting to be named.
+
+Tests: `tests/donorwall.test.php`, including the endpoint over HTTP.
