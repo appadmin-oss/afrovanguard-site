@@ -230,6 +230,25 @@ Cost is reported in tokens, not money: converting needs a per-model price list
 that changes without notice, and a confident wrong figure is worse than the
 number we actually know.
 
+## The centre's Wi-Fi (CACENTRE runs it)
+
+CACENTRE is the authority for the Wi-Fi at every site: it holds the PINs and
+the routers fetch from it. Afrovanguard has its say about its own people and
+shows each member their sign-in name and PIN in the portal (**Work → Wi-Fi**).
+
+It needs **no new key**. It rides the link the portal already has with
+CACENTRE (`AV_SSO_SECRET`, and `CAC_SITE_URL` when CACENTRE is not at its
+default address), the same as Inventory and the follow-ups. When that link is
+not set up, the Wi-Fi pane is not shown and nothing is sent.
+
+- **The list.** Every cron tick in the first five minutes of each quarter hour
+  sends every Afrovanguard member (`LmsAuth::isOrgMember`) to CACENTRE:
+  coordinators and admins as staff, an account that is not active as off with
+  the reason. It is a full list, so somebody no longer on it loses Wi-Fi there.
+  The AI Ops board shows it as *Members to CACENTRE's Wi-Fi*.
+- **The card.** The portal asks CACENTRE for the signed-in member's own card
+  and for a new PIN (three a day). Nothing about the Wi-Fi is stored here.
+- A new member's card says it is on its way until the next list has gone.
 ---
 
 ## The CACENTRE person directory (optional)

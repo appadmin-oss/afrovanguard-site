@@ -252,6 +252,13 @@ if (class_exists('QuestMoney')) {
     $result['quest_money'] = AiOps::run('quest_money', static fn() => QuestMoney::sweep());
 }
 
+// The Wi-Fi: CACENTRE runs it, and this sends it our members and our say about
+// each (lib/CacWifi.php), so a member who leaves loses Wi-Fi there. Every
+// quarter hour — the first tick in each 15-minute slot — not every tick.
+if (class_exists('CacWifi')) {
+    $result['wifi'] = AiOps::run('wifi', static fn() => (int) date('i') % 15 < 5 ? CacWifi::push() : ['skipped' => 'not this quarter hour']);
+}
+
 // The leadership brief (report §21). Weekly and monthly, each self-limiting to
 // one per period, so a five-minute tick produces one brief a week — not 2,016.
 if (class_exists('Brief')) {

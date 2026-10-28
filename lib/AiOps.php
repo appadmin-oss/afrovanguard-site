@@ -56,6 +56,7 @@ final class AiOps
         'promotions'     => 'Promotion reviews',
         'quest_ladder'   => 'Quest: inactivity → demotion suggestions',
         'quest_money'    => 'Quest: overdue balances → suggestions',
+        'wifi'           => 'Members to CACENTRE’s Wi-Fi',
         'brief'          => 'Leadership brief',
     ];
 

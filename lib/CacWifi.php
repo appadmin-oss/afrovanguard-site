@@ -1,0 +1,141 @@
+<?php
+/**
+ * lib/CacWifi.php — a member's Wi-Fi, which CACENTRE runs.
+ *
+ * CACENTRE is the authority for the Wi-Fi across the estate: it holds every
+ * PIN, the routers fetch their lists from it, and its blocks win. Afrovanguard
+ * has a say about its own people and shows each member their sign-in name and
+ * PIN on their own portal dashboard — nobody is sent to another site for it.
+ *
+ * ── THE CONNECTION IS THE ONE THAT ALREADY EXISTS ───────────────────────────
+ * Same key (AV_SSO_SECRET), same CACENTRE origin (CacTasks::site()), same
+ * v1 token as the leads, tasks and inventory doors; the door is
+ * /api/afrovanguard-wifi.php and every token names it (`aud: wifi`).
+ *
+ *   roster()/push()   every Afrovanguard member and our say about each, from
+ *                     the cron. `full`: anybody not sent loses Wi-Fi there.
+ *   card($id)         one member's card for the portal, op show
+ *   newPin($id)       a new PIN (CACENTRE allows three a day)
+ *
+ * WHAT TRAVELS: id, kind (member | staff), name, email, our verdict and its
+ * reason. Nothing else.
+ */
+declare(strict_types=1);
+
+final class CacWifi
+{
+    public const PATH = '/api/afrovanguard-wifi.php';
+    private const TIMEOUT = 4;
+    /** CACENTRE refuses a bigger list rather than cut it (WifiStore::ROSTER_MAX). */
+    public const ROSTER_MAX = 5000;
+
+    /**
+     * Every Afrovanguard member, with our verdict. "Member" is the portal's own
+     * test (LmsAuth::isOrgMember: role member or above, or an org address);
+     * coordinators and admins go as staff. An account that is not active goes
+     * as off, with the reason, rather than vanishing without one.
+     *
+     * @return list<array<string,string>>
+     */
+    public static function roster(): array
+    {
+        $out = [];
+        foreach (Database::pdo()->query('SELECT id, name, email, role, status FROM lms_users ORDER BY id')->fetchAll(PDO::FETCH_ASSOC) as $u) {
+            if (!LmsAuth::isOrgMember($u)) continue;
+            $active = (string) ($u['status'] ?? 'active') === 'active';
+            $out[] = [
+                'id'        => (string) (int) $u['id'],
+                'kind'      => LmsAuth::canManageMembers($u) ? 'staff' : 'member',
+                'name'      => mb_substr(trim((string) $u['name']), 0, 160),
+                'email'     => strtolower(trim((string) $u['email'])),
+                'printedId' => '',
+                'homeSite'  => '',
+                'verdict'   => $active ? 'on' : 'off',
+                'why'       => $active ? '' : 'The Afrovanguard account is not active',
+            ];
+        }
+        return $out;
+    }
+
+    /** Send the roster. One full push; a list over the cap is not sent at all, and says so. */
+    public static function push(): array
+    {
+        if (!CacSso::ready()) return ['ok' => false, 'error' => 'not-configured'];
+        $people = self::roster();
+        if (count($people) > self::ROSTER_MAX) return ['ok' => false, 'error' => 'too-many', 'sent' => 0];
+        $raw = self::send(CacTasks::site() . self::PATH, [
+            'action' => 'roster',
+            'token'  => CacSso::sign(['aud' => 'wifi', 'typ' => 'wifi.roster', 'full' => true, 'people' => $people]),
+        ], 60);
+        if ($raw === null) return ['ok' => false, 'error' => 'unreachable', 'sent' => count($people)];
+        $d = json_decode($raw, true);
+        if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'error' => is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreadable', 'sent' => count($people)];
+        return ['ok' => true, 'sent' => count($people), 'applied' => (int) ($d['applied'] ?? 0), 'refused' => (int) ($d['refused'] ?? 0), 'gone' => (int) ($d['gone'] ?? 0)];
+    }
+
+    /** One member's card: ['ok', 'card' => array|null, 'error']. */
+    public static function card(int $memberId): array
+    {
+        return self::ask($memberId, null);
+    }
+
+    public static function newPin(int $memberId): array
+    {
+        return self::ask($memberId, ['action' => 'newpin']);
+    }
+
+    private static function ask(int $memberId, ?array $post): array
+    {
+        if ($memberId <= 0) return ['ok' => false, 'card' => null, 'error' => 'no-member'];
+        if (!CacSso::ready()) return ['ok' => false, 'card' => null, 'error' => 'not-configured'];
+        $url = CacTasks::site() . self::PATH . '?t=' . rawurlencode(CacSso::sign(['aud' => 'wifi', 'uid' => $memberId]));
+        $raw = self::send($url, $post, self::TIMEOUT);
+        if ($raw === null) return ['ok' => false, 'card' => null, 'error' => 'unreachable'];
+        $d = json_decode($raw, true);
+        if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'card' => null, 'error' => is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreadable'];
+        return ['ok' => true, 'card' => is_array($d['card'] ?? null) ? self::clean($d['card']) : null, 'error' => ''];
+    }
+
+    /** Only the fields the portal draws, each bounded. */
+    private static function clean(array $c): array
+    {
+        $sp = is_array($c['speed'] ?? null) ? $c['speed'] : null;
+        $u = is_array($c['usage'] ?? null) ? $c['usage'] : [];
+        return [
+            'username'   => mb_substr((string) ($c['username'] ?? ''), 0, 64),
+            'pin'        => preg_match('/^\d{4,8}$/', (string) ($c['pin'] ?? '')) ? (string) $c['pin'] : '',
+            'access'     => in_array($c['access'] ?? '', ['on', 'limited', 'off'], true) ? (string) $c['access'] : 'off',
+            /* CACENTRE words a reason for its staff ("Afrovanguard has no Wi-Fi
+               for them: …"); on the member's own screen our part is just our reason. */
+            'why'        => mb_substr(in_array((string) ($c['case'] ?? ''), ['issuer_off', 'issuer_limited'], true) && str_contains((string) ($c['why'] ?? ''), ': ')
+                                ? substr((string) $c['why'], strpos((string) $c['why'], ': ') + 2) : (string) ($c['why'] ?? ''), 0, 255),
+            'speed'      => $sp ? ['down' => (int) ($sp['down'] ?? 0), 'devices' => (int) ($sp['devices'] ?? 1), 'hours' => (string) ($sp['hours'] ?? '')] : null,
+            'usage'      => ['today' => (int) ($u['today'] ?? 0), 'month' => (int) ($u['month'] ?? 0), 'dayMb' => (int) ($u['dayMb'] ?? 0), 'monthMb' => (int) ($u['monthMb'] ?? 0), 'over' => (string) ($u['over'] ?? '')],
+            'where'      => mb_substr((string) ($c['where'] ?? ''), 0, 80),
+            'resetsLeft' => max(0, (int) ($c['resetsLeft'] ?? 0)),
+            'hasRouter'  => !empty($c['hasRouter']),
+        ];
+    }
+
+    /** One request (a POST when $body is given), every transport failure turned into null. TLS verification stays on. */
+    private static function send(string $url, ?array $body, int $timeout): ?string
+    {
+        if (!function_exists('curl_init')) return null;
+        $ch = curl_init($url);
+        $opt = [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => $timeout,
+            CURLOPT_CONNECTTIMEOUT => self::TIMEOUT,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_USERAGENT      => 'Afrovanguard/1.0 (+wifi)',
+        ];
+        if ($body !== null) $opt += [CURLOPT_POST => true, CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_SLASHES), CURLOPT_HTTPHEADER => ['Content-Type: application/json']];
+        curl_setopt_array($ch, $opt);
+        $out = curl_exec($ch);
+        curl_close($ch);
+        /* The body comes back on a refusal too: the far side says which one. */
+        return $out === false ? null : (string) $out;
+    }
+}

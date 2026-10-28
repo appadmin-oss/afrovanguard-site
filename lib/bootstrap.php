@@ -325,6 +325,7 @@ require_once __DIR__ . '/CacWeek.php';    /* this week at CACENTRE; portal tasks
 require_once __DIR__ . '/CacGoals.php';   /* CACENTRE's goals, mirrored here and planned into tasks */
 require_once __DIR__ . '/CacInventory.php'; /* and its register, for the same reason */
 require_once __DIR__ . '/CacLeads.php';    /* and the follow-ups a member owes */
+require_once __DIR__ . '/CacWifi.php';     /* and their Wi-Fi: CACENTRE runs it, the PIN is shown here */
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/LmsDrip.php';
 require_once __DIR__ . '/GoogleAuth.php';

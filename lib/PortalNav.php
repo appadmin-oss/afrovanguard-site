@@ -43,6 +43,9 @@ final class PortalNav
         'meetings'    => ['group' => 'Work', 'label' => 'Meetings', 'for' => ['org'], 'view' => 'tools'],
         'chat'        => ['group' => 'Work', 'label' => 'Team Chat', 'for' => ['org'], 'view' => 'chat'],
         'inventory'   => ['group' => 'Work', 'label' => 'Inventory', 'for' => ['inventory'], 'view' => 'inventory'],
+        /* The centre's Wi-Fi, which CACENTRE runs: an org member's sign-in and PIN,
+           over the same CACENTRE link as Inventory (lib/CacWifi.php), so the same flag. */
+        'wifi'        => ['group' => 'Work', 'label' => 'Wi-Fi', 'for' => ['inventory'], 'view' => 'wifi'],
 
         'quest'       => ['group' => 'Vanguard Quest', 'label' => 'The Quest', 'for' => ['all'], 'view' => 'quest'],
         'bills'       => ['group' => 'Vanguard Quest', 'label' => 'Bills & appeals', 'for' => ['all'], 'view' => 'bills'],
