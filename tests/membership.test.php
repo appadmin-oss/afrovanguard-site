@@ -100,8 +100,9 @@ $utc = $mk('Uche Utc', 'utc@ms.test');
 $lms->grantMembership($utc, 12);
 $exp = (string) $msPdo->query("SELECT expires_at FROM memberships WHERE user_id = $utc")->fetchColumn();
 ck('Membership: a paid membership\'s expiry is written in UTC, as it is compared', abs(strtotime($exp . ' UTC') - strtotime('+12 months')) < 5);
-ck('Membership: dues sent with the email in another case still land', $lms->grantMembershipByEmail('UTC@MS.Test', 1)
-    && (int) $msPdo->query("SELECT COUNT(*) FROM memberships WHERE user_id = $utc")->fetchColumn() === 2);
+/* "Dues sent with the email in another case still land" moved to
+   tests/paywebhook.test.php with grantMembershipByEmail, the method that
+   granted a month from an email and a number with nothing to trace it by. */
 
 /* ── Who may change what ─────────────────────────────────────────────── */
 $admin = $mk('Ada Admin', 'admin@ms.test');

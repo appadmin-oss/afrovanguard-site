@@ -529,3 +529,50 @@ same shape: a control that moved money with nobody on the other side of it.
 Tests: `tests/finesanymember.test.php` (the desk, the self-check, the receipt),
 `tests/offlinepayments.test.php` (staff self-submission, the two recomputed
 reuse cases), `tests/ngvfines.test.php` (the desk's wiring).
+
+## One front door for the gateway's webhook (Oct 2026)
+
+A payment gateway posts to one address. This site had two money routes, each
+understanding only its own kind, and which one was live depended on a setting
+in the Paystack dashboard that nothing in the code could see.
+
+- `/academy/pay.php` treated any charge carrying a plan as a dues renewal, so
+  a recurring **donation** would have bought somebody a month of membership,
+  and donations were never recorded at all.
+- `/process-donation.php` filed everything that was not an NGV fee as a
+  donation, so a dues or course charge landed on a campaign total, could
+  appear on the public donor wall, and left the learner unenrolled.
+
+Both now hand the event to `lib/PaymentWebhook::handle()`. The kind decides
+the owner, in a fixed order: a fee (`metadata.ngv_member`), then a charge we
+started (a `payments` row for the reference — which covers the FIRST charge of
+a dues subscription), then the dues plan (`AV_DUES_PLAN_CODE`, a positive
+signal rather than "has a plan"), then a donation as the fallback. Money whose
+owner cannot be named is recorded as given, never granted as bought.
+`classify()` is pure and its reason is logged, so "why did this charge go
+there" is answerable without a reproduction.
+
+A dues **renewal** now writes a `payments` row keyed on the gateway's
+reference and goes through the same `finalizePayment` as every other dues
+charge: `reference` is UNIQUE so a redelivery cannot add a second month, the
+amount is checked against today's price (short is refused, left pending, and
+written to the trail as `dues_renewal_short`), and the money is in the dues
+totals and the member's own history for the first time.
+`LmsRepository::grantMembershipByEmail()` is removed rather than left unused.
+
+Donation de-duplication moved out of `donations.json` into `donation_refs`:
+the file keeps only the newest 500, so a webhook redelivered for an older
+reference was counted again. The donation store itself moved to
+`lib/Donations.php` — a handler inside a 999-line top-level script cannot be
+called by the other address.
+
+Two things found on the way and fixed with it: `Payments::paystackWebhookValid`
+required the PUBLIC key to check a signature made with the SECRET one, so a
+deployment holding only its secret answered 401 to every webhook at
+`/academy/pay.php` while `/process-donation.php` accepted the same call; and
+`Payments::paystackVerify` read `PAYSTACK_SECRET_KEY` unguarded, which is a
+fatal on an unconfigured site rather than "not paid".
+
+**For the operator:** one URL in the Paystack dashboard, either address. Set
+`AV_DUES_PLAN_CODE` if monthly dues auto-renew; without it a plan charge is a
+donation, which is the safe direction. `docs/webhooks.md` has the table.

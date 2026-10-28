@@ -288,6 +288,11 @@ final class Payments
      */
     public static function paystackVerify(string $reference): array
     {
+        /* Unconfigured is "not paid", not a fatal. A signed webhook cannot
+           reach a site with no key (paystackWebhookValid refuses first), but
+           a verify is reachable from a browser return and from a sweep, and
+           an undefined constant there is a 500 on somebody's payment page. */
+        if (!self::configured('paystack')) return ['paid' => false, 'amount' => 0, 'reference' => $reference, 'currency' => '', 'metadata' => []];
         $res = self::curl('https://api.paystack.co/transaction/verify/' . rawurlencode($reference), null, 'Bearer ' . PAYSTACK_SECRET_KEY);
         $d = $res['data'] ?? [];
         $meta = $d['metadata'] ?? [];
@@ -302,9 +307,18 @@ final class Payments
     }
 
     /** Validate a Paystack webhook signature (raw body, x-paystack-signature). */
+    /**
+     * A webhook is signed with the SECRET key, and that is the only key the
+     * check needs. It asked configured('paystack'), which also wants the
+     * PUBLIC key, so a deployment holding its secret but not its public key
+     * answered 401 to every webhook — while process-donation.php, checking
+     * the same signature by hand two files away, accepted them. Now that both
+     * addresses are front doors onto the same router (lib/PaymentWebhook),
+     * the two had to agree, and this is the one that was wrong.
+     */
     public static function paystackWebhookValid(string $rawBody, string $signature): bool
     {
-        if (!self::configured('paystack') || $signature === '') return false;
+        if ($signature === '' || !defined('PAYSTACK_SECRET_KEY') || !PAYSTACK_SECRET_KEY) return false;
         return hash_equals(hash_hmac('sha512', $rawBody, PAYSTACK_SECRET_KEY), $signature);
     }
 

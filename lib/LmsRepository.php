@@ -600,18 +600,14 @@ final class LmsRepository
             ->execute([$userId, gmdate('Y-m-d H:i:s', min($base, time())), $exp]);
     }
 
-    /** Extend a member's membership by N months, found by email (recurring dues). */
-    public function grantMembershipByEmail(string $email, int $months = 1): bool
-    {
-        // Case-insensitive, like every other email lookup: a gateway that echoes
-        // "Ada@Example.com" must find ada@example.com, not drop the dues.
-        $s = $this->db->prepare('SELECT id FROM lms_users WHERE LOWER(email) = ? LIMIT 1');
-        $s->execute([strtolower(trim($email))]);
-        $id = (int) ($s->fetchColumn() ?: 0);
-        if ($id <= 0) return false;
-        $this->grantMembership($id, max(1, $months));
-        return true;
-    }
+    /* grantMembershipByEmail() was here: "extend a membership by N months,
+       found by email". The dues webhook was its only caller, and it is what
+       made a renewal untraceable — a month granted with no reference to be
+       idempotent on, no amount checked, no payments row and no audit. The
+       renewal goes through lib/PaymentWebhook now, which writes the row and
+       finalises it like every other dues charge. The method is gone rather
+       than left unused, because an email and a number is all it takes to call
+       it and it would grant the month again. */
 
     /** The member's most recent ACTIVE membership row (lifetime first, then latest expiry).
      *  Active only: a cancelled lifetime row used to win this ordering, so a

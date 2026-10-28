@@ -333,6 +333,8 @@ require_once __DIR__ . '/CfisCheckout.php';  /* CACENTRE collects where this sit
 require_once __DIR__ . '/CfisRequests.php';  /* a member asks CACENTRE finance for money */
 require_once __DIR__ . '/CfisPairing.php';   /* and collects its signing key from CFIS, rather than a person carrying it */
 require_once __DIR__ . '/Payments.php';
+require_once __DIR__ . '/Donations.php';       /* the donation store, and what a card charge becomes */
+require_once __DIR__ . '/PaymentWebhook.php';  /* one front door: the gateway posts to one address, the kind decides the owner */
 // Email is sent exclusively through PHPMailer (see lib/Mailer.php). The former
 // hand-rolled SMTP client (lib/Smtp.php) is retired and no longer loaded.
 require_once __DIR__ . '/AppsScriptMail.php';   /* the site's own Google Apps Script mail road */

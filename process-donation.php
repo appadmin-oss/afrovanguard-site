@@ -116,48 +116,15 @@ use PHPMailer\PHPMailer\Exception;
 // migrates any legacy web-root donations.json into it on first use.
 define('DATA_FILE', av_private_path('donations.json'));
 
-function defaultData(): array {
-    return [
-        'version'      => 2,
-        'last_updated' => date('c'),
-        'totals'       => ['donors'=>0,'raised_ngn'=>0,'inkind'=>0],
-        'campaigns'    => [
-            'general'     => ['raised'=>0,'goal'=>50000000, 'donors'=>0],
-            'sts'         => ['raised'=>0,'goal'=>25000000, 'donors'=>0],
-            'techhome'    => ['raised'=> 0,'goal'=>15000000, 'donors'=>0],
-        ],
-        'donations' => [],
-    ];
-}
+/* The donation store lives in lib/Donations.php. It moved out of this file so
+   the OTHER webhook address can reach it: a gateway posts to one URL and this
+   site has two money handlers, so each has to be able to hand a charge to the
+   other (lib/PaymentWebhook.php). These stay as the names the rest of this
+   999-line script calls. */
+function defaultData(): array { return Donations::defaultData(); }
+function readData(): array { return Donations::read(); }
+function writeData(array $data): bool { return Donations::write($data); }
 
-function readData(): array {
-    if (!file_exists(DATA_FILE)) return defaultData();
-    $fp = @fopen(DATA_FILE,'r');
-    if (!$fp) return defaultData();
-    flock($fp, LOCK_SH);
-    $raw = stream_get_contents($fp);
-    flock($fp, LOCK_UN);
-    fclose($fp);
-    $d = json_decode($raw, true);
-    if (!is_array($d) || empty($d['campaigns'])) return defaultData();
-    return $d;
-}
-
-function writeData(array $data): bool {
-    $isNew = !file_exists(DATA_FILE);
-    $data['last_updated'] = date('c');
-    $json = json_encode($data, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE);
-    $fp = @fopen(DATA_FILE,'c');
-    if (!$fp) { error_log('[AV] Cannot write donations.json'); return false; }
-    flock($fp, LOCK_EX);
-    ftruncate($fp,0); rewind($fp); fwrite($fp,$json); fflush($fp);
-    flock($fp, LOCK_UN); fclose($fp);
-    // FIX I-08: Restrict permissions on first creation (owner read/write only)
-    if ($isNew && file_exists(DATA_FILE)) @chmod(DATA_FILE, 0600);
-    return true;
-}
-
-/* storeDonationIfNew() handles both idempotency and atomic write in one lock */
 
 /**
  * FIX C-06 · Rate limiter (file-based, per-IP, sliding window)
@@ -181,58 +148,13 @@ function rateLimit(string $key, int $max = 30, int $window = 60): bool {
 }
 
 /**
- * FIX C-01 · Atomic idempotency-check-and-write inside one LOCK_EX.
- * Eliminates TOCTOU races — single exclusive lock covers check and write.
- * Returns true if stored (new), false if already recorded (duplicate).
+ * One donation, recorded once. The reference is claimed in a table that never
+ * forgets — the file keeps only the newest 500, so a webhook redelivered for
+ * an older reference used to be counted a second time, moving the campaign
+ * total and the donor count with it.
  */
 function storeDonationIfNew(string $ref, array $entry, float $amount, string $campaign, string $currency): bool {
-    // 'c+' (read+write), not 'c' (write-only): the idempotency re-read below uses
-    // stream_get_contents(), which returns '' on a write-only handle. With 'c' the
-    // duplicate check always sees an empty list (defeating idempotency) and the
-    // write overwrites donations.json with only the new entry — wiping all history.
-    $fp = @fopen(DATA_FILE, 'c+');
-    if (!$fp) { error_log('[AV] Cannot open donations.json for write'); return false; }
-    flock($fp, LOCK_EX);
-
-    // Re-read INSIDE the lock — no concurrent write can slip through now
-    $raw  = stream_get_contents($fp) ?: '';
-    $data = $raw ? json_decode($raw, true) : null;
-    if (!is_array($data) || empty($data['campaigns'])) $data = defaultData();
-
-    // Idempotency check while holding the exclusive lock
-    foreach ($data['donations'] as $d) {
-        if (($d['reference'] ?? '') === $ref) {
-            flock($fp, LOCK_UN); fclose($fp);
-            return false;  // duplicate — already recorded
-        }
-    }
-
-    // Mutate in memory
-    array_unshift($data['donations'], $entry);
-    if (count($data['donations']) > 500) {
-        $data['donations'] = array_slice($data['donations'], 0, 500);
-    }
-    $key = isset($data['campaigns'][$campaign]) ? $campaign : 'general';
-    $data['campaigns'][$key]['donors'] = ($data['campaigns'][$key]['donors'] ?? 0) + 1;
-    if ($currency === 'NGN') {
-        $data['campaigns'][$key]['raised'] = ($data['campaigns'][$key]['raised'] ?? 0) + $amount;
-        $data['totals']['raised_ngn']      = ($data['totals']['raised_ngn']      ?? 0) + $amount;
-    }
-    $data['totals']['donors'] = ($data['totals']['donors'] ?? 0) + 1;
-    $data['last_updated']     = date('c');
-
-    // Write — still inside LOCK_EX
-    $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-    ftruncate($fp, 0); rewind($fp); fwrite($fp, $json); fflush($fp);
-    flock($fp, LOCK_UN); fclose($fp);
-    // Fire once per unique donation (idempotent by reference). Best-effort.
-    if (function_exists('av_emit_event')) {
-        av_emit_event('donation.completed', [
-            'reference' => $ref, 'amount' => $amount, 'currency' => $currency, 'campaign' => $campaign,
-            'name' => (string) ($entry['name'] ?? ''), 'email' => (string) ($entry['email'] ?? ''),
-        ]);
-    }
-    return true;
+    return Donations::storeIfNew($ref, $entry, $amount, $campaign, $currency);
 }
 
 function timeAgo(string $iso): string {
@@ -491,142 +413,22 @@ if ($sig && !av_ps_ready()) {
     http_response_code(401); echo json_encode(['success'=>false,'message'=>'Unsigned.']); exit;
 }
 if ($sig && hash_equals(hash_hmac('sha512',$raw,PAYSTACK_SECRET_KEY),$sig)) {
-    $event = json_decode($raw,true);
-    $evName = (string)($event['event'] ?? '');
-
-    /* ── Recurring giving on an appeal ──────────────────────────────────────
-       Paystack confirms a subscription with its own event, and that — not the
-       moment somebody pressed a button — is when one is real. Recording it at
-       the click would record subscriptions that were never paid for. */
-    if (class_exists('Appeals') && str_starts_with($evName, 'subscription.')) {
-        $sd   = $event['data'] ?? [];
-        $meta = is_array($sd['metadata'] ?? null) ? $sd['metadata'] : [];
-        if ($evName === 'subscription.create') {
-            Appeals::recordSubscription([
-                'sub_code'   => (string)($sd['subscription_code'] ?? ''),
-                'email'      => (string)($sd['customer']['email'] ?? ''),
-                'name'       => trim(((string)($sd['customer']['first_name'] ?? '')) . ' ' . ((string)($sd['customer']['last_name'] ?? ''))),
-                'amount_ngn' => (int) round(((float)($sd['amount'] ?? 0)) / 100),
-                'interval'   => (string)($sd['plan']['interval'] ?? 'monthly'),
-                'plan_code'  => (string)($sd['plan']['plan_code'] ?? ''),
-                'appeal_id'  => (int)($meta['appeal_id'] ?? 0),
-                'slug'       => (string)($meta['appeal'] ?? ''),
-            ]);
-        } elseif ($evName === 'subscription.disable' || $evName === 'subscription.not_renew') {
-            try {
-                Database::pdo()->prepare('UPDATE av_appeal_subs SET status = ?, ended_at = ? WHERE sub_code = ?')
-                    ->execute(['cancelled', gmdate('Y-m-d H:i:s'), (string)($sd['subscription_code'] ?? '')]);
-            } catch (Throwable $e) { error_log('[AV] sub disable: ' . $e->getMessage()); }
-        }
-        http_response_code(200); echo json_encode(['received'=>true]); exit;
-    }
-
-    if ($evName==='charge.success') {
-        $tx=$event['data']??[];
-        $ref=$tx['reference']??'';
-
-        /* NGV FEE PAYMENTS ARE NOT DONATIONS. A participant paying their own
-           training fee goes on their ledger, not on a campaign total — filing
-           it here would inflate what the public sees as donated AND leave the
-           participant still owing it. `ngv_member` in the metadata is what
-           tells the two apart, and NgvLedger::payOnline() is idempotent on the
-           reference, so this and the payer's own callback can both fire. */
-        $ngvMember = (int) ($tx['metadata']['ngv_member'] ?? 0);
-        if ($ref && $ngvMember > 0 && class_exists('NgvLedger')) {
-            /* NAIRA ONLY. The ledger is kept in naira and amount/100 is only
-               naira when the charge was. academy/ngv/pay.php already refuses
-               any other currency on the payer's return; this branch credited
-               a USD charge of 130 as ₦130 — or a cents amount as kobo — with
-               no check at all. A non-naira charge is answered 200 so Paystack
-               does not retry for days, and logged for a person to reconcile. */
-            $ngvCur = strtoupper((string) ($tx['currency'] ?? ''));
-            if ($ngvCur !== 'NGN') {
-                error_log('[AV] ngv webhook: refused ' . $ref . ' — currency "' . $ngvCur . '" is not NGN; not posted to the ledger, reconcile by hand');
-                http_response_code(200); echo json_encode(['received' => true, 'recorded' => false, 'reason' => 'currency']); exit;
-            }
-            /* 200 only once it is RECORDED (or was already). Answering 200 to a
-               failure told Paystack it was delivered, so it never retried and
-               the payment was silently missing from the participant's ledger. */
-            $ok = false;
-            try {
-                $r = NgvLedger::payOnline($ngvMember, (string) $ref,
-                    (int) round(((float) ($tx['amount'] ?? 0)) / 100),
-                    ['method' => 'card', 'note' => 'Paid online by card']);
-                $ok = !empty($r['ok']);
-                if (!$ok) error_log('[AV] ngv webhook: ' . ($r['error'] ?? 'not recorded') . ' for ' . $ref);
-            } catch (Throwable $e) { error_log('[AV] ngv webhook: ' . $e->getMessage()); }
-            http_response_code($ok ? 200 : 500); echo json_encode(['received' => $ok]); exit;
-        }
-
-        if ($ref) {
-            $amount   = (float)($tx['amount']??0)/100;
-            $currency = strtoupper($tx['currency']??'NGN');
-            $email    = $tx['customer']['email']??'';
-            $meta     = $tx['metadata']??[];
-            $fields   = [];
-            foreach (($meta['custom_fields']??[]) as $cf) {
-                $fields[$cf['variable_name']??''] = $cf['value']??'';
-            }
-            /* The campaign key can arrive three ways and all three are real:
-               as a Paystack custom_field (the donate form), as a flat metadata
-               key (an appeal's recurring gift, where we set the metadata
-               ourselves), or not at all on a RENEWAL — Paystack does not carry
-               our metadata onto later charges in a subscription. Reading only
-               custom_fields credited every recurring gift to the general fund,
-               which is the failure nobody notices until a donor asks why the
-               appeal they are funding monthly is still at zero. */
-            $campaign = (string)($fields['campaign'] ?? '');
-            if ($campaign === '') $campaign = (string)($meta['campaign'] ?? $meta['appeal'] ?? '');
-            $planCode = (string)($tx['plan']['plan_code'] ?? $tx['plan'] ?? '');
-            if ($campaign === '' && $planCode !== '' && class_exists('Appeals')) {
-                // A renewal: recover the appeal from the plan we created for it.
-                try {
-                    $ps = Database::pdo()->prepare(
-                        'SELECT a.slug FROM av_appeal_plans p JOIN av_appeals a ON a.id = p.appeal_id WHERE p.plan_code = ?');
-                    $ps->execute([$planCode]);
-                    $campaign = (string)($ps->fetchColumn() ?: '');
-                } catch (Throwable $e) { error_log('[AV] plan→appeal: ' . $e->getMessage()); }
-            }
-            $campaign = preg_replace('/[^a-z0-9_-]/','',strtolower($campaign !== '' ? $campaign : 'general'));
-            $anon     = ($fields['anonymous']??'No') === 'Yes';
-            $fn       = trim($fields['first_name'] ?? '');
-            $ln       = trim($fields['last_name']  ?? '');
-            /* The donor wall is public. A charge with no name on the form (a
-               renewal, a dues or course payment on the same account) used to
-               fall back to the payer's EMAIL here, and get_donors published it.
-               Paystack's own customer name next, then a plain "Supporter". */
-            if ($fn === '' && $ln === '') {
-                $fn = trim((string)($tx['customer']['first_name'] ?? ''));
-                $ln = trim((string)($tx['customer']['last_name'] ?? ''));
-            }
-            $dispName = $anon ? 'Anonymous' : esc(trim("$fn $ln") ?: 'Supporter');
-            $initials = $anon ? 'AN' : (strtoupper(substr($fn, 0, 1) . substr($ln, 0, 1)) ?: 'S');
-            $entry = [
-                'id'         => $ref,
-                'type'       => 'card',
-                'reference'  => $ref,
-                'name'       => $dispName,
-                'initials'   => $initials,
-                'email'      => $email,
-                'anonymous'  => $anon,
-                'amount'     => $amount,
-                'currency'   => $currency,
-                'campaign'   => $campaign,
-                'frequency'  => esc($fields['frequency'] ?? ($planCode !== '' ? 'Recurring' : 'One-time')),
-                'status'     => 'confirmed',
-                'created_at' => date('c'),
-            ];
-            // storeDonationIfNew handles idempotency — safe to call on retried webhooks
-            $isNew = storeDonationIfNew($ref, $entry, $amount, $campaign, $currency);
-            /* Count the cycle only when the donation itself was new. A retried
-               webhook must not inflate somebody's recorded giving. */
-            if ($isNew && class_exists('Appeals')) {
-                $subCode = (string)($tx['subscription_code'] ?? $meta['subscription_code'] ?? '');
-                if ($subCode !== '') Appeals::noteRecurringCharge($subCode, (int) round($amount));
-            }
-        }
-    }
-    http_response_code(200); echo json_encode(['received'=>true]); exit;
+    /* ONE FRONT DOOR. A gateway posts to one address, and this site has two
+       money handlers; whichever address is in the dashboard, the other kinds
+       used to be mis-recorded or lost — a dues or course charge filed as a
+       donation here, a donation granting somebody a month of membership at
+       /academy/pay.php. lib/PaymentWebhook routes by kind, and both addresses
+       hand it the same event. The subscription events, the NGV fee branch and
+       the donation itself all moved there intact. */
+    $r = PaymentWebhook::handle(json_decode($raw, true) ?: []);
+    http_response_code((int) ($r['status'] ?? 200));
+    echo json_encode([
+        'received' => true,                              // the signature was ours
+        'recorded' => !empty($r['ok']),                  // and the money landed where it belongs
+        'kind'     => (string) ($r['kind'] ?? ''),
+        'reason'   => (string) ($r['error'] ?? ''),
+    ]);
+    exit;
 }
 
 $input = json_decode($raw,true);

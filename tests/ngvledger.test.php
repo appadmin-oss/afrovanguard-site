@@ -611,9 +611,15 @@ ck('pay online: and it is only credited when the provider says it was THIS membe
 ck('pay online: the page is never indexed', str_contains($nlPaySrc, 'noindex'));
 /* A fee payment must never be filed as a public donation — it would inflate
    what the site shows as donated AND leave the participant still owing it. */
-$nlDon = (string) @file_get_contents(AV_ROOT . '/process-donation.php');
+/* The webhook's routing moved into lib/PaymentWebhook when the two addresses
+   were joined up, so the promise is tested rather than the old file's text:
+   a charge carrying ngv_member is a fee, and the fallback is a donation —
+   never the other way about. */
 ck('pay online: the webhook tells a fee payment apart from a donation',
-   str_contains($nlDon, 'ngv_member') && str_contains($nlDon, 'NgvLedger::payOnline'));
+   PaymentWebhook::classify(['event' => 'charge.success', 'data' => [
+       'reference' => 'NL-FEE-1', 'metadata' => ['ngv_member' => 801]]], ['has_payment_row' => false])['kind'] === PaymentWebhook::NGV
+   && PaymentWebhook::classify(['event' => 'charge.success', 'data' => [
+       'reference' => 'NL-GIFT-1', 'metadata' => []]], ['has_payment_row' => false])['kind'] === PaymentWebhook::DONATION);
 
 $nlReset();
 

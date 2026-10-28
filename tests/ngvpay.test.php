@@ -47,5 +47,17 @@ ck('ngv pay: the return page credits only this member\'s NGV payment',
    str_contains($pay, "(int) (\$v['metadata']['ngv_member'] ?? 0) === (int) \$u['id']") && str_contains($pay, "\$state = 'notyours';"));
 $pv = (string) file_get_contents(dirname(__DIR__) . '/lib/Payments.php');
 ck('ngv pay: verification returns what the payment was for', str_contains($pv, "'metadata' => is_array(\$meta) ? \$meta : [],"));
-$wh = (string) file_get_contents(dirname(__DIR__) . '/process-donation.php');
-ck('ngv pay: the webhook says 500 when it did not record, so Paystack retries', str_contains($wh, 'http_response_code($ok ? 200 : 500);'));
+/* 200 only once it is RECORDED (or was already). Answering 200 to a failure
+   told Paystack it was delivered, so it never retried and the payment was
+   silently missing. The routing moved into lib/PaymentWebhook, so this asks
+   the handler rather than reading the old file's text. */
+$whFail = PaymentWebhook::handle(['event' => 'charge.success', 'data' => [
+    'reference' => 'WHFAIL-1', 'amount' => 500000, 'currency' => 'NGN',
+    'customer' => ['email' => 'nobody@ngvpay.test'], 'metadata' => ['ngv_member' => 999999]]]);
+ck('ngv pay: the webhook says 500 when it did not record, so Paystack retries',
+    $whFail['kind'] === PaymentWebhook::NGV && empty($whFail['ok']) && (int) $whFail['status'] === 500);
+$whCur = PaymentWebhook::handle(['event' => 'charge.success', 'data' => [
+    'reference' => 'WHCUR-1', 'amount' => 13000, 'currency' => 'USD',
+    'customer' => ['email' => 'bisi@ngvpay.test'], 'metadata' => ['ngv_member' => 801]]]);
+ck('ngv pay: …but 200 for a currency it will never be able to post, so it stops retrying',
+    empty($whCur['ok']) && (int) $whCur['status'] === 200 && ($whCur['error'] ?? '') === 'currency');

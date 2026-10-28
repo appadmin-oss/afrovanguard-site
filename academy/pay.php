@@ -13,6 +13,12 @@
  * Access is only ever granted after a verified transaction (never on the
  * browser redirect alone). finalizePayment() is idempotent, so the webhook
  * and the redirect can both fire safely.
+ *
+ * THE WEBHOOK IS NOT THIS FILE'S ANY MORE. A gateway posts to one address,
+ * and this site has two money handlers; whichever address is configured, the
+ * other kinds used to be mis-recorded or lost. Both now hand the event to
+ * lib/PaymentWebhook, which routes by kind — so a donation posted here is
+ * recorded as a donation, and the learner's course is still enrolled.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
@@ -27,29 +33,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         http_response_code(401);
         exit;
     }
-    $event = json_decode($raw, true) ?: [];
-    if (($event['event'] ?? '') === 'charge.success') {
-        $data = $event['data'] ?? [];
-        $reference = (string) ($data['reference'] ?? '');
-        if ($reference !== '') {
-            // Re-verify with Paystack before granting (defence in depth). The
-            // verified amount is passed so finalizePayment can reject underpayment.
-            $v = Payments::paystackVerify($reference);
-            if (!empty($v['paid'])) {
-                $granted = $lms->finalizePayment($reference, (int) ($v['amount'] ?? 0));
-                // Recurring dues renewal: a plan subscription charge has no local
-                // payment row (finalize returns false). Extend by one month.
-                if (!$granted && (!empty($data['plan']) || !empty($data['plan_object']))) {
-                    $email = strtolower(trim((string) ($data['customer']['email'] ?? '')));
-                    if ($email !== '' && method_exists($lms, 'grantMembershipByEmail')) {
-                        $lms->grantMembershipByEmail($email, 1);
-                    }
-                }
-            }
-        }
-    }
-    http_response_code(200);
-    echo 'ok';
+    $r = PaymentWebhook::handle(json_decode($raw, true) ?: []);
+    http_response_code((int) ($r['status'] ?? 200));
+    header('Content-Type: application/json');
+    echo json_encode(['received' => true, 'recorded' => !empty($r['ok']),
+                      'kind' => (string) ($r['kind'] ?? ''), 'reason' => (string) ($r['error'] ?? '')]);
     exit;
 }
 
