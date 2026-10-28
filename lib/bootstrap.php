@@ -329,6 +329,7 @@ require_once __DIR__ . '/LmsDrip.php';
 require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/CfisCheckout.php';  /* CACENTRE collects where this site has no merchant account */
 require_once __DIR__ . '/CfisRequests.php';  /* a member asks CACENTRE finance for money */
+require_once __DIR__ . '/CfisPairing.php';   /* and collects its signing key from CFIS, rather than a person carrying it */
 require_once __DIR__ . '/Payments.php';
 // Email is sent exclusively through PHPMailer (see lib/Mailer.php). The former
 // hand-rolled SMTP client (lib/Smtp.php) is retired and no longer loaded.

@@ -210,8 +210,13 @@ final class AvSettings
         /* ── CACENTRE finance (CFIS) ───────────────────────────────────── */
         'CFIS_SECRET' => [
             'group' => 'CACENTRE finance (CFIS)', 'label' => 'Property key', 'secret' => true, 'type' => 'text',
-            'ph' => 'the CFIS_SECRET cfis:connect printed',
-            'help' => 'Finance requests and the CFIS checkout are on as soon as this is set. CACENTRE’s finance team mints it with `php artisan cfis:connect avg` and hands it over privately. Minting a new one stops the old one working.',
+            'ph' => 'collected by pairing — see below',
+            'help' => 'Finance requests and the CFIS checkout are on as soon as this is set. Do not paste it by hand: use Pair with CFIS below, which collects the key from CACENTRE over TLS so it is never displayed on either side. This field stays here for a host that cannot reach CACENTRE outbound, where finance runs `php artisan cfis:connect avg --show-secret` and hands the key over privately instead.',
+        ],
+        'CFIS_PAIRING_CODE' => [
+            'group' => 'CACENTRE finance (CFIS)', 'label' => 'Pair with CFIS', 'secret' => false, 'type' => 'action',
+            'ph' => 'ABCD-EFGH-JKLM-NPQR',
+            'help' => 'Ask CACENTRE’s finance team for a pairing code (`php artisan cfis:pair avg`). Enter it here and this site collects its signing key directly from CFIS. The code works once and expires in fifteen minutes; the key itself is never shown to anybody. Afterwards, compare the key fingerprint this shows with the one finance has on screen — the same sixteen characters means the same key. A code can be re-issued as often as you like without changing the key, so a lost hand-over no longer means a rotation.',
         ],
         'CFIS_URL' => [
             'group' => 'CACENTRE finance (CFIS)', 'label' => 'Finance address', 'secret' => false, 'type' => 'url',
@@ -702,8 +707,12 @@ final class AvSettings
                 // A secret shows only a masked tail; a plain setting shows itself.
                 'value'      => $secret ? '' : $live,
                 'preview'    => $secret ? self::maskOf($live) : '',
-                /* The gate secret's fingerprint, to compare with the gate's when it is refused. */
-                'fingerprint'=> $key === 'GATE_PASS_SECRET' && $live !== '' && class_exists('GatePass') ? GatePass::fingerprint($live) : '',
+                /* A fingerprint identifies a key without printing it, so
+                   two sides can confirm they hold the same one. The gate
+                   secret's, to compare with the gate's when it is refused;
+                   the CFIS key's, to compare with what finance shows after
+                   pairing. */
+                'fingerprint'=> self::fingerprintOf($key, $live),
                 'source'     => $src['source'],
                 'shadowing'  => $src['shadowing'],
                 'updated_by' => $meta[$key]['by'] ?? '',
@@ -716,6 +725,16 @@ final class AvSettings
            table and cannot be decrypted is the one failure that looks
            identical to no key at all. */
         return ['groups' => $out, 'crypto' => self::cryptoStatus(), 'unreadable' => self::unreadable()];
+    }
+
+    /** The 16 characters that identify a key, where a key has such a thing. */
+    private static function fingerprintOf(string $key, string $live): string
+    {
+        if ($live === '') return '';
+        if ($key === 'GATE_PASS_SECRET' && class_exists('GatePass')) return GatePass::fingerprint($live);
+        if ($key === 'CFIS_SECRET' && class_exists('CfisPairing')) return CfisPairing::fingerprint($live);
+
+        return '';
     }
 
     /** The value actually in force for a key, from any source. */
@@ -760,6 +779,14 @@ final class AvSettings
             $key = (string) $key;
             if (!isset(self::DEFS[$key])) { $errors[$key] = 'Unknown setting.'; continue; }
             $d = self::DEFS[$key];
+            /* An 'action' is a button that happens to need a value typed
+               beside it — a pairing code, redeemed once and then worthless.
+               It is NOT a setting, and storing one would put a live
+               credential in av_settings where nobody would think to look
+               for it. Refused here as well as left out of the Studio's save
+               payload, because a hand-made request reaches this and not the
+               page. */
+            if (($d['type'] ?? '') === 'action') { $errors[$key] = 'That is an action, not a setting — it is not stored.'; continue; }
             $val = trim((string) $raw);
 
             // Unchanged masked secret — nothing to do.

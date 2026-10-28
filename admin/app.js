@@ -1977,7 +1977,15 @@
        this is the one somebody has to re-paste. */
     var unreadable = f.unreadable ? '<p class="setup-bad">Stored, but this site cannot read it back. Paste it again.</p>' : '';
     var input;
-    if (f.type === 'enum') {
+    if (f.type === 'action') {
+      /* NO data-skey, deliberately. Every other field here registers itself
+         in setupDirty and is posted by Save; a pairing code is a live
+         credential that must never be stored, so it is kept out of that
+         path entirely rather than filtered out of it later. */
+      input = '<input id="' + id + '" type="text" spellcheck="false" autocomplete="off"'
+        + ' data-pairfield="1" placeholder="' + escapeHtml(f.placeholder) + '" />'
+        + '<button type="button" class="btn btn-outline btn-sm setup-pair" data-for="' + id + '">Pair</button>';
+    } else if (f.type === 'enum') {
       input = '<select id="' + id + '" data-skey="' + escapeHtml(f.key) + '">'
         + f.options.map(function (o) {
             return '<option value="' + escapeHtml(o) + '"' + (o === f.value ? ' selected' : '') + '>'
@@ -2022,6 +2030,27 @@
   });
 
   $('#setupGroups') && $('#setupGroups').addEventListener('click', function (e) {
+    var p = e.target.closest('.setup-pair');
+    if (p) {
+      var fld = document.getElementById(p.getAttribute('data-for'));
+      var code = fld ? fld.value.trim() : '';
+      if (!code) { toast('Enter the pairing code finance gave you.'); fld && fld.focus(); return; }
+      p.disabled = true; p.textContent = 'Pairing…';
+      post('setup_cfis_pair', { code: code }).then(function (r) {
+        var d = r.data || {};
+        p.disabled = false; p.textContent = 'Pair';
+        if (d.ok) {
+          /* Cleared on success: the code is spent, and leaving it on screen
+             invites somebody to try it again and read a confusing refusal. */
+          fld.value = '';
+          toast('Paired with CACENTRE finance — key ' + (d.fingerprint || ''));
+          api('setup_get').then(function (g) { if (g.data && g.data.groups) { renderSetup(g.data); setupDirty = {}; } });
+        } else {
+          toast(d.error || 'The pairing code was not accepted.');
+        }
+      }, function () { p.disabled = false; p.textContent = 'Pair'; toast('Could not reach the server.'); });
+      return;
+    }
     var b = e.target.closest('.setup-clear'); if (!b) return;
     var key = b.getAttribute('data-skey');
     if (!confirm('Remove this value? Anything set in the environment will apply again.')) return;

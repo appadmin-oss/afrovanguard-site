@@ -95,6 +95,8 @@ try {
         'ai_proposal_decide',
         // Provider credentials. Super Admin only — these are the organisation's keys.
         'setup_get', 'setup_save', 'setup_test',
+        // Redeeming a pairing code FETCHES this site's CFIS signing key.
+        'setup_cfis_pair',
         // A card format decides what opens the front door.
         'card_format_save',
         // What every member is charged in dues, and from when.
@@ -792,6 +794,30 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             if (!av_rate_ok('setup_test', 30, 300)) json_out(['ok' => false, 'error' => 'Too many tests — wait a moment.'], 429);
             json_out(array_merge(['ok' => true], AvSettings::test((string) ($body['what'] ?? ''))));
+        }
+
+        /* ════ Collecting this site's CFIS key from CFIS ════
+           The key used to be printed on a terminal at CACENTRE and carried
+           here by a person. Finance now issues a pairing code — fifteen
+           minutes, one use — and this redeems it, so the key travels machine
+           to machine and is never displayed on either side. See
+           lib/CfisPairing.php for why a second credential is needed at all. */
+        case 'setup_cfis_pair': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            /* Tighter than setup_test: this one redeems a credential. A code
+               is 80 bits and expires, so guessing is not the worry — the rate
+               at which this site will ask should just look like a person
+               typing a code, because that is all it ever is. */
+            if (!av_rate_ok('setup_cfis_pair', 10, 600)) json_out(['ok' => false, 'error' => 'Too many pairing attempts — wait a few minutes.'], 429);
+            $res = CfisPairing::pair((string) ($body['code'] ?? ''), av_admin_role() ?: 'admin');
+            if (!empty($res['ok'])) {
+                /* The fingerprint, never the key — it is the value an
+                   operator compares with what finance has on screen, and it
+                   is useless to anybody who reads the audit log. */
+                AdminAudit::log('rules', 'cfis_paired', (string) ($res['source'] ?? ''),
+                    'Collected the CFIS signing key (key ' . (string) ($res['fingerprint'] ?? '') . ')');
+            }
+            json_out(array_merge($res, ['testable' => AvSettings::testable()]));
         }
 
         /* ════ The AI bench, the chat console, and the approval queue ════

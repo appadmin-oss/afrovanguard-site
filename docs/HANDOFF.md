@@ -450,3 +450,41 @@ is `daily_cap` and CACENTRE falls through to its own routes. Tests:
   `portal/volunteer.js` and `portal/views/volunteer.php` now write no inline
   styles: bar and meter sizes are 5% step classes (`.vh-w*`, `.vh-h*`), and
   the toast is `.vh-toast`. Test: `tests/volunteerui.test.php`.
+
+## The CFIS key is collected, not carried (Oct 2026)
+
+Setup used to say: "CACENTRE's finance team mints it with
+`php artisan cfis:connect avg` and hands it over privately. Minting a new one
+stops the old one working." Behind that, a 64-character signing key was
+printed to a terminal at CACENTRE, lived in scrollback, travelled by whatever
+the two people found convenient, and was pasted into a form here. The
+instruction to keep it private was the entire control. And because the only
+verb was `cfis:connect`, a lost hand-over and a compromised key had the same
+remedy — which mints a NEW key, so the commoner problem was fixed by breaking
+this site until somebody carried the new key across.
+
+- **Setup → CACENTRE finance → Pair with CFIS.** Finance runs
+  `php artisan cfis:pair avg` and gives out a pairing code (sixteen
+  characters, fifteen minutes, one use, stored by CFIS only as a hash). Enter
+  it and this site fetches its key from CFIS over TLS. The key is never
+  displayed on either side.
+- **Why a second credential at all.** This site cannot simply ask for its own
+  key, because the only thing that proves it is Afrovanguard is that key. The
+  code breaks the loop with something whose leaking matters far less, and
+  whose use CFIS records (`income_source.paired`, with when and from where).
+- **A re-pair does not change the key**, so a hand-over that goes astray no
+  longer means a rotation. Only `cfis:connect` changes a key.
+- **The fingerprint is the check.** Both sides show the same 16 characters
+  (`CfisPairing::fingerprint()`, mirroring CFIS's `IncomeSource::fingerprintFor()`).
+  This site also verifies the key against the fingerprint CFIS sends with it,
+  so a truncated answer is refused here rather than failing every settlement
+  days later with nothing pointing back.
+- `CFIS_PAIRING_CODE` is declared as type **`action`** — a button, not a
+  setting. `AvSettings::save()` refuses to store an action, and the Studio
+  field carries no `data-skey`, so a live credential cannot end up in
+  `av_settings` by either route.
+- `CFIS_SECRET` stays in Setup for a host that cannot reach CFIS outbound;
+  there finance uses `cfis:connect avg --show-secret` as before.
+- Super Admin only, rate-limited (10 per 10 minutes), audited by fingerprint
+  and never by key. Tests: `tests/cfispairing.test.php` here, and
+  `tests/Feature/Integrations/PropertyPairingTest.php` in CACENTRE.
