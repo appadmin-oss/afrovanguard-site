@@ -426,6 +426,32 @@ under a paid-so-far bar, instead of numbered dots.
   the certificate page or the registration page, and no fee state gates a
   certification. `tests/ngvledger.test.php` asserts all of this, and
   `tests/ngvdamage.test.php` asserts the same for damage.
+- **Money arrives with its receipt, never as a typed figure.** Every payment
+  on this ledger that did not come through the gateway goes through
+  `lib/OfflinePayments`: the receipt, transfer slip or bank alert is uploaded,
+  read, and checked in code against the claim — amount, payee, date,
+  reference, reuse, signs of editing, legibility — and credited only if it
+  passes. One that fails is HELD with its reasons, not lost. The fines desk
+  (`academy/ngv/fines.php` → `NgvFines::payOne`) was the last place that still
+  credited whatever figure was typed into a prompt; it does not any more, and
+  the JSON `pay` action it used answers `evidence_required`. A fine can be
+  issued to any Afrovanguard member, NGV or not, so an offline payment for
+  `purpose: ngv` is accepted from a participant **or** from anybody carrying a
+  charge on this ledger.
+- **Nobody settles their own account.** `NgvLedger::selfDealing()` refuses a
+  waiver, a write-off or a void where the actor is the member the row is
+  about; `NgvFines::payOne()` refuses the same for a payment, and
+  `OfflinePayments::submit()` refuses a staff-recorded payment into the
+  recorder's own account (their own goes in from the portal, where it is
+  checked identically). At the other end, `OfflinePayments::override()` — the
+  Super Admin's way through when the reader is down — refuses an approver who
+  submitted the payment or is the payer, and recomputes the "this receipt has
+  already credited money" check instead of reading back a verdict that, when
+  the reader failed, had never been computed at all. A `byUid` of 0 is the
+  system (the nightly sweep, the gate voiding a fine it mis-issued, the credit
+  path inside OfflinePayments) and is not caught; the appeals sponsorship
+  sweep is deliberately outside the rule, because dropping the operator out of
+  a list of everyone who owes would quietly under-allocate the appeal.
 - **The member side reads and says; it never prices.** A participant can report
   damage, raise a request and ask for a statement. Every path that moves a
   figure — charge, waive, void, assess, agree a training fee — is staff-only,

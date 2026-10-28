@@ -6,7 +6,11 @@
  *   • A member outside NGV is found by the desk and matched by an import.
  *   • Their fine is one ledger row, under their portal id, and they are told.
  *   • They see it in their own portal (views/fines.php), and the office
- *     records their payment against it (payOne), with a receipt to their email.
+ *     records their payment against it (payOne) — with the receipt, which is
+ *     read and checked before anything is credited — and a receipt goes to
+ *     their email.
+ *   • Nobody clears a fine of their own: not by paying it, not by waiving it,
+ *     not by voiding it.
  *   • A NGV participant is fined exactly as before.
  *
  * Run via tests/run.php (provides ck()).
@@ -46,14 +50,52 @@ $done = NgvFines::import($rows, ['apply' => true, 'expect_digest' => $dry['diges
 ck('any member: …and imported, charged once', $done['counts']['fined'] === 1 && NgvFines::forMember($kunle)['owing'] === 2000);
 ck('any member: the same sheet again charges nobody twice', NgvFines::import($rows)['counts']['already'] === 1);
 
-/* The office records their payment. */
+/* The office records their payment — with the receipt. The evidence store is
+   a throwaway directory, and the reader is a stub: lib/OfflinePayments does
+   the checking, and tests/offlinepayments.test.php holds it to each check. */
+$faPrev = getenv('AV_PRIVATE_DIR');
+$faDir = sys_get_temp_dir() . '/av-test-anyfine-' . getmypid();
+@mkdir($faDir, 0700, true);
+putenv('AV_PRIVATE_DIR=' . $faDir);
+$faReader = OfflinePayments::$reader;
+$faSlip = fn(int $amount, string $ref) => ['ok' => true, 'data' => ['is_payment_evidence' => true, 'amount' => $amount, 'currency' => 'NGN',
+    'date' => gmdate('Y-m-d'), 'reference' => $ref, 'payee_name' => 'AFROVANGUARD', 'payee_account' => null, 'payer_name' => 'KUNLE ADEYEMI',
+    'bank' => 'GTBank', 'status' => 'successful', 'tampering_signs' => [], 'confidence' => 'high']];
+$faJpeg = fn(string $seed) => "\xFF\xD8\xFF\xE0" . str_repeat($seed, 64);
+
+/* A real staff account, not a stand-in number: the self-check compares the
+   actor's id with the fined member's, and in a freshly emptied table the
+   first member created can be id 1. */
+$faDesk = (int) MemberRoster::create(['name' => 'Desk Officer', 'email' => 'desk@anyfine.test'], 'tester')['id'];
 $fineId = (int) $one['entryId'];
-ck('any member: a payment of more than is owing on a fine is refused', !NgvFines::payOne($fineId, 5000, 'cash', '', 1)['ok']);
-$paid = NgvFines::payOne($fineId, 1500, 'transfer', 'TRF-123', 1);
-ck('any member: the office records their payment against the fine', !empty($paid['ok']));
+OfflinePayments::$reader = fn() => $faSlip(5000, 'TRF-TOOMUCH');
+ck('any member: a payment of more than is owing on a fine is refused', !NgvFines::payOne($fineId, 5000, 'cash', '', $faDesk, ['bytes' => $faJpeg('a'), 'mime' => 'image/jpeg'])['ok']);
+ck('any member: a fine payment with no receipt is refused, like every other payment',
+    (NgvFines::payOne($fineId, 1500, 'transfer', 'TRF-123', $faDesk)['code'] ?? '') === 'evidence_required');
+OfflinePayments::$reader = fn() => $faSlip(1500, 'TRF-123');
+$paid = NgvFines::payOne($fineId, 1500, 'transfer', 'TRF-123', $faDesk, ['bytes' => $faJpeg('b'), 'mime' => 'image/jpeg'], 'desk@anyfine.test');
+ck('any member: the office records their payment against the fine, once the receipt checks out',
+    !empty($paid['ok']) && ($paid['status'] ?? '') === 'verified');
 ck('any member: …which settles the oldest fine first', NgvFines::forMember($kunle)['owing'] === 500);
-$rc = NgvLedger::receiptFor((int) $paid['id']);
+$faCredit = array_values(array_filter(NgvLedger::credits($kunle), static fn($c) => (int) $c['amount'] === 1500))[0] ?? [];
+$rc = NgvLedger::receiptFor((int) ($faCredit['id'] ?? 0));
 ck('any member: the receipt carries their name and email from the portal', ($rc['name'] ?? '') === 'Kunle Adeyemi' && ($rc['email'] ?? '') === 'kunle@anyfine.test');
+
+/* Nobody settles their own account. */
+$faMine = (int) NgvFines::issue($kunle, 'late', 400, 'For the self-check', date('Y-m-d'), false, 1)['entryId'];
+OfflinePayments::$reader = fn() => $faSlip(400, 'TRF-SELF');
+ck('any member: the fined member cannot record the payment themselves',
+    (NgvFines::payOne($faMine, 400, 'cash', '', $kunle, ['bytes' => $faJpeg('c'), 'mime' => 'image/jpeg'])['code'] ?? '') === 'own_account');
+ck('any member: …nor waive it', (NgvFines::waiveOne($faMine, 'I will let myself off', $kunle)['code'] ?? '') === 'own_account');
+ck('any member: …nor void it', (NgvFines::voidOne($faMine, 'It never happened', $kunle)['code'] ?? '') === 'own_account');
+ck('any member: …and none of that moved the money', NgvFines::forMember($kunle)['owing'] === 900);
+ck('any member: another member of staff can', NgvFines::waiveOne($faMine, 'First offence, spoken to', $faDesk)['ok']
+    && NgvFines::forMember($kunle)['owing'] === 500);
+
+OfflinePayments::$reader = $faReader;
+if ($faPrev === false) putenv('AV_PRIVATE_DIR'); else putenv('AV_PRIVATE_DIR=' . $faPrev);
+foreach (glob($faDir . '/*') ?: [] as $faF) @unlink($faF);
+@rmdir($faDir);
 
 /* Somebody who is not a member at all is still refused. */
 ck('any member: nobody outside the membership is fined', !NgvFines::issue(987654, 'late', 500, '', date('Y-m-d'), false, 1)['ok']);

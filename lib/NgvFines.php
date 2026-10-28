@@ -135,17 +135,34 @@ final class NgvFines
      * their oldest fine (the first recorded) first, not necessarily the one
      * clicked; capped at what is owing on the fine it was recorded from. Any
      * member: this is how one outside NGV pays.
+     *
+     * IT COMES WITH THE RECEIPT. This desk used to credit whatever figure was
+     * typed into a prompt, while the member desk two pages away had already
+     * stopped doing that ('evidence_required'): a fine could be cleared by
+     * typing its amount, and the person fined could type it. Both ends are
+     * closed here — the money goes through OfflinePayments, which reads the
+     * receipt, checks it against the claim and credits only what passes
+     * (purpose 'ngv', line 'fine': the same ledger call this made directly) —
+     * and nobody clears their own.
+     *
+     * $evidence is ['bytes' => string, 'mime' => string] and $actor the name
+     * recorded against the submission; $by is the staff member's account id,
+     * for the self-check.
      */
-    public static function payOne(int $chargeId, $amount, string $method, string $reference, int $by): array
+    public static function payOne(int $chargeId, $amount, string $method, string $reference, int $by, array $evidence = [], string $actor = '', string $paidOn = ''): array
     {
         $f = self::find($chargeId);
         if (!$f) return ['ok' => false, 'error' => 'No such fine.'];
+        if ($no = NgvLedger::selfDealing((int) $f['member_id'], $by, 'records the payment')) return ['ok' => false, 'code' => 'own_account', 'error' => $no];
         if ((int) $f['owing'] <= 0) return ['ok' => false, 'error' => 'Nothing is owing on this fine.'];
         $n = NgvLedger::money($amount);
         if ($n <= 0) $n = (int) $f['owing'];
         if ($n > (int) $f['owing']) return ['ok' => false, 'error' => 'That is more than is owing on this fine (' . NgvLedger::money_text((int) $f['owing']) . ').'];
-        $method = in_array($method, ['cash', 'transfer', 'pos', 'other'], true) ? $method : 'cash';
-        return NgvLedger::payment((int) $f['member_id'], 'fine', $n, ['method' => $method, 'reference' => trim($reference), 'note' => 'Fine: ' . (string) $f['label']], $by);
+        $method = in_array($method, OfflinePayments::METHODS, true) ? $method : 'cash';
+        return OfflinePayments::submit((int) $f['member_id'], [
+            'purpose' => 'ngv', 'line' => 'fine', 'amount_ngn' => $n, 'method' => $method,
+            'reference' => trim($reference), 'paid_on' => trim($paidOn),
+        ], (string) ($evidence['bytes'] ?? ''), (string) ($evidence['mime'] ?? ''), $actor !== '' ? $actor : 'staff', 'staff');
     }
 
     /** Fine several members the same way. One result per member. */

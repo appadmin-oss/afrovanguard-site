@@ -1518,8 +1518,10 @@ try {
             json_out(['ok' => true, 'summary' => $o, 'members' => $list]);
         /* ── Offline payments (lib/OfflinePayments.php): credited only once the receipt is checked ── */
         case 'offline_list':
+            /* `me` so the desk can grey out "approve against the check" on the
+               viewer's own payment, which OfflinePayments::override refuses. */
             json_out(['ok' => true, 'payments' => OfflinePayments::queue((string) ($_GET['status'] ?? '')), 'counts' => OfflinePayments::counts(),
-                      'reader' => class_exists('Gemini') && Gemini::configured(), 'can_override' => $role === 'superadmin']);
+                      'reader' => class_exists('Gemini') && Gemini::configured(), 'can_override' => $role === 'superadmin', 'me' => av_admin_actor()]);
         case 'offline_get':
             $op = OfflinePayments::get((int) ($_GET['id'] ?? 0));
             json_out($op ? ['ok' => true, 'payment' => $op] : ['ok' => false, 'error' => 'No such payment.'], $op ? 200 : 404);

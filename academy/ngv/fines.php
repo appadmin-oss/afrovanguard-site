@@ -27,6 +27,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (!$isAdmin) json_out(['ok' => false, 'error' => 'Admin sign-in required.'], 403);
     require_same_origin();
     av_csrf_require();
+
+    /* A fine payment, with its receipt: multipart, exactly as the member desk
+       records one (academy/ngv/members.php, payment_offline). The money is
+       credited only once lib/OfflinePayments has read the receipt and checked
+       it against the claim — never from the figure somebody typed. */
+    if ((string) ($_POST['action'] ?? '') === 'pay_offline') {
+        $f = $_FILES['evidence'] ?? null;
+        $okf = $f && (int) ($f['error'] ?? 1) === UPLOAD_ERR_OK && is_uploaded_file((string) $f['tmp_name']);
+        $r = NgvFines::payOne((int) ($_POST['id'] ?? 0), $_POST['amount'] ?? '', strtolower(trim((string) ($_POST['method'] ?? ''))),
+            (string) ($_POST['reference'] ?? ''), $by,
+            $okf ? ['bytes' => (string) file_get_contents((string) $f['tmp_name']), 'mime' => (string) (Storage::mime((string) $f['tmp_name']) ?: '')] : [],
+            av_admin_actor(), (string) ($_POST['paid_on'] ?? ''));
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+
     $in  = json_decode((string) file_get_contents('php://input'), true);
     if (!is_array($in)) $in = [];
     $act = (string) ($in['action'] ?? '');
@@ -37,7 +52,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     }
     if ($act === 'waive') json_out(NgvFines::waiveOne((int) ($in['id'] ?? 0), (string) ($in['why'] ?? ''), $by));
     if ($act === 'void') json_out(NgvFines::voidOne((int) ($in['id'] ?? 0), (string) ($in['why'] ?? ''), $by));
-    if ($act === 'pay') json_out(NgvFines::payOne((int) ($in['id'] ?? 0), $in['amount'] ?? '', (string) ($in['method'] ?? ''), (string) ($in['reference'] ?? ''), $by));
+    /* The old typed-in payment. Kept as a route so an old tab says what to do
+       rather than failing as "Unknown action". */
+    if ($act === 'pay') json_out(['ok' => false, 'code' => 'evidence_required',
+        'error' => 'Attach the receipt — a fine payment is credited once its evidence is checked.'], 400);
     if ($act === 'catalogue') {
         $r = NgvFines::saveCatalogue((array) ($in['amounts'] ?? []));
         if ($r['ok'] && class_exists('AdminAudit')) AdminAudit::log('ngv', 'ngv_fine_catalogue', 'ngv:fines', 'Usual fine amounts changed');
@@ -155,6 +173,12 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
 .tabs a{font-size:.8rem;font-weight:700;padding:.25rem .65rem;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);background:#fff}
 .tabs a.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .cat{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+dialog{border:1px solid var(--line);border-radius:var(--r);padding:0;max-width:30rem;width:calc(100% - 2rem);color:var(--ink);background:var(--card)}
+dialog::backdrop{background:rgba(21,18,14,.45)}
+dialog header{padding:13px 18px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}
+dialog header h2{font-size:1rem;flex:1}
+dialog .body{padding:14px 18px 18px;display:flex;flex-direction:column;gap:10px}
+dialog .lbl input,dialog .lbl select{width:100%}
 @media (max-width:640px){.top{padding:10px 16px}.wrap{padding:0 12px}.card>.body{padding:12px}}
 </style>
 </head>
@@ -259,7 +283,11 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
       <table>
         <thead><tr><th>Day</th><th>Member</th><th>Reason</th><th class="num">Amount</th><th class="num">Owing</th><th>Standing</th><th></th></tr></thead>
         <tbody>
-        <?php foreach ($shown as $r): $s = (string) $r['status']; $open = in_array($s, ['owing', 'part'], true); ?>
+        <?php foreach ($shown as $r): $s = (string) $r['status']; $open = in_array($s, ['owing', 'part'], true);
+              /* Nobody settles their own account, so the controls that would
+                 are disabled here and say why rather than refusing on press. */
+              $mine = $by > 0 && (int) $r['member_id'] === $by;
+              $no = $mine ? ' disabled title="This is your own fine. Another member of staff records a payment, waives it or voids it."' : ''; ?>
           <tr>
             <td class="num" style="text-align:left"><?= $e((string) $r['day']) ?></td>
             <td><?= $e((string) ($r['name'] ?: '#' . $r['member_id'])) ?><?= $r['import_run'] ? ' <span class="sub" title="Imported">· imp</span>' : '' ?></td>
@@ -267,7 +295,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
             <td class="num"><?= $nm((int) $r['amount']) ?></td>
             <td class="num"><?= $open ? $nm((int) $r['owing']) : '—' ?></td>
             <td><span class="pill s-<?= $e($s) ?>"><?= $e($stLabel[$s] ?? $s) ?></span></td>
-            <td style="white-space:nowrap"><?php if ($open): ?><button class="btn sm" data-pay="<?= (int) $r['id'] ?>" data-owing="<?= (int) $r['owing'] ?>">Record payment</button> <button class="btn sm" data-waive="<?= (int) $r['id'] ?>">Waive</button> <?php endif; ?><?php if ($s !== 'voided'): ?><button class="btn sm" data-void="<?= (int) $r['id'] ?>">Void</button><?php endif; ?></td>
+            <td style="white-space:nowrap"><?php if ($open): ?><button class="btn sm" data-pay="<?= (int) $r['id'] ?>" data-owing="<?= (int) $r['owing'] ?>"<?= $no ?>>Record payment</button> <button class="btn sm" data-waive="<?= (int) $r['id'] ?>"<?= $no ?>>Waive</button> <?php endif; ?><?php if ($s !== 'voided'): ?><button class="btn sm" data-void="<?= (int) $r['id'] ?>"<?= $no ?>>Void</button><?php endif; ?></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
@@ -275,7 +303,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
       <?php if (count($list) > count($shown)): ?><p class="sub">Showing the newest <?= count($shown) ?>. Narrow the filters to see others.</p><?php endif; ?>
       <?php endif; ?>
       </div>
-      <p class="sub" style="margin-bottom:0"><b>Waive</b> sets aside what is left of a fine, with a reason — it stays on record. <b>Void</b> says it should never have been issued. <b>Record payment</b> takes money paid at the office or by transfer against a fine — for any member, NGV or not; a vanguard's payments can also be recorded on their account on the <a href="/academy/ngv/members.php">Vanguards</a> page.</p>
+      <p class="sub" style="margin-bottom:0"><b>Waive</b> sets aside what is left of a fine, with a reason — it stays on record. <b>Void</b> says it should never have been issued. <b>Record payment</b> takes money paid at the office or by transfer against a fine — for any member, NGV or not — and goes with the receipt, which is read and checked before a naira is credited; a vanguard's payments can also be recorded on their account on the <a href="/academy/ngv/members.php">Vanguards</a> page.</p>
     </div>
   </section>
 
@@ -291,6 +319,32 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
     </div>
   </section>
 </main>
+
+<!-- Money against a fine. The receipt is the point: it is read and checked
+     before anything is credited, so there is no field here that simply
+     asserts the money arrived. -->
+<dialog id="payDlg" aria-labelledby="payTitle">
+  <form method="dialog" id="payForm">
+    <header><h2 id="payTitle">Record a payment</h2><button class="btn sm" value="cancel" type="submit" aria-label="Close">Close</button></header>
+    <div class="body">
+      <p class="sub" id="payWho" style="margin:0"></p>
+      <label class="lbl">How much was paid (₦) <input id="pay_amount" inputmode="numeric" required></label>
+      <label class="lbl">How it was paid
+        <select id="pay_method">
+          <option value="cash">Cash</option><option value="transfer">Transfer</option><option value="pos">POS</option>
+          <option value="deposit">Bank deposit</option><option value="cheque">Cheque</option><option value="other">Other</option>
+        </select>
+      </label>
+      <label class="lbl">Reference on the receipt, if there is one <input id="pay_ref" placeholder="Transfer reference, receipt book number"></label>
+      <label class="lbl">Day it was paid <input id="pay_day" type="date"></label>
+      <label class="lbl">The receipt, transfer slip or bank alert — required <input id="pay_file" type="file" accept="image/*,application/pdf" required></label>
+      <p class="sub" style="margin:0">It is read and checked against what you have typed. If it does not match, the payment is held with the reason rather than credited.</p>
+      <div class="row"><button class="btn primary" id="pay_go" value="go" type="submit">Check the receipt and record it</button></div>
+      <p class="sub" id="pay_out" role="status" style="margin:0"></p>
+    </div>
+  </form>
+</dialog>
+
 <script>
 (function () {
   var CSRF = <?= json_encode($csrf) ?>;
@@ -366,20 +420,45 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
     });
   });
 
-  /* ── A payment against one fine: at the office, by transfer ── */
+  /* ── A payment against one fine: at the office, by transfer ──
+     Multipart, because the receipt goes with it. The money is credited by
+     lib/OfflinePayments once the receipt has been read and checked; a receipt
+     that does not match is HELD, with the reasons shown here. */
+  var payDlg = $('payDlg'), payFor = 0, payBtn = null;
   document.querySelectorAll('[data-pay]').forEach(function (b) {
     b.addEventListener('click', function () {
+      payFor = +b.getAttribute('data-pay'); payBtn = b;
       var owing = +b.getAttribute('data-owing');
-      var amt = prompt('How much was paid? (₦' + owing.toLocaleString() + ' is owing on this fine.) Like every payment, it comes off this member\'s oldest fine first.', String(owing));
-      if (amt === null) return;
-      var how = prompt('How was it paid? cash, transfer, pos or other', 'cash');
-      if (how === null) return;
-      var ref = prompt('A reference, if there is one (a transfer reference, a receipt book number). Leave it blank if not.', '');
-      if (ref === null) return;
-      post({ action: 'pay', id: +b.getAttribute('data-pay'), amount: amt.replace(/[^\d.]/g, ''), method: how.trim().toLowerCase(), reference: ref }).then(function (r) {
-        if (r.ok) location.reload(); else toast(r.error || 'Not saved.', false);
-      });
+      var row = b.closest('tr');
+      $('payWho').textContent = (row ? row.children[1].textContent.trim() + ' — ' : '') + money(owing) + ' owing on this fine. Like every payment it comes off their oldest fine first.';
+      $('pay_amount').value = String(owing);
+      $('pay_ref').value = ''; $('pay_day').value = ''; $('pay_file').value = ''; $('pay_out').textContent = '';
+      payDlg.showModal();
+      $('pay_amount').focus();
     });
+  });
+  payDlg.addEventListener('close', function () { if (payBtn) payBtn.focus(); });
+  $('payForm').addEventListener('submit', function (ev) {
+    if (ev.submitter && ev.submitter.value !== 'go') return;          // Close
+    ev.preventDefault();
+    var file = $('pay_file').files && $('pay_file').files[0];
+    if (!file) { $('pay_out').textContent = 'Attach the receipt — it is checked before anything is credited.'; return; }
+    var amt = $('pay_amount').value.replace(/[^\d.]/g, '');
+    if (!amt) { $('pay_out').textContent = 'How much was paid?'; return; }
+    var fd = new FormData();
+    fd.append('action', 'pay_offline'); fd.append('id', String(payFor)); fd.append('amount', amt);
+    fd.append('method', $('pay_method').value); fd.append('reference', $('pay_ref').value);
+    fd.append('paid_on', $('pay_day').value); fd.append('evidence', file);
+    $('pay_go').disabled = true; $('pay_out').textContent = 'Checking the receipt…';
+    fetch(location.pathname, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': CSRF }, body: fd })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Upload rejected — the file may be too large for this server.' }; }); })
+      .then(function (j) {
+        $('pay_go').disabled = false;
+        if (j.ok && j.status === 'verified') { toast('Receipt checked — payment recorded'); setTimeout(function () { location.reload(); }, 700); return; }
+        if (j.ok && j.status === 'held') { $('pay_out').textContent = 'Held, not credited: ' + (j.reasons || []).join(' '); return; }
+        $('pay_out').textContent = j.error || 'Not recorded.';
+      })
+      .catch(function () { $('pay_go').disabled = false; $('pay_out').textContent = 'Offline — nothing was recorded.'; });
   });
 
   /* ── Catalogue ── */

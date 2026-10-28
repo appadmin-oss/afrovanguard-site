@@ -1022,6 +1022,30 @@ final class NgvLedger
     }
 
     /**
+     * Nobody settles their own account.
+     *
+     * Forgiving a debt and voiding an entry are both acts of discretion over
+     * money, and the one person who must not exercise them over a row is the
+     * person the row is about. Returns the refusal, or '' when the actor is
+     * somebody else.
+     *
+     * A $byUid of 0 is the system, not a person — the nightly sweep, the gate
+     * voiding a fine it issued in error, an offline payment crediting through
+     * the path that owns the money. Those carry their own record of who set
+     * them off and are not caught here.
+     *
+     * Appeals' sponsorship sweep is deliberately outside this rule: it credits
+     * everyone on a list who owes, by a rule, and dropping the operator out of
+     * that list would quietly under-allocate the appeal. Who ran it is on
+     * av_appeal_allocations.by_uid.
+     */
+    public static function selfDealing(int $memberId, int $byUid, string $what): string
+    {
+        if ($byUid <= 0 || $byUid !== $memberId) return '';
+        return 'This is your own account. Another member of staff ' . $what . '.';
+    }
+
+    /**
      * Set part of what is owed aside. A recorded mercy, not a deletion.
      *
      * This is what voiding gets used for when a ledger has no waiver, and it is
@@ -1054,6 +1078,7 @@ final class NgvLedger
     private static function forgive(int $memberId, string $kind, string $line, $amount, string $reason, int $byUid): array
     {
         $word = $kind === 'waiver' ? 'waiver' : 'write-off';
+        if ($no = self::selfDealing($memberId, $byUid, 'records the ' . $word)) return ['ok' => false, 'code' => 'own_account', 'error' => $no];
         $reason = trim($reason);
         // No vocabulary here: this is a judgement about one person's month, and a
         // dropdown would flatten the only part of it worth reading later.
@@ -1145,6 +1170,7 @@ final class NgvLedger
         $st->execute([$id]);
         $row = $st->fetch();
         if (!$row) return ['ok' => false, 'error' => 'No such entry.'];
+        if ($no = self::selfDealing((int) $row['member_id'], $byUid, 'voids it')) return ['ok' => false, 'code' => 'own_account', 'error' => $no];
         if ((int) ($row['voided'] ?? 0) === 1) return ['ok' => false, 'error' => 'That entry is already void.'];
         $pdo->prepare("UPDATE {$table} SET voided = 1, voided_by = ?, voided_at = ?, void_reason = ? WHERE id = ?")
             ->execute([max(0, $byUid), self::nowStamp(), mb_substr($reason, 0, 200), $id]);

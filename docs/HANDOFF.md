@@ -488,3 +488,44 @@ this site until somebody carried the new key across.
 - Super Admin only, rate-limited (10 per 10 minutes), audited by fingerprint
   and never by key. Tests: `tests/cfispairing.test.php` here, and
   `tests/Feature/Integrations/PropertyPairingTest.php` in CACENTRE.
+
+## Nobody settles their own account, and no fine is cleared by a typed figure (Oct 2026)
+
+Two findings from the member-management audit, both about money and both the
+same shape: a control that moved money with nobody on the other side of it.
+
+- **Fines (H9).** `academy/ngv/fines.php` recorded a payment from three
+  `prompt()`s — how much, how, a reference — and `NgvFines::payOne()` wrote it
+  straight to the ledger. The member desk two pages away had already stopped
+  doing that (`evidence_required`), so a fine was the one charge on the site
+  that could be cleared by typing its amount, and nothing stopped the fined
+  person typing it. `payOne()` now goes through `lib/OfflinePayments` —
+  purpose `ngv`, line `fine`, which ends in the same ledger call — so the
+  receipt is read and checked before a naira moves, and the desk has a form
+  with a file on it instead of a chain of prompts. The old JSON `pay` action
+  stays as a route and answers `evidence_required`, so an old tab says what to
+  do rather than failing as "Unknown action".
+- **The self-check.** `NgvLedger::selfDealing()` refuses a waiver, a write-off
+  or a void by the member the row is about; `payOne()` refuses a payment the
+  same way, and `OfflinePayments::submit()` refuses a *staff-recorded* payment
+  into the recorder's own account — their own still goes in from the portal,
+  where it is checked identically. A `byUid` of 0 is the system and is exempt.
+  The appeals sponsorship sweep is deliberately outside the rule: it credits
+  everyone on a list who owes, and dropping the operator out of that list
+  would quietly under-allocate the appeal; who ran it is on
+  `av_appeal_allocations.by_uid`.
+- **The offline override (M8).** A Super Admin could approve a payment they
+  had submitted themselves, and the "this receipt already credited money"
+  guard read back a stored verdict — which, when the reader was unavailable,
+  had never been computed, so it said `ok`. The one case the override exists
+  for was the one case the guard was missing. It now refuses an approver who
+  submitted the payment or is the payer, and recomputes the reuse and
+  same-day checks against the record as it stands.
+- **NGV offline payments widened.** A fine can be issued to any Afrovanguard
+  member, NGV or not, and sits on the NGV ledger — so an offline payment for
+  `purpose: ngv` is now accepted from a participant or from anybody carrying a
+  charge there, not participants alone.
+
+Tests: `tests/finesanymember.test.php` (the desk, the self-check, the receipt),
+`tests/offlinepayments.test.php` (staff self-submission, the two recomputed
+reuse cases), `tests/ngvfines.test.php` (the desk's wiring).

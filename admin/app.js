@@ -3925,21 +3925,25 @@
   /* ── Offline payments: credited only once the receipt is checked ── */
   var OFF_LABEL = { verified: 'Checked and credited', held: 'Held — not credited', rejected: 'Rejected', pending: 'Being checked' };
   var OFF_CHECK = { evidence: 'Is a payment receipt', amount: 'Amount', payee: 'Paid to Afrovanguard', date: 'Date', reference: 'Reference', reused: 'Not used before', tampering: 'No sign of editing', confidence: 'Legible', reader: 'Reader', credit: 'Credit' };
-  var offCanOverride = false;
+  var offCanOverride = false, offMe = '';
   function loadOffline() {
     var box = $('#offList'); box.innerHTML = '<p class="muted">Loading…</p>';
     api('offline_list&status=' + $('#offStatus').value).then(function (r) {
       var d = r.data || {};
       if (!d.ok) { box.innerHTML = '<p class="muted">Could not load. <button class="btn btn-outline btn-sm" id="offRetry">Retry</button></p>'; return; }
       offCanOverride = !!d.can_override;
+      offMe = String(d.me || '').trim().toLowerCase();
       $('#offReader').textContent = d.reader ? 'Receipts are read by Gemini.' : 'Receipt reading is not configured (AV_GEMINI_API_KEY), so every offline payment is held. A Super Admin can approve one with a written reason.';
       var held = (d.counts || {}).held || 0; $('#offHeldBadge').hidden = !held; $('#offHeldBadge').textContent = held;
       box.innerHTML = (d.payments || []).length ? d.payments.map(function (p) {
         var checks = p.checks || {};
         var lines = Object.keys(checks).map(function (k) { var ok = checks[k] === 'ok'; return '<div class="tiny ' + (ok ? 'muted' : '') + '">' + (ok ? '✓ ' : '✗ ') + escapeHtml(OFF_CHECK[k] || k) + (ok ? '' : ' — ' + escapeHtml(checks[k])) + '</div>'; }).join('');
+        /* Nobody signs off their own money: the same refusal the server makes,
+           said here before the press rather than after it. */
+        var mine = offMe && (offMe === String(p.submitted_by || '').trim().toLowerCase() || offMe === String(p.email || '').trim().toLowerCase());
         var acts = p.status === 'held' ? '<button class="btn btn-outline btn-sm" data-off="verify" data-id="' + p.id + '">Check again</button>'
             + '<button class="btn btn-outline btn-sm" data-off="reject" data-id="' + p.id + '">Reject</button>'
-            + (offCanOverride ? '<button class="btn btn-outline btn-sm" data-off="override" data-id="' + p.id + '">Approve against the check…</button>' : '') : '';
+            + (offCanOverride ? '<button class="btn btn-outline btn-sm" data-off="override" data-id="' + p.id + '"' + (mine ? ' disabled title="This is your own payment. Another Super Admin approves it against the check."' : '') + '>Approve against the check…</button>' : '') : '';
         return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(p.name || ('#' + p.user_id)) + ' — ₦' + Number(p.amount_ngn).toLocaleString('en-NG')
           + ' <span class="badge ' + (p.status === 'verified' ? 'published' : 'draft') + '">' + escapeHtml(OFF_LABEL[p.status] || p.status) + '</span></div>'
           + '<div class="entry-meta">' + escapeHtml([p.purpose === 'dues' ? p.months + ' months of dues' : 'NGV account', p.method, p.reference, p.paid_on ? 'paid ' + p.paid_on : '', 'sent ' + String(p.created_at).slice(0, 10) + ' by ' + (p.via === 'staff' ? p.submitted_by : 'the member')].filter(Boolean).join(' · ')) + '</div>'

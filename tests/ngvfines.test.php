@@ -118,6 +118,17 @@ ck('Fines: the same sheet again charges nobody twice', $again['counts']['ready']
 /* ── The page ── */
 $page = (string) file_get_contents(AV_ROOT . '/academy/ngv/fines.php');
 ck('Fines: the console page is guarded like the rest of the console', str_contains($page, 'av_admin_role') && str_contains($page, 'av_csrf_require') && str_contains($page, 'require_same_origin'));
+/* The desk's wiring. NgvFines::payOne is held to the behaviour by
+   tests/finesanymember.test.php; what is pinned here is that the page reaches
+   it the one way that carries a receipt, and that the old typed-in route
+   cannot reach it at all. */
+ck('Fines: a payment is recorded through the multipart route, with the receipt',
+    str_contains($page, "=== 'pay_offline'") && str_contains($page, "\$_FILES['evidence']") && str_contains($page, 'NgvFines::payOne('));
+ck('Fines: …and the old typed-in payment action credits nothing',
+    str_contains($page, "'code' => 'evidence_required'")
+    && substr_count($page, 'NgvFines::payOne(') === 1);   // the multipart route, and nothing else
+ck('Fines: the desk does not offer an operator the controls over their own fine',
+    str_contains($page, '(int) $r[\'member_id\'] === $by') && str_contains($page, 'This is your own fine.'));
 
 /* ── A vanguard's own fines ── */
 $mine = NgvFines::forMember(9101);

@@ -49,6 +49,12 @@ ck('Offline: dues money cannot be credited without a verified offline payment',
 ck('Offline: less than the dues cost is refused before anything is read', (OfflinePayments::submit($olu, $dues(5000), $img('a'), 'image/jpeg', 'olu')['code'] ?? '') === 'short' && $calls === 0);
 ck('Offline: only a photo or a PDF', !OfflinePayments::submit($olu, $dues(), 'plain text', 'text/plain', 'olu')['ok']);
 
+/* ── Nobody records their own money as the office ────────────────────── */
+$says = $good(12000);
+ck('Offline: an admin cannot record a payment into their own account as staff',
+    (OfflinePayments::submit($olu, $dues(), $img('self'), 'image/jpeg', 'OLU@op.test', 'staff')['code'] ?? '') === 'own_account');
+ck('Offline: …and nothing was stored for it', (int) $opPdo->query('SELECT COUNT(*) FROM offline_payments')->fetchColumn() === 0 && $calls === 0);
+
 /* ── A good receipt is credited, once ────────────────────────────────── */
 $says = $good(12000);
 $r = OfflinePayments::submit($olu, $dues(), $img('a'), 'image/jpeg', 'olu');
@@ -97,16 +103,45 @@ putenv('AV_OFFLINE_ACCOUNTS');
 
 /* ── When the reader cannot read ─────────────────────────────────────── */
 OfflinePayments::$reader = fn() => ['ok' => false, 'error' => 'Receipt reading is unavailable (Gemini is not configured).'];
-$down = OfflinePayments::submit($olu, $dues(), $img('down'), 'image/jpeg', 'olu');
+/* One month, not the twelve already credited above: an unread receipt for the
+   same member, amount and day as a credited one is a duplicate until somebody
+   says otherwise, and that is the next section's subject. */
+$oneMonth = Membership::price(1);
+$down = OfflinePayments::submit($olu, $dues($oneMonth, 1), $img('down'), 'image/jpeg', 'olu');
 ck('Offline: with no reader, a payment is held — never credited unread', $down['status'] === 'held' && str_contains($down['reasons'][0], 'unavailable'));
 $did = (int) $down['payment']['id'];
 ck('Offline: only a Super Admin can approve it against the check', (OfflinePayments::override($did, 'Seen the bank statement myself', 'admin@x', 'admin')['code'] ?? '') === 'superadmin_only');
 ck('Offline: …and only with a written reason', (OfflinePayments::override($did, 'ok', 'boss', 'superadmin')['code'] ?? '') === 'reason_required');
+ck('Offline: …and never by whoever submitted it', (OfflinePayments::override($did, 'I know this payment is good', 'OLU', 'superadmin')['code'] ?? '') === 'own_account');
+ck('Offline: …nor by the member whose account it credits', (OfflinePayments::override($did, 'It is my own transfer, I promise', 'Olu@OP.test', 'superadmin')['code'] ?? '') === 'own_account');
 $before = Membership::summary($olu)['total_paid_ngn'];
 $ov = OfflinePayments::override($did, 'Checked against the bank statement for the 2nd', 'boss', 'superadmin');
 ck('Offline: …and then it is credited, and says it was approved against the check', $ov['status'] === 'verified'
-    && Membership::summary($olu)['total_paid_ngn'] === $before + 12000 && str_starts_with((string) $ov['payment']['decision_note'], 'OVERRIDE:'));
+    && Membership::summary($olu)['total_paid_ngn'] === $before + $oneMonth && str_starts_with((string) $ov['payment']['decision_note'], 'OVERRIDE:'));
 ck('Offline: the payer does not see the staff override note', !array_filter(OfflinePayments::forUser($olu), fn($p) => str_contains((string) $p['decision_note'], 'OVERRIDE')));
+
+/* The reuse check is recomputed by the override, against the record as it
+   stands — not read back from what was stored when the payment was held.
+   With the reader down nothing was ever stored, which is how an unread copy
+   of a credited receipt used to be waved through by the one route built for
+   a down reader. */
+$copy = OfflinePayments::submit($olu, $dues($oneMonth, 1), $img('copy'), 'image/jpeg', 'olu');
+ck('Offline: an unread receipt whose twin was credited today cannot be approved against the check',
+    (OfflinePayments::override((int) $copy['payment']['id'], 'The reader is down, I am sure it is a second payment', 'boss', 'superadmin')['code'] ?? '') === 'reused'
+    && Membership::summary($olu)['total_paid_ngn'] === $before + $oneMonth);
+
+/* And a reference that was free when the payment was held, but has credited
+   money since: the stored verdict says "ok" and the recomputed one does not. */
+OfflinePayments::$reader = function () use (&$says): array { return ['ok' => true, 'data' => $says]; };
+$says = ['tampering_signs' => ['the date looks overwritten']] + $good(12000, 'LATE-REF-1');
+$first = OfflinePayments::submit($olu, $dues(), $img('late1'), 'image/jpeg', 'olu');
+ck('Offline: a receipt held for editing stored no reuse objection', $first['status'] === 'held'
+    && ($first['payment']['checks']['reused'] ?? '') === 'ok');
+$says = $good(12000, 'LATE-REF-1');
+$second = OfflinePayments::submit($olu, $dues(), $img('late2'), 'image/jpeg', 'olu');
+ck('Offline: …a later receipt with that same reference is credited first', $second['status'] === 'verified');
+ck('Offline: …and the held one can no longer be approved against the check',
+    (OfflinePayments::override((int) $first['payment']['id'], 'The editing was just a scanner artefact', 'boss', 'superadmin')['code'] ?? '') === 'reused');
 
 /* A reused receipt is not overridable. */
 OfflinePayments::$reader = function () use (&$says): array { return ['ok' => true, 'data' => $says]; };

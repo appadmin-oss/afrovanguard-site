@@ -123,6 +123,14 @@ final class OfflinePayments
         $st = $pdo->prepare('SELECT id, email FROM lms_users WHERE id = ?'); $st->execute([$userId]);
         if (!$st->fetch()) return ['ok' => false, 'error' => 'No such account.'];
 
+        /* The office records a payment FOR somebody. Their own goes in from the
+           portal as a member's ($via 'member'), where it is checked the same
+           way — what is refused here is signing your own money in as staff,
+           the half of the rule the override at the other end also keeps. */
+        if ($via === 'staff' && self::isPayer($userId, $by)) {
+            return ['ok' => false, 'code' => 'own_account', 'error' => 'This is your own account. Send your payment from the portal, or let another member of staff record it.'];
+        }
+
         $purpose = (string) ($claim['purpose'] ?? 'dues');
         if (!in_array($purpose, self::PURPOSES, true)) return ['ok' => false, 'error' => 'Say what the payment is for.'];
         $amount = (int) round((float) ($claim['amount_ngn'] ?? 0));
@@ -135,8 +143,12 @@ final class OfflinePayments
             if ($months < 1 || $months > Membership::MAX_MONTHS) return ['ok' => false, 'error' => 'Dues are for between 1 and ' . Membership::MAX_MONTHS . ' months.'];
             $price = self::duesPrice($months);
             if ($amount < $price) return ['ok' => false, 'code' => 'short', 'error' => $months . ' month' . ($months === 1 ? '' : 's') . ' of dues is ₦' . number_format($price) . '. This says ₦' . number_format($amount) . '.'];
-        } elseif (!NgvMember::participant($userId)) {
-            return ['ok' => false, 'error' => 'NGV payments are for NextGen Vanguard participants.'];
+        } elseif (!NgvMember::participant($userId) && !self::onTheNgvLedger($userId)) {
+            /* A fine can be issued to any active member, NGV or not, and it
+               sits on the NGV ledger like every other charge — so the money
+               that settles it comes in this way too. Somebody with nothing on
+               that ledger and no participant row has nothing to pay here. */
+            return ['ok' => false, 'error' => 'NGV payments are for NextGen Vanguard participants, or a member with something owing on the NGV account.'];
         }
         /* NGV: the office may name the line it pays (the console's per-line
            record); a payer's own payment is allocated oldest-debt-first. */
@@ -167,6 +179,16 @@ final class OfflinePayments
         $id = (int) $pdo->lastInsertId();
         self::audit('offline.submit', $userId, '#' . $id . ' · ₦' . number_format($amount) . ' by ' . $method . ' for ' . ($purpose === 'dues' ? $months . ' months of dues' : 'NGV'), $by);
         return self::verify($id, $by);
+    }
+
+    /** Anything charged to this member on the NGV ledger — a fine, usually. */
+    private static function onTheNgvLedger(int $userId): bool
+    {
+        try {
+            $st = NgvDb::pdo()->prepare('SELECT 1 FROM ngv_charges WHERE member_id = ? AND voided = 0 LIMIT 1');
+            $st->execute([$userId]);
+            return (bool) $st->fetchColumn();
+        } catch (Throwable $e) { error_log('[offline] ngv ledger check: ' . $e->getMessage()); return false; }
     }
 
     /* ══ Reading and checking ═══════════════════════════════════════════════ */
@@ -344,7 +366,23 @@ final class OfflinePayments
      * Approve a payment the checks did not pass. A Super Admin's, with a
      * written reason, recorded on the payment and in the audit for ever — the
      * way through when the reader is unavailable or misread a real receipt.
-     * Never for a receipt already used: that check is not overridable.
+     *
+     * Two things it is never the way through:
+     *
+     *   SIGNING OFF YOUR OWN. The approver may be neither the person who
+     *   submitted it nor the person whose account it credits. A Super Admin
+     *   who paid takes their receipt to another Super Admin, exactly as the
+     *   office does on the member desk (`own_account`).
+     *
+     *   A RECEIPT THAT HAS ALREADY CREDITED MONEY. That check is recomputed
+     *   HERE, against the record as it stands now — never read back from
+     *   what was stored when the payment was first looked at. When the reader
+     *   was unavailable, nothing was stored but its error, and reading
+     *   `checks['reused']` from that said "ok" because the check had never
+     *   run: the one case the override exists for was the one case the guard
+     *   was missing. Recomputing also covers a receipt that credited money
+     *   AFTER this one was held, and the same-member-same-amount-same-day
+     *   copy that a receipt with no readable reference leaves behind.
      */
     public static function override(int $id, string $note, string $by, string $studioRole): array
     {
@@ -355,11 +393,53 @@ final class OfflinePayments
         if ($p['status'] !== 'held') return ['ok' => false, 'error' => 'Only a held payment can be approved this way.'];
         $note = mb_substr(trim($note), 0, 500);
         if (mb_strlen($note) < 10) return ['ok' => false, 'code' => 'reason_required', 'error' => 'Write down why you are approving it against the check — at least a sentence.'];
-        $checks = is_array($p['checks'] ?? null) ? $p['checks'] : [];   // get() has decoded them
-        if (($checks['reused'] ?? 'ok') !== 'ok') return ['ok' => false, 'code' => 'reused', 'error' => 'This receipt has already credited money. That is not overridden.'];
+        if ($who = self::ownPayment($p, $by)) return ['ok' => false, 'code' => 'own_account', 'error' => 'You ' . $who . ' this payment. Another Super Admin approves it against the check.'];
+        if ($why = self::reuseNow($p)) return ['ok' => false, 'code' => 'reused', 'error' => $why . ' That is not overridden.'];
         Database::pdo()->prepare('UPDATE offline_payments SET decision_note = ? WHERE id = ?')->execute(['OVERRIDE: ' . $note, $id]);
         self::audit('offline.override', (int) $p['user_id'], '#' . $id . ' · ' . $note, $by);
         return self::credit($id, $by, 'approved by a Super Admin against the check: ' . $note);
+    }
+
+    /**
+     * Is this approver the payment's own? Either end counts: the account
+     * being credited, and whoever submitted the claim. Identities here are
+     * the email the actor signed in with (av_admin_actor), so they compare
+     * as text; a token admin with no email compares as its role, which errs
+     * towards refusing — the safe direction for a signature on money.
+     */
+    private static function ownPayment(array $p, string $by): string
+    {
+        $me = strtolower(trim($by));
+        if ($me === '') return '';
+        if ($me === strtolower(trim((string) ($p['submitted_by'] ?? '')))) return 'submitted';
+        return self::isPayer((int) $p['user_id'], $by) ? 'are the payer on' : '';
+    }
+
+    /** Is this actor the account the money would be credited to? */
+    private static function isPayer(int $userId, string $by): bool
+    {
+        $me = strtolower(trim($by));
+        if ($me === '' || $userId <= 0) return false;
+        try {
+            $st = Database::pdo()->prepare('SELECT email FROM lms_users WHERE id = ?');
+            $st->execute([$userId]);
+            return $me === strtolower(trim((string) $st->fetchColumn()));
+        } catch (Throwable $e) { error_log('[offline] own-payment check: ' . $e->getMessage()); return false; }
+    }
+
+    /**
+     * Has this receipt credited money — as things stand right now? The
+     * reading that was stored when it was held, re-checked against today's
+     * credited references. No reading at all (the reader was unavailable) is
+     * not "no reuse": check() then falls back to same member, same amount,
+     * same day, already credited, which is the copy a reference-less receipt
+     * would otherwise slip through as.
+     */
+    private static function reuseNow(array $p): string
+    {
+        $reading = is_array($p['reading'] ?? null) ? $p['reading'] : [];
+        $res = self::check($p, $reading, self::usedRefs((int) $p['id']));
+        return (string) ($res['failed']['reused'] ?? '');
     }
 
     /* ══ Reading the record ═════════════════════════════════════════════════ */

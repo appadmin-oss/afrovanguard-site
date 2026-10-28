@@ -5,8 +5,9 @@
  * Any Afrovanguard member can be fined (lib/NgvFines.php). A vanguard sees
  * theirs under NextGen Vanguard → Fines and pays from their NGV account; a
  * member outside NGV sees theirs here, and pays at the office or by
- * transfer — the office records it against the fine. Shown only to a member
- * who has had a fine.
+ * transfer — the office records it against the fine, with the receipt, which
+ * is read and checked before anything is credited (lib/OfflinePayments).
+ * Shown only to a member who has had a fine.
  *
  * Expects $myFines (NgvFines::forMember) from portal/index.php.
  */
@@ -37,7 +38,7 @@ $fineState = ['owing' => ['Owing', 'is-red'], 'part' => ['Part paid', 'is-gold']
               <?php endforeach; ?>
             </ul>
             <?php if ((int) $myFines['owing'] > 0): ?>
-            <p class="avp-fines-how">Pay at the office, or by transfer — then tell the office, with your transfer reference. It is recorded against the fine and you get a receipt by email. Think a fine is wrong? Tell the office: it can be waived or cancelled, and the reason stays on record.</p>
+            <p class="avp-fines-how">Pay at the office, or by transfer — then send the office the receipt, transfer slip or bank alert. It is checked, recorded against the fine, and you get a receipt by email. Think a fine is wrong? Tell the office: it can be waived or cancelled, and the reason stays on record.</p>
             <?php endif; ?>
           </div>
         </section>
