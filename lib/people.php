@@ -23,6 +23,13 @@ function av_person_url(array $m): string {
 function av_tier_label(string $t): string { return AV_TIER_LABELS[$t] ?? ucfirst($t); }
 
 /** Create the team table if missing (idempotent; safe on deployed DBs). */
+/*
+ * listed_consent_at / listed_consent_text record when somebody agreed to
+ * be on the public page, and to what words. Recorded rather than
+ * assumed: holding a work address is not consent to be published, and an
+ * auditor asking who said yes, when, and to what needs an answer that is
+ * not a shrug.
+ */
 function av_team_ensure(PDO $pdo): void
 {
     $ddl = "CREATE TABLE IF NOT EXISTS team (
@@ -43,6 +50,8 @@ function av_team_ensure(PDO $pdo): void
         votm_quote TEXT NOT NULL DEFAULT '',
         position INTEGER NOT NULL DEFAULT 0,
         active INTEGER NOT NULL DEFAULT 1,
+        listed_consent_at TEXT NOT NULL DEFAULT '',
+        listed_consent_text TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )";
     $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
@@ -55,6 +64,11 @@ function av_team_ensure(PDO $pdo): void
         "ALTER TABLE team ADD COLUMN email TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE team ADD COLUMN grp TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE team ADD COLUMN synced INTEGER NOT NULL DEFAULT 0",
+        /* An install that predates the opt-in needs these too, or
+           av_team_opt_in() writes to a column that is not there and the
+           consent is lost silently. */
+        "ALTER TABLE team ADD COLUMN listed_consent_at TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE team ADD COLUMN listed_consent_text TEXT NOT NULL DEFAULT ''",
     ] as $sql) {
         try { $pdo->exec($sql); } catch (\Throwable $e) { /* column already present */ }
     }
@@ -83,7 +97,21 @@ function av_team_sync_org_members(PDO $pdo): int
     $sql = "SELECT id, name, email, role FROM lms_users WHERE LOWER(email) LIKE " . $pdo->quote('%@' . $domain);
     $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $added = 0; $now = gmdate('Y-m-d H:i:s');
-    $ins = $pdo->prepare("INSERT INTO team (name, role, tier, email, grp, synced, active, position, created_at) VALUES (?,?,?,?,?,1,1,?,?)");
+    /*
+     * active = 0. HIDDEN until the person says yes.
+     *
+     * This inserted with active = 1, so every load of /people quietly
+     * published anybody holding an organisation address — their name and
+     * their photograph, on a public page, with nobody asked and nobody
+     * told. Having a work email is not consent to be published, and the
+     * page is the first place most people would ever find out.
+     *
+     * The row is still created, because the directory is genuinely useful
+     * to the Studio and because a row that exists can be opted into. It
+     * simply is not public until av_team_opt_in() records that somebody
+     * agreed, and to what wording.
+     */
+    $ins = $pdo->prepare("INSERT INTO team (name, role, tier, email, grp, synced, active, position, created_at) VALUES (?,?,?,?,?,1,0,?,?)");
     foreach ($rows as $r) {
         $email = strtolower(trim((string) $r['email']));
         if ($email === '' || isset($have[$email])) continue;
@@ -93,6 +121,76 @@ function av_team_sync_org_members(PDO $pdo): int
         catch (\Throwable $e) { error_log('[people] sync: ' . $e->getMessage()); }
     }
     return $added;
+}
+
+/**
+ * The wording somebody is agreeing to. One string, so the record of what
+ * they agreed to cannot drift from what they were shown.
+ */
+const AV_TEAM_LISTING_CONSENT = 'Show my name, role and photo on the public People page at /people. '
+    . 'I can take it down again at any time from my portal.';
+
+/**
+ * Put somebody on the public page because they said so.
+ *
+ * Returns false when there is no row for that address — which is not an
+ * error worth shouting about: the directory sync creates it, and somebody
+ * who has never signed in has nothing to opt in.
+ */
+function av_team_opt_in(PDO $pdo, string $email, string $wording = AV_TEAM_LISTING_CONSENT): bool
+{
+    av_team_ensure($pdo);
+    $email = strtolower(trim($email));
+    if ($email === '') return false;
+
+    $st = $pdo->prepare("UPDATE team SET active = 1, listed_consent_at = ?, listed_consent_text = ?
+                          WHERE LOWER(email) = ?");
+    $st->execute([gmdate('Y-m-d H:i:s'), mb_substr($wording, 0, 500), $email]);
+
+    return $st->rowCount() > 0;
+}
+
+/**
+ * Take somebody off it.
+ *
+ * The consent record is CLEARED, not kept with a flag beside it: the
+ * question the row answers is "may we publish this person", and a stale
+ * yes sitting next to a no is the kind of thing that gets read the wrong
+ * way at the wrong moment. That they were once listed is in the audit
+ * trail, which is where a history belongs.
+ */
+function av_team_opt_out(PDO $pdo, string $email): bool
+{
+    av_team_ensure($pdo);
+    $email = strtolower(trim($email));
+    if ($email === '') return false;
+
+    $st = $pdo->prepare("UPDATE team SET active = 0, listed_consent_at = '', listed_consent_text = ''
+                          WHERE LOWER(email) = ?");
+    $st->execute([$email]);
+
+    return $st->rowCount() > 0;
+}
+
+/**
+ * Whether somebody is listed, and what they agreed to — for the portal
+ * control that lets them change their mind.
+ *
+ * @return array{known:bool, listed:bool, at:string, wording:string}
+ */
+function av_team_listing_state(PDO $pdo, string $email): array
+{
+    av_team_ensure($pdo);
+    $st = $pdo->prepare('SELECT active, listed_consent_at, listed_consent_text FROM team WHERE LOWER(email) = ? LIMIT 1');
+    $st->execute([strtolower(trim($email))]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+
+    return [
+        'known' => (bool) $row,
+        'listed' => $row ? (int) $row['active'] === 1 : false,
+        'at' => $row ? (string) $row['listed_consent_at'] : '',
+        'wording' => AV_TEAM_LISTING_CONSENT,
+    ];
 }
 
 /** Distinct non-empty groups present, in display order. */
