@@ -16,8 +16,14 @@ $keep = is_file($cache) ? (string) file_get_contents($cache) : null;
 SiteEvents::ensure();
 Database::pdo()->exec('DELETE FROM av_site_events');
 
-$future = static fn(int $days, string $t = '18:00'): string => (new DateTimeImmutable('now', new DateTimeZone('Africa/Lagos')))->modify("+$days days")->format('Y-m-d') . ' ' . $t;
-$utc = static fn(int $days, string $t): string => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify("+$days days")->format('Y-m-d') . 'T' . $t . ':00Z';
+/* sprintf('%+d'), not "+$days": with a negative day count the literal built
+   "+-30 days", which PHP's relative-date parser reads as +30. Last month's
+   expo was dated a month into the FUTURE, so it turned up in 'upcoming' and
+   'past' came back empty — the two assertions below, failing on a broken
+   fixture rather than on anything SiteEvents does. */
+$rel = static fn(int $days): string => sprintf('%+d days', $days);
+$future = static fn(int $days, string $t = '18:00'): string => (new DateTimeImmutable('now', new DateTimeZone('Africa/Lagos')))->modify($rel($days))->format('Y-m-d') . ' ' . $t;
+$utc = static fn(int $days, string $t): string => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify($rel($days))->format('Y-m-d') . 'T' . $t . ':00Z';
 
 /* ── Africa GATES: the /api/events feed ───────────────────────────────── */
 $asked = [];
