@@ -1666,6 +1666,9 @@ SQL;
             $all = @require AV_ROOT . '/lib/projects_content.php';
             if (is_array($all)) {
                 foreach ($all as $slug => $p) {
+                    // Only programmes with a page here: an appeal filed against
+                    // one that lives on another site could never be shown.
+                    if (array_key_exists('local', $p) && !$p['local']) continue;
                     $out[(string) $slug] = (string) ($p['name'] ?? $slug);
                 }
             }
@@ -2235,6 +2238,9 @@ SQL;
             return (bool) Mailer::send($email, ((string) $u['title'] !== '' ? (string) $u['title'] : 'An update') . ' — ' . (string) $a['title'], $html, [
                 'from'     => defined('DONATIONS_FROM_EMAIL') ? DONATIONS_FROM_EMAIL : null,
                 'fromName' => defined('DONATIONS_FROM_NAME') ? DONATIONS_FROM_NAME : 'Afrovanguard',
+                /* An announcement: it never spends the Google Apps Script
+                   allowance sign-in codes depend on (Mailer::isBulk()). */
+                'bulk'     => true,
                 /* One-click unsubscribe. Without it a send to several hundred
                    donors lands in spam, and a donor who cannot get out
                    complains to their provider rather than to us. */

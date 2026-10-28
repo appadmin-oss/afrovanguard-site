@@ -14,6 +14,9 @@
  *   resolve   {op:"resolve", token}   a printed member card, X-NGV-YY-NNNN
  *             {op:"resolve", ref}     a member picked from search
  *             {op:"search", q}        find by name; nobody who may not come in
+ *             {op:"locations", version, tz, locations:[…]}
+ *                                     CACENTRE's locations: the portal's centres
+ *                                     follow them (Centres::syncFromCacentre)
  *   report    {passages:[…]}          what happened at the door — see
  *                                     GateAttendance::report() for the answers
  *
@@ -45,7 +48,13 @@ $sig = (string) ($_SERVER['HTTP_X_GATE_SIGNATURE'] ?? '');
 $in  = json_decode($raw, true);
 if (!is_array($in)) $in = [];
 $purpose = isset($in['op']) ? 'resolve' : 'report';
-if (!GatePass::verify($purpose, $ts, $raw, $sig)) $out(['ok' => false, 'code' => 'bad_signature'], 401);
+if (!GatePass::verify($purpose, $ts, $raw, $sig)) {
+    /* Why, so CACENTRE's Desks page can say which side to fix. Fingerprints
+       and a clock gap only: nothing here helps forge a signature. */
+    $why = GatePass::why($purpose, $ts, $raw, $sig, (string) ($_SERVER['HTTP_X_GATE_KEY'] ?? ''));
+    error_log('[cacentre-gate] refused a signature: ' . json_encode($why));
+    $out(['ok' => false, 'code' => 'bad_signature'] + $why, 401);
+}
 
 if ($purpose === 'report') {
     $passages = is_array($in['passages'] ?? null) ? $in['passages'] : [];
@@ -54,6 +63,11 @@ if ($purpose === 'report') {
 }
 
 $op = (string) $in['op'];
+if ($op === 'locations') {
+    $r = Centres::syncFromCacentre(['version' => (string) ($in['version'] ?? ''), 'tz' => (string) ($in['tz'] ?? ''),
+        'locations' => is_array($in['locations'] ?? null) ? $in['locations'] : null]);
+    $out($r, $r['ok'] ? 200 : 400);
+}
 if ($op === 'formats') {
     /* The shapes of the portal's older printed cards (MemberCards). The NGV
        number is not one of them: the gate reads that itself. */

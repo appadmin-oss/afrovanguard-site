@@ -1,0 +1,184 @@
+{
+    "$schema": "schema/ranks.schema.json",
+    "source": [
+        "The owner's brief, 21 October 2026",
+        "doctrine/sources/2026-10-22-pyramid-manual.md — The structure: levels O–G; Scoring Board §1, §5; Monthly point ceiling"
+    ],
+    "rule": "From Becoming (B) upward the mentee requirement is binding: points alone will not promote. A member meets a rank only when BOTH its point floor and its mentee floor are met.",
+    "mentee_kind": "vquest",
+    "counts": "Active direct mentees only. Indirect mentees are legacy and do not fulfil the quota.",
+    "demotion": "Points may be deducted (deductions.json). A rank is never removed by arithmetic: where the manual says 'loss of current level', the system suggests it and a recorded decision removes it.",
+    "open_question": "Ranks D and E carry a mentee range (3-4, 4-5) rather than one number. min is used as the floor until the owner resolves it.",
+    "ranks": [
+        {
+            "id": "O",
+            "order": 0,
+            "title": "Ordinary",
+            "points": {
+                "min": 0,
+                "max": 49
+            },
+            "mentees": {
+                "min": 0,
+                "max": 0
+            },
+            "binding_mentees": false,
+            "full_title": "Ordinary Member",
+            "earning": {
+                "base_pct": 0,
+                "cap_pct": 0
+            },
+            "colour": "white",
+            "monthly_ceiling": 499
+        },
+        {
+            "id": "A",
+            "order": 1,
+            "title": "Active",
+            "points": {
+                "min": 50,
+                "max": 149
+            },
+            "mentees": {
+                "min": 1,
+                "max": 1
+            },
+            "binding_mentees": false,
+            "full_title": "Active Member",
+            "earning": {
+                "base_pct": 5,
+                "cap_pct": 10
+            },
+            "colour": "white",
+            "monthly_ceiling": 499
+        },
+        {
+            "id": "B",
+            "order": 2,
+            "title": "Becoming",
+            "points": {
+                "min": 150,
+                "max": 299
+            },
+            "mentees": {
+                "min": 2,
+                "max": 2
+            },
+            "binding_mentees": true,
+            "full_title": "Becoming Member",
+            "earning": {
+                "base_pct": 10,
+                "cap_pct": 15
+            },
+            "colour": "white",
+            "monthly_ceiling": 499
+        },
+        {
+            "id": "C",
+            "order": 3,
+            "title": "Committed",
+            "points": {
+                "min": 300,
+                "max": 499
+            },
+            "mentees": {
+                "min": 3,
+                "max": 3
+            },
+            "binding_mentees": true,
+            "full_title": "Committed Member",
+            "earning": {
+                "base_pct": 15,
+                "cap_pct": 20
+            },
+            "colour": "white",
+            "monthly_ceiling": 499
+        },
+        {
+            "id": "D",
+            "order": 4,
+            "title": "Dedicated",
+            "points": {
+                "min": 500,
+                "max": 749
+            },
+            "mentees": {
+                "min": 3,
+                "max": 4
+            },
+            "binding_mentees": true,
+            "full_title": "Dedicated Member",
+            "earning": {
+                "base_pct": 20,
+                "cap_pct": 30
+            },
+            "colour": "black",
+            "monthly_ceiling": 999
+        },
+        {
+            "id": "E",
+            "order": 5,
+            "title": "Excellent",
+            "points": {
+                "min": 750,
+                "max": 999
+            },
+            "mentees": {
+                "min": 4,
+                "max": 5
+            },
+            "binding_mentees": true,
+            "full_title": "Excellent Member",
+            "earning": {
+                "base_pct": 30,
+                "cap_pct": 40
+            },
+            "colour": "black",
+            "monthly_ceiling": 999
+        },
+        {
+            "id": "F",
+            "order": 6,
+            "title": "Father",
+            "points": {
+                "min": 1000,
+                "max": 1399
+            },
+            "mentees": {
+                "min": 5,
+                "max": null
+            },
+            "binding_mentees": true,
+            "full_title": "Father",
+            "earning": {
+                "base_pct": 40,
+                "cap_pct": 45
+            },
+            "colour": "gold",
+            "monthly_ceiling": null
+        },
+        {
+            "id": "G",
+            "order": 7,
+            "title": "Grandfather",
+            "points": {
+                "min": 1400,
+                "max": null
+            },
+            "mentees": {
+                "min": 5,
+                "max": null
+            },
+            "binding_mentees": true,
+            "full_title": "Grandfather",
+            "earning": {
+                "base_pct": 45,
+                "cap_pct": 50
+            },
+            "colour": "gold",
+            "monthly_ceiling": null
+        }
+    ],
+    "review": "Rankings are reviewed quarterly. A promotion is a decision on a review, never arithmetic; the engine only recommends.",
+    "promotion_criteria": "Manual: 2 active mentees held for 2 cycles; the next level's point floor; a value assessment; continuity. Scoring Board: 150 points a month for 3 months, one mentee promoted, an 80% behaviour score, 3 major projects. Measurable ones are checked; the rest are for the reviewer."
+}

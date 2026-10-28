@@ -70,22 +70,22 @@ ck('meetings: is_owner false for an attendee',  (Meetings::get(2, $m1)['is_owner
 /* ── 3 · Recurrence advances ────────────────────────────────────────────── */
 $weekAgo = gmdate('Y-m-d H:i:s', time() - 7 * 86400 + 3600);
 
-$onceNext   = $mcall('nextOccurrence', [$weekAgo, 'once']);
+$onceNext   = $mcall('nextOccurrence', [['scheduled_at' => $weekAgo, 'frequency' => 'once', 'duration_min' => 30]]);
 ck('meetings: a one-off does not advance', $onceNext === $weekAgo);
 
-$weeklyNext = $mcall('nextOccurrence', [$weekAgo, 'weekly']);
+$weeklyNext = $mcall('nextOccurrence', [['scheduled_at' => $weekAgo, 'frequency' => 'weekly', 'duration_min' => 30]]);
 ck('meetings: a weekly series advances past now', strtotime($weeklyNext . ' UTC') >= time());
 ck('meetings: it advances by whole weeks',
    (strtotime($weeklyNext . ' UTC') - strtotime($weekAgo . ' UTC')) % (7 * 86400) === 0);
 
 // A daily series started long ago must still land, and must not spin.
 $longAgo  = gmdate('Y-m-d H:i:s', time() - 200 * 86400);
-$dailyNext = $mcall('nextOccurrence', [$longAgo, 'daily']);
+$dailyNext = $mcall('nextOccurrence', [['scheduled_at' => $longAgo, 'frequency' => 'daily', 'duration_min' => 30]]);
 ck('meetings: a long-running daily series still resolves', strtotime($dailyNext . ' UTC') >= time());
 
 // Weekday cadence must never land on a Saturday or Sunday.
-$wdNext = $mcall('nextOccurrence', [$weekAgo, 'weekdays']);
-$dow = (int) gmdate('N', strtotime($wdNext . ' UTC'));
+$wdNext = $mcall('nextOccurrence', [['scheduled_at' => $weekAgo, 'frequency' => 'weekdays', 'duration_min' => 30]]);
+$dow = (int) Recurrence::local($wdNext)->format('N');   /* on the meeting clock, where the rule is kept */
 ck('meetings: a weekday series never lands at the weekend', $dow >= 1 && $dow <= 5);
 
 /* ── 4 · Ordering: upcoming first, soonest at the top ───────────────────── */

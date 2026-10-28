@@ -293,3 +293,54 @@ CREATE TABLE IF NOT EXISTS lms_audit (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_lms_audit_created ON lms_audit(id DESC);
+
+-- ── Diary engagement: how many read it, what they said, what they kept ──
+-- Views are stored per article per day, never per visitor: the counter on the
+-- card is the only thing anyone needs, and a per-visitor row would be a log of
+-- who read what. Which entries a reader has already been counted for lives in
+-- a signed cookie (lib/DiaryVisitor.php), not here.
+CREATE TABLE IF NOT EXISTS diary_views (
+  article_id INTEGER NOT NULL,
+  day        VARCHAR(10) NOT NULL,              -- YYYY-MM-DD (VARCHAR so MySQL can index it)
+  count      INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (article_id, day)
+);
+CREATE INDEX IF NOT EXISTS idx_diary_views_article ON diary_views(article_id);
+
+-- One level of replies only: parent_id always names a top-level comment, so a
+-- thread can be read top to bottom without recursion and cannot be nested into
+-- a column one character wide.
+CREATE TABLE IF NOT EXISTS diary_comments (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  article_id INTEGER NOT NULL DEFAULT 0,
+  parent_id  INTEGER,                           -- NULL for a top-level comment
+  user_id    INTEGER NOT NULL DEFAULT 0,
+  name       VARCHAR(120) NOT NULL DEFAULT '',
+  email      TEXT NOT NULL DEFAULT '',          -- collected, never rendered
+  body       TEXT NOT NULL DEFAULT '',
+  status     VARCHAR(16) NOT NULL DEFAULT 'pending',   -- pending | published | removed
+  likes      INTEGER NOT NULL DEFAULT 0,
+  reports    INTEGER NOT NULL DEFAULT 0,
+  ip_hash    VARCHAR(64) NOT NULL DEFAULT '',   -- for abuse only; never joined to a person
+  owner_hash VARCHAR(64) NOT NULL DEFAULT '',   -- lets the author see their own pending comment
+  created_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_diary_comments_article ON diary_comments(article_id, status);
+CREATE INDEX IF NOT EXISTS idx_diary_comments_parent  ON diary_comments(parent_id);
+
+CREATE TABLE IF NOT EXISTS diary_comment_likes (
+  comment_id INTEGER NOT NULL,
+  voter_hash VARCHAR(64) NOT NULL,
+  PRIMARY KEY (comment_id, voter_hash)
+);
+
+-- A save belongs to an account when there is one, and to the reader's cookie
+-- when there is not — so Save works before sign-in instead of looking broken.
+CREATE TABLE IF NOT EXISTS diary_saves (
+  user_id      INTEGER NOT NULL DEFAULT 0,
+  article_id   INTEGER NOT NULL,
+  visitor_hash VARCHAR(64) NOT NULL DEFAULT '',
+  created_at   TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (user_id, article_id, visitor_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_diary_saves_article ON diary_saves(article_id);

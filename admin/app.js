@@ -10,7 +10,13 @@
   var currentRole = 'superadmin';   // editor | admin | superadmin (from session)
   var ROLE_RANK = { editor: 1, admin: 2, superadmin: 3 };
   var TAB_MIN = { overview: 'editor', entries: 'editor', moderation: 'editor', academy: 'editor', guide: 'editor',
+    // Content: editors draft the site and manage media; publishing checks admin at the API.
+    site: 'editor', homepage: 'editor', pages: 'editor', media: 'editor',
     inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
+    // Session notes are the office's; the dates and themes are public anyway.
+    sessions: 'admin',
+    // Events go public; the API keeps them with management, like the homepage's publishing.
+    events: 'admin',
     // Seat claims carry names, emails and phone numbers — admin, like the rest of the PII.
     summit: 'admin',
     mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin',
@@ -40,7 +46,8 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), sessions: $('#sessionsView'), psEdit: $('#psEditView'), events: $('#eventsView'), evEdit: $('#evEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
+    site: $('#siteView'), media: $('#mediaView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
@@ -52,18 +59,48 @@
   function toast(m) { toastEl.textContent = m; toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(function () { toastEl.classList.remove('show'); }, 2600); }
   // Covers the single quote too: several render sites put a value inside a
   // single-quoted CSS url('…'), which a bare ' closes.
+  /* Black or white, whichever reads better on a colour the operator picked (WCAG luminance). */
+  function inkOn(hex) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim()); if (!m) return 'inherit';
+    var v = parseInt(m[1], 16), ch = [v >> 16 & 255, v >> 8 & 255, v & 255].map(function (c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
+    var L = 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+    return (L + 0.05) / 0.05 >= 1.05 / (L + 0.05) ? 'rgb(17,24,39)' : 'rgb(255,255,255)';
+  }
   function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function stripTags(s) { var d = document.createElement('div'); d.innerHTML = s; return d.textContent || ''; }
 
+  /* The CSRF token lives two hours. A Studio tab left open longer had every save
+     refused ("Session expired") while reads kept working — so a refused write
+     fetches a fresh token and is sent once more. */
   function api(action, opts) {
+    return apiOnce(action, opts).then(function (r) {
+      var o = opts || {};
+      if (o.method !== 'POST' || o._retried || r.status !== 403 || !r.data || !/Session expired/i.test(r.data.error || '')) return r;
+      return apiOnce('session').then(function (s) {
+        if (!s.data || !s.data.ok || !s.data.csrf) return r;
+        csrf = s.data.csrf;
+        return apiOnce(action, Object.assign({}, o, { _retried: true }));
+      });
+    });
+  }
+  function apiOnce(action, opts) {
     opts = opts || {};
     var headers = opts.headers || {};
     if (opts.method === 'POST') headers['X-CSRF-Token'] = csrf;
     return fetch(API + '?action=' + action, { method: opts.method || 'GET', headers: headers, body: opts.body, credentials: 'same-origin' })
-      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); });
+      .then(function (r) {
+        /* A host error page (a PHP fatal, a firewall, a timeout) is not JSON: say what came back
+           instead of failing silently, so "it does not work" always has a reason on screen. */
+        return r.text().then(function (t) {
+          var d; try { d = JSON.parse(t); } catch (e) { d = { ok: false, error: 'The server answered HTTP ' + r.status + ' without data' + (t ? ' — ' + t.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140) : '') + '.' }; }
+          return { status: r.status, data: d };
+        });
+      }, function () { return { status: 0, data: { ok: false, error: 'Network error — check the connection and try again.' } }; });
   }
   function post(action, payload) { return api(action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); }
   function uploadFile(file) { var fd = new FormData(); fd.append('file', file); return api('upload', { method: 'POST', body: fd }); }
+  /* For admin/card-photo.js: the same request path, CSRF and toast. */
+  window.AvAdmin = { api: api, post: post, toast: toast };
 
   /* ---- Theme ---- */
   $('#themeToggle').addEventListener('click', function () {
@@ -73,6 +110,9 @@
 
   /* ---- Tabs ---- */
   function activateTab(which) {
+    // Homepage and Pages were their own screens; their names open the Site workspace.
+    var siteRef = which === 'homepage' ? 'hero' : '';
+    if (which === 'homepage' || which === 'pages') which = 'site';
     document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.getAttribute('data-tab') === which); });
     try { localStorage.setItem('av.studio.tab', which); } catch (e) {}
     if (which === 'overview') { show('overview'); loadOverview(); }
@@ -81,6 +121,8 @@
     else if (which === 'summit') { show('summit'); loadSummit(); }
     else if (which === 'people') { show('people'); loadTeam(); }
     else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
+    else if (which === 'sessions') { show('sessions'); loadSessions(); }
+    else if (which === 'events') { show('events'); loadEvents(); }
     else if (which === 'communities') { show('communities'); loadCommunities(); }
     else if (which === 'webhooks') { show('webhooks'); loadWebhooks(); loadAppTokens(); }
     else if (which === 'system') { show('system'); loadSystem(); }
@@ -95,6 +137,8 @@
     else if (which === 'design') { show('design'); loadDesign(); }
     else if (which === 'rules') { show('rules'); loadRules(); }
     else if (which === 'aiops') { show('aiops'); loadAiOps(); }
+    else if (which === 'site') { show('site'); if (window.AvSite) window.AvSite.open('site', siteRef); }
+    else if (which === 'media') { show('media'); if (window.AvSite) window.AvSite.open('media'); }
     else { show('inbox'); loadInbox(); }
     var on = document.querySelector('.tab.active');
     if (on && on.scrollIntoView) { try { on.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
@@ -257,7 +301,7 @@
       block_formats: 'Paragraph=p; Heading=h2; Subheading=h3',
       quickbars_selection_toolbar: 'bold italic | h2 h3 | quicklink blockquote',
       media_live_embeds: true,
-      content_style: "body{font-family:Montserrat,system-ui,sans-serif;font-size:17px;line-height:1.7;max-width:720px} h2{font-family:'Cormorant',Georgia,serif;font-size:30px} blockquote{border-left:3px solid #f3b416;padding-left:18px;color:#666}",
+      content_style: "body{font-family:'Source Sans 3',system-ui,sans-serif;font-size:17px;line-height:1.7;max-width:720px} h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:30px} blockquote{border-left:3px solid #f3b416;padding-left:18px;color:#666}",
       setup: function (ed) {
         ed.ui.registry.addButton('embedBtn', {
           text: 'Embed', tooltip: 'Embed a video, post, map or audio',
@@ -760,24 +804,237 @@
     $('#cDoodleClear').hidden = !cDoodle;
     if (typeof renderCelPreview === 'function') renderCelPreview();
   }
+  var celYear = new Date().getFullYear(), celData = null, celPrefill = null;
+  var CEL_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], CEL_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function celDay(iso) { var d = new Date(iso + 'T12:00:00'); return CEL_DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + CEL_MON[d.getMonth()]; }
+  /* ---- Programme sessions: kept on CACENTRE, read by lib/ProgrammeSessions.php ---- */
+  var psYear = new Date().getFullYear();
+  function psState(x) {
+    if (x.state === 'live') return '<span class="badge published">Live · week ' + x.week_of + ' of ' + x.total_weeks + '</span>';
+    if (x.state === 'upcoming') return '<span class="badge draft">Starts in ' + x.days_to_start + ' day' + (x.days_to_start === 1 ? '' : 's') + '</span>';
+    return '<span class="badge draft">Over</span>';
+  }
+  function psSource(src) {
+    var el = $('#psSrc'), when = src.fetched_at ? new Date(src.fetched_at).toLocaleString() : '';
+    var link = $('#psEditLink');
+    link.hidden = !src.edit_url; if (src.edit_url) link.href = src.edit_url;
+    if (!src.stale) { el.className = 'ps-src'; el.textContent = 'From CACENTRE' + (when ? ' · fetched ' + when : '') + '.'; return; }
+    el.className = 'ps-src is-stale';
+    el.textContent = src.error === 'not-configured'
+      ? 'CACENTRE’s address (CAC_SITE_URL) is not set, so there is no calendar to show.'
+      : 'CACENTRE did not answer' + (when ? '. Showing the copy fetched ' + when + '.' : ', and no copy has been fetched yet.');
+  }
+  function loadSessions(action) {
+    var box = $('#psList');
+    box.innerHTML = '<p class="muted">Loading…</p>';
+    $('#psYear').textContent = psYear; $('#psYearH').textContent = psYear;
+    api((action || 'psess_list') + '&year=' + psYear).then(function (r) {
+      if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load the sessions. <button type="button" class="btn btn-outline btn-sm" data-psretry>Try again</button></p>'; return; }
+      psSource(r.data.source || {});
+      var n = r.data.now || {}, cur = n.current, nx = n.countdown;
+      $('#psLiveBadge').hidden = !cur;
+      $('#psNow').innerHTML = (cur ? '<p><b>Running now:</b> ' + escapeHtml(cur.label) + ' · week ' + cur.week_of + ' of ' + cur.total_weeks + ' · ' + cur.days_left + ' day' + (cur.days_left === 1 ? '' : 's') + ' left</p>' : '<p><b>No session is running today.</b></p>') +
+        (nx ? '<p>The homepage counts down to <b>' + escapeHtml(nx.label) + '</b>, starting ' + escapeHtml(nx.dates.split(' – ')[0]) + (nx.featured ? ' (featured on CACENTRE)' : '') + '.</p>' : '');
+      var rows = r.data.sessions || [];
+      box.innerHTML = rows.length ? rows.map(function (x, i) {
+        return '<div class="entry-row ps-row' + (x.state === 'live' ? ' is-next' : '') + '">' +
+          (x.cover_url ? '<img class="ps-thumb" src="' + escapeHtml(x.cover_url) + '" alt="" loading="lazy" />' : '<span class="ps-thumb ps-thumb--code" aria-hidden="true">' + escapeHtml(x.code.slice(0, 4)) + '</span>') +
+          '<div class="entry-info"><div class="entry-title">' + escapeHtml(x.label) + ' ' + psState(x) + (x.featured ? ' <span class="badge published">On the homepage</span>' : '') + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(x.session_id) + ' · ' + escapeHtml(x.dates) + ' · ' + x.total_weeks + ' weeks' + (x.theme ? ' · ' + escapeHtml(x.theme) : '') + '</div></div>' +
+          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-psopen="' + i + '" aria-label="What happened here in ' + escapeHtml(x.label) + '">Report</button></div></div>';
+      }).join('') : '<p class="muted">CACENTRE lists no sessions in ' + psYear + '.</p>';
+      box._rows = rows;
+    });
+  }
+  function openSession(x) {
+    $('#psEditH').textContent = x.label;
+    $('#psDetail').innerHTML = escapeHtml(x.dates) + ' · ' + x.total_weeks + ' weeks · ' + psState(x) + (x.theme ? '<br><i>“' + escapeHtml(x.theme) + '”</i>' : '');
+    var pv = $('#psCoverPreview'); pv.hidden = !x.cover_url;
+    pv.innerHTML = x.cover_url ? '<img src="' + escapeHtml(x.cover_url) + '" alt="Cover of ' + escapeHtml(x.label) + '" />' : '';
+    var body = $('#psReportBody');
+    if (x.state === 'upcoming') body.innerHTML = '<p class="muted tiny">It has not started yet.</p>';
+    else {
+      body.innerHTML = '<p class="muted tiny">Loading…</p>';
+      api('psess_report&sid=' + encodeURIComponent(x.session_id)).then(function (r) {
+        var d = r.data;
+        if (!d || !d.ok) { body.innerHTML = '<p class="muted tiny">' + escapeHtml((d && d.error) || 'Could not load what happened in it.') + '</p>'; return; }
+        body.innerHTML = '<dl class="ps-stats">' +
+          '<div><dt>Gate visits</dt><dd>' + d.visits + '</dd></div><div><dt>Members who came</dt><dd>' + d.visitors + '</dd></div>' +
+          '<div><dt>Volunteer hours</dt><dd>' + d.volunteer_hours + '</dd></div><div><dt>Volunteers</dt><dd>' + d.volunteers + '</dd></div>' +
+          '<div><dt>Tasks finished</dt><dd>' + d.tasks_done + '</dd></div></dl>' +
+          (d.top_volunteers.length ? '<p class="muted tiny">Most hours given</p><ol class="ps-top">' + d.top_volunteers.map(function (v) { return '<li>' + escapeHtml(v.name) + ' — ' + v.hours + ' h</li>'; }).join('') + '</ol>' : '');
+      });
+    }
+    show('psEdit');
+    $('#psEditH').focus();
+  }
+  $('#psYearPrev').addEventListener('click', function () { psYear--; loadSessions(); });
+  $('#psYearNext').addEventListener('click', function () { psYear++; loadSessions(); });
+  $('#psRefreshBtn').addEventListener('click', function () { loadSessions('psess_refresh'); });
+  $('#psBackBtn').addEventListener('click', function () { show('sessions'); loadSessions(); });
+  $('#psList').addEventListener('click', function (e) {
+    if (e.target.closest('[data-psretry]')) { loadSessions(); return; }
+    var b = e.target.closest('[data-psopen]'); if (!b) return;
+    var x = ($('#psList')._rows || [])[parseInt(b.getAttribute('data-psopen'), 10)];
+    if (x) openSession(x);
+  });
+
+  /* ---- Events: ours (lib/SiteEvents.php) and Africa GATES's, read from there (lib/AvEvents.php) ---- */
+  var evData = null, editingEv = 0, evCover = '';
+  function evBadge(x) {
+    if (x.status === 'draft') return ' <span class="badge draft">Draft</span>';
+    if (x.status === 'cancelled') return ' <span class="badge draft">Cancelled</span>';
+    return ' <span class="badge published">Published</span>';
+  }
+  function evWhen(x) {
+    var s = x.starts_at || '', e = x.ends_at || '';
+    var out = s.replace('T', ' ');
+    if (e) out += ' – ' + (e.slice(0, 10) === s.slice(0, 10) ? e.slice(11) : e);
+    return out + (+x.all_day ? ' (all day)' : '');
+  }
+  function evRow(x) {
+    return '<div class="entry-row ps-row">' +
+      (x.cover_url ? '<img class="ps-thumb" src="' + escapeHtml(x.cover_url) + '" alt="" loading="lazy" />' : '<span class="ps-thumb ps-thumb--code" aria-hidden="true">' + escapeHtml(x.starts_at.slice(8, 10)) + '</span>') +
+      '<div class="entry-info"><div class="entry-title">' + escapeHtml(x.title) + evBadge(x) + (x.audience !== 'public' ? ' <span class="badge draft">' + escapeHtml((evData.audiences || {})[x.audience] || x.audience) + '</span>' : '') + (x.google_event_id ? ' <span class="badge published">In Google Calendar</span>' : '') + '</div>' +
+      '<div class="entry-meta">' + escapeHtml(evWhen(x)) + (x.venue || x.location ? ' · ' + escapeHtml([x.venue, x.location].filter(Boolean).join(', ')) : '') + '</div></div>' +
+      '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-evopen="' + x.id + '" aria-label="Edit ' + escapeHtml(x.title) + '">Edit</button></div></div>';
+  }
+  function loadEvents(action) {
+    var up = $('#evUpList'), past = $('#evPastList'), gl = $('#evGatesList');
+    up.innerHTML = '<p class="muted">Loading…</p>';
+    api(action || 'sev_list').then(function (r) {
+      if (!r.data || !r.data.ok) { up.innerHTML = '<p class="muted">' + escapeHtml((r.data && r.data.error) || 'Could not load the events.') + '</p>'; return; }
+      evData = r.data;
+      up.innerHTML = evData.upcoming.length ? evData.upcoming.map(evRow).join('') : '<p class="muted">No events of ours coming up. <b>New event</b> adds one.</p>';
+      past.innerHTML = evData.past.length ? evData.past.map(evRow).join('') : '<p class="muted">None yet.</p>';
+      $('#evGoogle').textContent = evData.google
+        ? 'Published events are copied to the shared Google Calendar, and kept in step when you edit or cancel them.'
+        : 'Google Calendar is not connected, so events stay on the site only. Connect it under System → Google Workspace.';
+      var g = evData.gates || {}, when = g.fetched_at ? new Date(g.fetched_at).toLocaleString() : '';
+      $('#evGatesAdmin').href = g.admin_url || '#';
+      var src = $('#evGatesSrc');
+      if (g.error) { src.className = 'ps-src is-stale'; src.textContent = g.error + (when ? '. Showing the copy fetched ' + when + '.' : '.'); }
+      else { src.className = 'ps-src'; src.textContent = 'From ' + (g.source || 'Africa GATES') + (when ? ' · fetched ' + when : '') + '. Refreshed every half hour.'; }
+      var ge = evData.gates_events || [];
+      gl.innerHTML = ge.length ? ge.map(function (x) {
+        return '<div class="entry-row ps-row">' +
+          (x.image ? '<img class="ps-thumb" src="' + escapeHtml(x.image) + '" alt="" loading="lazy" />' : '<span class="ps-thumb ps-thumb--code" aria-hidden="true">' + escapeHtml(x.day) + '</span>') +
+          '<div class="entry-info"><div class="entry-title">' + escapeHtml(x.title) + (x.ongoing ? ' <span class="badge published">On now</span>' : '') + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(x.when) + (x.location ? ' · ' + escapeHtml(x.location) : '') + (x.host && x.host !== 'Africa GATES' ? ' · ' + escapeHtml(x.host) : '') + '</div></div>' +
+          '<div class="entry-ops"><a class="btn btn-outline btn-sm" href="' + escapeHtml(x.url) + '" target="_blank" rel="noopener">Open ↗</a></div></div>';
+      }).join('') : '<p class="muted">Africa GATES lists nothing coming up.</p>';
+    });
+  }
+  function evLocal(v, allDay) { return v ? (allDay ? v.slice(0, 10) + 'T00:00' : v.replace(' ', 'T')) : ''; }
+  function evFill(selId, map, val) {
+    var sel = $(selId), html = selId === '#ev_category' ? '<option value="">None</option>' : '';
+    if (Array.isArray(map)) map.forEach(function (c) { html += '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; });
+    else Object.keys(map).forEach(function (k) { html += '<option value="' + escapeHtml(k) + '">' + escapeHtml(map[k]) + '</option>'; });
+    sel.innerHTML = html; sel.value = val;
+  }
+  function setEvCover(u) {
+    evCover = u || '';
+    $('#evCoverPreview').innerHTML = evCover ? '<img src="' + escapeHtml(evCover) + '" alt="Event cover" />' : '<span>No cover</span>';
+    $('#evCoverClear').hidden = !evCover;
+  }
+  function openEvent(id) {
+    var all = evData ? evData.upcoming.concat(evData.past) : [];
+    var x = all.filter(function (e) { return +e.id === id; })[0] || { id: 0, title: '', summary: '', body: '', starts_at: '', ends_at: '', all_day: 0, venue: '', location: '', online_url: '', rsvp_url: '', cover_url: '', status: 'draft', audience: 'public', category: '' };
+    editingEv = +x.id || 0;
+    $('#evEditH').textContent = editingEv ? x.title : 'New event';
+    $('#ev_title').value = x.title; $('#ev_summary').value = x.summary; $('#ev_body').value = x.body || '';
+    $('#ev_allday').checked = !!+x.all_day;
+    $('#ev_start').value = evLocal(x.starts_at, !!+x.all_day); $('#ev_end').value = evLocal(x.ends_at, !!+x.all_day);
+    $('#ev_venue').value = x.venue; $('#ev_location').value = x.location; $('#ev_online').value = x.online_url; $('#ev_rsvp').value = x.rsvp_url;
+    evFill('#ev_status', evData.statuses, x.status); evFill('#ev_audience', evData.audiences, x.audience); evFill('#ev_category', evData.categories, x.category);
+    setEvCover(x.cover_url);
+    $('#evDeleteBtn').hidden = !editingEv;
+    var link = $('#evViewLink'); link.hidden = !(editingEv && x.audience === 'public' && x.status !== 'draft'); link.href = '/events/' + encodeURIComponent(x.slug || '') + '/';
+    $('#evGoogleCard').hidden = !evData.google;
+    $('#evGoogleNote').textContent = x.google_event_id ? 'On the shared calendar. Saving updates it; drafting or cancelling takes it off.' : 'Publishing adds it to the shared calendar.';
+    show('evEdit'); $('#evEditH').focus();
+  }
+  $('#evNewBtn').addEventListener('click', function () { if (evData) openEvent(0); });
+  $('#evBackBtn').addEventListener('click', function () { show('events'); loadEvents(); });
+  $('#evGatesRefresh').addEventListener('click', function () { loadEvents('sev_refresh'); });
+  ['#evUpList', '#evPastList'].forEach(function (id) {
+    $(id).addEventListener('click', function (e) { var b = e.target.closest('[data-evopen]'); if (b) openEvent(parseInt(b.getAttribute('data-evopen'), 10)); });
+  });
+  $('#evCoverFile').addEventListener('change', function () {
+    if (!this.files[0]) return;
+    uploadFile(this.files[0]).then(function (r) { r.data && r.data.ok ? (setEvCover(r.data.url), toast('Cover uploaded')) : toast((r.data && r.data.error) || 'Upload failed'); });
+    this.value = '';
+  });
+  $('#evCoverClear').addEventListener('click', function () { setEvCover(''); });
+  $('#evSaveBtn').addEventListener('click', function () {
+    var allDay = $('#ev_allday').checked, cut = function (v) { return v ? (allDay ? v.slice(0, 10) : v.replace('T', ' ').slice(0, 16)) : ''; };
+    if (!$('#ev_title').value.trim() || !$('#ev_start').value) { toast('A title and a start are required.'); return; }
+    var btn = this; btn.disabled = true;
+    post('sev_save', {
+      id: editingEv, title: $('#ev_title').value.trim(), summary: $('#ev_summary').value.trim(), body: $('#ev_body').value,
+      starts_at: cut($('#ev_start').value), ends_at: cut($('#ev_end').value), all_day: allDay ? 1 : 0,
+      venue: $('#ev_venue').value.trim(), location: $('#ev_location').value.trim(), online_url: $('#ev_online').value.trim(), rsvp_url: $('#ev_rsvp').value.trim(),
+      cover_url: evCover, status: $('#ev_status').value, audience: $('#ev_audience').value, category: $('#ev_category').value
+    }).then(function (r) {
+      btn.disabled = false;
+      if (r.data && r.data.ok) { toast('Saved.'); show('events'); loadEvents(); } else toast((r.data && r.data.error) || 'Could not save.');
+    });
+  });
+  $('#evDeleteBtn').addEventListener('click', function () {
+    if (!editingEv || !confirm('Delete this event? Cancelling it instead keeps it on the page marked “Cancelled”.')) return;
+    post('sev_delete', { id: editingEv }).then(function (r) { if (r.data && r.data.ok) { toast('Deleted.'); show('events'); loadEvents(); } else toast((r.data && r.data.error) || 'Could not delete.'); });
+  });
+
   function loadCelebrations() {
     var box = $('#celList'), bi = $('#celBuiltins');
     box.innerHTML = '<p class="muted">Loading…</p>'; bi.innerHTML = '';
-    api('cel_list').then(function (r) {
-      if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
-      var rows = r.data.celebrations || [];
+    $('#celYear').textContent = celYear;
+    api('cel_list&year=' + celYear).then(function (r) {
+      if (!r.data || !r.data.ok) {
+        box.innerHTML = '<p class="muted">Could not load the celebrations. <button type="button" class="btn btn-outline btn-sm" data-celretry>Try again</button></p>';
+        return;
+      }
+      celData = r.data;
+      var keys = r.data.builtin_keys || [];
+      var rows = (r.data.celebrations || []).filter(function (c) { return keys.indexOf(c.key) < 0; });
       box.innerHTML = rows.length ? rows.map(function (c) {
-        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + (c.emoji || '🎉') + ' ' + escapeHtml(c.name) +
+        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(c.emoji || '🎉') + ' ' + escapeHtml(c.name) +
           (parseInt(c.enabled, 10) ? '' : ' <span class="badge draft">Off</span>') + '</div>' +
-          '<div class="entry-meta">' + escapeHtml(c.md) + ' · ' + escapeHtml(c.scope) + (c.key ? ' · overrides “' + escapeHtml(c.key) + '”' : '') + '</div></div>' +
+          '<div class="entry-meta">' + escapeHtml(c.md) + ' · ' + escapeHtml(c.scope) + '</div></div>' +
           '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-celedit="' + c.id + '">Edit</button></div></div>';
-      }).join('') : '<p class="muted">No custom celebrations yet — the built-in calendar below runs automatically.</p>';
-      (r.data.builtins || []).forEach(function (b) {
-        bi.innerHTML += '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + b[4] + ' ' + escapeHtml(b[1]) + '</div>' +
-          '<div class="entry-meta">' + escapeHtml(b[2]) + ' · ' + escapeHtml(b[3]) + '</div></div></div>';
-      });
+      }).join('') : '<p class="muted">None yet. Add a date that matters to you, such as a programme launch, with its own art.</p>';
+      var today = new Date(), todayIso = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2), nextMarked = false;
+      bi.innerHTML = (r.data.holidays || []).map(function (h, i) {
+        var next = !nextMarked && h.enabled && h.date >= todayIso; if (next) nextMarked = true;
+        return '<div class="entry-row' + (h.enabled ? '' : ' is-off') + (next ? ' is-next' : '') + '"><div class="entry-info"><div class="entry-title">' +
+          '<span class="cel-date">' + escapeHtml(celDay(h.date)) + '</span> ' + escapeHtml(h.emoji) + ' ' + escapeHtml(h.title) +
+          (next ? ' <span class="badge published">Next</span>' : '') +
+          (h.enabled ? '' : ' <span class="badge draft">Off</span>') + (h.moved ? ' <span class="badge draft">Date set by you</span>' : '') + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(h.scope) + (h.movable ? ' · moves each year' : '') + ' · ' + escapeHtml(h.message) + '</div></div>' +
+          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-celhol="' + i + '">Edit</button>' +
+          '<button class="btn btn-outline btn-sm" data-celtoggle="' + i + '" aria-pressed="' + (h.enabled ? 'false' : 'true') + '">' + (h.enabled ? 'Turn off' : 'Turn on') + '</button></div></div>';
+      }).join('');
     });
   }
+  function celOverride(h) { return h.override_id ? (celData.celebrations || []).filter(function (c) { return +c.id === h.override_id; })[0] : null; }
+  $('#celYearPrev').addEventListener('click', function () { celYear--; loadCelebrations(); });
+  $('#celYearNext').addEventListener('click', function () { celYear++; loadCelebrations(); });
+  $('#celList').addEventListener('click', function (e) { if (e.target.closest('[data-celretry]')) loadCelebrations(); });
+  $('#celBuiltins').addEventListener('click', function (e) {
+    var t = e.target.closest('[data-celtoggle]'), ed = e.target.closest('[data-celhol]');
+    if (ed) { var h0 = celData.holidays[+ed.getAttribute('data-celhol')]; var o0 = celOverride(h0); celPrefill = h0; openCel(o0 ? +o0.id : null); return; }
+    if (!t) return;
+    var h = celData.holidays[+t.getAttribute('data-celtoggle')], o = celOverride(h);
+    t.disabled = true;
+    post('cel_save', o ? {
+      id: +o.id, key: o.key, name: o.name, message: o.message, md: o.md, scope: o.scope, emoji: o.emoji, theme: o.theme,
+      doodle_url: o.doodle_url, on_date: o.on_date || '', enabled: !h.enabled
+    } : { key: h.key, name: '', message: '', md: h.md, scope: h.scope, emoji: h.emoji, theme: h.theme, enabled: false })
+      .then(function (r) {
+        if (r.data && r.data.ok) { toast(h.enabled ? 'Turned off. It will not show this year or after.' : 'Turned on.'); loadCelebrations(); }
+        else { t.disabled = false; toast((r.data && r.data.error) || 'Could not save. Try again.'); }
+      });
+  });
   $('#celList').addEventListener('click', function (e) { var b = e.target.closest('[data-celedit]'); if (b) openCel(+b.getAttribute('data-celedit')); });
   $('#newCelBtn').addEventListener('click', function () { openCel(null); });
   $('#celBackBtn').addEventListener('click', function () { show('celebrations'); loadCelebrations(); });
@@ -790,8 +1047,8 @@
   var editingCel = null;
   function renderCelPreview() {
     var box = $('#celPreview'); if (!box) return;
-    var name = $('#c_name').value.trim() || 'Celebrating today';
-    var msg = $('#c_message').value.trim();
+    var name = $('#c_name').value.trim() || $('#c_name').placeholder.replace(/^e\.g\. /, '') || 'Celebrating today';
+    var msg = $('#c_message').value.trim() || ($('#c_builtinNote').hidden ? '' : $('#c_message').placeholder);
     var emoji = $('#c_emoji').value.trim() || '🎉';
     var theme = /^#[0-9a-f]{6}$/i.test($('#c_theme').value) ? $('#c_theme').value : '#f3b416';
     var off = !$('#c_enabled').checked;
@@ -803,9 +1060,23 @@
       + (msg ? '<span>' + escapeHtml(msg) + '</span>' : '') + '</span></div>'
       + (off ? '<p class="cel-pv-off">Disabled — won’t show to members.</p>' : '');
   }
+  function celBuiltinMode(h) {
+    $('#c_builtinNote').hidden = !h; $('#c_onWrap').hidden = !(h && h.movable);
+    $('#c_name').placeholder = h ? h.title : 'e.g. Eid Mubarak';
+    $('#c_message').placeholder = h ? h.message : 'The festive line shown in the banner.';
+    $('#c_name').required = !h;
+    $('#c_key').readOnly = !!h;
+  }
   function openCel(id) {
+    var h = celPrefill; celPrefill = null;
     editingCel = id; $('#celForm').reset(); setCDoodle(''); $('#c_theme').value = '#f3b416';
-    $('#celDeleteBtn').hidden = !id; show('celEdit');
+    $('#celDeleteBtn').hidden = !id; $('#celDeleteBtn').textContent = h ? 'Back to the calendar’s version' : 'Delete';
+    celBuiltinMode(h); show('celEdit');
+    if (h) {
+      $('#c_key').value = h.key; $('#c_md').value = h.md; $('#c_scope').value = h.scope; $('#c_emoji').value = h.emoji;
+      $('#c_theme').value = /^#[0-9a-f]{6}$/i.test(h.theme) ? h.theme : '#f3b416'; $('#c_enabled').checked = !!h.enabled;
+      if (h.movable) $('#c_on').value = h.date;
+    }
     if (!id) { renderCelPreview(); return; }
     api('cel_list').then(function (r) {
       var c = (r.data.celebrations || []).filter(function (x) { return +x.id === id; })[0]; if (!c) return;
@@ -813,6 +1084,7 @@
       $('#c_md').value = c.md || ''; $('#c_scope').value = c.scope || 'internal'; $('#c_emoji').value = c.emoji || '';
       $('#c_theme').value = /^#[0-9a-f]{6}$/i.test(c.theme) ? c.theme : '#f3b416';
       $('#c_enabled').checked = parseInt(c.enabled, 10) !== 0; setCDoodle(c.doodle_url || '');
+      if (h) { $('#c_md').value = h.md; if (h.movable) $('#c_on').value = h.date; }
       renderCelPreview();
     });
   }
@@ -820,16 +1092,17 @@
   $('#celForm').addEventListener('input', renderCelPreview);
   $('#celForm').addEventListener('change', renderCelPreview);
   $('#celSaveBtn').addEventListener('click', function () {
-    var name = $('#c_name').value.trim();
-    if (!name || !/^\d{2}-\d{2}$/.test($('#c_md').value.trim())) { toast('Name and date (MM-DD) are required.'); return; }
+    var name = $('#c_name').value.trim(), builtin = !$('#c_builtinNote').hidden, on = $('#c_onWrap').hidden ? '' : $('#c_on').value;
+    if (on) $('#c_md').value = on.slice(5);
+    if ((!name && !builtin) || !/^\d{2}-\d{2}$/.test($('#c_md').value.trim())) { toast('Name and date (MM-DD) are required.'); return; }
     post('cel_save', {
       id: editingCel || 0, name: name, message: $('#c_message').value.trim(), key: $('#c_key').value.trim(),
       md: $('#c_md').value.trim(), scope: $('#c_scope').value, emoji: $('#c_emoji').value.trim() || '🎉',
-      theme: $('#c_theme').value, enabled: $('#c_enabled').checked, doodle_url: cDoodle
+      theme: $('#c_theme').value, enabled: $('#c_enabled').checked, doodle_url: cDoodle, on_date: on
     }).then(function (r) { if (r.data && r.data.ok) { toast('Saved.'); show('celebrations'); loadCelebrations(); } else toast((r.data && r.data.error) || 'Could not save.'); });
   });
   $('#celDeleteBtn').addEventListener('click', function () {
-    if (!editingCel || !confirm('Delete this celebration?')) return;
+    if (!editingCel || !confirm($('#c_builtinNote').hidden ? 'Delete this celebration?' : 'Go back to the calendar’s own words and date?')) return;
     post('cel_delete', { id: editingCel }).then(function () { toast('Deleted.'); show('celebrations'); loadCelebrations(); });
   });
 
@@ -1461,7 +1734,7 @@
       post('mentorship_assign', { mentor_id: mtPick.mentor.id, mentee_id: mtPick.mentee.id, cohort_id: parseInt($('#mtCohort').value, 10) || 0, programme: $('#mtProgramme').value.trim() }).then(function (r) {
         var d = r.data || {};
         if (d.ok) { toast('Pairing created.'); $('#mtAssign').hidden = true; mtPick = { mentor: null, mentee: null }; $('#mtMentorSearch').value = ''; $('#mtMenteeSearch').value = ''; $('#mtProgramme').value = ''; loadMentorship(); }
-        else { $('#mtAssignMsg').textContent = d.error || 'Could not assign.'; $('#mtAssignMsg').style.color = '#d22'; btn.disabled = false; }
+        else { $('#mtAssignMsg').textContent = d.error || 'Could not assign.'; $('#mtAssignMsg').style.color = 'var(--st-err)'; btn.disabled = false; }
       });
     });
     // delegated actions across the panels
@@ -1586,10 +1859,10 @@
     var view = $('#adminsView'); if (!view) return;
     $('#adAdd').addEventListener('click', function () {
       var email = $('#adEmail').value.trim(), role = $('#adRole').value, msg = $('#adMsg'), btn = this;
-      if (!email) { msg.textContent = 'Enter an email.'; msg.style.color = '#d22'; return; }
+      if (!email) { msg.textContent = 'Enter an email.'; msg.style.color = 'var(--st-err)'; return; }
       btn.disabled = true;
       post('admin_add', { email: email, role: role }).then(function (r) {
-        var d = r.data || {}; msg.style.color = d.ok ? '#2ea043' : '#d22';
+        var d = r.data || {}; msg.style.color = d.ok ? 'var(--st-ok)' : 'var(--st-err)';
         msg.textContent = d.ok ? ('Granted ' + role + ' access to ' + email + '.') : (d.error || 'Could not grant access.');
         if (d.ok) { $('#adEmail').value = ''; loadAdmins(); }
       }).finally(function () { btn.disabled = false; });
@@ -1658,16 +1931,36 @@
     var warn = $('#setupCrypto');
     var c = d.crypto || {};
     if (warn) {
-      warn.hidden = !!c.ok;
-      warn.innerHTML = c.ok ? '' : '<strong>Keys cannot be stored yet</strong><p>' + escapeHtml(c.reason) + '</p>';
+      /* Three different things, and they were one blank space before.
+         A key that is STORED and cannot be decrypted looked exactly
+         like no key at all on every screen, so the site told somebody
+         to add what they had already added. */
+      var unread = d.unreadable || [];
+      var html = '';
+      if (!c.ok) {
+        html = '<strong>Keys cannot be stored yet</strong><p>' + escapeHtml(c.reason) + '</p>';
+      } else if (unread.length) {
+        html = '<strong>' + unread.length + ' stored key' + (unread.length === 1 ? '' : 's')
+          + ' cannot be read back</strong><p>Something here was saved under a different APP_KEY — '
+          + 'the site was re-keyed, moved, or restored. Paste '
+          + (unread.length === 1 ? 'it' : 'them') + ' again below and saving will re-encrypt '
+          + 'under the key in force now: ' + escapeHtml(unread.join(', ')) + '.</p>';
+      } else if (c.weak) {
+        html = '<strong>No APP_KEY is set</strong><p>' + escapeHtml(c.weak_reason || '') + '</p>';
+      }
+      warn.hidden = html === '';
+      warn.innerHTML = html;
     }
 
     var tests = $('#setupTests');
     if (tests) {
+      /* Every test can be pressed. One that is not set up answers with WHY
+         (the server's own reason), instead of a disabled button whose press
+         did nothing and whose reason lived in a tooltip. */
       tests.innerHTML = (d.testable || []).map(function (t) {
-        return '<button type="button" class="btn btn-outline btn-sm setup-test" data-what="' + escapeHtml(t.key) + '"'
-          + (t.ready ? '' : ' disabled title="Nothing configured to test yet"') + '>Test ' + escapeHtml(t.label) + '</button>'
-          + '<span class="setup-test-out" id="stout_' + escapeHtml(t.key) + '"></span>';
+        return '<button type="button" class="btn btn-outline btn-sm setup-test" data-what="' + escapeHtml(t.key) + '">Test ' + escapeHtml(t.label) + '</button>'
+          + '<span class="setup-test-out' + (t.ready ? '' : ' is-bad') + '" id="stout_' + escapeHtml(t.key) + '">'
+          + (t.ready ? '' : '✗ ' + escapeHtml(t.why || 'Not set up yet.')) + '</span>';
       }).join('');
     }
 
@@ -1680,15 +1973,31 @@
 
   function setupField(f) {
     var id = 'set_' + f.key;
+    /* Said on the field itself too, not only in the banner at the top:
+       this is the one somebody has to re-paste. */
+    var unreadable = f.unreadable ? '<p class="setup-bad">Stored, but this site cannot read it back. Paste it again.</p>' : '';
     var input;
-    if (f.type === 'enum') {
+    if (f.type === 'action') {
+      /* NO data-skey, deliberately. Every other field here registers itself
+         in setupDirty and is posted by Save; a pairing code is a live
+         credential that must never be stored, so it is kept out of that
+         path entirely rather than filtered out of it later. */
+      input = '<input id="' + id + '" type="text" spellcheck="false" autocomplete="off"'
+        + ' data-pairfield="1" placeholder="' + escapeHtml(f.placeholder) + '" />'
+        + '<button type="button" class="btn btn-outline btn-sm setup-pair" data-for="' + id + '">Pair</button>';
+    } else if (f.type === 'enum') {
       input = '<select id="' + id + '" data-skey="' + escapeHtml(f.key) + '">'
         + f.options.map(function (o) {
             return '<option value="' + escapeHtml(o) + '"' + (o === f.value ? ' selected' : '') + '>'
               + escapeHtml(o === '' ? 'Auto-detect' : o) + '</option>';
           }).join('') + '</select>';
+    } else if (f.type === 'json') {
+      /* A whole key file (a Google service account): it has line breaks, so a
+         one-line field mangles it. Never prefilled — it is a secret. */
+      input = '<textarea id="' + id + '" rows="4" spellcheck="false" autocomplete="off" data-skey="' + escapeHtml(f.key) + '"'
+        + ' placeholder="' + escapeHtml(f.is_set ? 'Stored — paste a new key to replace it' : f.placeholder) + '"></textarea>';
     } else {
-      input = '<input id="' + id + '" type="' + (f.secret ? 'password' : 'text') + '" spellcheck="false" autocomplete="off"'
+      input = '<input id="' + id + '" type="' + (f.secret ? 'password' : (f.type === 'email' ? 'email' : 'text')) + '" spellcheck="false" autocomplete="off"'
         + ' data-skey="' + escapeHtml(f.key) + '"'
         + ' value="' + escapeHtml(f.secret ? '' : f.value) + '"'
         + ' placeholder="' + escapeHtml(f.secret && f.is_set ? 'Stored — type to replace' : f.placeholder) + '" />';
@@ -1701,6 +2010,8 @@
       + (f.secret && f.preview ? '<code class="setup-mask">' + escapeHtml(f.preview) + '</code>' : '')
       + '</div>'
       + '<p class="setup-help">' + escapeHtml(f.help) + '</p>'
+      + (f.fingerprint ? '<p class="setup-help">Fingerprint: <code>' + escapeHtml(f.fingerprint) + '</code></p>' : '')
+      + unreadable
       + (f.shadowing
           ? '<p class="setup-shadow">This is overriding a value from ' + escapeHtml(f.shadowing === 'config' ? 'config.php' : 'the environment') + '. Clear it to go back to that.</p>'
           : '')
@@ -1719,6 +2030,27 @@
   });
 
   $('#setupGroups') && $('#setupGroups').addEventListener('click', function (e) {
+    var p = e.target.closest('.setup-pair');
+    if (p) {
+      var fld = document.getElementById(p.getAttribute('data-for'));
+      var code = fld ? fld.value.trim() : '';
+      if (!code) { toast('Enter the pairing code finance gave you.'); fld && fld.focus(); return; }
+      p.disabled = true; p.textContent = 'Pairing…';
+      post('setup_cfis_pair', { code: code }).then(function (r) {
+        var d = r.data || {};
+        p.disabled = false; p.textContent = 'Pair';
+        if (d.ok) {
+          /* Cleared on success: the code is spent, and leaving it on screen
+             invites somebody to try it again and read a confusing refusal. */
+          fld.value = '';
+          toast('Paired with CACENTRE finance — key ' + (d.fingerprint || ''));
+          api('setup_get').then(function (g) { if (g.data && g.data.groups) { renderSetup(g.data); setupDirty = {}; } });
+        } else {
+          toast(d.error || 'The pairing code was not accepted.');
+        }
+      }, function () { p.disabled = false; p.textContent = 'Pair'; toast('Could not reach the server.'); });
+      return;
+    }
     var b = e.target.closest('.setup-clear'); if (!b) return;
     var key = b.getAttribute('data-skey');
     if (!confirm('Remove this value? Anything set in the environment will apply again.')) return;
@@ -1726,7 +2058,7 @@
     post('setup_save', { values: vals }).then(function (r) {
       var d = r.data || {};
       if (d.saved) { toast('Cleared.'); renderSetup(d); setupDirty = {}; }
-      else toast('Could not clear that.');
+      else toast('Could not clear that' + (d.error ? ' — ' + d.error : '.'));
     });
   });
 
@@ -1739,8 +2071,17 @@
       var d = r.data || {};
       var errs = d.errors || {};
       var names = Object.keys(errs);
+      /* "Saved." only when the server says it stored something. A refused
+         request — a firewall page, an expired session, a PHP fatal — has no
+         per-field errors either, and used to read as success: the operator
+         was told a key was saved that never reached the database. */
       if (names.length) {
         $('#setupMsg').textContent = names.map(function (k) { return k + ': ' + errs[k]; }).join(' · ');
+      } else if (!d.groups) {
+        $('#setupMsg').textContent = 'Not saved — ' + (d.error || 'the server sent no usable answer') + ' Your changes are still in the form; try again.';
+        return;
+      } else if (!d.saved) {
+        $('#setupMsg').textContent = 'Nothing was saved.';
       } else {
         $('#setupMsg').textContent = 'Saved.';
         toast('Setup saved.');
@@ -1758,13 +2099,45 @@
     var what = b.getAttribute('data-what');
     var out = $('#stout_' + what);
     b.disabled = true; if (out) { out.className = 'setup-test-out'; out.textContent = 'testing…'; }
+
+    /* The server bounds its own work, but a request can still be left hanging
+       by something between here and it — a proxy holding the socket open long
+       after PHP has gone. Without this the button sat on "testing…" with no
+       answer ever arriving, which reads as the test being broken rather than
+       slow. 45s is comfortably past the server's own budget. */
+    var settled = false;
+    var giveUp = setTimeout(function () {
+      if (settled) return;
+      settled = true;
+      b.disabled = false;
+      if (out) {
+        out.className = 'setup-test-out is-bad';
+        out.textContent = '✗ No answer after 45 seconds. The request did not come back — '
+          + 'check System → health for what is reachable from this server.';
+      }
+    }, 45000);
+
     post('setup_test', { what: what }).then(function (r) {
+      if (settled) return; settled = true; clearTimeout(giveUp);
       b.disabled = false;
       var d = r.data || {};
       if (!out) return;
       out.className = 'setup-test-out ' + (d.ok ? 'is-ok' : 'is-bad');
-      out.textContent = (d.ok ? '✓ ' : '✗ ') + (d.detail || '') + (d.ms != null ? ' (' + d.ms + 'ms)' : '');
-    }).catch(function () { b.disabled = false; if (out) { out.className = 'setup-test-out is-bad'; out.textContent = 'The test failed.'; } });
+      /* A refusal before the test (signed out, not a Super Admin, rate
+         limited) has `error`, not `detail`: it printed a bare ✗. */
+      out.textContent = (d.ok ? '✓ ' : '✗ ') + (d.detail || d.error || ('The server answered ' + (r.status || 'nothing') + ' with no explanation.')) + (d.ms != null ? ' (' + d.ms + 'ms)' : '');
+    }).catch(function (e) {
+      if (settled) return; settled = true; clearTimeout(giveUp);
+      b.disabled = false;
+      if (out) {
+        out.className = 'setup-test-out is-bad';
+        /* Say which failure it was. "The test failed" covered a refusal, a
+           timeout and a page of HTML from a dead PHP process alike. */
+        out.textContent = '✗ The test could not be completed — '
+          + ((e && e.message) ? e.message : 'the server sent no usable answer')
+          + '. If this was a long wait, the server ran out of time talking to Google.';
+      }
+    });
   });
 
   /* ============================================================
@@ -2032,7 +2405,8 @@
         (r.min !== null && r.min !== undefined ? ' min="' + escapeHtml(r.min) + '"' : '') +
         (r.max !== null && r.max !== undefined ? ' max="' + escapeHtml(r.max) + '"' : '') + ' step="1" />';
     } else {
-      input = '<input type="text" id="' + id + '" data-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(r.value) + '" />';
+      input = '<input type="text" id="' + id + '" data-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(r.value) + '"' +
+        (r.max !== null && r.max !== undefined ? ' maxlength="' + escapeHtml(r.max) + '"' : '') + ' />';
     }
     var meta = r.source === 'studio' && r.updated_by
       ? '<span class="rule-by">by ' + escapeHtml(r.updated_by) + '</span>' : '';
@@ -2484,7 +2858,7 @@
   (function wireDatabase() {
     var view = $('#databaseView'); if (!view) return;
     var msg = $('#dbMsg');
-    function setMsg(t, kind) { msg.textContent = t || ''; msg.style.color = kind === 'err' ? '#d22' : (kind === 'ok' ? '#2ea043' : ''); }
+    function setMsg(t, kind) { msg.textContent = t || ''; msg.style.color = kind === 'err' ? 'var(--st-err)' : (kind === 'ok' ? 'var(--st-ok)' : ''); }
     function params() {
       return { driver: $('#db_driver').value, host: $('#db_host').value.trim(), port: $('#db_port').value.trim(),
         name: $('#db_name').value.trim(), user: $('#db_user').value.trim(), pass: $('#db_pass').value,
@@ -2543,16 +2917,102 @@
         renderResult(d);
       }).catch(function () { setMsg('Network error — try again.', 'err'); }).finally(function () { busy(false); });
     });
+    /* Migrating in slices. The old handler posted db_migrate once and waited:
+       on a shared host that request is stopped at 30s, which leaves the
+       target part-filled and every retry refused because it is no longer
+       empty. This begins a job and then asks for one slice at a time, so a
+       timeout costs a slice instead of the migration. */
+    function renderProgress(job) {
+      var wrap = $('#dbResult'); wrap.hidden = false;
+      var names = job.order || [];
+      var done = 0, copied = 0, total = 0;
+      var rows = names.map(function (t) {
+        var r = (job.tables || {})[t] || {};
+        total += (r.src | 0); copied += (r.copied | 0); if (r.done) done++;
+        return '<tr><td>' + escapeHtml(t) + '</td><td class="db-n">' + (r.src | 0)
+          + '</td><td class="db-n">' + (r.copied | 0) + '</td><td>'
+          + (r.done ? '<span class="db-ok">✓</span>' : (r.copied ? '…' : '')) + '</td></tr>';
+      }).join('');
+      $('#dbReport').innerHTML =
+        '<p class="' + (job.phase === 'error' ? 'db-note-bad' : 'db-note-ok') + '">'
+          + escapeHtml(job.phase === 'error' ? ('Stopped: ' + (job.error || 'unknown error'))
+            : (job.phase === 'done' ? 'Copied ' + copied + ' rows across ' + done + ' tables.'
+              : 'Copying… ' + done + ' of ' + names.length + ' tables, ' + copied + ' of ' + total + ' rows.'))
+          + '</p>'
+        + ((job.skipped && job.skipped.length)
+            ? '<p class="db-note-bad">Not in the target, so not copied: ' + escapeHtml(job.skipped.join(', '))
+              + '. Tick “Create the tables first” and begin again.</p>' : '')
+        + '<table class="db-table"><thead><tr><th>Table</th><th class="db-n">Rows</th><th class="db-n">Copied</th><th></th></tr></thead><tbody>'
+        + rows + '</tbody></table>';
+    }
+
+    function renderVerify(v) {
+      var bad = (v.tables || []).filter(function (r) { return !r.ok; });
+      $('#dbLog').textContent = (v.tables || []).map(function (r) {
+        return (r.ok ? '✓ ' : '✗ ') + r.table + '  source ' + r.source + '  target ' + (r.target === null ? 'missing' : r.target);
+      }).join('\n');
+      return bad;
+    }
+
     $('#dbMigrateBtn').addEventListener('click', function () {
-      var pp = params(); pp.dry_run = false;
+      var pp = params();
       if (!pp.name) { setMsg('Enter the target database name.', 'err'); return; }
-      if (!confirm('Copy all data into ' + pp.driver.toUpperCase() + ' database “' + pp.name + '” on ' + (pp.host || 'localhost') + '?\n\nThis writes to the target. Make sure it is the right, empty database.')) return;
-      busy(true); setMsg('Migrating… this can take a moment.', '');
-      post('db_migrate', pp).then(function (r) {
-        var d = r.data || {};
-        setMsg(d.ok ? 'Migration verified ✓' : (d.error || 'Migration failed — see below.'), d.ok ? 'ok' : 'err');
-        renderResult(d); loadDatabase();
-      }).catch(function () { setMsg('Network error — try again.', 'err'); }).finally(function () { busy(false); });
+      if (!confirm('Copy all data into ' + pp.driver.toUpperCase() + ' database “' + pp.name + '” on ' + (pp.host || 'localhost') + '?\n\n'
+        + 'This writes to the target. It does NOT switch this site over — you do that by hand once the counts match.')) return;
+      pp.replace = pp.truncate;
+      busy(true); setMsg('Preparing…', '');
+
+      /* Resuming is picking the job back up, NOT beginning a new one: a
+         second begin would find rows in the target and refuse, which is the
+         dead end an interrupted migration used to leave behind. */
+      post('db_job_state', {}).then(function (r0) {
+        var running = ((r0.data || {}).job) || null;
+        if (running && running.phase === 'copy') {
+          if (!confirm('A migration into ' + (running.target || 'the target') + ' stopped part-way.\n\n'
+            + 'OK carries on from where it stopped. Cancel leaves it alone.')) { busy(false); return null; }
+          renderProgress(running);
+          return slice();
+        }
+        return post('db_job_begin', pp).then(function (r) {
+          var d = r.data || {};
+          if (!d.ok) { setMsg(d.error || 'Could not start.', 'err'); return null; }
+          renderProgress(d.job);
+          return slice();
+        });
+
+        /* One slice per request until the job says it is finished. Each call
+           is short enough to come back before the host cuts it off. */
+        function slice() {
+          return post('db_job_step', pp).then(function (r2) {
+            var job = (r2.data || {}).job || {};
+            renderProgress(job);
+            if (job.phase === 'copy') {
+              setMsg('Copying… keep this tab open.', '');
+              return slice();
+            }
+            if (job.phase === 'error') { setMsg('Stopped: ' + (job.error || 'unknown error'), 'err'); return null; }
+            setMsg('Copied. Verifying…', '');
+            return post('db_job_verify', pp).then(function (r3) {
+              var v = (r3.data || {}).verify || {};
+              var bad = renderVerify(v);
+              setMsg(v.ok ? 'Migration verified ✓ every table matches.'
+                : (bad.length + ' table(s) do not match — see the log below.'), v.ok ? 'ok' : 'err');
+              var envWrap = $('#dbEnvWrap');
+              if (v.ok) {
+                envWrap.hidden = false;
+                $('#dbEnv').textContent = 'AV_DB_DRIVER=' + pp.driver + '\nAV_DB_HOST=' + (pp.host || 'localhost')
+                  + '\nAV_DB_PORT=' + (pp.port || (pp.driver === 'pgsql' ? '5432' : '3306'))
+                  + '\nAV_DB_NAME=' + pp.name + '\nAV_DB_USER=' + pp.user
+                  + '\nAV_DB_PASS=your-password\nAV_DB_STRICT=1';
+              } else envWrap.hidden = true;
+              loadDatabase();
+              return null;
+            });
+          });
+        }
+      }).catch(function () {
+        setMsg('Network error — nothing copied so far is lost. Press Migrate now again and it offers to carry on from where it stopped.', 'err');
+      }).finally(function () { busy(false); });
     });
   })();
 
@@ -2561,20 +3021,27 @@
     var box = $('#brandPreview'); if (!box) return;
     var a = $('#br_accent').value, d = $('#br_deep').value;
     box.innerHTML =
-      '<div class="brand-pv-swatches"><span style="background:' + a + '">Accent<br>' + escapeHtml(a) + '</span>'
-      + '<span style="background:' + d + ';color:#fff">Deep<br>' + escapeHtml(d) + '</span></div>'
+      '<div class="brand-pv-swatches"><span style="background:' + a + ';color:' + inkOn(a) + '">Accent<br>' + escapeHtml(a) + '</span>'
+      + '<span style="background:' + d + ';color:' + inkOn(d) + '">Deep<br>' + escapeHtml(d) + '</span></div>'
       + '<div class="brand-pv-demo">'
       + '<button class="bpv-btn" style="background:' + a + '">Primary button</button>'
       + '<span class="bpv-badge" style="background:' + a + '">Badge</span>'
       + '<span class="bpv-avatar" style="background:linear-gradient(135deg,' + a + ',' + d + ')">A</span>'
       + '<a class="bpv-link" style="color:' + d + '" href="#" onclick="return false">A sample link →</a>'
-      + '</div>';
+      + '</div>'
+      + (contrastOnWhite(d) < 4.5 ? '<p class="bpv-warn">“Deep” is the colour links and small gold labels are written in. At '
+         + contrastOnWhite(d).toFixed(1) + ':1 on white it is too light to read; choose a darker one (4.5:1 or more).</p>' : '');
+  }
+  function contrastOnWhite(hex) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim()); if (!m) return 21;
+    var v = parseInt(m[1], 16), ch = [v >> 16 & 255, v >> 8 & 255, v & 255].map(function (c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
+    return 1.05 / (0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2] + 0.05);
   }
   function loadDesign() {
     api('brand_get').then(function (r) {
       var d = r.data || {}; var b = d.brand || d.defaults || {};
       $('#br_accent').value = /^#[0-9a-f]{6}$/i.test(b.accent) ? b.accent : '#f3b416';
-      $('#br_deep').value = /^#[0-9a-f]{6}$/i.test(b.accent_deep) ? b.accent_deep : '#b07e08';
+      $('#br_deep').value = /^#[0-9a-f]{6}$/i.test(b.accent_deep) ? b.accent_deep : '#8f6606';
       renderBrandPreview();
     }).catch(renderBrandPreview);
   }
@@ -2585,17 +3052,17 @@
     $('#brandSave').addEventListener('click', function () {
       var msg = $('#brandMsg'), self = this; self.disabled = true; msg.textContent = 'Saving…'; msg.style.color = '';
       post('brand_save', { accent: $('#br_accent').value, accent_deep: $('#br_deep').value }).then(function (r) {
-        var d = r.data || {}; msg.style.color = d.ok ? '#2ea043' : '#d22';
+        var d = r.data || {}; msg.style.color = d.ok ? 'var(--st-ok)' : 'var(--st-err)';
         msg.textContent = d.ok ? 'Saved — reload any page to see the new brand.' : (d.error || 'Could not save.');
-      }).catch(function () { msg.style.color = '#d22'; msg.textContent = 'Network error.'; })
+      }).catch(function () { msg.style.color = 'var(--st-err)'; msg.textContent = 'Network error.'; })
         .finally(function () { self.disabled = false; });
     });
     $('#brandReset').addEventListener('click', function () {
       if (!confirm('Reset the brand back to the default Afrovanguard gold?')) return;
       var msg = $('#brandMsg');
       post('brand_save', { reset: true }).then(function (r) {
-        if (r.data && r.data.ok) { $('#br_accent').value = '#f3b416'; $('#br_deep').value = '#b07e08'; renderBrandPreview(); msg.style.color = '#2ea043'; msg.textContent = 'Reset to default gold — reload to see it.'; }
-        else { msg.style.color = '#d22'; msg.textContent = (r.data && r.data.error) || 'Could not reset.'; }
+        if (r.data && r.data.ok) { $('#br_accent').value = '#f3b416'; $('#br_deep').value = '#b07e08'; renderBrandPreview(); msg.style.color = 'var(--st-ok)'; msg.textContent = 'Reset to default gold — reload to see it.'; }
+        else { msg.style.color = 'var(--st-err)'; msg.textContent = (r.data && r.data.error) || 'Could not reset.'; }
       });
     });
   })();
@@ -2603,14 +3070,14 @@
   /* ---- System / Health ---- */
   function loadSystem() {
     var box = $('#sysHealth'); box.innerHTML = '<p class="muted">Checking…</p>';
-    var dot = { ok: '#2ea043', warn: '#e0a106', off: '#d22', info: '#5b6472' };
+    var dot = { ok: 'var(--st-ok)', warn: 'var(--st-warn)', off: 'var(--st-err)', info: 'var(--st-info)' };
     api('sys_health').then(function (r) {
       if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
       box.innerHTML = (r.data.groups || []).map(function (g) {
         return '<div style="margin:0 0 22px"><h2 style="font-family:var(--font-heading);font-size:20px;margin:0 0 8px">' + escapeHtml(g.group) + '</h2>' +
           (g.checks || []).map(function (c) {
             return '<div style="display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid rgba(128,128,128,.15)">' +
-              '<span style="width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:' + (dot[c.state] || '#5b6472') + '"></span>' +
+              '<span style="width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:' + (dot[c.state] || 'var(--st-info)') + '"></span>' +
               '<span style="font-weight:600;flex:0 0 230px">' + escapeHtml(c.label) + '</span>' +
               '<span style="color:#5b6472;font-size:13px">' + escapeHtml(c.detail || '') + '</span></div>';
           }).join('') + '</div>';
@@ -2624,9 +3091,40 @@
       btn.disabled = true; msg.textContent = 'Sending…'; msg.style.color = '';
       post('mail_test', { to: $('#mailTestTo').value.trim() }).then(function (r) {
         var d = r.data || {};
-        msg.style.color = d.ok ? '#2ea043' : '#d22';
-        msg.textContent = d.ok ? ('✓ ' + (d.detail || 'Sent.') + ' (to ' + d.to + ')') : ('✗ ' + (d.error || d.detail || 'Failed.'));
-      }).catch(function () { msg.style.color = '#d22'; msg.textContent = 'Network error.'; })
+        msg.style.color = d.ok ? 'var(--st-ok)' : 'var(--st-err)';
+        var road = d.transport ? ' · sent by: ' + d.transport : '';
+        var tried = (d.tried && d.tried.length) ? ' · tried: ' + d.tried.join(' → ') : '';
+        var mode = d.mode ? ' · sending road: ' + d.mode : '';
+        msg.textContent = d.ok ? ('✓ ' + (d.detail || 'Sent.') + ' (to ' + d.to + road + tried + mode + ')') : ('✗ ' + (d.error || d.detail || 'Failed.') + tried + mode);
+      }).catch(function () { msg.style.color = 'var(--st-err)'; msg.textContent = 'Network error.'; })
+        .finally(function () { btn.disabled = false; });
+    });
+  }
+  /* The site's own Google Apps Script: set up, reachable, whose account, and
+     how many recipients it may still mail today. Sends nothing. */
+  if ($('#gasCheckBtn')) {
+    $('#gasCheckBtn').addEventListener('click', function () {
+      var btn = this, msg = $('#gasCheckMsg'), out = $('#gasCheckOut');
+      btn.disabled = true; msg.textContent = 'Asking the script…'; msg.style.color = ''; out.innerHTML = '';
+      post('mail_gas_check', {}).then(function (r) {
+        var d = r.data || {};
+        msg.style.color = d.ok ? 'var(--st-ok)' : 'var(--st-err)';
+        msg.textContent = (d.ok ? '✓ ' : '✗ ') + (d.error || d.detail || (d.ok ? 'Working.' : 'Failed.'));
+        var dot = function (on) { return '<span style="width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:' + (on ? 'var(--st-ok)' : 'var(--st-err)') + '"></span>'; };
+        var row = function (on, label, detail) {
+          return '<div style="display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid rgba(128,128,128,.15)">' + dot(on) +
+            '<span style="font-weight:600;flex:0 0 160px">' + escapeHtml(label) + '</span>' +
+            '<span style="color:#5b6472;font-size:13px">' + escapeHtml(detail) + '</span></div>';
+        };
+        if (d.configured === undefined) return;
+        out.innerHTML =
+          row(!!d.configured, 'Configured', d.configured ? 'URL and secret set' : (d.url_set ? 'secret missing' : 'no web-app URL')) +
+          row(!!d.reachable, 'Reachable', d.reachable ? 'the script answered' : (d.configured ? 'no answer from the script' : '—')) +
+          row(!!d.account, 'Sends as', d.account || '—') +
+          row(d.remaining !== null && d.remaining !== undefined && d.remaining > 0, 'Allowance left today',
+              (d.remaining === null || d.remaining === undefined) ? '—' : (d.remaining + ' recipient' + (d.remaining === 1 ? '' : 's'))) +
+          row(true, 'Sending road', d.mode || 'auto');
+      }).catch(function () { msg.style.color = 'var(--st-err)'; msg.textContent = 'Network error.'; })
         .finally(function () { btn.disabled = false; });
     });
   }
@@ -2645,14 +3143,66 @@
       + '<button class="btn btn-outline btn-sm mod-reject" data-id="' + e.id + '">Reject</button>'
       + '</div></div></div>';
   }
-  function setModBadge(n) { var b = $('#modBadge'); if (!b) return; if (n > 0) { b.textContent = n; b.hidden = false; } else { b.hidden = true; } }
-  function refreshModBadge() { api('mod_queue').then(function (r) { setModBadge((r.data && r.data.ok && r.data.entries) ? r.data.entries.length : 0); }).catch(function () {}); }
+  /* The tab badge counts BOTH queues. Two numbers in one tab would send an
+     editor to look at submissions when it was a comment that was waiting. */
+  var modCounts = { entries: 0, comments: 0 };
+  function setModBadge() {
+    var n = modCounts.entries + modCounts.comments, b = $('#modBadge');
+    if (!b) return;
+    if (n > 0) { b.textContent = n; b.hidden = false; } else { b.hidden = true; }
+    var cb = $('#modCommentsBadge');
+    if (cb) { if (modCounts.comments > 0) { cb.textContent = modCounts.comments; cb.hidden = false; } else { cb.hidden = true; } }
+  }
+  function refreshModBadge() {
+    api('mod_queue').then(function (r) { modCounts.entries = (r.data && r.data.ok && r.data.entries) ? r.data.entries.length : 0; setModBadge(); }).catch(function () {});
+    api('dc_queue').then(function (r) { modCounts.comments = (r.data && r.data.ok) ? (r.data.count || 0) : 0; setModBadge(); }).catch(function () {});
+  }
+
+  /* ---- Diary comments awaiting review ---- */
+  function dcRowHTML(c) {
+    var body = String(c.body || '');
+    var flagged = c.reports > 0;
+    return '<div class="inbox-row dcm-row" data-id="' + c.id + '"><div style="flex:1">'
+      + '<strong>' + escapeHtml(c.name || '(no name)') + '</strong>'
+      + (c.is_reply ? ' <span class="badge draft">Reply</span>' : '')
+      + (flagged ? ' <span class="dcm-flag">Reported ' + c.reports + '×</span>' : '')
+      + '<div class="inbox-meta">' + escapeHtml(c.article_title || '(entry gone)') + ' · ' + escapeHtml(c.created_at || '')
+      + (c.article_slug ? ' · <a href="' + escapeHtml(c.url) + '" target="_blank" rel="noopener">Open the entry</a>' : '') + '</div>'
+      + '<p class="inbox-note dcm-body">' + escapeHtml(body.length > 1200 ? body.slice(0, 1199) + '…' : body) + '</p>'
+      + '<div class="mod-actions" style="display:flex;gap:8px;margin-top:10px">'
+      + '<button class="btn btn-primary btn-sm dc-publish" data-id="' + c.id + '">Publish</button>'
+      + '<button class="btn btn-outline btn-sm dc-remove" data-id="' + c.id + '">Remove</button>'
+      + '</div></div></div>';
+  }
+  function loadDiaryComments() {
+    var box = $('#modComments'); if (!box) return Promise.resolve();
+    box.innerHTML = '<p class="muted">Loading…</p>';
+    return api('dc_queue').then(function (r) {
+      var d = r.data || {}, rows = (d.ok && d.comments) || [];
+      modCounts.comments = d.count || rows.length; setModBadge();
+      box.innerHTML = rows.length ? rows.map(dcRowHTML).join('') : '<p class="muted">No comments waiting.</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the comments.</p>'; });
+  }
+  (function () {
+    var box = $('#modComments'); if (!box) return;
+    box.addEventListener('click', function (e) {
+      var pub = e.target.closest('.dc-publish'), rem = e.target.closest('.dc-remove');
+      var btn = pub || rem; if (!btn) return;
+      btn.disabled = true;
+      post(pub ? 'dc_publish' : 'dc_remove', { id: btn.getAttribute('data-id') }).then(function (r) {
+        if (r.data && r.data.ok) { toast(pub ? 'Comment published.' : 'Comment removed.'); loadDiaryComments(); }
+        else { btn.disabled = false; toast((r.data && r.data.error) || 'Could not update that comment.'); }
+      }).catch(function () { btn.disabled = false; toast('Network error'); });
+    });
+  })();
+
   function loadModeration() {
     var box = $('#modList'); box.innerHTML = '<p class="muted">Loading…</p>';
+    loadDiaryComments();
     return api('mod_queue').then(function (r) {
       var d = r.data || {}, rows = (d.ok && d.entries) || [];
-      setModBadge(rows.length);
-      box.innerHTML = rows.length ? rows.map(modRowHTML).join('') : '<p class="muted">Nothing awaiting review right now. 🎉</p>';
+      modCounts.entries = rows.length; setModBadge();
+      box.innerHTML = rows.length ? rows.map(modRowHTML).join('') : '<p class="muted">Nothing awaiting review right now.</p>';
     }).catch(function () { box.innerHTML = '<p class="muted">Could not load the queue.</p>'; });
   }
   (function () {
@@ -2736,7 +3286,7 @@
       var d = r.data || {}; if (!d.ok) return;
       apReflect(d.policy);
       var note = $('#apGoogleNote');
-      if (note) note.textContent = d.google_configured ? '— configured' : '— needs AV_GOOGLE_CLIENT_ID (stays off until set)';
+      if (note) note.textContent = d.google_configured ? '— configured' : '— not set up: add the OAuth client ID and secret under Setup → Google sign-in & Workspace';
     });
   }
   if ($('#signinView')) {
@@ -2872,11 +3422,11 @@
      Dashboard, roster, import, duplicates and one member's whole record.
      Every write is validated on the server and refused in words; an import is
      a dry run until the dry run that was read is applied. */
-  var memRoles = ['learner', 'member', 'mentor', 'instructor', 'coordinator', 'admin'], memLevels = ['O', 'A', 'B', 'C'], memT, memPage = 1, memOpen = 0, memFormats = [];
+  var memRoles = ['learner', 'member', 'mentor', 'instructor', 'coordinator', 'admin'], memLevels = ['O', 'A', 'B', 'C', 'D', 'E', 'F', 'G'], memT, memPage = 1, memOpen = 0, memFormats = [];
   var memSel = {}, memPageIds = [], memTotal = 0, memMember = null;
   /* Dues — not the same as being an Afrovanguard member: a learner can pay
      dues and stay a learner, and a member can have none. */
-  var MS_LABEL = { lifetime: 'Lifetime dues', current: 'Dues paid', due_soon: 'Dues due soon', lapsed: 'Dues lapsed', cancelled: 'Dues ended by the office', never: 'Never paid dues', member: 'Paying dues', none: 'No dues' };
+  var MS_LABEL = { lifetime: 'Lifetime dues', current: 'Dues paid', due_soon: 'Dues due soon', lapsed: 'Dues lapsed', cancelled: 'Dues ended by the office', never: 'Never paid dues', member: 'Paying dues', none: 'No dues', owing: 'Behind on dues', obliged: 'Owe dues' };
   function memFill(sel, list, keep, label) {
     var el = $(sel); if (!el) return;
     var v = keep !== undefined ? keep : el.value;
@@ -2894,14 +3444,19 @@
     document.querySelectorAll('.mem-pane').forEach(function (p) { p.hidden = p.getAttribute('data-pane') !== which; });
     if (which === 'dash') loadMemDash();
     if (which === 'roster') loadMemRoster();
+    if (which === 'roles') loadMemRoles();
+    if (which === 'centres') loadMemCentres();
+    if (which === 'approvals') loadApprovals();
     if (which === 'import') loadMemFormats();
     if (which === 'dups') loadMemDups();
+    if (which === 'volunteers') { loadVolProjects(); vsStatus(); }
     if (which === 'offline') loadOffline();
+    if (which === 'dues') loadDues();
   }
   function loadMembers() { memTab(($('.subtab[data-mv].active') || { getAttribute: function () { return 'dash'; } }).getAttribute('data-mv')); }
 
   /* The member dashboard, like NGG's: four rows of tiles, each one a list. */
-  var MEM_SEGMENTS = { active: 'Active', suspended: 'Suspended', joined30: 'Joined in the last 30 days', joined365: 'Joined in the last 12 months',
+  var MEM_SEGMENTS = { active: 'Active', suspended: 'Suspended', dormant: 'Active, not signed in for 60 days', joined30: 'Joined in the last 30 days', joined365: 'Joined in the last 12 months',
     fined: 'Have been fined', fines_owed: 'Owe a fine', fines_cleared: 'Fined, nothing owing', level_raised: 'Level raised in the last 12 months', review_open: 'Promotion awaiting a decision' };
   function memTile(n, label, attrs, sub) {
     return '<button class="ov-card" ' + (attrs || 'disabled') + '><span class="ov-card-num">' + n + '</span><span class="ov-card-label">' + escapeHtml(label) + '</span>'
@@ -2914,7 +3469,7 @@
     var dues = function (k, label, sub) { return memTile(du[k] || 0, label, 'data-ms="' + k + '"', sub); };
     return '<h2 class="mem-tiles-h">Membership</h2><div class="ov-grid mem-tiles">'
       + memTile(d.total || 0, 'Members', 'data-all="1"', 'Afrovanguard members — learners are not counted')
-      + seg('active', 'Active') + seg('suspended', 'Suspended')
+      + seg('active', 'Active') + seg('suspended', 'Suspended') + seg('dormant', 'Dormant', 'active, not signed in for 60 days')
       + seg('joined30', 'Joined · 30 days') + seg('joined365', 'Joined · 12 months')
       + memTile(b.vanguards || 0, 'NextGen Vanguards', 'data-kind="ngv"')
       + memTile(d.learners || 0, 'Academy learners', 'data-kind="learner"', 'not members')
@@ -2927,9 +3482,11 @@
       + '<h2 class="mem-tiles-h">Dues</h2><div class="ov-grid mem-tiles">'
       + dues('member', 'Paying dues', 'any account — a learner can pay') + dues('due_soon', 'Due within 30 days')
       + dues('lapsed', 'Lapsed') + dues('lifetime', 'Lifetime') + dues('cancelled', 'Ended by the office')
+      + dues('owing', 'Behind on dues', naira(du.owing_ngn) + ' owed · ' + (du.owing_months || 0) + ' month' + (du.owing_months === 1 ? '' : 's'))
+      + dues('obliged', 'Owe dues', 'members from level ' + ((du.rules || {}).from_level || 'O') + ' up, not NGV')
       + memTile(naira(du.received_12m_ngn), 'Dues received', '', 'last 12 months')
       + memTile((b.offline || {}).held || 0, 'Offline payments to check', 'data-offline="1"', 'held — not credited')
-      + '</div><p class="mem-tiles-note">Dues open paid courses. They are not membership: paying them changes nobody’s access level.</p>'
+      + '</div><p class="mem-tiles-note">Members owe dues every month' + ((du.rules || {}).enabled === false ? ' — <b>switched off</b>' : ' at ' + naira((du.rules || {}).monthly_ngn) + ' a month or ' + naira((du.rules || {}).annual_ngn) + ' a year') + '. Learners may pay them too, to open paid courses; paying changes nobody’s access level. Set the rules under Members → Dues.</p>'
       + '<h2 class="mem-tiles-h">Progression</h2><div class="ov-grid mem-tiles">'
       + seg('level_raised', 'Level raised', 'last 12 months') + seg('review_open', 'Promotion to decide', 'open reviews')
       + '</div>';
@@ -2945,21 +3502,23 @@
         + Object.keys(d.by_role || {}).map(function (k) { return memChip(d.by_role[k], k); }).join('');
       var max = Math.max.apply(null, (d.joined || []).map(function (m) { return m.joined; }).concat([1]));
       $('#memJoined').innerHTML = (d.joined || []).map(function (m) {
-        return '<span style="height:' + Math.max(2, Math.round(m.joined / max * 100)) + '%" title="' + escapeHtml(m.month) + ': ' + m.joined + ' joined"><i>' + escapeHtml(m.month.slice(5)) + '</i></span>';
+        return '<span class="h' + Math.min(100, Math.max(5, Math.round(m.joined / max * 20) * 5)) + '" title="' + escapeHtml(m.month) + ': ' + m.joined + ' joined"><i>' + escapeHtml(m.month.slice(5)) + '</i></span>';
       }).join('');
       var q = d.quality || {}, keys = Object.keys(q);
       $('#memQuality').innerHTML = keys.length ? '<div class="mem-quality">' + keys.map(function (k) {
         return '<a href="#" data-missing="' + escapeHtml(k) + '"><span>' + escapeHtml(q[k].label) + '</span><b>' + q[k].n + '</b></a>';
       }).join('') + '</div>' : '<p class="muted">Nothing to fix. Every record is complete.</p>';
       var c = d.by_centre || {};
-      $('#memCentres').innerHTML = Object.keys(c).map(function (k) { return '<div class="mem-card-row"><span>' + escapeHtml(k) + '</span><b style="margin-left:auto">' + c[k] + '</b></div>'; }).join('') || '<p class="muted">No centres recorded.</p>';
+      $('#memCentres').innerHTML = Object.keys(c).map(function (k) { return '<div class="mem-card-row"><span>' + escapeHtml(k) + '</span><b class="ml-auto">' + c[k] + '</b></div>'; }).join('') || '<p class="muted">No centres recorded.</p>';
     });
     api('ngv_intake').then(function (r) {
       var w = (r.data && r.data.waiting) || [];
       $('#memIntake').hidden = !w.length;
       $('#memIntakeList').innerHTML = w.map(function (x) {
         return '<div class="mem-try" data-ngg="' + escapeHtml(x.ngg_member_id) + '"><span><b>' + escapeHtml(x.name) + '</b> <span class="muted tiny">' + escapeHtml(x.ngg_member_id) + ' · ' + escapeHtml(x.detail) + '</span></span>'
-          + '<input type="email" placeholder="their email" value="' + escapeHtml(x.email || '') + '" aria-label="Email for ' + escapeHtml(x.name) + '"><button class="btn btn-primary btn-sm mem-intake-go">Create account</button></div>';
+          + (x.status === 'needs_consent'
+            ? '<input type="text" placeholder="parent or guardian" aria-label="Guardian who consented for ' + escapeHtml(x.name) + '"><select aria-label="How they consented"><option value="signed_form">Signed form</option><option value="in_person">In person</option><option value="phone">Phone call</option><option value="email">Email</option></select><button class="btn btn-primary btn-sm mem-intake-consent">Record consent</button></div>'
+            : '<input type="email" placeholder="their email" value="' + escapeHtml(x.email || '') + '" aria-label="Email for ' + escapeHtml(x.name) + '"><button class="btn btn-primary btn-sm mem-intake-go">Create account</button></div>');
       }).join('');
     });
     api('mem_list').then(function (r) {
@@ -2970,20 +3529,25 @@
 
   function memRowHTML(m) {
     var badges = (m.ngv ? ' <span class="badge published" title="Enrolled in NextGen Vanguard, or holds an NGV ID card">NGV</span>' : '')
+      + (m.volunteer ? ' <span class="badge published" title="On the volunteer roster, a team, NGG\'s volunteer list or the People page">Volunteer</span>' : '')
       + (m.status === 'suspended' ? ' <span class="badge draft">suspended</span>' : '')
-      + (m.membership && m.membership !== 'none' ? ' <span class="badge ' + (m.membership === 'due_soon' ? 'draft' : 'published') + '" title="' + escapeHtml(m.paid_through ? 'Paid through ' + String(m.paid_through).slice(0, 10) : 'Does not expire') + '">' + escapeHtml(MS_LABEL[m.membership]) + '</span>' : '');
+      + (m.membership && m.membership !== 'none' ? ' <span class="badge ' + (m.membership === 'due_soon' ? 'draft' : 'published') + '" title="' + escapeHtml(m.paid_through ? 'Paid through ' + String(m.paid_through).slice(0, 10) : 'Does not expire') + '">' + escapeHtml(MS_LABEL[m.membership]) + '</span>' : '')
+      + (m.owes && m.owes.months > 0 ? ' <span class="badge mem-owes" title="' + escapeHtml(m.owes.months + ' month' + (m.owes.months === 1 ? '' : 's') + ' of dues owed since ' + m.owes.since) + '">Owes ' + escapeHtml(naira(m.owes.amount_ngn)) + '</span>' : '');
     var meta = [m.email, m.phone, m.centre, 'level ' + (m.level || 'O'), m.role].filter(Boolean).map(escapeHtml).join(' · ');
     return '<div class="entry-row mem-row" data-id="' + m.id + '">'
       + '<input type="checkbox" class="mem-pick" data-id="' + m.id + '"' + (memSel[m.id] ? ' checked' : '') + ' aria-label="Choose ' + escapeHtml(m.name || 'member') + '">'
       + '<div class="entry-info"><div class="entry-title">' + escapeHtml(m.name || '(no name)') + badges + '</div>'
       + '<div class="entry-meta">' + meta + '</div>'
+      + (m.work_roles || m.about ? '<div class="entry-meta mem-row-roles">' + (m.work_roles ? String(m.work_roles).split(/\s*,\s*/).map(function (r) { return '<span class="mem-role-tag">' + escapeHtml(r) + '</span>'; }).join('') : '<span class="muted">No work role</span>')
+          + (m.about ? ' <span class="mem-row-about">' + escapeHtml(String(m.about).slice(0, 120)) + '</span>' : '') + '</div>' : '')
       + '<div class="entry-meta">' + (m.card ? 'Gate card <code>' + escapeHtml(m.card) + '</code>' : '<b>No gate card</b>') + ' · joined ' + escapeHtml(String(m.joined_on || m.created_at || '').slice(0, 10)) + '</div></div>'
-      + '<div class="entry-ops"><button class="btn btn-outline btn-sm mem-open" data-id="' + m.id + '">Open</button></div></div>';
+      + '<div class="entry-ops"><select class="mem-row-act" data-id="' + m.id + '" aria-label="Act on ' + escapeHtml(m.name || 'this member') + '"><option value="">Actions…</option>' + memActionOptions('row') + '</select>'
+      + '<button class="btn btn-outline btn-sm mem-open" data-id="' + m.id + '">Open</button></div></div>';
   }
   function loadMemRoster() {
     var box = $('#memList'); if (!box) return;
     var qs = ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
-              'kind=' + $('#memKind').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'sort=' + $('#memSort').value,
+              'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'work_role=' + encodeURIComponent($('#memWorkRole').value), 'centre=' + encodeURIComponent($('#memCentre').value), 'level=' + encodeURIComponent($('#memLevel').value), 'sort=' + $('#memSort').value,
               'dir=' + ($('#memSort').value === 'name' ? 'asc' : 'desc'), 'page=' + memPage].join('&');
     box.innerHTML = '<p class="muted">Loading…</p>';
     api('roster_list&' + qs).then(function (r) {
@@ -2992,21 +3556,207 @@
       if ($('#memRole').options.length <= 1) { var o = $('#memRole').value; $('#memRole').innerHTML = '<option value="">All access levels</option>' + memRoles.map(function (x) { return '<option>' + escapeHtml(x) + '</option>'; }).join(''); $('#memRole').value = o; }
       box.innerHTML = (d.members || []).length ? d.members.map(memRowHTML).join('') : '<p class="muted">' + (d.total === 0 && !$('#memQ').value ? 'No members yet. Add one, or import a spreadsheet.' : 'Nobody matches these filters.') + '</p>';
       memPageIds = (d.members || []).map(function (m) { return +m.id; }); memTotal = d.total; memBulkSync();
+      if ($('#memLevel').options.length <= 1) { var lv = $('#memLevel').value; $('#memLevel').innerHTML = '<option value="">Any level</option>' + memLevels.map(function (x) { return '<option value="' + escapeHtml(x) + '">Level ' + escapeHtml(x) + '</option>'; }).join(''); $('#memLevel').value = lv; }
+      memChipsDraw(); $('#memExport').href = API + '?action=roster_export&' + memFilterQs();
       var pages = Math.max(1, Math.ceil(d.total / d.page_size));
       $('#memPager').innerHTML = pages > 1 ? '<button class="btn btn-outline btn-sm" data-pg="' + (memPage - 1) + '"' + (memPage <= 1 ? ' disabled' : '') + '>← Previous</button>'
         + '<span class="muted">Page ' + memPage + ' of ' + pages + ' · ' + d.total + ' members</span>'
         + '<button class="btn btn-outline btn-sm" data-pg="' + (memPage + 1) + '"' + (memPage >= pages ? ' disabled' : '') + '>Next →</button>' : '<span class="muted">' + d.total + ' member' + (d.total === 1 ? '' : 's') + '</span>';
     }).catch(function () { box.innerHTML = '<p class="muted">Could not load the roster. <button class="btn btn-outline btn-sm" id="memRetry">Retry</button></p>'; });
   }
+  /* The filters in force, each a chip that removes itself — as NGG's roster has them. */
+  var MEM_FILTERS = [['#memQ', 'Search'], ['#memRole', 'Access'], ['#memStatus', 'Status'], ['#memKind', 'Accounts'], ['#memWorkRole', 'Role'], ['#memCentre', 'Centre'], ['#memLevel', 'Level'],
+                     ['#memVolunteer', 'Volunteers'], ['#memMissing', 'Missing'], ['#memSegment', 'List'], ['#memMembership', 'Dues']];
+  function memChipsDraw() {
+    var box = $('#memChips'); if (!box) return;
+    var on = MEM_FILTERS.filter(function (f) { var el = $(f[0]); return el && el.value; });
+    box.innerHTML = on.map(function (f) {
+      var el = $(f[0]), txt = el.tagName === 'SELECT' ? (el.selectedOptions[0] || {}).textContent : el.value;
+      return '<button type="button" class="mem-fchip" data-clear="' + f[0] + '" aria-label="Remove the filter ' + escapeHtml(f[1] + ': ' + txt) + '">' + escapeHtml(f[1]) + ': <b>' + escapeHtml(txt) + '</b> ✕</button>';
+    }).join('') + (on.length > 1 ? '<button type="button" class="mem-fchip mem-fchip--all" data-clear="*">Clear all</button>' : '');
+  }
+  /* Centres come from the office's list (lib/Centres.php): every centre to
+     filter by, only the open ones to put somebody in. */
+  var CENTRES = { all: [], open: [] };
+  function memCentresFill() {
+    return api('roster_centres').then(function (r) {
+      CENTRES = { all: (r.data && r.data.centres) || [], open: (r.data && r.data.open) || [] };
+      var el = $('#memCentre'), keep = el.value;
+      el.innerHTML = '<option value="">Any centre</option>' + CENTRES.all.map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
+      el.value = keep;
+      document.querySelectorAll('select[data-centre-pick]').forEach(function (s) { centrePick(s, s.value); });
+    }).catch(function () {});
+  }
+  /* A picker of the open centres — and the member's own, even if it has since been retired. */
+  function centrePick(sel, current) {
+    if (!sel) return;
+    var list = CENTRES.open.slice();
+    if (current && list.indexOf(current) < 0) list.push(current);
+    sel.innerHTML = '<option value="">No centre</option>' + list.map(function (c) {
+      return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + (CENTRES.open.indexOf(c) < 0 ? ' (retired)' : '') + '</option>';
+    }).join('');
+    sel.value = current || '';
+  }
+
+  /* ── Approvals: an admin's sensitive acts, waiting for a second person ── */
+  /* The badge counts both: admins' acts and members' requests. */
+  function approvalsBadge() {
+    return Promise.all([api('approvals_list&status=pending'), api('member_requests_list&status=pending')]).then(function (x) {
+      var n = ((x[0].data && x[0].data.pending) || 0) + ((x[1].data && x[1].data.pending) || 0), b = $('#apprBadge');
+      if (b) { b.hidden = !n; b.textContent = n; }
+    }).catch(function () {});
+  }
+  var MREQ_WORDS = { pending: 'Waiting', approved: 'Approved', rejected: 'Not approved', withdrawn: 'Withdrawn', deciding: 'Being decided' };
+  function loadMemberRequests() {
+    var box = $('#mreqList'); if (!box) return;
+    var st = ($('#apprStatus') || {}).value || 'pending';
+    if (['pending', 'approved', 'rejected', 'withdrawn', 'all'].indexOf(st) < 0) st = 'all';
+    api('member_requests_list&status=' + encodeURIComponent(st)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load members’ requests. <button type="button" class="btn btn-outline btn-sm" data-mreq-retry>Try again</button></p>'; return; }
+      var rows = d.requests || [];
+      box.innerHTML = rows.length ? rows.map(function (q) {
+        return '<div class="appr-row" data-mreq="' + q.id + '">'
+          + '<div class="appr-main"><div class="appr-sum">' + escapeHtml(q.summary) + '</div>'
+          + '<div class="muted tiny">' + escapeHtml(q.member.email) + (q.member.centre ? ' · at ' + escapeHtml(q.member.centre) : '') + ' · ' + escapeHtml(String(q.created_at).slice(0, 16)) + ' UTC</div>'
+          + (q.reason ? '<div class="muted tiny">Why: ' + escapeHtml(q.reason) + '</div>' : '')
+          + (q.outcome ? '<div class="muted tiny">' + escapeHtml(q.outcome) + '</div>' : '') + '</div>'
+          + '<div class="appr-ops"><span class="badge ' + (q.status === 'pending' ? 'draft' : q.status === 'approved' ? 'published' : '') + '">' + escapeHtml(MREQ_WORDS[q.status] || q.status) + '</span>'
+          + (q.status === 'pending' ? '<button type="button" class="btn btn-primary btn-sm" data-mreq-do="approve">Approve</button><button type="button" class="btn btn-outline btn-sm" data-mreq-do="reject">Reject</button>' : '')
+          + '<button type="button" class="btn btn-outline btn-sm mem-open" data-id="' + q.member.id + '">Open record</button>'
+          + '</div></div>';
+      }).join('') : '<p class="muted">' + (st === 'pending' ? 'No member is waiting for an answer.' : 'No requests here.') + '</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load members’ requests. <button type="button" class="btn btn-outline btn-sm" data-mreq-retry>Try again</button></p>'; });
+  }
+  var APPR_WORDS = { pending: 'Waiting', approved: 'Approved', rejected: 'Not approved', failed: 'Approved, could not run', withdrawn: 'Withdrawn', expired: 'Expired', running: 'Running' };
+  function loadApprovals() {
+    loadMemberRequests();
+    var box = $('#apprList'); if (!box) return;
+    var st = ($('#apprStatus') || {}).value || 'pending';
+    box.innerHTML = '<p class="muted">Loading…</p>';
+    api('approvals_list&status=' + encodeURIComponent(st)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load the requests. <button type="button" class="btn btn-outline btn-sm" data-appr-retry>Try again</button></p>'; return; }
+      var b = $('#apprBadge'); if (b) { b.hidden = !d.pending; b.textContent = d.pending; }
+      var rows = d.approvals || [];
+      box.innerHTML = rows.length ? rows.map(function (a) {
+        return '<div class="appr-row" data-id="' + a.id + '">'
+          + '<div class="appr-main"><div class="appr-sum">' + escapeHtml(a.summary) + '</div>'
+          + '<div class="muted tiny">Asked by ' + escapeHtml(a.mine ? 'you' : a.requester) + ' · ' + escapeHtml(String(a.created_at).slice(0, 16)) + ' UTC'
+          + (a.decided_by && a.status !== 'pending' ? ' · ' + escapeHtml(APPR_WORDS[a.status] || a.status) + ' by ' + escapeHtml(a.decided_by) : '') + '</div>'
+          + (a.reason ? '<div class="muted tiny">Why: ' + escapeHtml(a.reason) + '</div>' : '')
+          + (a.outcome ? '<div class="muted tiny">' + escapeHtml(a.outcome) + '</div>' : '') + '</div>'
+          + '<div class="appr-ops"><span class="badge ' + (a.status === 'pending' ? 'draft' : a.status === 'approved' ? 'published' : '') + '">' + escapeHtml(APPR_WORDS[a.status] || a.status) + '</span>'
+          + (a.can_decide ? '<button type="button" class="btn btn-primary btn-sm" data-appr="approve">Approve</button><button type="button" class="btn btn-outline btn-sm" data-appr="reject">Reject</button>' : '')
+          + (a.mine && a.status === 'pending' ? '<button type="button" class="btn btn-outline btn-sm" data-appr="withdraw">Withdraw</button>' : '')
+          + (a.mine && a.status === 'pending' ? '<span class="muted tiny">Waiting for a second admin</span>' : '')
+          + '</div></div>';
+      }).join('') : '<p class="muted">' + (st === 'pending' ? 'Nothing is waiting for approval.' : 'No requests here.') + '</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the requests. <button type="button" class="btn btn-outline btn-sm" data-appr-retry>Try again</button></p>'; });
+  }
+
+  function centreSaid(t, bad) { var m = $('#centreMsg'); if (m) { m.textContent = t || ''; m.classList.toggle('is-bad', !!bad); } }
+  function loadMemCentres() {
+    var box = $('#memCentresList'); if (!box) return;
+    api('centres_list').then(function (r) {
+      var cs = (r.data && r.data.centres) || [];
+      if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load the centres. <button type="button" class="btn btn-outline btn-sm" data-centre-retry>Try again</button></p>'; return; }
+      /* Once CACENTRE's list has arrived it decides the places: no adding here,
+         and a linked centre's name and status are changed there. */
+      var cac = r.data.cacentre || null;
+      $('#centreCacNote').hidden = !cac; $('#centreNew').hidden = !!cac; $('#centreCodeHelp').hidden = !!cac;
+      $('#centreCacWhen').textContent = cac && cac.at ? 'Last update from CACENTRE: ' + String(cac.at).replace('T', ' ').slice(0, 16) + ' UTC.' : '';
+      box.innerHTML = cs.length ? '<div class="mem-centres">' + cs.map(function (c) {
+        var retired = c.status !== 'active', linked = !!c.cac_id;
+        return '<form class="mem-centre-row' + (retired ? ' is-retired' : '') + '" data-id="' + c.id + '">'
+          + '<label class="fld"><span>Centre' + (linked ? ' · from CACENTRE' : '') + '</span><input name="name" maxlength="60" value="' + escapeHtml(c.name) + '" required' + (linked ? ' readonly aria-describedby="centreCacNote"' : '') + ' /></label>'
+          + '<label class="fld"><span>Code</span><input name="code" class="mem-centre-code" maxlength="8" value="' + escapeHtml(c.code) + '" required /></label>'
+          + '<div class="mem-centre-ops">'
+          + '<button type="button" class="btn btn-outline btn-sm" data-centre-members="' + escapeHtml(c.name) + '">' + c.members + ' member' + (c.members === 1 ? '' : 's') + '</button>'
+          + (retired ? '<span class="badge draft">Retired</span>' : '')
+          + (linked ? '<span class="badge">CACENTRE</span>' : (cac ? '<span class="badge draft">Not a CACENTRE location</span>' : ''))
+          + '<button type="submit" class="btn btn-primary btn-sm">Save</button>'
+          + (linked ? '' : '<button type="button" class="btn btn-outline btn-sm" data-centre-status="' + (retired ? 'active' : 'retired') + '" data-name="' + escapeHtml(c.name) + '">' + (retired ? 'Reopen' : 'Retire') + '</button>'
+          + '<button type="button" class="btn btn-outline btn-sm" data-centre-del data-n="' + c.members + '" data-name="' + escapeHtml(c.name) + '">Delete</button>')
+          + '</div></form>';
+      }).join('') + '</div>' : '<p class="muted">No centres yet. Add the first above — Egbeda, Ayobo…</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the centres. <button type="button" class="btn btn-outline btn-sm" data-centre-retry>Try again</button></p>'; });
+  }
+  /* One member's activity and notes, in the drawer. */
+  function memNotesLoad(id) {
+    $('#mdNotes').innerHTML = ''; $('#mdActivity').innerHTML = '<span class="muted">…</span>';
+    api('member_notes&id=' + id).then(function (r) {
+      var d = r.data || {}; if (!d.ok || +memOpen !== +id) return;
+      var a = d.activity || {}, day = function (x) { return x ? String(x).slice(0, 10) : 'never'; };
+      $('#mdActivity').innerHTML = '<div class="mem-act-grid">'
+        + '<div><b>' + escapeHtml(day(a.last_login)) + '</b><span>last signed in</span></div>'
+        + '<div><b>' + (a.tasks_open || 0) + '</b><span>tasks open</span></div>'
+        + '<div><b>' + (a.tasks_done_90 || 0) + '</b><span>tasks finished · 90 days</span></div>'
+        + '<div><b>' + (a.visits_30 || 0) + '</b><span>gate visits · 30 days' + (a.last_visit ? ' (last ' + escapeHtml(a.last_visit) + ')' : '') + '</span></div></div>';
+      memNotesDraw(d.notes || [], d.me || '');
+    });
+  }
+  function memNotesDraw(notes, me) {
+    $('#mdNotes').innerHTML = notes.length ? notes.map(function (n) {
+      var fresh = (Date.now() - Date.parse(String(n.at).replace(' ', 'T') + 'Z')) < 864e5;
+      return '<div class="mem-note"><p>' + escapeHtml(n.body).replace(/\n/g, '<br>') + '</p><span class="muted tiny">' + escapeHtml(n.author) + ' · ' + escapeHtml(String(n.at).slice(0, 16)) + ' UTC'
+        + (fresh && n.author === me ? ' · <button type="button" class="linklike" data-note-del="' + n.id + '">take it back</button>' : '') + '</span></div>';
+    }).join('') : '<p class="muted tiny">No notes yet.</p>';
+    $('#mdNotes').setAttribute('data-me', me);
+  }
+
   function memFilterQs() {
     return ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
-            'kind=' + $('#memKind').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value].join('&');
+            'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'work_role=' + encodeURIComponent($('#memWorkRole').value), 'centre=' + encodeURIComponent($('#memCentre').value), 'level=' + encodeURIComponent($('#memLevel').value)].join('&');
   }
 
   /* ── Many members at once ──
      The count is read before the confirm, and the server's per-row verdicts
      are reported as they are: a run where some were refused is partial. */
   function memSelIds() { return Object.keys(memSel).map(Number); }
+  /* ── One declaration per member action ──
+     The bulk bar and each row's menu are drawn from this list and run through
+     one runner (memRunAction), so an action and its bulk twin cannot drift
+     into asking differently or doing different things — NGG's rule
+     (components.jsx runAdminAction). `value` names the input an action
+     needs; `warn` is said before it runs; `bulkHidden` / `rowHidden` keep it
+     off one surface. The server decides who may: lib/MemberRoster::bulk. */
+  var MEMBER_ACTIONS = [
+    { id: 'status:active', label: 'Reactivate' },
+    { id: 'status:suspended', label: 'Suspend', warn: 'They are signed out, and their gate pass stops at the door.' },
+    { id: 'centre', label: 'Set centre…', value: 'centre' },
+    { id: 'level', label: 'Set level…', value: 'level' },
+    { id: 'membership_grant', label: 'Give months of dues (waiver or reason)…', value: 'months' },
+    { id: 'membership_cancel', label: 'End dues…', value: 'reason' },
+    { id: 'volunteer_add', label: 'Make volunteers', rowLabel: 'Make a volunteer', value: 'project', warn: 'Each gets the Volunteer dashboard and a notification.' },
+    { id: 'volunteer_remove', label: 'Remove from volunteers', warn: 'They leave their volunteer teams; their hours stay on record.' },
+    { id: 'work_role_add', label: 'Give a work role…', value: 'role' },
+    { id: 'work_role_remove', label: 'Take away a work role…', value: 'role' }
+  ];
+  function memAction(id) { return MEMBER_ACTIONS.filter(function (a) { return a.id === id; })[0] || null; }
+  function memActionOptions(surface) {
+    return MEMBER_ACTIONS.filter(function (a) { return !(surface === 'bulk' ? a.bulkHidden : a.rowHidden); })
+      .map(function (a) { return '<option value="' + escapeHtml(a.id) + '">' + escapeHtml(surface === 'row' && a.rowLabel ? a.rowLabel : a.label) + '</option>'; }).join('');
+  }
+  /* The one runner. Never throws; per-row verdicts win over the top-level ok. */
+  function memRunAction(id, ids, value) {
+    var action = id, v = value || {};
+    if (id.indexOf('status:') === 0) { action = 'status'; v = { status: id.slice(7) }; }
+    return post('roster_bulk', { ids: ids, action: action, value: v }).then(function (r) {
+      var d = r.data || {};
+      if (d.code === 'approval_pending') { approvalsBadge(); return { ran: false, queued: true, ok: 0, failed: 0, error: d.error, summary: d.summary, results: [] }; }
+      if (!d.ok) return { ran: false, ok: 0, failed: ids.length, error: d.error || 'Refused.', results: [] };
+      return { ran: true, ok: d.applied, unchanged: d.unchanged, failed: d.refused, partial: !!d.partial, results: d.results || [] };
+    }).catch(function () { return { ran: false, ok: 0, failed: ids.length, error: 'Network error — nothing was changed.', results: [] }; });
+  }
+  function memRunSummary(res) {
+    if (res.queued) return '<p class="mem-bulk-sum mem-queued"><b>Sent for approval</b> — ' + escapeHtml(res.summary || '') + '. Nothing changes until a second admin approves it in Approvals.</p>';
+    if (!res.ran) return '<div class="mem-errors">' + escapeHtml(res.error) + '</div>';
+    var refused = res.results.filter(function (x) { return x.outcome === 'refused'; });
+    return '<p class="mem-bulk-sum"><b>' + (res.partial ? 'Partly done' : 'Done') + '</b> — ' + res.ok + ' changed · ' + (res.unchanged || 0) + ' already so · ' + res.failed + ' refused</p>'
+      + refused.slice(0, 50).map(function (x) { return '<div class="muted tiny">↳ ' + escapeHtml((x.name || '#' + x.id) + ': ' + x.error) + '</div>'; }).join('');
+  }
+
   function memBulkSync() {
     var n = memSelIds().length;
     $('#memBulk').hidden = n === 0;
@@ -3017,11 +3767,45 @@
     var onPage = memPageIds.filter(function (i) { return memSel[i]; }).length, sp = $('#memSelPage');
     sp.checked = memPageIds.length > 0 && onPage === memPageIds.length;
     sp.indeterminate = onPage > 0 && onPage < memPageIds.length;
-    var a = $('#memBulkAction').value, v = $('#memBulkValue');
-    v.hidden = !(a === 'centre' || a === 'level' || a === 'membership_grant' || a === 'membership_cancel');
+    var sel = $('#memBulkAction');
+    if (sel.options.length < 2) sel.insertAdjacentHTML('beforeend', memActionOptions('bulk'));
+    var a = sel.value, v = $('#memBulkValue'), decl = memAction(a) || {};
+    v.hidden = ['centre', 'level', 'months', 'reason'].indexOf(decl.value) < 0;
+    $('#memBulkProject').hidden = $('#memBulkType').hidden = a !== 'volunteer_add';
+    $('#memBulkRole').hidden = a.indexOf('work_role_') !== 0;
+    if (a.indexOf('work_role_') === 0) roleFill('#memBulkRole', 'Choose the role');
+    if (a === 'volunteer_add') volFillPickers('#memBulkProject', '#memBulkType');
     v.placeholder = a === 'centre' ? 'Centre name' : a === 'level' ? 'Level (' + memLevels.join(', ') + ')' : a === 'membership_grant' ? 'Months, then a reason: 12 Scholarship' : 'Why these memberships end';
     $('#memBulkGo').disabled = !a || n === 0;
   }
+  /* A row's menu: the same action, for one member. One that needs a value
+     chooses that member alone and hands the action to the bulk bar, where its
+     value is asked for; one that does not runs here, through the same runner. */
+  document.addEventListener('change', function (e) {
+    var s = e.target.closest('.mem-row-act'); if (!s || !s.value) return;
+    var id = +s.getAttribute('data-id'), decl = memAction(s.value); s.value = '';
+    if (!decl) return;
+    if (decl.value) {
+      memSel = {}; memSel[id] = true;
+      document.querySelectorAll('.mem-pick').forEach(function (c) { c.checked = +c.getAttribute('data-id') === id; });
+      $('#memBulkAction').value = decl.id; memBulkSync();
+      var first = ['#memBulkValue', '#memBulkRole', '#memBulkProject'].map(function (q) { return $(q); }).filter(function (el) { return el && !el.hidden; })[0];
+      $('#memBulk').scrollIntoView({ block: 'nearest' }); if (first) first.focus();
+      return;
+    }
+    var name = (s.closest('.mem-row') && s.closest('.mem-row').querySelector('.entry-title')) ? s.closest('.mem-row').querySelector('.entry-title').firstChild.textContent : 'this member';
+    if (!confirm(decl.label.replace(/…$/, '') + ' — ' + name + '?' + (decl.warn ? ' ' + decl.warn : ''))) return;
+    s.disabled = true;
+    memRunAction(decl.id, [id]).then(function (res) {
+      s.disabled = false;
+      var one = res.results[0] || {};
+      if (res.queued) toast(res.error);
+      else if (!res.ran) toast(res.error);
+      else if (one.outcome === 'refused') toast(one.error || 'Refused.');
+      else { toast(one.outcome === 'unchanged' ? 'Already so.' : 'Done.'); loadMemRoster(); }
+    });
+  });
+
   function memBulkRun() {
     var ids = memSelIds(), n = ids.length, a = $('#memBulkAction').value, raw = $('#memBulkValue').value.trim(), action = a, value = {};
     if (a.indexOf('status:') === 0) { action = 'status'; value.status = a.slice(7); }
@@ -3029,17 +3813,18 @@
     else if (a === 'level') value.level = raw;
     else if (a === 'membership_grant') { var m = raw.match(/^(\d+)\s*(.*)$/); if (!m) { toast('Start with the number of months, e.g. "12 Scholarship".'); return; } value.months = +m[1]; value.note = m[2]; if (/^waiver$/i.test(m[2])) { value.method = 'waiver'; value.note = ''; } }
     else if (a === 'membership_cancel') value.note = raw;
-    var label = $('#memBulkAction').selectedOptions[0].textContent.replace(/…$/, '');
-    if (!confirm(label + ' — ' + n + ' account' + (n === 1 ? '' : 's') + '?' + (action === 'status' && value.status === 'suspended' ? ' They are signed out, and their gate pass stops at the door.' : ''))) return;
+    else if (a.indexOf('work_role_') === 0) { value.role = $('#memBulkRole').value; if (!value.role) { toast('Choose the work role.'); return; } }
+    else if (a === 'volunteer_add') { value.project_id = +$('#memBulkProject').value; value.type = $('#memBulkType').value; if (!value.project_id) { toast('Choose the project they volunteer on.'); return; } }
+    /* The count is read before the confirm, so a list refreshing underneath
+       cannot change what was agreed to. */
+    var decl = memAction(a) || { label: a };
+    if (!confirm(decl.label.replace(/…$/, '') + ' — ' + n + ' account' + (n === 1 ? '' : 's') + '?' + (decl.warn ? ' ' + decl.warn : ''))) return;
     var b = $('#memBulkGo'); b.disabled = true;
-    post('roster_bulk', { ids: ids, action: action, value: value }).then(function (r) {
-      var d = r.data || {};
-      if (!d.ok) { $('#memBulkResult').innerHTML = '<div class="mem-errors">' + escapeHtml(d.error || 'Refused.') + '</div>'; return; }
-      var refused = (d.results || []).filter(function (x) { return x.outcome === 'refused'; });
-      $('#memBulkResult').innerHTML = '<p class="mem-bulk-sum"><b>' + (d.partial ? 'Partly done' : 'Done') + '</b> — ' + d.applied + ' changed · ' + d.unchanged + ' already so · ' + d.refused + ' refused</p>'
-        + refused.slice(0, 50).map(function (x) { return '<div class="muted tiny">↳ ' + escapeHtml((x.name || '#' + x.id) + ': ' + x.error) + '</div>'; }).join('');
-      memSel = {}; loadMemRoster();
-    }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; memBulkSync(); });
+    memRunAction(a, ids, value).then(function (res) {
+      $('#memBulkResult').innerHTML = memRunSummary(res);
+      if (res.ran) { memSel = {}; loadMemRoster(); }
+      b.disabled = false; memBulkSync();
+    });
   }
 
   /* ── One member's membership ── */
@@ -3051,7 +3836,11 @@
       : ms.state === 'lapsed' ? 'Dues lapsed' + (ms.paid_through ? ' on ' + when(ms.paid_through) : '')
       : ms.state === 'cancelled' ? 'Dues ended by the office' + (ms.ended && ms.ended.at ? ' on ' + when(ms.ended.at) + ' by ' + escapeHtml(ms.ended.by) : '') + (ms.ended && ms.ended.note ? ' — “' + escapeHtml(ms.ended.note) + '”' : '')
       : 'Never paid dues';
-    return '<p class="mem-ms-line">' + line + '</p><p class="muted tiny">Dues paid to date: ₦' + Number(ms.total_paid_ngn || 0).toLocaleString('en-NG') + ' in ' + ms.payments + ' payment' + (ms.payments === 1 ? '' : 's') + (ms.last_paid_at ? ' · last ' + when(ms.last_paid_at) : '') + '</p>';
+    var ar = ms.arrears || {};
+    var owe = ar.months > 0
+      ? '<p class="mem-ms-owe">Behind by <b>' + ar.months + ' month' + (ar.months === 1 ? '' : 's') + '</b> since ' + when(ar.since) + ': <b>' + naira(ar.amount_ngn) + '</b> owed. Recording dues covers the oldest month first.</p>'
+      : '<p class="muted tiny">' + escapeHtml(ar.why || '') + (ar.owes && ar.next_due ? ' Next due ' + when(ar.next_due) + '.' : '') + '</p>';
+    return '<p class="mem-ms-line">' + line + '</p>' + owe + '<p class="muted tiny">Dues paid to date: ₦' + Number(ms.total_paid_ngn || 0).toLocaleString('en-NG') + ' in ' + ms.payments + ' payment' + (ms.payments === 1 ? '' : 's') + (ms.last_paid_at ? ' · last ' + when(ms.last_paid_at) : '') + '</p>';
   }
   function loadMemMembership() {
     if (!memOpen) return;
@@ -3088,6 +3877,51 @@
     }).catch(function () { toast('Network error.'); });
   }
 
+  /* ── Dues: the rules, and who is behind ── */
+  var duesCfg = null;
+  function loadDues() {
+    var box = $('#duesOwing'); box.innerHTML = '<p class="muted">Loading…</p>';
+    api('dues_settings').then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { $('#duesTotals').innerHTML = '<p class="muted">Could not load the dues rules. <button class="btn btn-outline btn-sm" id="duesRetry">Retry</button></p>'; return; }
+      duesCfg = d; var s = d.settings || {};
+      $('#dr_enabled').checked = !!s.enabled; $('#dr_monthly').value = s.monthly_ngn; $('#dr_annual').value = s.annual_ngn; $('#dr_start').value = s.start;
+      $('#dr_level').innerHTML = (d.levels || []).map(function (l) { return '<option' + (l === s.from_level ? ' selected' : '') + '>' + escapeHtml(l) + '</option>'; }).join('');
+      ['#dr_enabled', '#dr_monthly', '#dr_annual', '#dr_start', '#dr_level', '#dr_save'].forEach(function (x) { $(x).disabled = !d.can_edit; });
+      $('#dr_note').textContent = (d.can_edit ? '' : 'Only a Super Admin changes the rules. ')
+        + (d.plan ? 'Monthly dues renew through a Paystack plan: change its amount in Paystack too when the monthly price changes. ' : '')
+        + (s.updated_at ? 'Last changed ' + String(s.updated_at).slice(0, 10) + ' by ' + s.updated_by + '.' : '');
+      var o = d.owing || {};
+      $('#duesTotals').innerHTML = memTile(o.members || 0, 'Behind', '', 'of ' + (d.obliged || 0) + ' who owe dues')
+        + memTile(naira(o.amount_ngn), 'Owed in all', '', (o.months || 0) + ' month' + (o.months === 1 ? '' : 's'));
+    }).catch(function () { $('#duesTotals').innerHTML = '<p class="muted">Could not load the dues rules. <button class="btn btn-outline btn-sm" id="duesRetry">Retry</button></p>'; });
+    api('dues_owing&limit=200').then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load who is behind. <button class="btn btn-outline btn-sm" id="duesRetry">Retry</button></p>'; return; }
+      box.innerHTML = (d.members || []).length ? d.members.map(function (m) {
+        return '<div class="entry-row mem-row" data-id="' + m.id + '"><div class="entry-info"><div class="entry-title">' + escapeHtml(m.name || '(no name)') + ' <span class="badge mem-owes">' + escapeHtml(naira(m.amount_ngn)) + '</span></div>'
+          + '<div class="entry-meta">' + [m.email, m.phone, m.centre, 'level ' + (m.level || 'O')].filter(Boolean).map(escapeHtml).join(' · ') + '</div>'
+          + '<div class="entry-meta">' + m.months + ' month' + (m.months === 1 ? '' : 's') + ' since ' + escapeHtml(m.since) + (m.paid_through ? ' · paid through ' + escapeHtml(String(m.paid_through).slice(0, 10)) : ' · never paid') + '</div></div>'
+          + '<div class="entry-ops"><button class="btn btn-outline btn-sm dues-open" data-id="' + m.id + '">Open</button></div></div>';
+      }).join('') : '<p class="muted">Nobody is behind on dues.</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load who is behind. <button class="btn btn-outline btn-sm" id="duesRetry">Retry</button></p>'; });
+  }
+  function saveDues(e) {
+    e.preventDefault();
+    var payload = { enabled: $('#dr_enabled').checked, monthly_ngn: $('#dr_monthly').value.trim(), annual_ngn: $('#dr_annual').value.trim(), start: $('#dr_start').value, from_level: $('#dr_level').value };
+    var s = (duesCfg || {}).settings || {};
+    var msg = 'Save the dues rules?';
+    if (s.start && payload.start < s.start) msg += ' Moving the start back to ' + payload.start + ' makes members owe the months before ' + s.start + '.';
+    if (!confirm(msg)) return;
+    $('#dr_save').disabled = true;
+    post('dues_settings_save', payload).then(function (r) {
+      var d = r.data || {}; $('#dr_save').disabled = false;
+      var err = $('#dr_errors');
+      if (!d.ok) { err.hidden = false; err.textContent = d.error || 'Not saved.'; return; }
+      err.hidden = true; toast(d.unchanged ? 'Nothing changed.' : 'Dues rules saved.'); loadDues();
+    }).catch(function () { $('#dr_save').disabled = false; toast('Network error — nothing was saved.'); });
+  }
+
   /* ── Offline payments: credited only once the receipt is checked ── */
   var OFF_LABEL = { verified: 'Checked and credited', held: 'Held — not credited', rejected: 'Rejected', pending: 'Being checked' };
   var OFF_CHECK = { evidence: 'Is a payment receipt', amount: 'Amount', payee: 'Paid to Afrovanguard', date: 'Date', reference: 'Reference', reused: 'Not used before', tampering: 'No sign of editing', confidence: 'Legible', reader: 'Reader', credit: 'Credit' };
@@ -3120,7 +3954,7 @@
       var g = (r.data && r.data.groups) || [];
       $('#memDups').innerHTML = g.length ? g.map(function (x) {
         return '<div class="side-card"><h3>' + escapeHtml(x.why) + '</h3>' + x.members.map(function (m) {
-          return '<div class="mem-card-row"><span>' + escapeHtml(m.name) + '</span><span class="muted">' + escapeHtml(m.email) + (m.phone ? ' · ' + escapeHtml(m.phone) : '') + '</span><button class="btn btn-outline btn-sm mem-open" data-id="' + m.id + '" style="margin-left:auto">Open</button></div>';
+          return '<div class="mem-card-row"><span>' + escapeHtml(m.name) + '</span><span class="muted">' + escapeHtml(m.email) + (m.phone ? ' · ' + escapeHtml(m.phone) : '') + '</span><button class="btn btn-outline btn-sm mem-open ml-auto" data-id="' + m.id + '">Open</button></div>';
         }).join('') + '</div>';
       }).join('') : '<p class="muted">No records look like the same person.</p>';
     });
@@ -3129,21 +3963,66 @@
   /* One member's whole record */
   function memCardsHTML(cards) {
     return (cards || []).filter(function (c) { return c.status === 'active'; }).map(function (c) {
-      var kind = c.kind === 'secure' ? 'Secure card' : c.kind === 'ngv' ? 'NGV ID card' : 'Old printed card (' + escapeHtml(c.format) + ')';
+      var kind = c.kind === 'secure' ? 'Secure card' : c.kind === 'ngv' ? (/-NGV-/i.test(c.code) ? 'NGV ID' : 'Member ID') : 'Old printed card (' + escapeHtml(c.format) + ')';
       /* A secure card's QR opens /q/<code>: its live card and standing, and what the gate will say. */
-      var open = c.kind === 'secure' ? ' <a class="btn btn-outline btn-sm" style="margin-left:auto" target="_blank" rel="noopener" href="/q/' + encodeURIComponent(c.code) + '">Card &amp; status</a>' : '';
+      var open = c.kind === 'secure' ? ' <a class="btn btn-outline btn-sm ml-auto" target="_blank" rel="noopener" href="/q/' + encodeURIComponent(c.code) + '">Card &amp; status</a>' : '';
       return '<div class="mem-card-row"><span class="badge published">' + kind + '</span><code>' + escapeHtml(c.code) + '</code>' + open + '</div>';
     }).join('') || '<p class="muted">No card yet — the gate can only find them by name.</p>';
   }
+  /* ── Work roles: one list, with what each covers (lib/MemberRoles.php) ── */
+  var ROLES = [], rolesAt = 0;
+  function rolesGet(force) {
+    if (!force && ROLES.length && Date.now() - rolesAt < 60000) return Promise.resolve(ROLES);
+    return api('roles_list').then(function (r) { ROLES = (r.data && r.data.roles) || []; rolesAt = Date.now(); roleFilterFill(); return ROLES; });
+  }
+  function roleFill(sel, first) {
+    var el = $(sel); if (!el) return;
+    var keep = el.value;
+    el.innerHTML = '<option value="">' + escapeHtml(first) + '</option>' + ROLES.map(function (r) { return '<option value="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '</option>'; }).join('');
+    el.value = keep;
+  }
+  function roleFilterFill() { roleFill('#memWorkRole', 'Any work role'); }
+  function rolesOf(text) { return String(text || '').split(/[,;\n]+/).map(function (x) { return x.trim(); }).filter(Boolean); }
+  /* The drawer: each role on the list as a button that gives or takes it away; typing still works. */
+  function roleChips() {
+    var box = $('#md_role_chips'); if (!box) return;
+    rolesGet().then(function () {
+      var have = rolesOf($('#md_work_roles').value).map(function (x) { return x.toLowerCase(); });
+      box.innerHTML = ROLES.map(function (r) {
+        var on = have.indexOf(r.name.toLowerCase()) >= 0;
+        return '<button type="button" class="mem-role-chip' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-role="' + escapeHtml(r.name) + '"' + (r.description ? ' title="' + escapeHtml(r.description) + '"' : '') + '>' + escapeHtml(r.name) + '</button>';
+      }).join('') || '<span class="muted tiny">No roles on the list yet — type one above, or add them under Roles.</span>';
+    });
+  }
+  function loadMemRoles() {
+    var box = $('#memRolesList'); if (!box) return;
+    rolesGet(true).then(function (roles) {
+      box.innerHTML = roles.length ? '<div class="mem-roles">' + roles.map(function (r) {
+        return '<form class="mem-role-row" data-id="' + r.id + '">'
+          + '<label class="fld"><span>Role</span><input name="name" maxlength="40" value="' + escapeHtml(r.name) + '" required /></label>'
+          + '<label class="fld mem-role-desc"><span>What it covers</span><input name="description" maxlength="500" value="' + escapeHtml(r.description) + '" placeholder="Say what work this role takes on" /></label>'
+          + '<div class="mem-role-ops"><button type="button" class="btn btn-outline btn-sm" data-role-members="' + escapeHtml(r.name) + '">' + r.members + ' member' + (r.members === 1 ? '' : 's') + '</button>'
+          + '<button type="submit" class="btn btn-primary btn-sm">Save</button>'
+          + '<button type="button" class="btn btn-outline btn-sm" data-role-del="' + r.id + '" data-n="' + r.members + '" data-name="' + escapeHtml(r.name) + '">Remove</button></div></form>';
+      }).join('') + '</div>' : '<p class="muted">No work roles yet. Add the first above — Media, Events, Instructor…</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the roles.</p>'; });
+  }
+
   function openMember(id) {
     memOpen = +id;
     api('roster_get&id=' + memOpen).then(function (r) {
       var m = r.data && r.data.member; if (!m) { toast('Could not open.'); return; }
       $('#mdTitle').textContent = m.name + (m.ngv ? ' · NextGen Vanguard' : m.learner ? ' · Academy learner (not a member)' : '');
       memFill('#md_role', memRoles, m.role); memFill('#md_level', memLevels, m.level || 'O', function (x) { return 'Level ' + x; });
-      ['name', 'email', 'phone', 'centre', 'notes'].forEach(function (k) { $('#md_' + k).value = m[k] || ''; });
+      ['name', 'email', 'phone', 'notes', 'work_roles', 'about'].forEach(function (k) { $('#md_' + k).value = m[k] || ''; });
+      centrePick($('#md_centre'), m.centre || '');
+      roleChips(); memNotesLoad(memOpen);
       $('#md_bday').value = m.birthday || ''; $('#md_joined').value = m.joined_on || '';
       $('#mdCards').innerHTML = memCardsHTML(m.cards);
+      /* Printing is the office's job: PDF for a card printer, PNGs, or an A4 run (card/print.php). */
+      $('#mdPrint').href = '/card/print.php?member=' + encodeURIComponent(memOpen);
+      if (window.AvCardPhoto) window.AvCardPhoto.load(memOpen);
+      $('#mdPrint').hidden = !(m.cards || []).some(function (c) { return c.kind === 'secure' && c.status === 'active'; });
       $('#mdRetire').hidden = !(m.cards || []).some(function (c) { return c.kind === 'printed' && c.status === 'active'; });
       $('#mdSuspend').textContent = m.status === 'suspended' ? 'Reactivate' : 'Suspend';
       $('#mdSuspend').setAttribute('data-to', m.status === 'suspended' ? 'active' : 'suspended');
@@ -3155,11 +4034,140 @@
       $('#md_lock').textContent = locked ? m.name + ' is staff: only a Super Admin changes their access level, status or email.' : '';
       memMember = m; $('#mdMsForm').hidden = true;
       $('#mdMembership').innerHTML = msHTML(m.membership); loadMemMembership();
+      memVolDraw(m);
       memErrors('#md_errors', null);
       $('#memDrawer').hidden = false; $('#md_name').focus();
     });
   }
   function closeMember() { $('#memDrawer').hidden = true; memOpen = 0; }
+
+  /* Volunteers by project — the office's view of who serves what. */
+  function loadVolProjects() {
+    volMeta = null;
+    volLoadMeta().then(function (m) {
+      $('#vpList').innerHTML = m.projects.map(function (p) {
+        return '<div class="vp-card' + (p.active ? '' : ' is-off') + '"><div class="vp-card-h"><b>' + escapeHtml(p.name) + '</b>'
+          + (p.source === 'ngg' ? ' <span class="badge">from NGG</span>' : '') + (p.active ? '' : ' <span class="badge draft">inactive</span>') + '</div>'
+          + '<p class="muted tiny">' + escapeHtml(p.blurb || '') + '</p>'
+          + '<div class="vp-card-f"><span class="vp-n">' + p.volunteers + '</span><span class="muted tiny">volunteer' + (p.volunteers === 1 ? '' : 's') + '</span>'
+          + (p.source === 'ngg' ? '' : '<button class="btn btn-outline btn-sm vp-see" data-id="' + p.id + '" data-name="' + escapeHtml(p.name) + '">See volunteers</button>'
+            + '<button class="btn btn-outline btn-sm vp-tog" data-id="' + p.id + '" data-name="' + escapeHtml(p.name) + '" data-blurb="' + escapeHtml(p.blurb || '') + '" data-on="' + (p.active ? 1 : 0) + '">' + (p.active ? 'Retire' : 'Restore') + '</button>')
+          + '</div></div>';
+      }).join('');
+    });
+  }
+  /* NGG volunteers seeded from a file — linked as they sign in. */
+  var vsText = '', vsName = '', vsDigest = '';
+  function vsStatus() {
+    api('vol_seed_status').then(function (r) {
+      var d = r.data || {}; if (!d.ok) return;
+      $('#vsStatus').textContent = d.seeded ? d.seeded + ' seeded · ' + d.linked + ' signed in and linked · ' + d.waiting + ' waiting for their first sign-in' : 'Nobody seeded yet.';
+    });
+  }
+  function vsRun(apply) {
+    if (!vsText) return;
+    var b = apply ? $('#vsApply') : $('#vsCheck'); b.disabled = true;
+    post('vol_seed_import', { csv: vsText, source: vsName, apply: apply, expect_digest: apply ? vsDigest : '' }).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { $('#vsResult').innerHTML = '<div class="mem-errors" role="alert">' + escapeHtml(d.error || 'Refused.') + '</div>'; vsDigest = ''; $('#vsApply').hidden = true; return; }
+      var c = d.counts || {}, MARK = { 'new': '+', update: '~', same: '=', refused: '!' };
+      var head = '<p><b>' + (d.applied ? 'Seeded' : 'Would seed') + '</b> — new ' + c['new'] + ' · updated ' + c.update + ' · already current ' + c.same + ' · refused ' + c.refused + '</p>'
+        + '<p class="muted tiny">' + c.has_account + ' already have an Afrovanguard account' + (d.applied ? ' — ' + d.linked + ' linked now' : ' and are linked when you apply') + '; the rest are linked at their first sign-in.</p>';
+      var rows = (d.rows || []).filter(function (x) { return x.action !== 'same' || (x.notes || []).length; }).map(function (x) {
+        return '<div class="mem-result-row"><span class="mk" aria-hidden="true">' + (MARK[x.action] || '?') + '</span><div><div><b>' + escapeHtml(x.name || '(no name)') + '</b> <span class="muted">' + escapeHtml(x.id) + ' · ' + escapeHtml(x.email) + '</span></div>'
+          + '<div class="muted tiny">' + escapeHtml([x.programme, x.role, x.centre].filter(Boolean).join(' · ')) + (x.account ? ' · has an account' : '') + '<span class="sr-only"> (' + escapeHtml(x.action) + ')</span></div>'
+          + (x.notes || []).map(function (w) { return '<div class="muted tiny">↳ ' + escapeHtml(w) + '</div>'; }).join('') + '</div></div>';
+      }).join('');
+      $('#vsResult').innerHTML = head + rows;
+      if (d.applied) { vsDigest = ''; $('#vsApply').hidden = true; toast('Volunteers seeded.'); vsStatus(); loadVolProjects(); }
+      else { vsDigest = d.digest; var n = c['new'] + c.update; $('#vsApply').hidden = n === 0; $('#vsApply').textContent = 'Seed ' + n + ' volunteer' + (n === 1 ? '' : 's'); }
+    }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
+  }
+  if ($('#vsSeed')) {
+    $('#vsFile').addEventListener('change', function () {
+      var f = this.files && this.files[0]; this.value = ''; if (!f) return;
+      f.text().then(function (t) { vsText = t; vsName = f.name; $('#vsFileName').textContent = f.name; $('#vsCheck').disabled = false; vsDigest = ''; $('#vsApply').hidden = true; $('#vsResult').innerHTML = ''; });
+    });
+    $('#vsCheck').addEventListener('click', function () { vsRun(false); });
+    $('#vsApply').addEventListener('click', function () { if (confirm('Seed these volunteers? This is what the check above described.')) vsRun(true); });
+  }
+  function volProjectMembers(id, name) {
+    api('vol_project_members&id=' + id).then(function (r) {
+      var v = (r.data && r.data.volunteers) || [], box = $('#vpMembers');
+      box.hidden = false;
+      box.innerHTML = '<h3>' + escapeHtml(name) + ' · ' + v.length + ' volunteer' + (v.length === 1 ? '' : 's') + '</h3>'
+        + (v.length ? v.map(function (x) { return '<div class="mem-card-row"><span>' + escapeHtml(x.name) + '</span><span class="badge">' + escapeHtml(x.type_label) + '</span><span class="muted tiny">since ' + escapeHtml(x.since) + '</span><button class="btn btn-outline btn-sm mem-open ml-auto" data-id="' + x.id + '">Open</button></div>'; }).join('')
+          : '<p class="muted">Nobody placed yet. Choose members on the Roster → “Make volunteers”.</p>');
+    });
+  }
+  document.addEventListener('click', function (ev) {
+    var see = ev.target.closest('.vp-see'), tog = ev.target.closest('.vp-tog');
+    if (see) volProjectMembers(+see.getAttribute('data-id'), see.getAttribute('data-name'));
+    if (tog) post('vol_project_save', { id: +tog.getAttribute('data-id'), name: tog.getAttribute('data-name'), blurb: tog.getAttribute('data-blurb'), active: tog.getAttribute('data-on') !== '1' }).then(loadVolProjects);
+    if (ev.target.id === 'vpAdd') {
+      post('vol_project_save', { name: $('#vpName').value, blurb: $('#vpBlurb').value }).then(function (r) {
+        var d = r.data || {}; if (!d.ok) { toast(d.error || 'Refused.'); return; }
+        $('#vpName').value = ''; $('#vpBlurb').value = ''; toast('Project added.'); loadVolProjects();
+      });
+    }
+  });
+
+  /* Volunteer — explicit: an admin makes a member one (or a team, NGG or the
+     People page does). Being a member is not enough. */
+  var VOL_WHY = { roster: 'made a volunteer here', team: 'serves on a volunteer team', ngg: 'an NGG volunteer', people: 'listed as a volunteer on the People page' };
+  var volMeta = null;   // {projects, types}
+  function volLoadMeta() {
+    if (volMeta) return Promise.resolve(volMeta);
+    return api('vol_projects').then(function (r) { volMeta = { projects: (r.data && r.data.projects) || [], types: (r.data && r.data.types) || {} }; return volMeta; });
+  }
+  function volFillPickers(pSel, tSel) {
+    volLoadMeta().then(function (m) {
+      var p = $(pSel), t = $(tSel), keepP = p.value, keepT = t.value;
+      p.innerHTML = '<option value="">Project…</option>' + m.projects.filter(function (x) { return x.active && x.source !== 'ngg'; })
+        .map(function (x) { return '<option value="' + x.id + '">' + escapeHtml(x.name) + '</option>'; }).join('');
+      t.innerHTML = Object.keys(m.types).map(function (k) { return '<option value="' + k + '">' + escapeHtml(m.types[k]) + '</option>'; }).join('');
+      if (keepP) p.value = keepP; t.value = keepT || 'general';
+    });
+  }
+  function memVolDraw(m) {
+    var why = m.volunteer || [], box = $('#mdVol'), projs = m.volunteer_projects || [];
+    var own = why.indexOf('roster') >= 0 || why.indexOf('team') >= 0;
+    box.innerHTML = '<div class="mem-card-row">' + (why.length ? '<span class="badge published">Volunteer</span><span class="muted">' + why.map(function (w) { return escapeHtml(VOL_WHY[w] || w); }).join(' · ') + '</span>'
+        : '<span class="muted">Not a volunteer. Place them on a project to make them one.</span>')
+      + (own ? '<button class="btn btn-outline btn-sm ml-auto" id="mdVolOff">Remove from volunteers</button>' : '') + '</div>'
+      + projs.map(function (p) {
+          return '<div class="mem-card-row"><span class="badge">' + escapeHtml(p.name) + '</span><span>' + escapeHtml(p.type_label) + '</span>'
+            + '<span class="muted tiny">' + (p.source === 'ngg' ? 'placed by NGG' + (p.centre ? ' · ' + escapeHtml(p.centre) : '') : 'since ' + escapeHtml(p.since || '')) + '</span>'
+            + (p.source === 'ngg' ? '' : '<button class="btn btn-outline btn-sm vp-un ml-auto" data-p="' + p.project_id + '">End</button>') + '</div>';
+        }).join('');
+    volFillPickers('#mdVolProject', '#mdVolType');
+    var off = $('#mdVolOff');
+    if (off) off.onclick = function () { if (confirm('Remove ' + m.name + ' from volunteers? Every project placement ends and they leave their volunteer teams; their hours stay on record.')) memVolSet('volunteer_remove'); };
+    box.querySelectorAll('.vp-un').forEach(function (b) {
+      b.onclick = function () {
+        post('vol_unassign', { id: memOpen, project_id: +b.getAttribute('data-p') }).then(function () { memVolRefresh(); });
+      };
+    });
+    $('#mdVolAdd').onclick = function () {
+      var pj = +$('#mdVolProject').value; if (!pj) { toast('Choose the project.'); return; }
+      memVolSet('volunteer_add', { project_id: pj, type: $('#mdVolType').value });
+    };
+  }
+  function memVolRefresh() {
+    var id = memOpen;
+    api('roster_get&id=' + id).then(function (g) { if (g.data && g.data.member && memOpen === id) memVolDraw(g.data.member); });
+  }
+  function memVolSet(action, value) {
+    var id = memOpen;
+    /* The drawer's volunteer buttons are the same declared actions, run the same way. */
+    memRunAction(action, [id], value).then(function (res) {
+      var x = res.results[0] || {};
+      if (!res.ran || x.outcome === 'refused') { toast(x.error || res.error || 'Refused.'); }
+      else toast(action === 'volunteer_add' ? 'Placed on the project.' : 'Removed from volunteers.');
+      memVolRefresh(); volMeta = null;
+      loadMemRoster();
+    });
+  }
 
   /* Import */
   var miText = '', miName = '', miDigest = '';
@@ -3211,18 +4219,29 @@
     document.querySelectorAll('.subtab[data-mv]').forEach(function (b) { b.addEventListener('click', function () { memTab(b.getAttribute('data-mv')); }); });
     $('#memQ').addEventListener('input', function () { clearTimeout(memT); memT = setTimeout(function () { memPage = 1; loadMemRoster(); }, 280); });
     $('#memSegment').innerHTML = '<option value="">Any record</option>' + Object.keys(MEM_SEGMENTS).map(function (k) { return '<option value="' + k + '">' + escapeHtml(MEM_SEGMENTS[k]) + '</option>'; }).join('');
-    ['#memRole', '#memStatus', '#memKind', '#memMissing', '#memMembership', '#memSegment', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
+    ['#memRole', '#memStatus', '#memKind', '#memWorkRole', '#memCentre', '#memLevel', '#memVolunteer', '#memMissing', '#memMembership', '#memSegment', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
     /* A tile opens its list: the roster with exactly that filter and no other. */
     $('#memTiles').addEventListener('click', function (e) {
       if (e.target.closest('#memDashRetry')) { loadMemDash(); return; }
       if (e.target.closest('[data-offline]')) { e.preventDefault(); $('#offStatus').value = 'held'; memTab('offline'); return; }
       var a = e.target.closest('[data-ms],[data-kind],[data-seg],[data-all]'); if (!a) return; e.preventDefault();
-      ['#memRole', '#memStatus', '#memMissing', '#memMembership', '#memSegment'].forEach(function (x) { $(x).value = ''; });
+      ['#memRole', '#memStatus', '#memMissing', '#memMembership', '#memSegment', '#memWorkRole', '#memCentre', '#memLevel', '#memVolunteer'].forEach(function (x) { $(x).value = ''; });
       $('#memQ').value = ''; $('#memKind').value = '';
       if (a.getAttribute('data-kind')) $('#memKind').value = a.getAttribute('data-kind');
-      else if (a.getAttribute('data-ms')) { $('#memMembership').value = a.getAttribute('data-ms'); $('#memKind').value = 'all'; }
+      /* Owing dues is a MEMBER's obligation, so those two lists stay on members;
+         the other dues states are over every account, learners included. */
+      else if (a.getAttribute('data-ms')) { $('#memMembership').value = a.getAttribute('data-ms'); $('#memKind').value = /^(owing|obliged)$/.test(a.getAttribute('data-ms')) ? '' : 'all'; }
       else $('#memSegment').value = a.getAttribute('data-seg');
       memPage = 1; memSel = {}; memTab('roster');
+    });
+    $('#duesRules').addEventListener('submit', saveDues);
+    $('[data-pane="dues"]').addEventListener('click', function (e) {
+      if (e.target.closest('#duesRetry')) { loadDues(); return; }
+      var o = e.target.closest('.dues-open'); if (o) { openMember(+o.getAttribute('data-id')); return; }
+      if (e.target.closest('#duesOpenRoster')) {
+        ['#memRole', '#memStatus', '#memMissing', '#memSegment', '#memWorkRole', '#memCentre', '#memLevel', '#memVolunteer', '#memKind'].forEach(function (x) { $(x).value = ''; });
+        $('#memQ').value = ''; $('#memMembership').value = 'owing'; memPage = 1; memSel = {}; memTab('roster');
+      }
     });
     $('#memList').addEventListener('change', function (e) {
       var c = e.target.closest('.mem-pick'); if (!c) return;
@@ -3319,6 +4338,16 @@
     });
 
     $('#memIntakeList').addEventListener('click', function (e) {
+      var c = e.target.closest('.mem-intake-consent');
+      if (c) {
+        var cr = c.closest('[data-ngg]'); c.disabled = true;
+        post('ngv_intake_consent', { ngg_member_id: cr.getAttribute('data-ngg'), guardian: cr.querySelector('input').value.trim(), method: cr.querySelector('select').value }).then(function (r) {
+          var d = r.data || {};
+          if (d.ok && d.status !== 'needs_consent') { toast(d.status === 'needs_email' ? 'Consent recorded. They still need an email.' : 'Consent recorded and NGV account ready.'); loadMemDash(); }
+          else toast(d.error || 'The consent could not be recorded.');
+        }).finally(function () { c.disabled = false; });
+        return;
+      }
       var b = e.target.closest('.mem-intake-go'); if (!b) return;
       var row = b.closest('[data-ngg]'); b.disabled = true;
       post('ngv_intake_email', { ngg_member_id: row.getAttribute('data-ngg'), email: row.querySelector('input').value.trim() }).then(function (r) {
@@ -3342,25 +4371,189 @@
     $('#mdClose').addEventListener('click', closeMember);
     $('#memDrawer').addEventListener('click', function (e) { if (e.target === this) closeMember(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#memDrawer').hidden) closeMember(); });
+    memCentresFill();
+    $('#memChips').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-clear]'); if (!b) return;
+      var w = b.getAttribute('data-clear');
+      (w === '*' ? MEM_FILTERS.map(function (f) { return f[0]; }) : [w]).forEach(function (x) { if ($(x)) $(x).value = ''; });
+      memPage = 1; memSel = {}; loadMemRoster();
+    });
+    $('#memBulkExport').addEventListener('click', function () { this.href = API + '?action=roster_export&' + memFilterQs() + '&ids=' + memSelIds().join(','); });
+    $('#memBulkMsg').addEventListener('click', function () { var f = $('#memMsgForm'); f.hidden = !f.hidden; this.setAttribute('aria-expanded', String(!f.hidden)); if (!f.hidden) $('#msgTitle').focus(); });
+    $('#msgCancel').addEventListener('click', function () { $('#memMsgForm').hidden = true; $('#memBulkMsg').setAttribute('aria-expanded', 'false'); });
+    $('#memMsgForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var ids = memSelIds(), n = ids.length;
+      if (!n) { toast('Choose who it goes to.'); return; }
+      if (!confirm('Send "' + $('#msgTitle').value.trim() + '" to ' + n + ' member' + (n === 1 ? '' : 's') + ($('#msgEmail').checked ? ', by email too' : '') + '?')) return;
+      var b = $('#msgSend'); b.disabled = true;
+      post('member_message', { ids: ids, title: $('#msgTitle').value.trim(), body: $('#msgBody').value.trim(), email: $('#msgEmail').checked }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { toast(d.error || 'Not sent.'); return; }
+        toast('Sent to ' + d.sent + (d.skipped ? ' · ' + d.skipped + ' suspended skipped' : '') + (d.emailed ? ' · emailed' : '') + '.');
+        $('#memMsgForm').hidden = true; $('#msgTitle').value = ''; $('#msgBody').value = ''; $('#msgEmail').checked = false;
+      }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
+    });
+    $('#mdNoteForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var body = $('#mdNoteBody').value.trim(); if (!body) { $('#mdNoteBody').focus(); return; }
+      post('member_note_add', { id: memOpen, body: body }).then(function (r) {
+        var d = r.data || {}; if (!d.ok) { toast(d.error || 'Not saved.'); return; }
+        $('#mdNoteBody').value = ''; memNotesDraw(d.notes || [], $('#mdNotes').getAttribute('data-me') || '');
+      });
+    });
+    $('#mdNotes').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-note-del]'); if (!b) return;
+      post('member_note_delete', { note_id: +b.getAttribute('data-note-del') }).then(function (r) {
+        var d = r.data || {}; if (!d.ok) { toast(d.error || 'Could not.'); return; }
+        memNotesDraw(d.notes || [], $('#mdNotes').getAttribute('data-me') || '');
+      });
+    });
+
+    /* Work roles: the chips give and take away; the list is kept under Roles. */
+    $('#md_role_chips').addEventListener('click', function (e) {
+      var b = e.target.closest('.mem-role-chip'); if (!b) return;
+      var name = b.getAttribute('data-role'), have = rolesOf($('#md_work_roles').value);
+      var i = have.map(function (x) { return x.toLowerCase(); }).indexOf(name.toLowerCase());
+      if (i >= 0) have.splice(i, 1); else if (have.length < 8) have.push(name); else { toast('Eight roles is the most a member can hold.'); return; }
+      $('#md_work_roles').value = have.join(', ');
+      roleChips();
+    });
+    var chipT = 0;
+    $('#md_work_roles').addEventListener('input', function () { clearTimeout(chipT); chipT = setTimeout(roleChips, 300); });
+    function roleSaid(t, bad) { var m = $('#roleMsg'); if (m) { m.textContent = t || ''; m.classList.toggle('is-bad', !!bad); } }
+    $('#roleNew').addEventListener('submit', function (e) {
+      e.preventDefault();
+      post('role_save', { id: 0, name: $('#roleNewName').value.trim(), description: $('#roleNewDesc').value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { roleSaid(d.error || 'Could not add it.', true); return; }
+        roleSaid('Added.'); $('#roleNewName').value = ''; $('#roleNewDesc').value = ''; loadMemRoles();
+      });
+    });
+    $('#memRolesList').addEventListener('submit', function (e) {
+      var f = e.target.closest('.mem-role-row'); if (!f) return;
+      e.preventDefault();
+      post('role_save', { id: +f.getAttribute('data-id'), name: f.elements.name.value.trim(), description: f.elements.description.value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { roleSaid(d.error || 'Could not save it.', true); return; }
+        roleSaid(d.renamed ? 'Saved — renamed on ' + d.renamed + ' member' + (d.renamed === 1 ? '' : 's') + '.' : 'Saved.'); loadMemRoles();
+      });
+    });
+    $('#memRolesList').addEventListener('click', function (e) {
+      var del = e.target.closest('[data-role-del]'), see = e.target.closest('[data-role-members]');
+      if (del) {
+        var n = +del.getAttribute('data-n');
+        if (!confirm('Remove the role ' + del.getAttribute('data-name') + '?' + (n ? ' It is taken off the ' + n + ' member' + (n === 1 ? '' : 's') + ' who hold it.' : ''))) return;
+        post('role_delete', { id: +del.getAttribute('data-role-del') }).then(function (r) { var d = r.data || {}; roleSaid(d.ok ? 'Removed.' : (d.error || 'Could not remove it.'), !d.ok); loadMemRoles(); });
+      } else if (see) {
+        /* Who holds it: the roster, filtered to the role. */
+        rolesGet().then(function () { $('#memWorkRole').value = see.getAttribute('data-role-members'); memPage = 1; memSel = {}; memTab('roster'); });
+      }
+    });
+    rolesGet().catch(function () {});
+
+    $('#apprStatus').addEventListener('change', loadApprovals);
+    $('#mreqList').addEventListener('click', function (e) {
+      if (e.target.closest('[data-mreq-retry]')) { loadMemberRequests(); return; }
+      var b = e.target.closest('[data-mreq-do]'); if (!b) return;
+      var row = b.closest('[data-mreq]'), id = +row.getAttribute('data-mreq'), what = b.getAttribute('data-mreq-do');
+      var reason = '';
+      if (what === 'reject') { reason = prompt('Why not? The member sees this.'); if (reason === null) return; if (!reason.trim()) { toast('Say why — the member sees it.'); return; } }
+      else if (!confirm('Approve?\n\n' + row.querySelector('.appr-sum').textContent)) return;
+      b.disabled = true;
+      post('member_request_decide', { id: id, decision: what, reason: reason }).then(function (r) {
+        var d = r.data || {};
+        toast(d.ok ? (d.status === 'approved' ? 'Approved' + (d.outcome ? ' — ' + d.outcome : '') + '. The member is told.' : 'Not approved. The member is told why.') : (d.error || 'That did not go through.'));
+        loadMemberRequests(); approvalsBadge(); if (d.ok) loadMemRoster();
+      });
+    });
+    $('#apprList').addEventListener('click', function (e) {
+      if (e.target.closest('[data-appr-retry]')) { loadApprovals(); return; }
+      var b = e.target.closest('[data-appr]'); if (!b) return;
+      var id = +b.closest('.appr-row').getAttribute('data-id'), what = b.getAttribute('data-appr');
+      var sum = b.closest('.appr-row').querySelector('.appr-sum').textContent;
+      if (what === 'withdraw') {
+        if (!confirm('Withdraw this request? Nothing will happen.')) return;
+        post('approval_withdraw', { id: id }).then(function (r) { var d = r.data || {}; toast(d.ok ? 'Withdrawn.' : (d.error || 'That did not go through.')); loadApprovals(); });
+        return;
+      }
+      var reason = '';
+      if (what === 'reject') { reason = prompt('Why not? The person who asked is told.'); if (reason === null) return; if (!reason.trim()) { toast('Say why, so they know.'); return; } }
+      else if (!confirm('Approve and run it now?\n\n' + sum)) return;
+      b.disabled = true;
+      post('approval_decide', { id: id, decision: what, reason: reason }).then(function (r) {
+        var d = r.data || {};
+        toast(d.ok ? (d.status === 'approved' ? 'Approved and done — ' + d.outcome : d.status === 'failed' ? 'Approved, but it could not run: ' + d.outcome : 'Not approved. They are told why.') : (d.error || 'That did not go through.'));
+        loadApprovals(); if (d.ok && d.status === 'approved') loadMemRoster();
+      });
+    });
+    approvalsBadge();
+
+    $('#centreNew').addEventListener('submit', function (e) {
+      e.preventDefault();
+      post('centre_save', { id: 0, name: $('#centreNewName').value.trim(), code: $('#centreNewCode').value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { centreSaid(d.error || 'Could not add it.', true); return; }
+        centreSaid('Added ' + d.centre.name + ' (' + d.centre.code + ').'); $('#centreNewName').value = ''; $('#centreNewCode').value = '';
+        loadMemCentres(); memCentresFill();
+      });
+    });
+    $('#memCentresList').addEventListener('submit', function (e) {
+      var f = e.target.closest('.mem-centre-row'); if (!f) return;
+      e.preventDefault();
+      post('centre_save', { id: +f.getAttribute('data-id'), name: f.elements.name.value.trim(), code: f.elements.code.value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { centreSaid(d.error || 'Could not save it.', true); return; }
+        centreSaid(d.moved ? 'Saved — ' + d.moved + ' member' + (d.moved === 1 ? '' : 's') + ' moved with the new name.' : 'Saved.');
+        loadMemCentres(); memCentresFill();
+      });
+    });
+    $('#memCentresList').addEventListener('click', function (e) {
+      var st = e.target.closest('[data-centre-status]'), del = e.target.closest('[data-centre-del]'), see = e.target.closest('[data-centre-members]');
+      if (e.target.closest('[data-centre-retry]')) { loadMemCentres(); return; }
+      var id = +((e.target.closest('.mem-centre-row') || { getAttribute: function () { return 0; } }).getAttribute('data-id'));
+      if (st) {
+        var to = st.getAttribute('data-centre-status');
+        if (to === 'retired' && !confirm('Retire ' + st.getAttribute('data-name') + '? Its members keep it; nobody new can be put there.')) return;
+        post('centre_status', { id: id, status: to }).then(function (r) { var d = r.data || {}; centreSaid(d.ok ? (to === 'retired' ? 'Retired.' : 'Reopened.') : (d.error || 'That did not go through.'), !d.ok); loadMemCentres(); memCentresFill(); });
+      } else if (del) {
+        if (!confirm('Delete ' + del.getAttribute('data-name') + '? A centre with members is refused — retire it instead.')) return;
+        post('centre_delete', { id: id }).then(function (r) { var d = r.data || {}; centreSaid(d.ok ? 'Deleted.' : (d.error || 'That did not go through.'), !d.ok); loadMemCentres(); memCentresFill(); });
+      } else if (see) {
+        memCentresFill().then(function () { $('#memCentre').value = see.getAttribute('data-centre-members'); memPage = 1; memSel = {}; memTab('roster'); });
+      }
+    });
+
     $('#mdSave').addEventListener('click', function () {
       var p = { id: memOpen, name: $('#md_name').value.trim(), email: $('#md_email').value.trim(), phone: $('#md_phone').value.trim(), centre: $('#md_centre').value.trim(),
-                role: $('#md_role').value, level: $('#md_level').value, birthday: $('#md_bday').value.trim(), joined_on: $('#md_joined').value, notes: $('#md_notes').value };
-      post('roster_update', p).then(function (r) {
-        var d = r.data || {};
+                role: $('#md_role').value, level: $('#md_level').value, birthday: $('#md_bday').value.trim(), joined_on: $('#md_joined').value, notes: $('#md_notes').value,
+                work_roles: $('#md_work_roles').value.trim(), about: $('#md_about').value.trim() };
+      /* The title printed on the card is saved by the same button: people type it
+         and press Save. Both answers are reported; the drawer stays open on a refusal. */
+      var card = window.AvCardPhoto && window.AvCardPhoto.saveTitleIfChanged ? window.AvCardPhoto.saveTitleIfChanged() : Promise.resolve(null);
+      Promise.all([post('roster_update', p), card]).then(function (x) {
+        var d = x[0].data || {}, c = x[1];
         if (!d.ok) { memErrors('#md_errors', d); return; }
-        toast(d.changed.length ? 'Saved: ' + d.changed.join(', ') + '.' : 'Nothing changed.'); closeMember(); loadMembers();
+        if (c && !c.ok) { toast(c.error || 'The card title was not saved.'); return; }
+        var changed = (d.changed || []).slice(); if (c && c.ok) changed.push('card title');
+        toast(changed.length ? 'Saved: ' + changed.join(', ') + '.' : 'Nothing changed.'); closeMember(); loadMembers();
       });
     });
     $('#mdSuspend').addEventListener('click', function () {
       var to = this.getAttribute('data-to');
       if (to === 'suspended' && !confirm('Suspend this member? They are signed out, and their gate pass and card stop at the door.')) return;
-      post('roster_update', { id: memOpen, status: to }).then(function (r) { if (r.data && r.data.ok) { toast(to === 'suspended' ? 'Member suspended.' : 'Member reactivated.'); closeMember(); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.'); });
+      post('roster_update', { id: memOpen, status: to }).then(function (r) {
+        var d = r.data || {};
+        /* An admin's suspension waits for a second person (lib/Approvals.php). */
+        if (d.code === 'approval_pending') { toast(d.error); closeMember(); approvalsBadge(); return; }
+        if (d.ok) { toast(to === 'suspended' ? 'Member suspended.' : 'Member reactivated.'); closeMember(); loadMembers(); } else toast(d.error || 'Refused.');
+      });
     });
     function reissue(voidPrinted) {
       if (!confirm(voidPrinted ? 'Retire the old printed card and issue a new secure one? Both old cards stop at the gate now.' : 'Issue a new secure card? The current one stops at the gate now.')) return;
       post('card_reissue', { id: memOpen, void_printed: voidPrinted }).then(function (r) {
         var d = r.data || {}; if (!d.ok) { toast(d.error || 'Could not issue.'); return; }
-        $('#mdCards').innerHTML = memCardsHTML(d.cards); $('#mdRetire').hidden = true; toast('New card ' + d.code + '.');
+        $('#mdCards').innerHTML = memCardsHTML(d.cards); $('#mdRetire').hidden = true; $('#mdPrint').hidden = false; toast('New card ' + d.code + '.');
       });
     }
     $('#mdReissue').addEventListener('click', function () { reissue(false); });
@@ -3423,7 +4616,11 @@
     applyRoleVisibility();
     var saved = 'overview';
     try { saved = localStorage.getItem('av.studio.tab') || 'overview'; } catch (e) {}
-    if (!document.querySelector('.tab[data-tab="' + saved + '"]') || !roleAllows(saved)) saved = 'overview';
+    // A link into the Studio (the preview's "Back to the Studio") names its screen in the hash.
+    var asked = (location.hash || '').slice(1);
+    if (/^[a-z]+$/.test(asked) && (document.querySelector('.tab[data-tab="' + asked + '"]') || asked === 'homepage' || asked === 'pages')) saved = asked;
+    if (saved !== 'homepage' && saved !== 'pages' && !document.querySelector('.tab[data-tab="' + saved + '"]')) saved = 'overview';
+    if (!roleAllows(saved)) saved = 'overview';
     activateTab(saved);
     refreshModBadge();
   }

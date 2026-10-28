@@ -437,7 +437,7 @@
       var ch = btn.getAttribute('data-chan') || 'general';
       if (ch === channel) return;
       channel = ch; chatEl.setAttribute('data-channel', ch); lastId = 0;
-      [].forEach.call(chanBar.querySelectorAll('.cm-chan-btn'), function (b) { b.classList.toggle('is-on', b === btn); });
+      [].forEach.call(chanBar.querySelectorAll('.cm-chan-btn'), function (b) { b.classList.toggle('is-on', b === btn); b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
       log.innerHTML = '<div class="cm-chat-empty">Loading #' + esc(ch) + '…</div>';
       poll();
     });

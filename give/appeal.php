@@ -93,7 +93,7 @@ render_nav('involved');
 
 $donateHref = '/donate.html?campaign=' . rawurlencode((string) $a['slug']);
 ?>
-<main id="main-content" class="give-wrap" style="padding-top:var(--afg-space-7);padding-bottom:var(--afg-space-8)">
+<main id="main" tabindex="-1" class="give-wrap" style="padding-top:var(--afg-space-7);padding-bottom:var(--afg-space-8)">
 
   <span class="ed-kicker"><?= e($kindWord[(string) $a['kind']] ?? 'Appeal') ?><?php
       if (!empty($a['location'])): ?> · <?= e((string) $a['location']) ?><?php endif; ?></span>
@@ -519,7 +519,7 @@ $donateHref = '/donate.html?campaign=' . rawurlencode((string) $a['slug']);
     <p class="gvpay-fine">Card, bank transfer and USSD. Secured by Paystack. You stay on this page.</p>
   </div>
 </div>
-<script src="/assets/site/give-pay.js" defer></script>
-<script src="/give/pay-sheet.js" defer></script>
-<script src="/give/give.js" defer></script>
+<script src="<?= e(av_asset('/assets/site/give-pay.js')) ?>" defer></script>
+<script src="<?= e(av_asset('/give/pay-sheet.js')) ?>" defer></script>
+<script src="<?= e(av_asset('/give/give.js')) ?>" defer></script>
 <?php render_footer();

@@ -64,4 +64,6 @@ $thisMonth = date('Y-m');
 $added = array_values(array_diff($after, $before));
 ck('ngv enrol: reactivating does not back-charge the months away (charged: ' . implode(',', $added) . ')',
    $before !== [] && array_filter($added, static fn($k) => $k < $thisMonth) === []);
-ck('ngv enrol: …and charges resume from the day they came back', NgvMember::participant(703)['accrue_from'] === date('Y-m-d'));
+/* The day they came back is the site's (av_today_tz(), Lagos), not the server's. */
+ck('ngv enrol: …and charges resume from the day they came back',
+   NgvMember::participant(703)['accrue_from'] === av_today_tz());

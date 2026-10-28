@@ -11,7 +11,9 @@
  *   GET ?action=events     → {ok, configured, events:[…]}
  *   GET ?action=files      → {ok, configured, files:[…]}
  *   GET ?action=directory  → {ok, configured, users:[…]}  (admins only)
- *   GET ?action=me         → {ok, oauth, connected, mine:{unread,mail,events,files}}
+ *   GET ?action=me         → {ok, oauth, connected, mine:{unread,mail,events,files,reads}}
+ *   POST ?action=reads     {on} → the member allows (or stops) reading their own
+ *                            Gmail, Drive and Chat through delegation
  *                            (PER-USER: the member's OWN Gmail/Calendar/Drive)
  */
 declare(strict_types=1);
@@ -39,12 +41,25 @@ try {
             if (!$oauth || !GoogleWorkspaceUser::connected((int) $u['id'])) {
                 json_out(['ok' => true, 'oauth' => $oauth, 'connected' => false, 'mine' => null]);
             }
-            json_out(['ok' => true, 'oauth' => true, 'connected' => true, 'mine' => GoogleWorkspaceUser::snapshot((int) $u['id'])]);
+            $mine = GoogleWorkspaceUser::snapshot((int) $u['id']);
+            json_out(['ok' => true, 'oauth' => true, 'connected' => true, 'mode' => $mine['mode'], 'mine' => $mine, 'errors' => $mine['errors']]);
+
+        case 'reads': {
+            if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            if (!av_csrf_valid((string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))) json_out(['ok' => false, 'error' => 'Bad token.'], 403);
+            $b = json_decode((string) file_get_contents('php://input'), true) ?: [];
+            GoogleWorkspaceUser::setReads((int) $u['id'], !empty($b['on']));
+            json_out(['ok' => true, 'reads' => GoogleWorkspaceUser::readsAllowed((int) $u['id'])]);
+        }
 
         /* ── Google Chat (live, via the member's own connection) ── */
         case 'chat_spaces': {
             if (!GoogleWorkspaceUser::connected((int) $u['id'])) json_out(['ok' => false, 'connected' => false, 'error' => 'Connect Google to use Chat.'], 200);
-            json_out(['ok' => true, 'connected' => true, 'spaces' => GoogleWorkspaceUser::chatSpaces((int) $u['id'])]);
+            $spaces = GoogleWorkspaceUser::chatSpaces((int) $u['id']);
+            /* No spaces and a refusal is not "no spaces": say why (often that the Chat API needs a Chat app configured in Google Cloud). */
+            $why = !$spaces ? (GoogleWorkspaceUser::lastWhy() ?: (GoogleWorkspaceUser::lastHttpCode() >= 400 ? 'Google Chat answered ' . GoogleWorkspaceUser::lastHttpCode() . '. ' . (GoogleWorkspaceUser::lastHttpCode() === 404 || str_contains(GoogleWorkspaceUser::lastHttpError(), 'Chat app') ? 'The Google Chat API needs a Chat app set up in the Google Cloud project (APIs & Services → Google Chat API → Configuration).' : '') : '')) : '';
+            json_out(['ok' => true, 'connected' => true, 'spaces' => $spaces, 'error' => $why]);
         }
         case 'chat_unread': {
             if (!GoogleWorkspaceUser::connected((int) $u['id'])) json_out(['ok' => false, 'connected' => false], 200);
@@ -69,6 +84,9 @@ try {
             // Google connection predates the "post to Chat" permission — they need
             // to reconnect to grant it.
             $code = GoogleWorkspaceUser::lastHttpCode();
+            if (GoogleWorkspaceUser::mode((int) $u['id']) === 'delegated') {
+                json_out(['ok' => false, 'reconnect' => false, 'error' => 'Could not send. ' . (GoogleWorkspaceUser::lastWhy() ?: ('Google ' . $code . ' ' . GoogleWorkspaceUser::lastHttpError()))], 503);
+            }
             $needsReconnect = in_array($code, [401, 403], true);
             json_out([
                 'ok' => false,
@@ -76,7 +94,7 @@ try {
                 'error' => $needsReconnect
                     ? 'Reconnect your Google account to allow posting to Chat.'
                     : ('Could not send' . ($code ? ' (Google ' . $code . ').' : '.')),
-            ], 502);
+            ], 503);
         }
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);

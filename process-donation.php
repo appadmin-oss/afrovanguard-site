@@ -269,6 +269,20 @@ function esc($v): string {
 /* ═══════════════════════════════════════════════════════════
    EMAIL
    ═══════════════════════════════════════════════════════════ */
+/* The designed templates own their own subject line, so this is mail_send
+   with the subject taken out and the template put in. Same donations@ sender,
+   same Mailer roads. */
+function mail_send_tpl(string $to, array $spec): bool {
+    if (!ENABLE_EMAIL_NOTIFICATIONS) return true;
+    if (!class_exists('Mailer') || !method_exists('Mailer', 'sendTemplate')) return false;
+    $dfrom = defined('DONATIONS_FROM_EMAIL') && DONATIONS_FROM_EMAIL !== '' ? DONATIONS_FROM_EMAIL : 'donations@afrovanguard.org.ng';
+    $dname = defined('DONATIONS_FROM_NAME') && DONATIONS_FROM_NAME !== '' ? DONATIONS_FROM_NAME : (defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard');
+    [$tpl, $vars] = $spec;
+    $ok = Mailer::sendTemplate($to, $tpl, $vars, ['from' => $dfrom, 'fromName' => $dname, 'replyTo' => $dfrom]);
+    if (!$ok) error_log('[AV] donation mail to ' . $to . ': ' . (method_exists('Mailer', 'lastError') ? Mailer::lastError() : 'send failed'));
+    return $ok;
+}
+
 function mail_send(string $to, string $sub, string $html): bool {
     if (!ENABLE_EMAIL_NOTIFICATIONS) return true;
     // Deliver through the one shared Mailer: PHPMailer over authenticated SMTP
@@ -311,114 +325,90 @@ function mail_send(string $to, string $sub, string $html): bool {
     }
 }
 
-function baseCss(): string {
-    return 'body,table,td,a{-webkit-text-size-adjust:100%;}table{border-collapse:collapse;}'
-    .'body{margin:0;padding:0;background:#f4f4f4;font-family:\'Montserrat\',-apple-system,BlinkMacSystemFont,sans-serif;color:#111;}'
-    .'.wrap{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;}'
-    .'.hd{background:#0d1220;border-bottom:4px solid #f3b416;padding:20px 40px;text-align:center;}'
-    .'.brand{font-family:\'Cormorant\',Georgia,serif;font-size:26px;font-weight:700;color:#fff;}'
-    .'.gold{color:#f3b416;}.tag{font-size:10px;letter-spacing:2px;font-weight:700;color:#f3b416;text-transform:uppercase;margin-top:4px;}'
-    .'.sec{padding:32px 40px;}.ft{background:#fafafa;border-top:1px solid #eee;padding:24px 32px;text-align:center;}'
-    .'h1{font-family:\'Cormorant\',Georgia,serif;font-size:28px;margin:0 0 20px;color:#111;line-height:1.2;}'
-    .'p{font-size:15px;line-height:1.65;margin:0 0 16px;color:#4b5563;}strong{color:#111;}'
-    .'.badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;background:#fffbf0;color:#8d480e;padding:6px 10px;border-radius:999px;margin-bottom:16px;}'
-    .'.card{background:#fffbf0;border:1px solid #ffe688;border-radius:8px;padding:20px;margin-bottom:24px;}'
-    .'.lbl{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#8d480e;margin-bottom:4px;}'
-    .'.val{font-size:16px;font-weight:600;color:#111;}.row{margin-top:14px;}'
-    .'.btn{display:inline-block;padding:14px 24px;background:#f3b416;color:#0d1220!important;text-decoration:none;border-radius:6px;font-weight:700;font-size:15px;}'
-    .'.ft p{font-size:11px;color:#6b7280;margin:0 0 8px;}.ft a{color:#6b7280;text-decoration:underline;}'
-    .'@media(max-width:600px){.sec,.hd{padding:24px 20px!important;}h1{font-size:22px!important;}.btn{width:100%!important;display:block;text-align:center;box-sizing:border-box;}}';
-}
+/* These used to carry their own <style> block and class names. Gmail strips
+   <style>, so for most recipients a receipt arrived as unstyled default text.
+   They use the shared template now — one look across every message the site
+   sends, inline styles, the mark at the foot. */
 
-function wrap(string $badge, string $body, string $note=''): string {
-    $css = baseCss(); $year=date('Y');
-    return "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><style>{$css}</style></head><body>"
-    ."<center><table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr><td style=\"padding:40px 10px;\">"
-    ."<table class=\"wrap\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">"
-    ."<tr><td class=\"hd\" align=\"center\"><div class=\"brand\">AFROVANGUARD<span class=\"gold\">.</span></div>"
-    ."<div class=\"tag\">The Force for Good</div></td></tr>"
-    ."<tr><td class=\"sec\"><span class=\"badge\">{$badge}</span><br>{$body}</td></tr>"
-    ."<tr><td class=\"ft\">"
-    .($note?"<p>{$note}</p>":'')
-    ."<p>Afrovanguard · CACENTRE, 2 Abolude/Oremeji Street, Alimosho, Lagos</p>"
-    ."<p><a href=\"mailto:cacentre@afrovanguard.org.ng\">Support</a> · <a href=\"https://afrovanguard.org.ng/privacy-policy/\">Privacy</a></p>"
-    ."<p>&copy; {$year} Afrovanguard. All rights reserved.</p>"
-    ."</td></tr></table></td></tr></table></center></body></html>";
-}
-
-function receiptHtml(array $d): string {
-    $sym  = $d['currency']??'NGN';
-    $amt  = esc($sym).' '.number_format((float)($d['amount']??0),2);
-    $name = esc(trim(($d['firstName']??'').' '.($d['lastName']??'')));
-    $camp = esc($d['campaign']??'General Fund');
-    $freq = esc($d['frequency']??'One-time');
-    $ref  = esc($d['reference']??'—');
-    $dt   = date('F j, Y \a\t g:i A T');
-    $body = "<h1>Thank you for your gift! &#127881;</h1>"
-    ."<p><strong>Vanguard {$name},</strong></p>"
-    ."<p>Your donation to Afrovanguard is confirmed. You're directly empowering young African leaders through mentorship, creative arts, technology training, and community projects across Nigeria and 14 nations.</p>"
-    ."<div class=\"card\">"
-    ."<div class=\"lbl\">Amount Donated</div><div class=\"val\" style=\"font-size:30px;color:#f3b416;\">{$amt}</div>"
-    ."<div class=\"row\"><div class=\"lbl\">Reference</div><div class=\"val\" style=\"font-size:13px;word-break:break-all;\">{$ref}</div></div>"
-    ."<div class=\"row\"><div class=\"lbl\">Campaign</div><div class=\"val\">{$camp}</div></div>"
-    ."<div class=\"row\"><div class=\"lbl\">Frequency</div><div class=\"val\">{$freq}</div></div>"
-    ."<div class=\"row\"><div class=\"lbl\">Date &amp; Time</div><div class=\"val\">{$dt}</div></div>"
-    ."</div>"
-    ."<p><strong>&#128161; Your Impact</strong></p>"
-    ."<p>100% of your gift funds programs — zero admin fees. You'll receive quarterly impact reports showing your donation in action: School Storm campus tours, Street-To-Stardom creative arts, Techome equipment drives, and more.</p>"
-    ."<a href=\"https://afrovanguard.org.ng/projects/\" class=\"btn\">See Our Projects &rarr;</a>"
-    ."<p style=\"margin-top:24px;font-size:13px;color:#6b7280;\">Questions? <a href=\"mailto:donations@afrovanguard.org.ng\" style=\"color:#f3b416;\">donations@afrovanguard.org.ng</a></p>"
-    ."<p style=\"margin-top:28px;\">With gratitude,<br><strong>The Afrovanguard Team</strong><br>"
-    ."<span style=\"font-size:12px;color:#f3b416;text-transform:uppercase;\">The Force for Good</span></p>";
-    return wrap('&#10003; Donation Receipt', $body, 'You received this because you donated to Afrovanguard.');
+/* modules/EMAILS.md: donation_receipt. Display-ready strings only — the
+   template escapes, so nothing here is pre-escaped. */
+function receiptHtml(array $d): array {
+    $sym = (string) ($d['currency'] ?? 'NGN');
+    return [
+        'donation_receipt',
+        [
+            'first_name'  => trim((string) ($d['firstName'] ?? '')) ?: 'friend',
+            'amount'      => ($sym === 'NGN' ? '₦' : $sym . ' ') . number_format((float) ($d['amount'] ?? 0), 2),
+            'receipt_no'  => (string) ($d['reference'] ?? '—'),
+            'paid_on'     => date('j M Y'),
+            'method'      => (string) ($d['method'] ?? 'Card · Paystack'),
+            'designation' => (string) ($d['campaign'] ?? 'Where most needed'),
+            'receipt_url' => 'https://afrovanguard.org.ng/give/receipt/' . rawurlencode((string) ($d['reference'] ?? '')),
+        ],
+    ];
 }
 
 function bankHtml(array $d): string {
-    $name=$d['name']??'Dear Supporter';
-    $body="<h1>Complete your donation</h1>"
-    ."<p><strong>".esc($name).",</strong></p>"
-    ."<p>Thank you for choosing to support Afrovanguard. Please use the details below to complete your transfer.</p>"
-    ."<div class=\"card\" style=\"border:2px solid #f3b416;\">"
-    ."<div class=\"lbl\">Bank</div><div class=\"val\">".esc(BANK_NAME)."</div>"
-    ."<div class=\"row\"><div class=\"lbl\">Account Name</div><div class=\"val\" style=\"font-size:13px;\">".esc(ACCOUNT_NAME)."</div></div>"
-    ."<div class=\"row\"><div class=\"lbl\">Account Number</div><div class=\"val\" style=\"font-size:28px;letter-spacing:.06em;color:#f3b416;\">".esc(ACCOUNT_NUMBER)."</div></div>"
-    ."<div class=\"row\"><div class=\"lbl\">Sort Code</div><div class=\"val\">".esc(BANK_CODE)."</div></div>"
-    ."</div>"
-    ."<div style=\"font-size:13px;background:#fffbf0;border-left:4px solid #f3b416;padding:16px;border-radius:0 6px 6px 0;margin:20px 0;\">"
-    ."<strong>After transferring:</strong> Send your name, amount &amp; date to "
-    ."<a href=\"mailto:donations@afrovanguard.org.ng\" style=\"color:#f3b416;\">donations@afrovanguard.org.ng</a> to receive your impact receipt."
-    ."</div>";
-    return wrap('&#127970; Bank Transfer Details', $body);
+    return Mailer::shell(
+        'Complete your donation',
+        [
+            '<strong>' . esc($d['name'] ?? 'Dear Supporter') . ',</strong>',
+            'Thank you for choosing to support Afrovanguard. Please use the details below to complete your transfer.',
+            Mailer::facts([
+                ['Bank',           BANK_NAME],
+                ['Account name',   ACCOUNT_NAME],
+                ['Account number', ACCOUNT_NUMBER],
+                ['Sort code',      BANK_CODE],
+            ]),
+            Mailer::panel('After transferring',
+                'Send your name, amount and date to '
+                . '<a href="mailto:donations@afrovanguard.org.ng" style="color:#8A6406;text-decoration:underline">donations@afrovanguard.org.ng</a>'
+                . ' to receive your impact receipt.'),
+        ],
+        null,
+        'Bank transfer details for your donation.',
+        ['eyebrow' => 'Bank transfer']
+    );
 }
 
 function contributeHtml(array $d): string {
-    $name=esc($d['name']??'Supporter');
-    $type=esc($d['type_label']??'Contribution');
-    $desc=esc($d['description']??'');
-    $body="<h1>Thank you for your {$type}! &#128588;</h1>"
-    ."<p><strong>Vanguard {$name},</strong></p>"
-    ."<p>Your non-monetary contribution to Afrovanguard has been received. Every form of giving — time, skills, and resources — powers our mission.</p>"
-    ."<div class=\"card\">"
-    ."<div class=\"lbl\">Contribution Type</div><div class=\"val\">{$type}</div>"
-    ."<div class=\"row\"><div class=\"lbl\">Description</div><div class=\"val\" style=\"font-size:14px;\">{$desc}</div></div>"
-    ."</div>"
-    ."<p>Our team will reach out within 48 hours to coordinate. Thank you for being part of Africa's transformation.</p>"
-    ."<p>Warm regards,<br><strong>The Afrovanguard Team</strong></p>";
-    return wrap('&#129309; Contribution Received', $body, 'You submitted a contribution to Afrovanguard.');
+    $type = $d['type_label'] ?? 'Contribution';
+    return Mailer::shell(
+        'Thank you for your ' . $type,
+        [
+            '<strong>Vanguard ' . esc($d['name'] ?? 'Supporter') . ',</strong>',
+            "Your non-monetary contribution to Afrovanguard has been received. Every form of giving — time, skills, and resources — powers our mission.",
+            Mailer::facts([
+                ['Contribution type', $type],
+                ['Description',       $d['description'] ?? ''],
+            ]),
+            "Our team will reach out within 48 hours to coordinate. Thank you for being part of Africa's transformation.",
+            'Warm regards,<br><strong>The Afrovanguard Team</strong>',
+        ],
+        null,
+        'We have your contribution.',
+        ['eyebrow' => 'Contribution received', 'note' => 'You submitted a contribution to Afrovanguard.']
+    );
 }
 
 function adminHtml(array $d, string $label): string {
-    $amt=number_format((float)($d['amount']??0),2);
-    $cur=esc($d['currency']??'NGN');
-    $name=esc(trim(($d['firstName']??$d['name']??'Unknown').' '.($d['lastName']??'')));
-    $email=esc($d['email']??'—');
-    $camp=esc($d['campaign']??'—');
-    $ref=esc($d['reference']??'—');
-    return "<h3>[Afrovanguard] {$label} — {$cur} {$amt}</h3>"
-    ."<table style=\"font-size:14px;\"><tr><td style=\"padding:4px 10px 4px 0;\"><b>Name</b></td><td>{$name}</td></tr>"
-    ."<tr><td><b>Email</b></td><td>{$email}</td></tr><tr><td><b>Campaign</b></td><td>{$camp}</td></tr>"
-    ."<tr><td><b>Ref</b></td><td>{$ref}</td></tr><tr><td><b>Date</b></td><td>".date('Y-m-d H:i:s T')."</td></tr></table>"
-    ."<p><a href=\"https://afrovanguard.org.ng/donor-dashboard\">Open Donor Dashboard</a></p>";
+    $cur = $d['currency'] ?? 'NGN';
+    $amt = number_format((float) ($d['amount'] ?? 0), 2);
+    return Mailer::shell(
+        $label . ' — ' . $cur . ' ' . $amt,
+        [
+            Mailer::facts([
+                ['Name',     trim(($d['firstName'] ?? $d['name'] ?? 'Unknown') . ' ' . ($d['lastName'] ?? ''))],
+                ['Email',    $d['email'] ?? '—'],
+                ['Campaign', $d['campaign'] ?? '—'],
+                ['Ref',      $d['reference'] ?? '—'],
+                ['Date',     date('Y-m-d H:i:s T')],
+            ]),
+        ],
+        ['text' => 'Open donor dashboard', 'url' => 'https://afrovanguard.org.ng/donor-dashboard'],
+        $label . ' — ' . $cur . ' ' . $amt,
+        ['eyebrow' => 'Internal', 'note' => 'Internal notification — do not forward.']
+    );
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -543,6 +533,17 @@ if ($sig && hash_equals(hash_hmac('sha512',$raw,PAYSTACK_SECRET_KEY),$sig)) {
            reference, so this and the payer's own callback can both fire. */
         $ngvMember = (int) ($tx['metadata']['ngv_member'] ?? 0);
         if ($ref && $ngvMember > 0 && class_exists('NgvLedger')) {
+            /* NAIRA ONLY. The ledger is kept in naira and amount/100 is only
+               naira when the charge was. academy/ngv/pay.php already refuses
+               any other currency on the payer's return; this branch credited
+               a USD charge of 130 as ₦130 — or a cents amount as kobo — with
+               no check at all. A non-naira charge is answered 200 so Paystack
+               does not retry for days, and logged for a person to reconcile. */
+            $ngvCur = strtoupper((string) ($tx['currency'] ?? ''));
+            if ($ngvCur !== 'NGN') {
+                error_log('[AV] ngv webhook: refused ' . $ref . ' — currency "' . $ngvCur . '" is not NGN; not posted to the ledger, reconcile by hand');
+                http_response_code(200); echo json_encode(['received' => true, 'recorded' => false, 'reason' => 'currency']); exit;
+            }
             /* 200 only once it is RECORDED (or was already). Answering 200 to a
                failure told Paystack it was delivered, so it never retried and
                the payment was silently missing from the participant's ledger. */
@@ -590,8 +591,16 @@ if ($sig && hash_equals(hash_hmac('sha512',$raw,PAYSTACK_SECRET_KEY),$sig)) {
             $anon     = ($fields['anonymous']??'No') === 'Yes';
             $fn       = trim($fields['first_name'] ?? '');
             $ln       = trim($fields['last_name']  ?? '');
-            $dispName = $anon ? 'Anonymous' : esc(trim("$fn $ln") ?: $email);
-            $initials = $anon ? 'AN' : strtoupper(substr($fn?:$email, 0, 1) . substr($ln, 0, 1));
+            /* The donor wall is public. A charge with no name on the form (a
+               renewal, a dues or course payment on the same account) used to
+               fall back to the payer's EMAIL here, and get_donors published it.
+               Paystack's own customer name next, then a plain "Supporter". */
+            if ($fn === '' && $ln === '') {
+                $fn = trim((string)($tx['customer']['first_name'] ?? ''));
+                $ln = trim((string)($tx['customer']['last_name'] ?? ''));
+            }
+            $dispName = $anon ? 'Anonymous' : esc(trim("$fn $ln") ?: 'Supporter');
+            $initials = $anon ? 'AN' : (strtoupper(substr($fn, 0, 1) . substr($ln, 0, 1)) ?: 'S');
             $entry = [
                 'id'         => $ref,
                 'type'       => 'card',
@@ -633,6 +642,13 @@ if (!rateLimit('all_' . $clientIp, 60, 60)) {
     http_response_code(429);
     header('Retry-After: 60');
     echo json_encode(['success'=>false,'message'=>'Too many requests. Please wait a moment.']);
+    exit;
+}
+/* These two send an email to whatever address the form gives, with text the
+   form chose — a mail relay at 60 a minute. A real donor sends one or two. */
+if (in_array($action, ['submit_contribute','bank_transfer_copy'], true) && !rateLimit('mail_' . $clientIp, 5, 900)) {
+    http_response_code(429);
+    echo json_encode(['success'=>false,'message'=>'Too many requests. Please wait a few minutes.']);
     exit;
 }
 if (in_array($action, ['init_payment','generate_virtual_account','record_donation','record_bank_transfer'])) {
@@ -821,7 +837,7 @@ if ($action==='record_donation') {
     $done   = !$stored;
     if (!$done) {
         if ($email) {
-            mail_send($email,'Thank You for Your Donation to Afrovanguard 🎉',receiptHtml([
+            mail_send_tpl($email,receiptHtml([
                 'firstName'=>$fn,'lastName'=>$ln,'email'=>$email,
                 'amount'=>$amount,'currency'=>$currency,
                 'campaign'=>ucwords(str_replace(['-','_'],' ',$camp)),
@@ -882,7 +898,7 @@ if ($action==='generate_virtual_account') {
 /* ── record_bank_transfer (admin confirms Zenith manual transfer) */
 if ($action==='record_bank_transfer') {
     $token=trim($input['admin_token']??'');
-    if (!defined('ADMIN_TOKEN')||!hash_equals(ADMIN_TOKEN,$token)){
+    if (!av_admin_token_matches($token)){
         http_response_code(403);echo json_encode(['success'=>false,'message'=>'Unauthorized']);exit;
     }
     foreach(['name','email','amount','campaign'] as $f){
@@ -909,7 +925,7 @@ if ($action==='record_bank_transfer') {
     ];
     storeDonationIfNew($ref,$bt_entry,$amount,$camp,'NGN');
     $p=explode(' ',$name,2);
-    mail_send($email,'Your Afrovanguard Donation is Confirmed 🎉',receiptHtml([
+    mail_send_tpl($email,receiptHtml([
         'firstName'=>$p[0],'lastName'=>$p[1]??'','email'=>$email,
         'amount'=>$amount,'currency'=>'NGN',
         'campaign'=>ucwords(str_replace(['-','_'],' ',$camp)),
@@ -971,7 +987,7 @@ if ($action==='bank_transfer_copy') {
 /* ── FIX C-02: verify_admin_token (dashboard auth probe) ─────────── */
 if ($action === 'verify_admin_token') {
     $token = trim($input['admin_token'] ?? '');
-    if (!defined('ADMIN_TOKEN') || !hash_equals(ADMIN_TOKEN, $token)) {
+    if (!av_admin_token_matches($token)) {
         http_response_code(403);
         echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     } else {

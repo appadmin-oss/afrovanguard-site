@@ -32,8 +32,10 @@ if (!$cli) {
         exit;
     }
     $key = (string) ($_GET['key'] ?? ($_SERVER['HTTP_X_AV_CRON_KEY'] ?? ''));
-    if (!hash_equals($want, $key)) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Forbidden.']); exit; }
+    /* Counted BEFORE the key is compared: after it, the limit only ever saw
+       correct keys and guessing an 8-character key was unlimited. */
     if (function_exists('av_rate_ok') && !av_rate_ok('cron_web', 30, 60)) { http_response_code(429); echo json_encode(['ok' => false, 'error' => 'Rate limited.']); exit; }
+    if (!hash_equals($want, $key)) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Forbidden.']); exit; }
 }
 
 $max = $cli
@@ -44,6 +46,12 @@ $result = ['ok' => true, 'at' => gmdate('c')];
 if (class_exists('Webhooks')) {
     try { $result['webhooks'] = Webhooks::runQueue($max); }
     catch (Throwable $e) { $result['ok'] = false; $result['error'] = $e->getMessage(); error_log('[cron] webhooks: ' . $e->getMessage()); }
+}
+
+/* Content the Studio scheduled (lib/Cms.php): published when its time comes. */
+if (class_exists('Cms')) {
+    try { $due = Cms::runDue(); if ($due) $result['content_published'] = $due; }
+    catch (Throwable $e) { error_log('[cron] content: ' . $e->getMessage()); }
 }
 
 /* Every tick: finish the payments CACENTRE's checkout took that nobody came
@@ -57,12 +65,23 @@ if (class_exists('LmsRepository') && class_exists('CfisCheckout') && CfisCheckou
     catch (Throwable $e) { error_log('[cron] hosted payments: ' . $e->getMessage()); }
 }
 
+/* Every tick: finance requests members made while finance was not connected
+   or not answering go now, if it can take them (lib/CfisRequests.php). */
+if (class_exists('CfisRequests') && CfisRequests::configured()) {
+    try { $result['finance_requests'] = CfisRequests::sendPending(); }
+    catch (Throwable $e) { error_log('[cron] finance requests: ' . $e->getMessage()); }
+}
+
 // Every tick: turn due reminders + imminent sessions into notifications
 // (idempotent via dedupe keys; emails too when a Mailer is configured).
 if (class_exists('Notifications')) {
     try { $result['notifications'] = Notifications::dispatchDue(); }
     catch (Throwable $e) { error_log('[cron] notifications: ' . $e->getMessage()); }
 }
+
+// Every tick: the VanQuest onboarding mail, fifteen minutes after a seat is confirmed.
+try { $result['vanquest'] = VanQuest::tick(50); }
+catch (Throwable $e) { error_log('[cron] vanquest: ' . $e->getMessage()); }
 
 // Every tick: send the AI notetaker into meetings that are about to start.
 // Covers providers that cannot be told to join later, and retries any dispatch
@@ -96,6 +115,13 @@ if (class_exists('NgvLedger')) {
 // password resets. Deduped per (update, recipient), so this never writes to
 // anybody twice however often it runs.
 if (class_exists('Appeals')) {
+    /* The Academy's time-driven emails: a lesson unlocking, a course left
+       sitting for a week, a live class tomorrow. Each records what it has
+       sent, so running this every five minutes still mails each learner
+       once (lib/LmsDrip.php). */
+    try { $result['academy_drip'] = LmsDrip::cronTick(); }
+    catch (Throwable $e) { $result['academy_drip_error'] = $e->getMessage(); }
+
     try { $result['appeals'] = Appeals::cronTick(); }
     catch (Throwable $e) { error_log('[cron] appeals: ' . $e->getMessage()); }
 }
@@ -120,6 +146,13 @@ if (class_exists('Commitments')) {
 if (class_exists('Mentorship')) {
     try { $result['session_bots'] = Mentorship::dispatchDueSessionBots(); }
     catch (Throwable $e) { error_log('[cron] session bots: ' . $e->getMessage()); }
+    // And their transcripts are collected by polling, as meetings' are. Without a
+    // notetaker configured both calls return 0 at once.
+    try { $result['session_transcripts'] = Mentorship::pollSessionBotTranscripts(); }
+    catch (Throwable $e) { error_log('[cron] session transcripts: ' . $e->getMessage()); }
+    /* A session on Google Meet transcribes itself; its transcript is read back as its minutes. */
+    try { $result['session_google_transcripts'] = Mentorship::pullGoogleTranscripts(); }
+    catch (Throwable $e) { error_log('[cron] session google transcripts: ' . $e->getMessage()); }
 }
 
 // The accountability pass (report §13, §14): remind the meetings coming due,
@@ -149,10 +182,74 @@ if (class_exists('MeetingClock')) {
     $result['meeting_clock'] = AiOps::run('meeting_clock', static fn() => MeetingClock::sweep());
 }
 
+// Meetings run themselves: who is in the call (Google Meet) while it is on,
+// the transcript and attendance once it ends, the day-before and hour-before
+// reminders, the minutes drafted for the secretary and chased when late.
+if (class_exists('MeetingMinutes')) {
+    $result['meetings_live'] = AiOps::run('meetings_live', static fn() => MeetingMinutes::sweep());
+}
+// Google Meet upkeep: a Meet link Calendar had not made yet, Google's own
+// recording/transcript/notes switched on where it is not yet; Google's live
+// events drained from Pub/Sub, and the events subscription kept alive.
+if (class_exists('Meetings')) {
+    try { $result['meet_upkeep'] = Meetings::meetUpkeep(); } catch (Throwable $e) { $result['meet_upkeep'] = ['error' => $e->getMessage()]; }
+}
+if (class_exists('MeetEvents') && MeetEvents::configured()) {
+    try { $result['meet_events_sub'] = MeetEvents::renewIfDue(); $result['meet_events'] = MeetEvents::drain(); }
+    catch (Throwable $e) { $result['meet_events'] = ['error' => $e->getMessage()]; }
+}
+
+// The CACENTRE CRM's Audience: subscribers, givers and enquiries pushed (signed).
+if (class_exists('CrmAudiencePush')) {
+    try { $result['crm_audience'] = CrmAudiencePush::run(); } catch (Throwable $e) { $result['crm_audience'] = ['ok' => false, 'error' => $e->getMessage()]; }
+}
+
+// Volunteers: NGG's list refreshed every six hours; tomorrow's opportunities reminded.
+if (class_exists('NggVolunteers')) {
+    try { $result['ngg_volunteers'] = NggVolunteers::syncIfDue(); } catch (Throwable $e) { $result['ngg_volunteers'] = ['ok' => false, 'error' => $e->getMessage()]; }
+}
+/* CACENTRE's goals: mirrored here, their steps planned and counted toward the owner's week (lib/CacGoals.php). */
+if (class_exists('CacGoals')) {
+    try { $cg = CacGoals::syncIfDue(); if ($cg !== null) $result['cac_goals'] = $cg; }
+    catch (Throwable $e) { error_log('[cron] cac goals: ' . $e->getMessage()); }
+}
+/* Tasks come from goals: an open goal with nothing open under it is planned (lib/GoalPlanner.php). */
+if (class_exists('GoalPlanner')) {
+    try { $gp = GoalPlanner::sweep(); if (!empty($gp['planned'])) $result['goals_planned'] = $gp; }
+    catch (Throwable $e) { error_log('[cron] goal planner: ' . $e->getMessage()); }
+}
+/* A pool task nobody took in tasks.auto_assign_hours goes to whoever fits it best (lib/TaskMatch.php). */
+if (class_exists('TaskMatch')) {
+    try { $aa = TaskMatch::autoAssign(); if (!empty($aa['assigned']) || !empty($aa['left'])) $result['tasks_auto_assigned'] = $aa; }
+    catch (Throwable $e) { error_log('[cron] auto-assign: ' . $e->getMessage()); }
+}
+/* The day's tasks — done, undone, unclaimed — to whoever hands out work, once each evening (lib/TaskReport.php). */
+if (class_exists('TaskReport')) {
+    try { $tr = TaskReport::sendIfDue(); if ($tr !== null) $result['task_report'] = $tr; }
+    catch (Throwable $e) { error_log('[cron] task report: ' . $e->getMessage()); }
+}
+/* Ticks on tasks that count toward a CACENTRE commitment, not sent at the time (lib/CacWeek.php). */
+if (class_exists('CacWeek') && CacWeek::ready()) {
+    try { $result['cac_week_retried'] = CacWeek::retryPending(); } catch (Throwable $e) { $result['cac_week_retried'] = $e->getMessage(); }
+}
+if (class_exists('VolunteerWork')) {
+    try { $result['opportunity_reminders'] = VolunteerWork::sweep(); } catch (Throwable $e) {}
+}
+
 // Report §20: write the case for anyone the rules engine now rates as ready,
 // and tell leadership. One review per member per target level.
 if (class_exists('Promotion')) {
     $result['promotions'] = AiOps::run('promotions', static fn() => Promotion::sweep());
+}
+/* The Pyramid Manual's "loss of current level" for 30 days' inactivity — raised
+   as a suggestion for the committee, once a day (lib/QuestLadder.php). */
+if (class_exists('QuestLadder')) {
+    $result['quest_ladder'] = AiOps::run('quest_ladder', static fn() => QuestLadder::sweep());
+}
+/* The Pyramid Manual's Section 3: a balance past its day brings a suspension and
+   a fine — suggested, once a day, while the reconciliation is switched on. */
+if (class_exists('QuestMoney')) {
+    $result['quest_money'] = AiOps::run('quest_money', static fn() => QuestMoney::sweep());
 }
 
 // The Wi-Fi: CACENTRE runs it, and this sends it our members and our say about
@@ -183,6 +280,54 @@ if (class_exists('Brief')) {
     });
 }
 
+/* Google Workspace. Both of these were reachable only from tools/gws-*.php on
+   the command line, on a host with no shell: push channels Google expires
+   after about a week were never renewed, so real-time Calendar/Drive updates
+   stopped seven days after anybody connected, and the directory sync the docs
+   describe as nightly never ran at all. */
+if (class_exists('GoogleWatch') && class_exists('GoogleWorkspaceUser') && GoogleWorkspaceUser::configured()) {
+    try { $w = GoogleWatch::renewExpiring(); if ($w['renewed'] || $w['failed']) $result['google_watch'] = $w; }
+    catch (Throwable $e) { error_log('[cron] google watch: ' . $e->getMessage()); }
+}
+if (class_exists('GoogleWorkspace') && GoogleWorkspace::directorySyncDue()) {
+    try { $result['google_directory'] = GoogleWorkspace::runDirectorySync(); }
+    catch (Throwable $e) { error_log('[cron] google directory: ' . $e->getMessage()); }
+}
+
+// Every tick: one page of this site's roster to CACENTRE's person directory —
+// the portal members and the Studio admins, so one human is one record across
+// the estate's five apps instead of twelve unrelated rows. We push; CACENTRE
+// reads nothing of ours (CFIS ADR 22's posture, applied to people instead of
+// money). Bounded to one batch per tick and idempotent: every row upserts on
+// its source key, and the cursor only advances on a push that was accepted.
+//
+// No heartbeat wrapper here, unlike the AI rungs below, and deliberately: a
+// push that silently stops is detected on the RECEIVING side, where
+// DirectorySync already marks an app that has gone quiet for ten days and
+// names it on the directory's own screen. A property cannot reliably report
+// its own silence; the thing waiting to hear from it can.
+//
+// Does nothing at all until DIR_PUSH_SECRET_AVG is set.
+if (class_exists('DirectoryPush') && DirectoryPush::ready()) {
+    try { $result['directory_push'] = DirectoryPush::tick(); }
+    catch (Throwable $e) { error_log('[cron] directory push: ' . $e->getMessage()); }
+}
+
+// Every tick: send a few of whatever CACENTRE handed us.
+//
+// The two sites are metered separately by their hosts, so this is the half of
+// the organisation's outbound allowance that used to go unused while CACENTRE
+// spent its own. A queue that drains rather than a send in one request, for
+// Appeals' reason: a shared host meters by the hour, and a job that spends the
+// whole window has also stopped this site's password resets and receipts.
+//
+// Everything here goes out under THIS SITE's name, which is the name the
+// recipient signed up under. Nothing happens until CACENTRE offers a batch.
+if (class_exists('CacMail')) {
+    try { $result['cac_mail'] = CacMail::drain(); }
+    catch (Throwable $e) { error_log('[cron] cac mail: ' . $e->getMessage()); }
+}
+
 // Daily: email today's birthday people (idempotent — safe to run every tick).
 if (is_file(AV_ROOT . '/lib/people.php')) {
     require_once AV_ROOT . '/lib/people.php';
@@ -196,6 +341,12 @@ if (is_file(AV_ROOT . '/lib/people.php')) {
 if (class_exists('Birthdays')) {
     try { $result['member_birthdays'] = Birthdays::emailToday(); }
     catch (Throwable $e) { error_log('[cron] member birthdays: ' . $e->getMessage()); }
+}
+
+/* Daily: both databases copied, encrypted and sent off-site (lib/Backups.php). */
+if (class_exists('Backups')) {
+    try { $result['backup'] = Backups::runIfDue(); }
+    catch (Throwable $e) { $result['backup'] = ['ok' => false, 'error' => $e->getMessage()]; error_log('[cron] backup: ' . $e->getMessage()); }
 }
 
 if ($cli) { fwrite(STDOUT, $result['at'] . ' ' . json_encode($result) . "\n"); }

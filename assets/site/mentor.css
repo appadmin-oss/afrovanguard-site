@@ -145,7 +145,7 @@
   min-width: 46px; text-align: center; padding: 10px 12px; border-radius: 8px;
   background: rgba(255,255,255,.06); color: #fff;
 }
-.mt-mult li:last-child { background: var(--afg-gold); color: var(--afg-ink); }
+.mt-mult li:last-child { background: var(--afg-gold); color: var(--afg-on-accent, #111827); }
 
 /* ── The Monday-morning passage ────────────────────────────────────────── */
 .mt-when { margin: 24px 0 0; padding: 0; list-style: none; max-width: var(--mt-measure); }

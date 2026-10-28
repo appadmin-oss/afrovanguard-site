@@ -66,7 +66,7 @@ final class DiaryOrganise
             PRIMARY KEY (entry_id, tag)
         );
         CREATE INDEX IF NOT EXISTS idx_dtag_user ON diary_tags(user_id, tag);";
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);   /* one statement at a time; on MySQL an index that is already there (no CREATE INDEX IF NOT EXISTS) is not an error */
 
         foreach ([
             'pinned'   => 'INTEGER NOT NULL DEFAULT 0',
@@ -330,6 +330,11 @@ final class DiaryOrganise
                 'tags'        => $tags[$id] ?? [],
                 'tab_count'   => $tabs[$id] ?? 1,
                 'excerpt'     => DiaryJournal::excerpt((string) $r['body']),
+                'font'        => DiaryJournal::validFont((string) ($r['font'] ?? 'default')),
+                'review_note' => (string) ($r['review_note'] ?? ''),
+                'published_slug' => (string) ($r['published_slug'] ?? ''),
+                'first_tab_title' => (string) ($r['first_tab_title'] ?? ''),
+                'updated_at'  => (string) ($r['updated_at'] ?? ''),
             ];
         }, $rows);
     }

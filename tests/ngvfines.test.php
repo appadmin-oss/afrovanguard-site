@@ -144,7 +144,7 @@ $fnHtml = (static function () {
 ck('Fines: the vanguard\'s Fines card lists their fines with where each stands',
    str_contains($fnHtml, 'id="fines"') && str_contains($fnHtml, 'Came in at 7:40') && !str_contains($fnHtml, 'ERROR'));
 ck('Fines: …and shows nothing of the account or other cards', !str_contains($fnHtml, 'id="account"') && !str_contains($fnHtml, 'id="reading"'));
-$portal = (string) file_get_contents(AV_ROOT . '/portal/index.php');
+$portal = av_portal_source();
 ck('Fines: the portal has a Fines view for vanguards', str_contains($portal, "'ngv-fines', 'Fines'") && str_contains($portal, 'id="view-ngv-fines"'));
 $landing = (string) file_get_contents(AV_ROOT . '/academy/ngv/index.php');
 ck('Fines: the NGV page explains fines from the desk\'s own amounts', str_contains($landing, 'id="fines"') && str_contains($landing, 'NgvFines::catalogue()'));

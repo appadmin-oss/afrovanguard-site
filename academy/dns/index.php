@@ -252,7 +252,7 @@ render_head([
 ]);
 render_nav('academy');
 ?>
-<main id="main-content">
+<main id="main" tabindex="-1">
 
   <!-- ── Hero ───────────────────────────────────────────────────────────── -->
   <section class="dns-hero dns-on-dark">

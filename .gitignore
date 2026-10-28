@@ -20,7 +20,10 @@ db/ngv.sqlite-shm
 # ── Donor / submission data ────────────────────────────────────────────
 donations.json
 contacts.json
-projects/sts/ceo/api/data/
+# The data itself is never committed; the deny rule beside it is, so a fresh
+# deploy is protected before the first form submission creates the folder.
+projects/sts/ceo/api/data/*
+!projects/sts/ceo/api/data/.htaccess
 projects/sts/ceo/api/error_log
 
 # ── Rate-limit state files ─────────────────────────────────────────────
@@ -43,10 +46,15 @@ Thumbs.db
 db/cache/
 
 # ── User-uploaded media (Cloudinary fallback) ──
-uploads/
+# The files are ignored; the no-execute .htaccess is tracked and must stay so.
+uploads/*
+!uploads/.htaccess
 
 # ── Generated read-aloud audio cache ───────────────────────────────────
 data/tts/
 
 # Private PII data stores (donations/contacts) — never commit
 db/private/
+
+# Africa GATES events, cached by lib/AvEvents.php
+data/afg-events.json

@@ -87,6 +87,11 @@ final class MemberRoster
             source      VARCHAR(16) NOT NULL DEFAULT '',
             updated_at  VARCHAR(32) NOT NULL DEFAULT ''
         )");
+        /* What work a member does — several roles, and a line in their own words
+           — so tasks go to the right person (lib/TaskMatch.php). */
+        foreach (['work_roles' => "VARCHAR(300) NOT NULL DEFAULT ''", 'about' => "VARCHAR(600) NOT NULL DEFAULT ''"] as $col => $decl) {
+            try { if (!Database::columnExists('member_profiles', $col)) $pdo->exec("ALTER TABLE member_profiles ADD COLUMN $col $decl"); } catch (Throwable $e) {}
+        }
         Database::execSchema($pdo, "CREATE TABLE IF NOT EXISTS member_import_runs (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             digest     VARCHAR(64) NOT NULL,
@@ -173,7 +178,17 @@ final class MemberRoster
             $c['phone'] = self::cleanPhone((string) $d['phone']);
             if ($c['phone'] !== '' && strlen(preg_replace('/\D/', '', $c['phone'])) < 7) $e['phone'] = 'That phone number is too short.';
         }
-        if (array_key_exists('centre', $d)) $c['centre'] = mb_substr(trim((string) $d['centre']), 0, 60);
+        if (array_key_exists('centre', $d)) {
+            /* One of the office's centres, in its spelling (lib/Centres.php) —
+               or none. A retired centre stays on whoever already has it. */
+            $cur = $selfId ? (string) (self::profile($selfId)['centre'] ?? '') : '';
+            $raw = mb_substr(trim((string) $d['centre']), 0, 60);
+            $at = class_exists('Centres') ? Centres::canonical($raw, $cur) : $raw;
+            /* A retired centre is refused; one not on the list yet joins it
+               when the record is written (writeProfile), in one spelling. */
+            if ($at === null && Centres::isRetired($raw)) $e['centre'] = Centres::refusal($raw);
+            $c['centre'] = $at ?? $raw;
+        }
         if (array_key_exists('joined_on', $d) && trim((string) $d['joined_on']) !== '') {
             $j = trim((string) $d['joined_on']);
             if (preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4})$#', $j, $m)) $j = sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]);
@@ -182,7 +197,37 @@ final class MemberRoster
             $c['joined_on'] = $j;
         }
         if (array_key_exists('notes', $d)) $c['notes'] = mb_substr(trim((string) $d['notes']), 0, 4000);
+        /* In the role list's spelling; a role it does not have yet joins it (lib/MemberRoles.php). */
+        if (array_key_exists('work_roles', $d)) $c['work_roles'] = implode(', ', class_exists('MemberRoles') ? MemberRoles::adopt(self::workRoles($d['work_roles'])) : self::workRoles($d['work_roles']));
+        if (array_key_exists('about', $d)) $c['about'] = mb_substr(trim(preg_replace('/\s+/u', ' ', (string) $d['about']) ?? ''), 0, 600);
         return ['ok' => !$e, 'clean' => $c, 'errors' => $e];
+    }
+
+    /**
+     * A member's work roles: several, as a list or "Media, Events, Instructor".
+     * Trimmed, at most eight, each under 40 characters, no repeats.
+     */
+    public static function workRoles(mixed $v): array
+    {
+        $parts = is_array($v) ? $v : preg_split('/[,;\n]+/u', (string) $v);
+        $out = [];
+        foreach ($parts ?: [] as $r) {
+            $r = mb_substr(trim(preg_replace('/\s+/u', ' ', (string) $r) ?? ''), 0, 40);
+            if ($r !== '' && !in_array(mb_strtolower($r), array_map('mb_strtolower', $out), true)) $out[] = $r;
+            if (count($out) >= 8) break;
+        }
+        return $out;
+    }
+
+    /** A member describing their own work: their line, in their words. Roles are the office's to set. */
+    public static function setAbout(int $uid, string $about): bool
+    {
+        self::ensure();
+        if (!self::user($uid)) return false;
+        $p = self::profile($uid);
+        $p['about'] = mb_substr(trim(preg_replace('/\s+/u', ' ', $about) ?? ''), 0, 600);
+        self::writeProfile($uid, $p, (string) ($p['source'] ?: 'self'));
+        return true;
     }
 
     /* ══ Who may change what ════════════════════════════════════════════════
@@ -236,6 +281,12 @@ final class MemberRoster
             if (isset($c['role']) && $c['role'] !== (string) $u['role']) $touch[] = 'role';
             if (isset($c['status']) && $c['status'] !== (string) $u['status']) $touch[] = 'status';
             if (($c['email'] ?? '') !== '' && $c['email'] !== strtolower((string) $u['email'])) $touch[] = 'email';
+        }
+        /* Level is progression. Nobody promotes themselves — not one at a
+           time, and not by being on the page they selected. */
+        if ($u && (int) ($ctx['self_id'] ?? 0) === (int) $u['id'] && isset($c['level'])
+            && (class_exists('Levels') ? Levels::of((int) $u['id']) : (string) ($u['level'] ?? 'O')) !== $c['level']) {
+            $touch[] = 'level';
         }
         if ($u && $touch && (int) ($ctx['self_id'] ?? 0) === (int) $u['id']) {
             return $no('own_account', 'You cannot change your own ' . implode(' or ', $touch) . ' here. Another admin can.');
@@ -327,7 +378,16 @@ final class MemberRoster
         $changed = [];
         $pdo = Database::pdo();
         if ($c['name'] !== (string) $u['name']) { $pdo->prepare('UPDATE lms_users SET name = ? WHERE id = ?')->execute([$c['name'], $id]); $changed[] = 'name'; }
-        if ($emailGiven && $c['email'] !== '' && $c['email'] !== strtolower((string) $u['email'])) { $pdo->prepare('UPDATE lms_users SET email = ? WHERE id = ?')->execute([$c['email'], $id]); $changed[] = 'email'; }
+        if ($emailGiven && $c['email'] !== '' && $c['email'] !== strtolower((string) $u['email'])) {
+            /* The new address has to be proven before it counts: the account is
+               unverified and signed out, so the next sign-in is a code sent to
+               that address (which also drops any password set before it was
+               proven, LmsAuth::claimUnverified). Kept verified and signed in, an
+               account pointed at a staff mailbox became that person at once. */
+            $pdo->prepare('UPDATE lms_users SET email = ?, email_verified = 0 WHERE id = ?')->execute([$c['email'], $id]);
+            $pdo->prepare('DELETE FROM lms_sessions WHERE user_id = ?')->execute([$id]);
+            $changed[] = 'email';
+        }
         if (isset($c['role']) && $c['role'] !== (string) $u['role']) { $pdo->prepare('UPDATE lms_users SET role = ? WHERE id = ?')->execute([$c['role'], $id]); $changed[] = 'role'; }
         if (isset($c['status']) && $c['status'] !== (string) $u['status']) {
             $pdo->prepare('UPDATE lms_users SET status = ? WHERE id = ?')->execute([$c['status'], $id]);
@@ -348,21 +408,30 @@ final class MemberRoster
             if (Birthdays::of($id) !== $was) $changed[] = 'birthday';
         }
         $p = self::profile($id);
-        foreach (['phone', 'centre', 'joined_on', 'notes'] as $k) if (array_key_exists($k, $c) && (string) $c[$k] !== (string) ($p[$k] ?? '')) $changed[] = $k;
-        if (array_intersect($changed, ['phone', 'centre', 'joined_on', 'notes'])) self::writeProfile($id, $c + $p, (string) ($p['source'] ?? 'studio'));
+        $fields = ['phone', 'centre', 'joined_on', 'notes', 'work_roles', 'about'];
+        foreach ($fields as $k) if (array_key_exists($k, $c) && (string) $c[$k] !== (string) ($p[$k] ?? '')) $changed[] = $k;
+        if (array_intersect($changed, $fields)) self::writeProfile($id, $c + $p, (string) ($p['source'] ?? 'studio'));
         if ($changed) self::lms()->audit('member.update', (string) $u['email'], implode(', ', $changed), $actor);
+        /* The audit is filed under an email, so a changed email kept the
+           history under the old one, where the timeline never looked. The
+           record keeps every address it has had (timeline()). */
+        if (in_array('email', $changed, true)) {
+            self::lms()->audit('member.email', 'member#' . $id, strtolower((string) $u['email']) . ' → ' . strtolower((string) $c['email']), $actor);
+        }
         return ['ok' => true, 'changed' => $changed, 'member' => self::get($id)];
     }
 
     private static function writeProfile(int $id, array $c, string $source): void
     {
         $pdo = Database::pdo();
-        $vals = [mb_substr((string) ($c['phone'] ?? ''), 0, 24), mb_substr((string) ($c['centre'] ?? ''), 0, 60), (string) ($c['joined_on'] ?? ''), (string) ($c['notes'] ?? ''), $source, self::now()];
-        $st = $pdo->prepare('UPDATE member_profiles SET phone = ?, centre = ?, joined_on = ?, notes = ?, source = ?, updated_at = ? WHERE user_id = ?');
+        if (($c['centre'] ?? '') !== '' && class_exists('Centres')) $c['centre'] = Centres::adopt((string) $c['centre']);
+        $vals = [mb_substr((string) ($c['phone'] ?? ''), 0, 24), mb_substr((string) ($c['centre'] ?? ''), 0, 60), (string) ($c['joined_on'] ?? ''), (string) ($c['notes'] ?? ''),
+                 mb_substr((string) ($c['work_roles'] ?? ''), 0, 300), mb_substr((string) ($c['about'] ?? ''), 0, 600), $source, self::now()];
+        $st = $pdo->prepare('UPDATE member_profiles SET phone = ?, centre = ?, joined_on = ?, notes = ?, work_roles = ?, about = ?, source = ?, updated_at = ? WHERE user_id = ?');
         $st->execute([...$vals, $id]);
         if ($st->rowCount() === 0) {
             $chk = $pdo->prepare('SELECT 1 FROM member_profiles WHERE user_id = ?'); $chk->execute([$id]);
-            if (!$chk->fetchColumn()) $pdo->prepare('INSERT INTO member_profiles (phone, centre, joined_on, notes, source, updated_at, user_id) VALUES (?,?,?,?,?,?,?)')->execute([...$vals, $id]);
+            if (!$chk->fetchColumn()) $pdo->prepare('INSERT INTO member_profiles (phone, centre, joined_on, notes, work_roles, about, source, updated_at, user_id) VALUES (?,?,?,?,?,?,?,?,?)')->execute([...$vals, $id]);
         }
     }
 
@@ -375,9 +444,9 @@ final class MemberRoster
 
     private static function profile(int $id): array
     {
-        $st = Database::pdo()->prepare('SELECT phone, centre, joined_on, notes, source FROM member_profiles WHERE user_id = ?');
+        $st = Database::pdo()->prepare('SELECT phone, centre, joined_on, notes, work_roles, about, source FROM member_profiles WHERE user_id = ?');
         $st->execute([$id]);
-        return $st->fetch(PDO::FETCH_ASSOC) ?: ['phone' => '', 'centre' => '', 'joined_on' => '', 'notes' => '', 'source' => ''];
+        return $st->fetch(PDO::FETCH_ASSOC) ?: ['phone' => '', 'centre' => '', 'joined_on' => '', 'notes' => '', 'work_roles' => '', 'about' => '', 'source' => ''];
     }
 
     /** A member's whole record, for the drawer. */
@@ -395,6 +464,9 @@ final class MemberRoster
             'staff' => self::isStaff($u),
             'learner' => !self::isMember($id),
             'membership' => Membership::summary($id),
+            /* Volunteer is explicit (lib/Volunteers): why, if they are one. */
+            'volunteer' => class_exists('Volunteers') ? Volunteers::why($u) : [],
+            'volunteer_projects' => class_exists('VolunteerProjects') ? VolunteerProjects::forUser($u) : [],
         ];
     }
 
@@ -413,6 +485,7 @@ final class MemberRoster
         'active' => 'Active', 'suspended' => 'Suspended', 'joined30' => 'Joined in the last 30 days', 'joined365' => 'Joined in the last 12 months',
         'fined' => 'Have been fined', 'fines_owed' => 'Owe a fine', 'fines_cleared' => 'Fined, nothing owing',
         'level_raised' => 'Level raised in the last 12 months', 'review_open' => 'Promotion awaiting a decision',
+        'dormant' => 'Active, not signed in for 60 days',
     ];
     private static ?array $fineCache = null;
 
@@ -444,6 +517,8 @@ final class MemberRoster
         switch ($seg) {
             case 'active':        return ["u.status = 'active'", []];
             case 'suspended':     return ["u.status = 'suspended'", []];
+            /* Active on paper, absent in fact: the ones to call. */
+            case 'dormant':       return ["u.status = 'active' AND (u.last_login IS NULL OR u.last_login = '' OR u.last_login < ?)", [gmdate('Y-m-d H:i:s', strtotime('-60 days'))]];
             case 'joined30':      return ['u.created_at >= ?', [gmdate('Y-m-d H:i:s', strtotime('-30 days'))]];
             case 'joined365':     return ['u.created_at >= ?', [gmdate('Y-m-d H:i:s', strtotime('-365 days'))]];
             case 'fined':         return [self::idIn(array_keys($fs)), []];
@@ -473,17 +548,27 @@ final class MemberRoster
 
     /* ══ The roster ═════════════════════════════════════════════════════════ */
 
-    private const SORTS = ['name' => 'u.name', 'joined' => 'u.created_at', 'role' => 'u.role', 'status' => 'u.status', 'centre' => 'p.centre'];
+    private const SORTS = ['name' => 'LOWER(u.name)', 'joined' => 'u.created_at', 'role' => 'u.role', 'status' => 'u.status', 'centre' => 'p.centre'];
 
-    /** Filtered, sorted and paged on the server — sorting a page in hand orders page three and calls it the roster. */
-    public static function roster(array $f): array
+    /**
+     * The roster's filter, once: the WHERE and its arguments every reader of
+     * the roster shares — the page, the count, select-all-matching and the
+     * export — so "all N matching" is always the N the list said.
+     *
+     * @return array{0:string,1:array,2:array} [FROM … WHERE, args, volunteer ids]
+     */
+    private static function filter(array $f): array
     {
-        self::ensure();
         $w = []; $a = [];
         $q = trim((string) ($f['q'] ?? ''));
         if ($q !== '') { $like = '%' . str_replace(['%', '_', '\\'], '', mb_strtolower($q)) . '%'; $w[] = '(LOWER(u.name) LIKE ? OR LOWER(u.email) LIKE ? OR p.phone LIKE ?)'; array_push($a, $like, $like, $like); }
         foreach (['role' => 'u.role', 'status' => 'u.status', 'centre' => 'p.centre', 'level' => 'u.level'] as $k => $col) {
-            if ((string) ($f[$k] ?? '') !== '') { $w[] = "$col = ?"; $a[] = (string) $f[$k]; }
+            if ((string) ($f[$k] ?? '') === '') continue;
+            /* No stored level IS the base level — the dashboard counts it so,
+               and a filter that disagreed lost those members from the list. */
+            $base = class_exists('Levels') ? Levels::base() : 'O';
+            if ($k === 'level' && strtoupper((string) $f[$k]) === $base) { $w[] = "(u.level = ? OR u.level IS NULL OR u.level = '')"; $a[] = $base; continue; }
+            $w[] = "$col = ?"; $a[] = (string) $f[$k];
         }
         $missing = [
             'phone' => "COALESCE(p.phone, '') = ''",
@@ -509,29 +594,53 @@ final class MemberRoster
             if ($kind === 'ngv') $w[] = $ids ? 'u.id IN (' . implode(',', array_map('intval', $ids)) . ')' : '1 = 0';
             elseif ($ids) $w[] = 'u.id NOT IN (' . implode(',', array_map('intval', $ids)) . ')';
         }
+        /* Holding a work role (lib/MemberRoles.php). */
+        if (($wr = trim((string) ($f['work_role'] ?? ''))) !== '' && class_exists('MemberRoles')) {
+            $hold = MemberRoles::holders($wr);
+            $w[] = $hold ? 'u.id IN (' . implode(',', array_map('intval', $hold)) . ')' : '1 = 0';
+        }
+        /* Volunteers, or members who are not (lib/Volunteers decides). */
+        $vol = (string) ($f['volunteer'] ?? '');
+        $volIds = class_exists('Volunteers') ? Volunteers::volunteerIds() : [];
+        if ($vol === 'yes') $w[] = $volIds ? 'u.id IN (' . implode(',', array_map('intval', array_keys($volIds))) . ')' : '1 = 0';
+        elseif ($vol === 'no' && $volIds) $w[] = 'u.id NOT IN (' . implode(',', array_map('intval', array_keys($volIds))) . ')';
         $where = $w ? ' WHERE ' . implode(' AND ', $w) : '';
-        $from = ' FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id' . $where;
+        return [' FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id' . $where, $a, $volIds];
+    }
+
+    /** Filtered, sorted and paged on the server — sorting a page in hand orders page three and calls it the roster. */
+    public static function roster(array $f): array
+    {
+        self::ensure();
+        [$from, $a, $volIds] = self::filter($f);
         $pdo = Database::pdo();
         $st = $pdo->prepare('SELECT COUNT(*)' . $from); $st->execute($a);
         $total = (int) $st->fetchColumn();
-        $sort = self::SORTS[(string) ($f['sort'] ?? '')] ?? 'u.id';
+        /* Allow-listed by name; anything else is the default, never an error. */
+        $sortKey = isset(self::SORTS[(string) ($f['sort'] ?? '')]) ? (string) $f['sort'] : '';
+        $sort = $sortKey !== '' ? self::SORTS[$sortKey] : 'u.id';
         $dir = strtolower((string) ($f['dir'] ?? '')) === 'asc' ? 'ASC' : 'DESC';
         $size = max(10, min(200, (int) ($f['page_size'] ?? 50)));
         $page = max(1, (int) ($f['page'] ?? 1));
-        $st = $pdo->prepare('SELECT u.id, u.name, u.email, u.role, u.status, u.created_at, u.last_login, u.level, u.birthday, u.birth_year, p.phone, p.centre, p.joined_on,
+        $st = $pdo->prepare('SELECT u.id, u.name, u.email, u.role, u.status, u.created_at, u.last_login, u.level, u.birthday, u.birth_year, p.phone, p.centre, p.joined_on, p.work_roles, p.about,
                 (SELECT c.code FROM av_member_cards c WHERE c.member_id = u.id AND c.kind = \'secure\' AND c.status = \'active\' ORDER BY c.id DESC LIMIT 1) AS card,
                 (SELECT MAX(CASE WHEN m.expires_at IS NULL THEN \'9999-12-31 00:00:00\' ELSE m.expires_at END) FROM memberships m WHERE m.user_id = u.id AND m.status = \'active\') AS paid_through'
             . $from . " ORDER BY $sort $dir, u.id DESC LIMIT $size OFFSET " . (($page - 1) * $size));
         $st->execute($a);
         $ngv = self::vanguardIds();
         $now = Membership::now(); $soon = gmdate('Y-m-d H:i:s', time() + Membership::DUE_SOON_DAYS * 86400);
-        $rows = array_map(static function ($r) use ($ngv, $now, $soon) {
+        $page = $st->fetchAll(PDO::FETCH_ASSOC);
+        /* What each member on the page is behind by: one query for the page. */
+        $owed = Membership::arrearsFor(array_column($page, 'id'));
+        $rows = array_map(static function ($r) use ($ngv, $now, $soon, $volIds, $owed) {
             $pt = (string) ($r['paid_through'] ?? '');
             $r['membership'] = $pt === '' || $pt <= $now ? 'none' : ($pt === '9999-12-31 00:00:00' ? 'lifetime' : ($pt <= $soon ? 'due_soon' : 'current'));
             if ($r['membership'] === 'lifetime') $r['paid_through'] = null;
-            return $r + ['ngv' => isset($ngv[(int) $r['id']])];
-        }, $st->fetchAll(PDO::FETCH_ASSOC));
-        return ['members' => $rows, 'total' => $total, 'page' => $page, 'page_size' => $size];
+            $o = $owed[(int) $r['id']] ?? null;
+            return $r + ['ngv' => isset($ngv[(int) $r['id']]), 'volunteer' => isset($volIds[(int) $r['id']]),
+                         'owes' => $o ? ['months' => $o['months'], 'amount_ngn' => $o['amount_ngn'], 'since' => $o['since'], 'next_due' => $o['next_due']] : null];
+        }, $page);
+        return ['members' => $rows, 'total' => $total, 'page' => $page, 'page_size' => $size, 'sort' => $sortKey, 'dir' => strtolower($dir)];
     }
 
     /** Every NextGen Vanguard's member id, as a set: enrolled, or holding an NGV card. */
@@ -610,7 +719,9 @@ final class MemberRoster
                 'owing_ngn' => array_sum(array_column($fs, 'owing')),
                 'count' => array_sum(array_column($fs, 'fines')),
             ],
-            'dues' => Membership::counts() + ['received_12m_ngn' => (int) round(((int) $st->fetchColumn()) / 100)],
+            'dues' => Membership::counts() + ['received_12m_ngn' => (int) round(((int) $st->fetchColumn()) / 100)]
+                + (static function (): array { $o = Membership::owingSummary(); return ['owing' => $o['members'], 'owing_ngn' => $o['amount_ngn'], 'owing_months' => $o['months']]; })()
+                + ['obliged' => Membership::countWhere(Membership::obligedSql()), 'rules' => Membership::settings()],
             'offline' => class_exists('OfflinePayments') ? OfflinePayments::counts() : [],
         ];
     }
@@ -624,7 +735,7 @@ final class MemberRoster
      * refused with a reason); one audit line for the run.
      */
     public const BULK_MAX = 500;
-    public const BULK_ACTIONS = ['status', 'centre', 'level', 'membership_grant', 'membership_cancel'];
+    public const BULK_ACTIONS = ['status', 'centre', 'level', 'membership_grant', 'membership_cancel', 'volunteer_add', 'volunteer_remove', 'work_role_add', 'work_role_remove'];
 
     public static function bulk(array $ids, string $action, array $value, string $actor, array $ctx = []): array
     {
@@ -641,7 +752,10 @@ final class MemberRoster
             if (!in_array($to, ['active', 'suspended'], true)) return ['ok' => false, 'error' => 'Status is active or suspended.'];
             $patch = ['status' => $to];
         } elseif ($action === 'centre') {
-            $patch = ['centre' => mb_substr(trim((string) ($value['centre'] ?? '')), 0, 60)];
+            $raw = mb_substr(trim((string) ($value['centre'] ?? '')), 0, 60);
+            $at = class_exists('Centres') ? Centres::canonical($raw) : $raw;
+            if ($at === null) return ['ok' => false, 'code' => 'unknown_centre', 'error' => Centres::refusal($raw)];
+            $patch = ['centre' => $at];
         } elseif ($action === 'level') {
             $lv = strtoupper(trim((string) ($value['level'] ?? '')));
             $order = class_exists('Levels') ? Levels::order() : ['O', 'A', 'B', 'C'];
@@ -656,6 +770,9 @@ final class MemberRoster
                 return ['ok' => false, 'code' => 'reason_required', 'error' => 'Months with no payment need a reason — mark it a waiver, or say why.'];
         } elseif ($action === 'membership_cancel') {
             if (trim((string) ($value['note'] ?? '')) === '') return ['ok' => false, 'code' => 'reason_required', 'error' => 'Say why these memberships are ending.'];
+        } elseif ($action === 'work_role_add' || $action === 'work_role_remove') {
+            $role = mb_substr(trim((string) ($value['role'] ?? '')), 0, 40);
+            if ($role === '' || preg_match('/[,;]/', $role)) return ['ok' => false, 'error' => 'Choose the work role.'];
         }
 
         $results = []; $applied = 0; $unchanged = 0; $refused = 0;
@@ -663,13 +780,40 @@ final class MemberRoster
         foreach ($ids as $id) {
             $u = self::user($id);
             if (!$u) { $results[] = ['id' => $id, 'outcome' => 'refused', 'code' => 'not_found', 'error' => 'No such member.']; $refused++; continue; }
+            /* Your own record is never in a crowd: whatever the action, it is
+               another admin's, one record at a time. */
+            if ($ctx && $self === $id) { $results[] = ['id' => $id, 'name' => $u['name'], 'outcome' => 'refused', 'code' => 'own_account', 'error' => 'Your own record is changed by another admin.']; $refused++; continue; }
             /* A staff account's status is never changed in a crowd, Super Admin
                or not: suspending the coordinator because they were on the page
                you selected is not a decision anybody made. One at a time, in
                the drawer, where the guard and the person are both visible. */
             if ($action === 'status' && self::isStaff($u)) { $results[] = ['id' => $id, 'name' => $u['name'], 'outcome' => 'refused', 'code' => 'staff_account', 'error' => $u['name'] . ' is staff — change their status on their own record.']; $refused++; continue; }
-            if (str_starts_with($action, 'membership_')) {
-                if ($ctx && $self === $id) { $results[] = ['id' => $id, 'name' => $u['name'], 'outcome' => 'refused', 'code' => 'own_account', 'error' => 'Your own membership is changed by another admin.']; $refused++; continue; }
+            if (str_starts_with($action, 'volunteer_') && class_exists('Volunteers')) {
+                $by = (int) ($ctx['self_id'] ?? 0);
+                if ($action === 'volunteer_add') {
+                    /* On a project, as a type (lib/VolunteerProjects); organisation-wide by default. */
+                    $pj = (int) ($value['project_id'] ?? 0) ?: (int) ((VolunteerProjects::bySlug('afrovanguard') ?? [])['id'] ?? 0);
+                    $r = VolunteerProjects::assign([$id], $pj, (string) ($value['type'] ?? 'general'), $by, (string) ($value['note'] ?? ''));
+                    $outcome = !$r['ok'] ? 'refused' : (($r['placed'] || $r['updated'] || $r['new_volunteers']) ? 'applied' : 'unchanged');
+                } else {
+                    $why = Volunteers::why($u);
+                    if (!array_intersect($why, ['roster', 'team'])) { $r = ['ok' => true]; $outcome = 'unchanged'; }
+                    else { $r = Volunteers::unpromote($id, $by); $outcome = 'applied'; }
+                    if ($r['ok'] && ($still = array_values(array_diff($why, ['roster', 'team'])))) {
+                        $r = ['ok' => false, 'code' => 'still_volunteer', 'error' => $u['name'] . ' is still a volunteer through ' . implode(' and ', array_map(fn($w) => ['ngg' => 'NGG', 'people' => 'the People page'][$w] ?? $w, $still)) . '.'];
+                        $outcome = 'refused';
+                    }
+                }
+            } elseif (str_starts_with($action, 'work_role_')) {
+                /* One role added to, or taken off, what each already holds. */
+                $have = self::workRoles((string) (self::profile($id)['work_roles'] ?? ''));
+                $next = $action === 'work_role_add'
+                    ? array_merge($have, [$role])
+                    : array_values(array_filter($have, static fn($x) => mb_strtolower($x) !== mb_strtolower($role)));
+                if ($action === 'work_role_add' && count(self::workRoles($next)) === count($have) && in_array(mb_strtolower($role), array_map('mb_strtolower', $have), true)) { $r = ['ok' => true]; $outcome = 'unchanged'; }
+                elseif ($action === 'work_role_add' && count($have) >= 8) { $r = ['ok' => false, 'code' => 'too_many_roles', 'error' => $u['name'] . ' already holds 8 roles, the most a member can.']; $outcome = 'refused'; }
+                else { $r = self::update($id, ['work_roles' => implode(', ', $next)], $actor, $ctx); $outcome = !$r['ok'] ? 'refused' : (empty($r['changed']) ? 'unchanged' : 'applied'); }
+            } elseif (str_starts_with($action, 'membership_')) {
                 $r = $action === 'membership_grant'
                     ? Membership::grant($id, ['months' => (int) $value['months'], 'method' => (string) ($value['method'] ?? ''), 'note' => (string) ($value['note'] ?? ''), 'actor' => $actor])
                     : Membership::cancel($id, (string) $value['note'], $actor);
@@ -681,7 +825,7 @@ final class MemberRoster
             $results[] = ['id' => $id, 'name' => $u['name'], 'outcome' => $outcome] + ($r['ok'] ? [] : ['code' => $r['code'] ?? 'refused', 'error' => $r['error'] ?? 'Refused.']);
             if ($outcome === 'applied') $applied++; elseif ($outcome === 'unchanged') $unchanged++; else $refused++;
         }
-        $what = $action . ($patch ? ' → ' . implode(', ', array_map('strval', $patch)) : (isset($value['months']) ? ' → ' . (int) $value['months'] . ' months' : ''));
+        $what = $action . ($patch ? ' → ' . implode(', ', array_map('strval', $patch)) : (isset($value['months']) ? ' → ' . (int) $value['months'] . ' months' : (isset($role) ? ' → ' . $role : '')));
         self::lms()->audit('member.bulk', '', sprintf('%s · %d chosen · %d applied · %d unchanged · %d refused', $what, count($ids), $applied, $unchanged, $refused), $actor);
         return ['ok' => true, 'partial' => $refused > 0, 'chosen' => count($ids), 'applied' => $applied, 'unchanged' => $unchanged, 'refused' => $refused, 'results' => $results];
     }
@@ -689,22 +833,22 @@ final class MemberRoster
     /** Every id matching a roster filter, so "select all N matching" is one request, capped like a run. */
     public static function ids(array $f): array
     {
-        $f['page'] = 1; $f['page_size'] = 200;
-        $all = []; $total = 0;
-        for ($p = 1; $p <= (int) ceil(self::BULK_MAX / 200) + 1; $p++) {
-            $f['page'] = $p;
-            $r = self::roster($f); $total = $r['total'];
-            foreach ($r['members'] as $m) $all[] = (int) $m['id'];
-            if (count($r['members']) < 200 || count($all) > self::BULK_MAX) break;
-        }
-        return ['ids' => array_slice($all, 0, self::BULK_MAX), 'total' => $total, 'capped' => $total > self::BULK_MAX];
+        self::ensure();
+        [$from, $a] = self::filter($f);
+        $pdo = Database::pdo();
+        $st = $pdo->prepare('SELECT COUNT(*)' . $from); $st->execute($a);
+        $total = (int) $st->fetchColumn();
+        /* One query, the same WHERE as the list, capped like a run. */
+        $st = $pdo->prepare('SELECT u.id' . $from . ' ORDER BY u.id DESC LIMIT ' . self::BULK_MAX);
+        $st->execute($a);
+        return ['ids' => array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)), 'total' => $total, 'capped' => $total > self::BULK_MAX];
     }
 
     /* ══ What has happened to this member ═══════════════════════════════════ */
 
     private const EVENTS = [
         'member.create' => 'Added', 'member.link' => 'Linked to an existing account', 'member.update' => 'Changed',
-        'member.import' => 'Imported', 'membership.grant' => 'Dues recorded', 'membership.lifetime' => 'Lifetime dues',
+        'member.import' => 'Imported', 'member.email' => 'Email changed', 'membership.grant' => 'Dues recorded', 'membership.lifetime' => 'Lifetime dues',
         'membership.cancel' => 'Dues ended', 'membership.reinstate' => 'Dues reinstated',
         'card.reissue' => 'New gate card', 'role_change' => 'Access level changed', 'suspend' => 'Suspended',
         'reactivate' => 'Reactivated', 'level_change' => 'Level changed', 'birthday' => 'Birthday', 'create_member' => 'Added',
@@ -716,8 +860,15 @@ final class MemberRoster
         $u = self::user($id);
         if (!$u) return [];
         (new LmsRepository())->recentAudit(1);   // ensures the table
-        $st = Database::pdo()->prepare('SELECT action, detail, actor, created_at FROM lms_audit WHERE LOWER(target) = ? ORDER BY id DESC LIMIT 100');
-        $st->execute([strtolower((string) $u['email'])]);
+        $pdo = Database::pdo();
+        $targets = [strtolower((string) $u['email']), 'member#' . $id];
+        $was = $pdo->prepare("SELECT detail FROM lms_audit WHERE target = ? AND action = 'member.email'");
+        $was->execute(['member#' . $id]);
+        foreach ($was->fetchAll(PDO::FETCH_COLUMN) as $d) {
+            foreach (explode(' → ', (string) $d) as $addr) if (($addr = strtolower(trim($addr))) !== '' && !in_array($addr, $targets, true)) $targets[] = $addr;
+        }
+        $st = $pdo->prepare('SELECT action, detail, actor, created_at FROM lms_audit WHERE LOWER(target) IN (' . implode(',', array_fill(0, count($targets), '?')) . ') ORDER BY id DESC LIMIT 100');
+        $st->execute($targets);
         return array_map(static fn($r) => ['what' => self::EVENTS[$r['action']] ?? $r['action'], 'event' => $r['action'],
             'detail' => (string) $r['detail'], 'by' => (string) $r['actor'], 'at' => (string) $r['created_at']], $st->fetchAll(PDO::FETCH_ASSOC));
     }
@@ -832,6 +983,12 @@ final class MemberRoster
         self::ensure();
         $apply = !empty($opts['apply']); $overwrite = !empty($opts['overwrite']);
         $actor = (string) ($opts['actor'] ?? 'studio');
+        /* Who is importing, so the desk's guards apply row by row: the access
+           ceiling, staff accounts, admin emails, their own record. Without it
+           the import was a way round all of them. Changes a second person has
+           to approve at the desk (a suspension, a new email) are not made here. */
+        $ctx = (array) ($opts['ctx'] ?? []);
+        $held = class_exists('Approvals') && Approvals::bound((string) ($ctx['studio_role'] ?? ''));
         $cardFormat = (string) ($opts['card_format'] ?? '');
         if ($cardFormat !== '' && !MemberCards::format($cardFormat)) return ['ok' => false, 'error' => 'No card format “' . $cardFormat . '”. Describe it first.'];
         /* The organisation's own member ID, when it is not an NGV number. Its
@@ -896,11 +1053,14 @@ final class MemberRoster
             }
             $warn = [];
             if ($id === null) {
+                /* The desk's refusals, in the dry run as well as the apply, so the
+                   page shows them before anybody presses Apply. */
+                if ($ctx && ($g = self::guard(null, $c, $ctx))) { $report['failed']++; $report['rows'][] = ['ref' => $label, 'action' => 'failed', 'name' => $c['name'], 'detail' => $g['error']]; continue; }
                 $report['created']++;
                 if (!$apply) $report['cards']['would_issue']++;
                 $made = null;
                 if ($apply) {
-                    $made = self::create($c, $actor, 'import');
+                    $made = self::create($c, $actor, 'import', $ctx);
                     if (!$made['ok']) { $report['created']--; $report['failed']++; $report['rows'][] = ['ref' => $label, 'action' => 'failed', 'name' => $c['name'], 'detail' => $made['error']]; continue; }
                     $id = (int) $made['id']; $report['cards']['issued']++;
                 }
@@ -919,12 +1079,17 @@ final class MemberRoster
                     $cur = (string) ($have[$k] ?? '');
                     if ($cur !== '' && !$overwrite) continue;
                     if (strcasecmp($cur, (string) $c[$k]) === 0) continue;
+                    if ($held && ($k === 'email' || ($k === 'status' && (string) $c[$k] === 'suspended'))) {
+                        $warn[] = ($k === 'email' ? 'new email' : 'suspension') . ' not made by the import: make it at the member desk, where a second admin approves it';
+                        continue;
+                    }
                     $patch[$k] = $c[$k];
                 }
+                if ($patch && $ctx && ($g = self::guard($have, $patch, $ctx))) { $report['failed']++; $report['rows'][] = ['ref' => $label, 'action' => 'failed', 'name' => $have['name'], 'detail' => $g['error']]; continue; }
                 if (!$apply && MemberCards::secure($id) === null) $report['cards']['would_issue']++;
                 if ($patch) {
                     if ($apply) {
-                        $r = self::update($id, $patch, $actor);
+                        $r = self::update($id, $patch, $actor, $ctx);
                         if (!$r['ok']) { $report['failed']++; $report['rows'][] = ['ref' => $label, 'action' => 'failed', 'name' => $c['name'], 'detail' => $r['error']]; continue; }
                     }
                     $report['updated']++;

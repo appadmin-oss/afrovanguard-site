@@ -2,11 +2,17 @@
 /**
  * portal/goals.php — JSON API for team goals / OKRs (org members only).
  *
- *   GET  ?action=list                       → { ok, goals:[…] }
- *   POST ?action=create   {title, target}   → { ok, id }
- *   POST ?action=progress {id, pct}         → { ok }
- *   POST ?action=close    {id}              → { ok }
+ *   GET  ?action=list                       → { ok, goals:[…] }  each as GoalTrack::shape
+ *   GET  ?action=one&id=                    → { ok, goal, checkins:[…] }
+ *   POST ?action=create   {title, target, purpose, unit, direction, baseline,
+ *                          target_value, start_on, due_on}       → { ok, id }
+ *   POST ?action=edit     {id, title, …the same}                 → { ok }
+ *   POST ?action=checkin  {id, value, confidence, note, blocker} → { ok, goal }
+ *   POST ?action=close    {id, status: achieved|abandoned, note} → { ok }
  *   POST ?action=delete   {id}              → { ok }
+ *
+ * Progress is not typed: a goal with a number is checked in, one without
+ * follows its steps (lib/GoalTrack.php).
  *
  * Writes are same-origin + CSRF + rate-limited; reads require an org member.
  */
@@ -31,27 +37,44 @@ try {
         case 'list':
             json_out(['ok' => true, 'goals' => Goals::listGoals($uid, 40)]);
 
+        case 'one':
+            $g = GoalTrack::row((int) ($_GET['id'] ?? 0));
+            if (!$g) json_out(['ok' => false, 'error' => 'No such goal.'], 404);
+            json_out(['ok' => true, 'goal' => GoalTrack::shape($g, $uid), 'checkins' => GoalTrack::checkins((int) $g['id'], 12)]);
+
         case 'create':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
-            $id = Goals::create($uid, (string) ($body['title'] ?? ''), (string) ($body['target'] ?? ''));
+            $more = array_intersect_key($body, array_flip(Goals::fields()));
+            $m = Goals::measure($more);
+            if (isset($m['error'])) json_out(['ok' => false, 'error' => $m['error']], 422);
+            $id = Goals::create($uid, (string) ($body['title'] ?? ''), (string) ($body['target'] ?? ''), $more);
             if (!$id) json_out(['ok' => false, 'error' => 'Add an objective.'], 422);
-            json_out(['ok' => true, 'id' => $id]);
+            /* Tasks come from goals: its first steps are drawn now and given to
+               whoever fits them (lib/GoalPlanner.php). Failing that, the cron does it. */
+            $plan = ['created' => 0];
+            if (class_exists('GoalPlanner') && GoalPlanner::enabled()) {
+                try { $plan = GoalPlanner::plan($id); } catch (Throwable $e) { error_log('[goals] plan: ' . $e->getMessage()); }
+            }
+            json_out(['ok' => true, 'id' => $id, 'steps' => (int) ($plan['created'] ?? 0), 'via' => (string) ($plan['via'] ?? '')]);
 
         case 'edit':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
-            json_out(['ok' => Goals::edit($uid, (int) ($body['id'] ?? 0), (string) ($body['title'] ?? ''), (string) ($body['target'] ?? ''))]);
+            $r = Goals::edit($uid, (int) ($body['id'] ?? 0), (string) ($body['title'] ?? ''), (string) ($body['target'] ?? ''),
+                array_intersect_key($body, array_flip(Goals::fields())));
+            json_out(is_string($r) ? ['ok' => false, 'error' => $r] : ['ok' => $r], is_string($r) ? 422 : 200);
 
-        case 'progress':
+        case 'checkin':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
-            json_out(['ok' => Goals::setProgress($uid, (int) ($body['id'] ?? 0), (int) ($body['pct'] ?? 0))]);
+            $r = GoalTrack::checkin($uid, (int) ($body['id'] ?? 0), $body);
+            json_out($r, $r['ok'] ? 200 : 422);
 
         case 'close':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
-            json_out(['ok' => Goals::close($uid, (int) ($body['id'] ?? 0))]);
+            json_out(['ok' => Goals::close($uid, (int) ($body['id'] ?? 0), (string) ($body['status'] ?? 'achieved'), (string) ($body['note'] ?? ''))]);
 
         case 'delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

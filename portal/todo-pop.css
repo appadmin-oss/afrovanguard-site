@@ -1,0 +1,199 @@
+/* portal/todo-pop.css — the to-do pop-up (portal/todo-pop.js). CACENTRE's
+   console carries the same file as assets/css/todo-pop.css. */
+.tdp {
+  /* Its own palette: the two sites name their colours differently (and the
+     console's surface is translucent), so a host maps its tokens in on
+     purpose — see .tdp--av in portal/portal.css — rather than by accident. */
+  --tdp-bg: #ffffff;
+  --tdp-bg-2: #f7f6f2;
+  --tdp-ink: #14161a;
+  --tdp-muted: #545a66;
+  --tdp-line: #e4e1d9;
+  --tdp-accent: #7a5a10;
+  --tdp-accent-bg: #f7efdc;
+  --tdp-accent-solid: #b8860b;
+  --tdp-on-accent: #14161a;
+  --tdp-red: #a32b1c;
+  --tdp-red-bg: #fbe9e6;
+  --tdp-green: #1e6b3a;
+  --tdp-green-bg: #e3f3e8;
+  --tdp-shadow: 0 12px 40px rgba(20, 22, 26, .16), 0 1px 3px rgba(20, 22, 26, .08);
+  --tdp-r: 16px;
+  /* Clearance, not a guess: a host with bottom chrome (the portal's phone tab
+     bar) publishes its height as --avp-bottom-ui and the pop-up sits above it.
+     Unset — the console, a desktop — the fallback is the safe-area inset alone,
+     so nothing changes there. Hard-coding 20px put the launcher on top of a tab. */
+  position: fixed; right: 20px; bottom: calc(var(--avp-bottom-ui, 0px) + 20px); z-index: 900; color: var(--tdp-ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.4; text-align: left;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tdp:not(.tdp--light) {
+    --tdp-bg: #1a1c21; --tdp-bg-2: #22252b; --tdp-ink: #f2f1ee; --tdp-muted: #b4b8c0;
+    --tdp-line: #33363d; --tdp-accent: #e8c675; --tdp-accent-bg: #2e2716; --tdp-accent-solid: #e0b54f; --tdp-on-accent: #14161a;
+    --tdp-red: #ffa494; --tdp-red-bg: #3a1f1b; --tdp-green: #8fdcaa; --tdp-green-bg: #18301f;
+    --tdp-shadow: 0 18px 50px rgba(0, 0, 0, .6);
+  }
+}
+:root[data-theme="dark"] .tdp {
+  --tdp-bg: #1a1c21; --tdp-bg-2: #22252b; --tdp-ink: #f2f1ee; --tdp-muted: #b4b8c0;
+  --tdp-line: #33363d; --tdp-accent: #e8c675; --tdp-accent-bg: #2e2716; --tdp-accent-solid: #e0b54f; --tdp-on-accent: #14161a;
+  --tdp-red: #ffa494; --tdp-red-bg: #3a1f1b; --tdp-green: #8fdcaa; --tdp-green-bg: #18301f;
+  --tdp-shadow: 0 18px 50px rgba(0, 0, 0, .6);
+}
+/* Its own display rules must not beat the hidden attribute. */
+.tdp [hidden], .tdp[hidden] { display: none !important; }
+.tdp h2, .tdp h3, .tdp p { font-family: inherit; letter-spacing: normal; line-height: 1.3; margin: 0; text-transform: none; }
+/* Fonts from the pop-up, never the host's; each button sets its own colour. */
+.tdp button { font: inherit; }
+.tdp-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.tdp-ico { width: 18px; height: 18px; flex-shrink: 0; }
+.tdp button:focus-visible, .tdp a:focus-visible { outline: 2px solid var(--tdp-accent-solid); outline-offset: 2px; }
+
+/* ── The launcher ─────────────────────────────────────────────────────── */
+.tdp-launch {
+  position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px 0 12px; border-radius: 999px;
+  border: 1px solid var(--tdp-line); background: var(--tdp-bg); color: var(--tdp-ink); font-weight: 650; font-size: 14px;
+  box-shadow: var(--tdp-shadow); cursor: pointer; transition: transform .15s ease, box-shadow .15s ease;
+}
+.tdp-launch:hover { transform: translateY(-1px); border-color: var(--tdp-accent-solid); }
+.tdp-launch-i { width: 20px; height: 20px; color: var(--tdp-accent); }
+.tdp-n { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--tdp-accent-solid); color: var(--tdp-on-accent); font-size: 12px; font-weight: 800; display: inline-grid; place-items: center; }
+.tdp-dot { position: absolute; top: 6px; left: 30px; width: 9px; height: 9px; border-radius: 50%; background: var(--tdp-red); box-shadow: 0 0 0 2px var(--tdp-bg); }
+.tdp-launch.is-new { animation: tdp-nudge 1.2s ease 2; }
+@keyframes tdp-nudge { 0%, 100% { transform: none; } 30% { transform: translateY(-4px); } 60% { transform: translateY(0); } }
+
+/* ── The panel ────────────────────────────────────────────────────────── */
+/* Quiet by design: one heading, one line of facts, the list. Colour is kept
+   for what needs it (late, urgent, done), never spread over every row. */
+.tdp-panel {
+  width: min(380px, calc(100vw - 40px)); max-height: min(72vh, 640px); display: flex; flex-direction: column;
+  background: var(--tdp-bg); border: 1px solid var(--tdp-line); border-radius: var(--tdp-r); box-shadow: var(--tdp-shadow); overflow: hidden;
+  animation: tdp-in .2s cubic-bezier(.2, .8, .2, 1);
+}
+@keyframes tdp-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.tdp-grab { display: none; }
+.tdp-scrim { display: none; }
+.tdp-head { display: flex; align-items: center; gap: 8px; padding: 14px 8px 10px 18px; }
+.tdp-hi { flex: 1; min-width: 0; }
+.tdp-head h2 { font-size: 16px; font-weight: 750; color: var(--tdp-ink); display: flex; align-items: center; gap: 8px; }
+.tdp-hn { font-size: 12px; font-weight: 700; min-width: 22px; height: 20px; padding: 0 7px; border-radius: 999px; display: inline-grid; place-items: center; background: var(--tdp-bg-2); color: var(--tdp-muted); }
+.tdp-head h2:focus { outline: none; }
+.tdp-head h2:focus-visible { outline: 2px solid var(--tdp-accent-solid); outline-offset: 3px; border-radius: 4px; }
+.tdp-sub { margin-top: 3px !important; font-size: 12.5px; color: var(--tdp-muted); }
+.tdp-sub b { color: var(--tdp-red); font-weight: 650; }
+.tdp-x { width: 36px; height: 36px; border: 0; background: none; color: var(--tdp-muted); cursor: pointer; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0; }
+.tdp-x:hover { background: var(--tdp-bg-2); color: var(--tdp-ink); }
+.tdp-x .tdp-ico { width: 16px; height: 16px; }
+/* The day's progress: a hairline, not a widget. */
+.tdp-prog { height: 2px; background: var(--tdp-line); margin: 0 18px 12px; border-radius: 2px; overflow: hidden; }
+.tdp-prog > span { display: block; height: 100%; background: var(--tdp-green); transition: width .4s ease; }
+
+/* Now · Goals · For you — one segmented control. */
+.tdp-tabs { display: flex; gap: 2px; margin: 0 14px 10px; padding: 3px; border-radius: 10px; background: var(--tdp-bg-2); }
+.tdp-tab { flex: 1; min-height: 32px; padding: 0 10px; border-radius: 8px; border: 0; background: transparent; font-weight: 650; font-size: 13px; cursor: pointer; white-space: nowrap; color: var(--tdp-muted); }
+.tdp-tab:hover { color: var(--tdp-ink); }
+.tdp-tab[aria-pressed="true"] { background: var(--tdp-bg); color: var(--tdp-ink); box-shadow: 0 1px 2px rgba(20, 22, 26, .12); }
+.tdp-tab-n { font-weight: 600; opacity: .6; margin-left: 2px; }
+
+.tdp-body { overflow: auto; padding: 0 8px 8px; overscroll-behavior: contain; border-top: 1px solid var(--tdp-line); }
+.tdp-sec h3 { margin: 14px 10px 4px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--tdp-muted); }
+.tdp-c { font-weight: 600; opacity: .7; }
+.tdp-sec ul { list-style: none; margin: 0; padding: 0; }
+.tdp-item { position: relative; display: flex; gap: 12px; align-items: flex-start; padding: 9px 10px; border-radius: 10px; transition: background .15s ease, opacity .3s ease; }
+.tdp-item:hover { background: var(--tdp-bg-2); }
+.tdp-more { display: block; width: calc(100% - 20px); margin: 2px 10px 4px; min-height: 34px; border: 0; border-radius: 8px; background: none; color: var(--tdp-accent); font-weight: 650; font-size: 13px; text-align: left; padding: 0 0 0 34px; cursor: pointer; }
+.tdp-more:hover { background: var(--tdp-bg-2); }
+
+/* The tick: a round box that fills, and the title strikes through. */
+.tdp .tdp-check { width: 22px; height: 22px; margin-top: 1px; flex-shrink: 0; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--tdp-muted) 70%, transparent); background: transparent; cursor: pointer;
+  display: grid; place-items: center; color: transparent; transition: background .2s ease, border-color .2s ease, color .2s ease; }
+.tdp-check-i { width: 13px; height: 13px; stroke-width: 3; }
+.tdp .tdp-check:hover, .tdp .tdp-check:focus-visible { border-color: var(--tdp-green); color: var(--tdp-green); }
+.tdp .tdp-item.is-done .tdp-check { background: var(--tdp-green); border-color: var(--tdp-green); color: #fff; }
+.tdp-item.is-done .tdp-title { text-decoration: line-through; color: var(--tdp-muted); }
+.tdp-item.is-done { opacity: .55; }
+.tdp-kind { width: 26px; height: 26px; flex-shrink: 0; border-radius: 8px; display: grid; place-items: center; background: var(--tdp-bg-2); color: var(--tdp-muted); }
+.tdp-kind--live, .tdp-kind--rsvp, .tdp-kind--shift { background: var(--tdp-green-bg); color: var(--tdp-green); }
+.tdp-kind--gate, .tdp-kind--dues, .tdp-kind--ngv { background: var(--tdp-red-bg); color: var(--tdp-red); }
+.tdp-kind--spark, .tdp-kind--goal, .tdp-kind--minutes, .tdp-kind--mentor { background: var(--tdp-accent-bg); color: var(--tdp-accent); }
+.tdp-kind .tdp-ico { width: 15px; height: 15px; }
+
+.tdp-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tdp-title { font-size: 14px; font-weight: 550; color: var(--tdp-ink); overflow-wrap: anywhere; }
+.tdp-title a { color: inherit; text-decoration: none; }
+.tdp-title a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.tdp-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12.5px; color: var(--tdp-muted); }
+.tdp-meta:empty { display: none; }
+.tdp-meta.is-late > span:last-child { color: var(--tdp-red); }
+.tdp-badge { font-size: 11px; font-weight: 650; padding: 1px 7px; border-radius: 999px; }
+.tdp-badge--red { background: var(--tdp-red-bg); color: var(--tdp-red); }
+.tdp-badge--accent { background: var(--tdp-accent-bg); color: var(--tdp-accent); }
+.tdp-badge--green { background: var(--tdp-green-bg); color: var(--tdp-green); }
+.tdp-badge--muted { background: var(--tdp-bg-2); color: var(--tdp-muted); }
+.tdp-bar { display: block; height: 4px; border-radius: 4px; background: var(--tdp-line); overflow: hidden; margin-top: 4px; }
+.tdp-bar > span { display: block; height: 100%; border-radius: 4px; background: var(--tdp-accent-solid); }
+.tdp-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.tdp-btn { min-height: 32px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 650; cursor: pointer;
+  border: 1px solid var(--tdp-line); background: var(--tdp-bg); color: var(--tdp-ink); display: inline-flex; align-items: center; gap: 6px; }
+.tdp-btn:hover { border-color: var(--tdp-muted); }
+.tdp-btn--primary { background: var(--tdp-ink); color: var(--tdp-bg); border-color: var(--tdp-ink); }
+.tdp-btn--primary:hover { opacity: .88; border-color: var(--tdp-ink); }
+.tdp-btn--ghost { border-color: transparent; background: transparent; color: var(--tdp-muted); }
+.tdp-btn--ghost:hover { background: var(--tdp-bg-2); color: var(--tdp-ink); border-color: transparent; }
+.tdp-btn-i { width: 15px; height: 15px; }
+.tdp-btn:disabled, .tdp-check:disabled { cursor: wait; }
+
+.tdp-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 28px 20px 24px; }
+.tdp-empty-i { width: 40px; height: 40px; padding: 10px; border-radius: 50%; background: var(--tdp-green-bg); color: var(--tdp-green); stroke-width: 2.4; }
+.tdp-empty-t { font-weight: 700; font-size: 15px; }
+.tdp-empty-s { color: var(--tdp-muted); font-size: 13px; max-width: 28ch; }
+
+.tdp-toast { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 12px 8px; padding: 6px 6px 6px 12px; border-radius: 10px; background: var(--tdp-ink); color: var(--tdp-bg); font-size: 13px; }
+.tdp-toast span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tdp-toast-i { width: 15px; height: 15px; color: #8fdcaa; stroke-width: 2.6; flex-shrink: 0; }
+.tdp-toast button { min-height: 30px; padding: 0 12px; border-radius: 7px; border: 0; background: rgba(255, 255, 255, .14); color: inherit; font-weight: 700; cursor: pointer; }
+.tdp-toast button:hover { background: rgba(255, 255, 255, .24); }
+
+.tdp-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px 8px 18px; border-top: 1px solid var(--tdp-line); }
+.tdp-all { display: inline-flex; align-items: center; gap: 6px; font-weight: 650; font-size: 13.5px; color: var(--tdp-ink); text-decoration: none; }
+.tdp-all:hover { color: var(--tdp-accent); }
+.tdp-all-i { width: 15px; height: 15px; }
+.tdp-snooze { position: relative; }
+.tdp-snooze-menu { position: absolute; right: 0; bottom: calc(100% + 6px); min-width: 170px; padding: 4px; border-radius: 10px; background: var(--tdp-bg); border: 1px solid var(--tdp-line); box-shadow: var(--tdp-shadow); display: flex; flex-direction: column; }
+.tdp-snooze-menu button { text-align: left; min-height: 36px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--tdp-ink); cursor: pointer; font-size: 13.5px; }
+.tdp-snooze-menu button:hover { background: var(--tdp-bg-2); }
+
+/* Goals: each goal heads its steps, with how far along it is. */
+.tdp-sec--goal { margin: 8px 2px 6px; border: 1px solid var(--tdp-line); border-radius: 12px; overflow: hidden; }
+.tdp-goalhead { display: flex; align-items: flex-start; gap: 10px; padding: 12px 12px 10px; background: var(--tdp-bg-2); }
+.tdp-goalhead-i { width: 20px; height: 20px; color: var(--tdp-accent); margin-top: 1px; flex-shrink: 0; }
+.tdp-goalhead-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.tdp .tdp-sec--goal h3 { margin: 0; font-size: 14px; font-weight: 700; text-transform: none; letter-spacing: normal; color: var(--tdp-ink); }
+.tdp-goalhead-s { font-size: 12.5px; color: var(--tdp-muted); }
+.tdp-goalhead-p { font-weight: 800; font-size: 14px; color: var(--tdp-accent); }
+.tdp-sec--goal ul { padding: 4px 2px; }
+.tdp-goal { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; color: var(--tdp-accent); font-weight: 650; }
+.tdp-goal-i { width: 13px; height: 13px; flex-shrink: 0; }
+
+/* A phone: a sheet along the bottom over a dimmed page, never opened by itself. */
+@media (max-width: 600px) {
+  .tdp { right: 12px; left: auto; bottom: calc(var(--avp-bottom-ui, env(safe-area-inset-bottom, 0px)) + 14px); }
+  .tdp-scrim { display: block; position: fixed; inset: 0; background: rgba(10, 12, 16, .4); animation: tdp-fade .2s ease; }
+  .tdp-scrim[hidden] { display: none; }
+  .tdp-panel { position: fixed; left: 0; right: 0; bottom: 0; width: 100%; max-height: 78vh; border-radius: 20px 20px 0 0; border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px); animation-name: tdp-up; }
+  .tdp-grab { display: block; width: 36px; height: 4px; border-radius: 4px; background: var(--tdp-line); margin: 8px auto 0; }
+  .tdp-head { padding-top: 8px; }
+  .tdp .tdp-check { width: 26px; height: 26px; }
+  .tdp-item { padding: 11px 10px; }
+  .tdp-btn { min-height: 40px; }
+  .tdp-acts .tdp-btn { flex: 1 1 auto; justify-content: center; }
+}
+@keyframes tdp-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tdp-up { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .tdp *, .tdp *::before { animation: none !important; transition: none !important; }
+  .tdp-launch.is-new { animation: none; }
+}
+@media print { .tdp { display: none !important; } }

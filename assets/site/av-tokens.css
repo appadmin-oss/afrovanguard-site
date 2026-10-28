@@ -1,0 +1,178 @@
+/* Afrovanguard tokens. Paste ONCE into the site stylesheet's :root (skip any that exist). The only place hex literals are allowed. */
+:root{
+  --av-ink:#111827;
+  --av-ink-2:#22262D;
+  --av-paper:#FAF9F6;
+  --av-white:#FFFFFF;
+  --av-sand:#EFEDE8;
+  --av-stone:#F5F3EF;
+  --av-stone-2:#F8F7F4;
+  --av-stone-3:#F1F0EC;
+  --av-line:#E8E6E1;
+  --av-line-2:#D6D3CC;
+  --av-text-2:#454A56;
+  --av-muted:#5F636D;
+  --av-faint:#8B8B8B;
+  --av-faint-text:#696C74;   /* faint TEXT: --av-faint is 3.0–3.4:1 on paper, so it stays for borders and disabled marks only */
+  --av-on-ink-muted:#C9CCD3;
+  --av-on-ink-line:#4B5566;
+  --av-gold:#F3B416;
+  --av-gold-text:#8A6406;
+  --av-gold-soft:#FBF4E0;
+  --av-gold-light:#F6D77E;
+  --av-gold-grad-a:#E19A0B;
+  --av-gold-grad-b:#F7C45A;
+  --av-green:#17673D;   --av-green-bg:#EAF5EE;
+  --av-red:#B0361C;     --av-red-bg:#FBEAEA;
+  --av-indigo:#4338CA;  --av-indigo-bg:#EEF0FD;
+  --av-focus:#2F6FDB;
+  --av-registration:#000000; /* crop marks only */
+  /* site pages (row 4 home onward) */
+  --av-body:#1A1A1A;
+  --av-link-hover:#B07E08;
+  --av-nav-text:#2B2F36;
+  --av-nav-sub:#4A4F5C;
+  --av-line-3:#B9B5AC;
+  --av-line-sand:#D9D5CB;
+  --av-line-menu:#E3DFD6;
+  --av-line-menu-2:#ECE9E2;
+  --av-ink-hover:#253047;
+  --av-ink-deep:#0B1220;
+  --av-hero-bg:#1F2937;
+  --av-on-ink-soft:#E7E9EE;
+  --av-on-ink-2:#D6D9DF;
+  --av-sep:#C9C4B8;
+  --av-copy:#4A4A4A;
+  --av-copy-2:#555555;
+  --av-copy-3:#5A5A5A;
+  --av-copy-4:#666666;
+  --av-muted-2:#6B6B6B;
+  --av-slate:#5B5F69;
+  --av-slate-2:#7A7E87;
+  --av-stone-hover:#EBE7DF;
+  --av-sand-hover:#E6E3DC;
+  --av-menu-hover:#F1EFEA;
+  --av-img-bg:#E0DDD5;
+  --av-quote-mark:#C9A24B;
+  --av-gold-hover:#FFC93A;
+  /* member card back (design: Afrovanguard Member ID Card) */
+  --av-on-ink-strong:#E5E7EB;
+  --av-on-ink-label:#9AA1AE;
+  --av-ink-cell:#151C2C;
+  --av-on-ink-hair:rgba(255,255,255,.12);
+  --av-on-ink-rule:rgba(255,255,255,.45);
+  /* about / how it works / ethos (rows 5, 11, 12) */
+  --av-sand-2:#ECEBE8;      /* About journey band */
+  --av-copy-0:#3D3D3D;      /* body copy on sand */
+  --av-on-ink-line-2:#2A3344; /* hairline + image bed on ink */
+  --av-green-line:#D6EADB;  /* How it works: "Upon attaining" card border */
+  --av-gold-num:#D9B45A;    /* Ethos: large commitment numerals (decorative) */
+  --av-num-idle:#A3A39E;    /* Ethos: idle commitment numbers in the contents list */
+  /* card status bands (≥6:1 with white) */
+  --av-band-ok:#0F6B34; --av-band-warn:#8A4B00; --av-band-bad:#A3121F; --av-band-neutral:#3B4252;
+  /* sign in (row 10, design: Afrovanguard Sign In) */
+  --av-placeholder:#9A9DA4;
+  --av-error:#B3261E;
+  --av-step-off:#E1DED7;
+  --av-ok-bg:#EEF6F0;
+  --av-meter-2:#D97706;
+  --av-meter-3:#65A30D;
+  /* events (row 13, designs: Afrovanguard Events + Afrovanguard Cover) */
+  --av-text-3:#3D3D3D;
+  --av-live:#22A05A;
+  --av-live-now:#EF4444;
+  --av-feature:#10292C;
+  --av-feature-gold:#E8C26A;
+  --av-feature-muted:#9FB4B6;
+  --av-cov-gold:#E3C37A;
+  --av-cov-summit:#0F2A2C;
+  --av-cov-gala:#15161B;
+  --av-cov-blue:#14283D;     --av-cov-blue-a:#B7D2EA;
+  --av-cov-green:#132D22;    --av-cov-green-a:#B6DCBC;
+  --av-cov-rust:#2E1A18;     --av-cov-rust-a:#EFC0B4;
+  --av-cov-violet:#221D33;   --av-cov-violet-a:#D3C3EA;
+  --av-cov-brown:#33200F;    --av-cov-brown-a:#F0C995;
+  --av-cov-plum:#231B2B;     --av-cov-plum-a:#E6D4A2;
+  --av-cov-navy:#16253F;
+  --av-cov-teal:#122C28;     --av-cov-teal-a:#A8E0CC;
+  --av-cov-nation-a:#CFE3B0;
+  --av-hol-green:#008751; --av-hol-white:#F4F4F0; --av-hol-red:#8F1D1D; --av-hol-forest:#1F5D3A;
+  --av-hol-black:#14161D; --av-hol-orange:#E88B3A; --av-hol-blue:#4F8FC0;
+  /* shared assets (cover light tone, quote card, OG images): partials/av-cover.php, lib/AvImage.php */
+  --av-cov-light:#F4F2ED;
+  --av-qc-paper:#F4F2EE;  --av-qc-muted:#B8BCC6;  --av-qc-face:#1F2737;  --av-qc-motto:#E7CF7D;
+  --av-og-frame:#E3D6B0;  --av-og-line:#2A3344;  --av-og-line-2:#3A4558;
+
+  /* projects index + detail (row 6: Afrovanguard Projects / Project) */
+  --av-copy-5:#3D3D3D;        /* hero lead copy */
+  --av-line-btn:#BDB8AD;      /* outline button border */
+  --av-tag-text:#3D4148;      /* card tag pills */
+  --av-on-ink-pill:#3A4558;    /* pillar pills on ink */
+  --av-on-ink-line-3:#2A3344; /* pillar rule on ink */
+  /* celebrations (row 17 · design: Afrovanguard Celebrations). Occasion art and
+     palettes only; used by assets/site/avcel.css + avcel-art.js. */
+  --av-cel-ng:#008751; --av-cel-ng-text:#006B40; --av-cel-ng-deep:#003D24; --av-cel-flag-white:#E9EBE6;
+  --av-cel-amber:#E0A820; --av-cel-red:#C0392B; --av-cel-pine:#1F6B45; --av-cel-plum:#8A64A0;
+  --av-cel-sky:#4F8FC0; --av-cel-mute:#7A6F86; --av-cel-wire:#3B3F47; --av-cel-wire-dark:#8A8F99;
+  --av-cel-sun:#F3C33A; --av-cel-orange:#E88B3A; --av-cel-rose:#D94F6B; --av-cel-leaf:#5AA469;
+  --av-cel-leaf-deep:#2F6B3C; --av-cel-sage:#4F7F5B; --av-cel-sage-2:#6F9E7A; --av-cel-pink:#E98AA8;
+  --av-cel-cream:#FFF1C2; --av-cel-yolk:#F3D27A; --av-cel-smile:#4A3505; --av-cel-navy:#1F5D8A;
+  --av-cel-hill:#D9EAD2; --av-cel-hill-2:#B9D8AE; --av-cel-mist:#E7E1EC; --av-cel-lilac:#D7CDE0;
+  --av-cel-lilac-2:#ECE6F0; --av-cel-shell:#EFE3B6; --av-cel-dawn:#F4E7B9; --av-cel-dawn-ray:#E7CF7D;
+  --av-cel-dawn-2:#E3EFDA; --av-cel-dawn-ray-2:#C5DCB8; --av-cel-nine:#F3E3B0; --av-cel-wick:#FFF6D6;
+  --av-cel-paper-dark:#F4F2EE; --av-cel-forest:#1F5D3A; --av-cel-wine:#8F1D1D; --av-cel-soot:#14161D;
+  --av-cel-teal:#0F5B46; --av-cel-teal-deep:#073528; --av-cel-clay:#7A3E1D; --av-cel-steel:#1F4F78;
+  --av-cel-pale-sky:#DBE9F4; --av-cel-violet:#6B4674; --av-cel-violet-2:#C9A0D6; --av-cel-wheat:#E7D9A8;
+  --av-cel-ice:#A9CDEA; --av-cel-heather:#CDB6E6; --av-cel-ember:#B3501E; --av-cel-bronze:#7A5A10;
+  --av-cel-dusk:#5C5266; --av-cel-berry:#A8466A;
+  /* art panels: dark gradient pairs behind the badge */
+  --av-cel-bg-gold-a:#1A1408; --av-cel-bg-gold-b:#3A2B0C; --av-cel-bg-violet-a:#2B1D33; --av-cel-bg-violet-b:#1A1220;
+  --av-cel-bg-green-a:#173A2A; --av-cel-bg-green-b:#0E2419; --av-cel-bg-ash-a:#2A2630; --av-cel-bg-ash-b:#18161C;
+  --av-cel-bg-iron-a:#24262C; --av-cel-bg-iron-b:#14161A; --av-cel-bg-earth-a:#1F2A1C; --av-cel-bg-earth-b:#0F150D;
+  --av-cel-bg-blue-a:#16304A; --av-cel-bg-blue-b:#0F1F33; --av-cel-bg-rust-a:#3A1F0F; --av-cel-bg-rust-b:#1F1008;
+  --av-cel-bg-night-a:#1D2333; --av-cel-bg-night-b:#0D1119; --av-cel-bg-rose-a:#3A1A28; --av-cel-bg-rose-b:#220F18;
+  --av-cel-bg-holly-a:#3A1212; --av-cel-bg-holly-b:#1F0A0A; --av-cel-bg-plum-a:#2B2340; --av-cel-bg-plum-b:#1A1528;
+  /* member portal (row 14, design: Afrovanguard Portal v2; dark values from Portal v3) */
+  --av-green-dot:#22A05A; --av-indigo-dot:#6366F1; --av-alert:#C2410C; --av-scrim:rgba(17,24,39,.35);
+  --av-shadow-pop:0 16px 48px rgba(17,24,39,.14); --av-shadow-drawer:0 20px 60px rgba(17,24,39,.25);
+  --av-header-glass:rgba(255,255,255,.92); --av-green-ring:rgba(34,160,90,.18);
+  --av-dk-bg:#0E0F12; --av-dk-bg-2:#141518; --av-dk-bg-3:#1C1D22; --av-dk-sel:#24262C;
+  --av-dk-line:#26282E; --av-dk-line-2:#1E2025;
+  --av-dk-text:#ECECEC; --av-dk-text-2:#C2C4CA; --av-dk-text-3:#9A9DA4; --av-dk-text-4:#9295A0; /* -4 was #7B7E86: 4.1:1 on the dark cards; this is ≥5:1 on every dark surface */
+  --av-dk-gold-text:#F3C34A; --av-dk-gold-bg:rgba(243,180,22,.12);
+  --av-dk-green-text:#4ADE80; --av-dk-green-bg:rgba(34,197,94,.12);
+  --av-dk-red-text:#F87171; --av-dk-red-bg:rgba(248,113,113,.12);
+  --av-dk-indigo-text:#A5B4FC; --av-dk-indigo-bg:rgba(99,102,241,.16);
+  --av-dk-header-glass:rgba(14,15,18,.92); --av-dk-shadow:0 12px 40px rgba(0,0,0,.5);
+
+  /* rows 7–9: contact (avct-), donate (avdn-), give (avgv-) — design values not covered above */
+  --av-cdg-copy:#3D3D3D;
+  --av-cdg-live:#22A05A; --av-cdg-live-ring:rgba(34,160,90,.15); --av-cdg-live-bg:#EEF6F0;
+  --av-cdg-ink-line:#2A3344; --av-cdg-ink-line-2:#3A4558;
+  --av-cdg-ink-card:#1A2333; --av-cdg-ink-card-2:#1B2334; --av-cdg-ink-card-3:#222C40;
+  --av-cdg-line-4:#BDB8AD; --av-cdg-line-5:#CFCCC5; --av-cdg-line-6:#D9D5CC; --av-cdg-line-7:#E8E4DA;
+  --av-cdg-stone:#F2F0EB; --av-cdg-gold-wash:#FAF6EA;
+  --av-cdg-on-ink-link:#9FC5FF;
+
+  --av-serif:"Cormorant Garamond",Georgia,serif;
+  --av-sans:"Source Sans 3",system-ui,sans-serif;
+  --av-r-6:6px; --av-r-8:8px; --av-r-10:10px; --av-r-12:12px; --av-r-14:14px; --av-r-pill:999px;
+  --av-shadow:0 12px 40px rgba(17,24,39,.14);
+  --av-shadow-sel:0 1px 2px rgba(17,24,39,.12);
+}
+:where(.avc,.avd,.avm) :focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
+:where(.avc,.avd,.avm) .av-num{font-variant-numeric:tabular-nums}
+.av-sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media (prefers-reduced-motion:reduce){:where(.avc,.avd,.avm) *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+/* Diary listing (design "Afrovanguard Diary") — avdl.css */
+:root{
+  --av-dl-shade:rgba(0,0,0,.78);  --av-dl-clear:rgba(0,0,0,0);
+  --av-dl-ink-clear:rgba(17,24,39,0);  --av-dl-gold-hover:#F6C544;
+}
+/* Portal Diary notebooks (design "Afrovanguard Portal v3", Diary) — portal/avdy.css.
+   The six notebook spine colours are the design's fixed set (DiaryNotebooks::COLOURS). */
+:root{
+  --av-nb-ink:#10292C; --av-nb-green:#237B22; --av-nb-gold:#C9A24B; --av-nb-clay:#B0453F;
+  --av-nb-sky:#3D6F8E; --av-nb-plum:#6B4674; --av-dk-nb-ink:#6F9499;
+  --av-dy-scrim:rgba(17,24,39,.32); --av-dy-scrim-lib:rgba(17,24,39,.24);
+}

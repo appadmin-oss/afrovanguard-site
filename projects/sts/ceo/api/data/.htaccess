@@ -1,0 +1,13 @@
+# STS form backups (speaker submissions, subscribers, reservations): personal
+# data, read only by the PHP endpoints in the folder above. Never served.
+# Tracked in git so the rule ships with the code rather than being left to a
+# hand-merged .htaccess.example; the root .htaccess refuses the path as well.
+Require all denied
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>
+Options -Indexes
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>

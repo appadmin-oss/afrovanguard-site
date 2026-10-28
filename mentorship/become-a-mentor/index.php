@@ -41,7 +41,7 @@ render_head([
 ]);
 render_nav('involved');
 ?>
-<main id="main-content" class="mt">
+<main id="main" tabindex="-1" class="mt">
 
   <!-- ── The ask ───────────────────────────────────────────────────────── -->
   <section class="mt-section">

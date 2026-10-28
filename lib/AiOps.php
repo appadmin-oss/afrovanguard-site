@@ -52,7 +52,10 @@ final class AiOps
         'accountability' => 'Accountability sweep',
         'agendas'        => 'Agenda drafting',
         'meeting_clock'  => 'Meeting time warnings',
+        'meetings_live'  => 'Meetings: live capture, reminders, minutes',
         'promotions'     => 'Promotion reviews',
+        'quest_ladder'   => 'Quest: inactivity → demotion suggestions',
+        'quest_money'    => 'Quest: overdue balances → suggestions',
         'wifi'           => 'Members to CACENTRE’s Wi-Fi',
         'brief'          => 'Leadership brief',
     ];

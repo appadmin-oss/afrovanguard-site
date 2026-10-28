@@ -3,7 +3,7 @@
  * portal/_attendance.php — "Attendance & pass", the CACENTRE gate inside the portal.
  *
  * The same record /gate-pass shows (lib/GateAttendance.php): the pass to hold
- * up at a desk, the member's NGV card, the last thirty days, points, and
+ * up at a desk, the member's ID card, the last thirty days, points, and
  * telling the office about a day away — in the portal's own cards, so a
  * member does not leave the portal to see their own attendance. /gate-pass
  * stays as the full-screen pass for the desk, one tap away.
@@ -17,6 +17,9 @@ $gpMid = (int) $u['id'];
 $gpWhy = !GatePass::ready() ? 'Gate passes are not switched on yet.' : (GatePass::whyNot($u) ?? '');
 $gpPass = $gpWhy === '' ? GatePass::mint($u) : null;
 $gpCard = GateAttendance::cardFor($gpMid);
+require_once __DIR__ . '/../lib/IdCard.php';
+/* An NGV ID for a vanguard; a Member ID for everybody else (IdCard::kindLabel). */
+$gpIdLabel = IdCard::kindLabel($gpCard ?? IdCard::printedId($gpMid));
 $gpSecure = class_exists('MemberCards') ? MemberCards::secure($gpMid) : null;
 /* The one standing (lib/NgvCard.php): what the card prints, here live. */
 $gpStanding = NgvCard::standing($u);
@@ -37,10 +40,14 @@ $gpTone = ['present' => 'green', 'late' => 'gold', 'absent' => 'red', 'excused' 
 $gpFlash = (string) ($_COOKIE['av_gp_flash'] ?? '');
 if ($gpFlash !== '') setcookie('av_gp_flash', '', ['expires' => time() - 3600, 'path' => '/portal/']);
 ?>
+<?php if (empty($gpEmbedded)): /* Inside the Volunteer dashboard, its tab is the heading. */ ?>
           <div class="view-head">
             <div><h1>Attendance &amp; pass</h1><p class="view-sub">Your pass for the CACENTRE gate, and what the gate has recorded about you.</p></div>
 <?php if ($gpPass): ?>            <a class="pbtn pbtn-gold" href="/gate-pass">Show my pass full screen</a>
 <?php endif; ?>          </div>
+<?php elseif ($gpPass): ?>
+          <p><a class="pbtn pbtn-gold" href="/gate-pass">Show my gate pass full screen</a></p>
+<?php endif; ?>
 <?php if ($gpFlash !== ''): ?>          <div class="ngv-banner" role="status"><?= e(mb_substr($gpFlash, 0, 300)) ?></div>
 <?php endif; ?>
           <div class="pkpis" aria-label="The last 30 days">
@@ -62,16 +69,22 @@ if ($gpFlash !== '') setcookie('av_gp_flash', '', ['expires' => time() - 3600, '
               </div>
             </section>
             <section class="pcard" id="gp-idcard">
-              <div class="pcard-head"><h2>Your NGV ID</h2><span class="pchip pchip--<?= e(['ok' => 'green', 'warn' => 'gold', 'bad' => 'red'][$gpStanding['tone']] ?? 'indigo') ?>"><?= e($gpStanding['label']) ?></span></div>
+              <div class="pcard-head"><h2>Your <?= e($gpIdLabel) ?></h2><span class="pchip pchip--<?= e(['ok' => 'green', 'warn' => 'gold', 'bad' => 'red'][$gpStanding['tone']] ?? 'indigo') ?>"><?= e($gpStanding['label']) ?></span></div>
               <div class="pcard-body">
-                <?= NgvCard::html($u, ['standing' => $gpStanding]) ?>
-                <p class="pcard-note"><?= e($gpStanding['detail']) ?><?= $gpSecure ? ' A phone that scans the code opens your card’s page; the desk scanner checks you in from the same code.' : '' ?></p>
+                <?php
+                  require_once __DIR__ . '/../lib/IdCard.php';
+                  $card = IdCard::forMember((int) $u['id']);
+                  $avcSide = 'both';
+                  $avcSealSrc = '/assets/site/av-seal-256.png';
+                  include __DIR__ . '/../partials/id-card.php';
+                ?>
+                <p class="pcard-note"><?= e($gpStanding['detail']) ?><?= $gpSecure ? ' A phone that scans the code opens your card’s page; the desk scanner checks you in from the same code.' : '' ?><?= $gpSecure ? ' Your photo is changed under Membership → Your card.' : '' ?></p>
               </div>
             </section>
             <section class="pcard" id="gp-cards">
               <div class="pcard-head"><h2>Your cards</h2></div>
               <div class="pcard-body ngv-rows">
-<?php if ($gpCard): ?>                <div class="ngv-row"><div><span class="k">NGV ID card</span><span class="d">The number printed on your card — scanned, or typed at the desk.</span></div><span class="amt gp-mono"><?= e($gpCard) ?></span></div>
+<?php if ($gpCard): ?>                <div class="ngv-row"><div><span class="k"><?= e($gpIdLabel) ?></span><span class="d">The number printed on your card — scanned, or typed at the desk.</span></div><span class="amt gp-mono"><?= e($gpCard) ?></span></div>
 <?php endif; ?>
 <?php if ($gpSecure): ?>                <div class="ngv-row"><div><span class="k">Gate card</span><span class="d">The card the office prints for you. Lost it? Tell the office and it stops at once.</span></div><span class="amt gp-mono"><?= e($gpSecure) ?></span></div>
 <?php endif; ?>

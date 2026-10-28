@@ -246,13 +246,19 @@ ck('summit: the Academy nav links to it', str_contains(
    carries the search dialog, which the drawer replacement never matched — every
    run left the old one and appended another. The committed pages had seven. */
 
-foreach (['index.html', 'about.html', 'contact.html', 'donate.html', 'projects/index.html'] as $page) {
+// Not index.html: it has carried its own navigation since the row-4 redesign.
+// Nor projects/index.html since row 6: it carries the Home chrome
+// (tests/avhchrome.test.php), which has no search dialog or scrim.
+foreach (['about.html', 'contact.html', 'donate.html'] as $page) {
     $html = (string) @file_get_contents(AV_ROOT . '/' . $page);
-    if ($html === '') continue;
+    // Redesigned pages carry the Home chrome (tools/build-avh-chrome.php), not this one.
+    if ($html === '' || str_contains($html, '<!-- avh:nav -->')) continue;
     ck("chrome: {$page} has exactly one search dialog", substr_count($html, 'id="avSearch"') === 1);
     ck("chrome: {$page} has exactly one drawer scrim", substr_count($html, 'class="scrim"') === 1);
 }
-ck('chrome: the builder clears loose chrome before injecting', str_contains(
-    (string) @file_get_contents(AV_ROOT . '/tools/build-chrome.php'), 'strip_loose_chrome'));
+// The old-chrome builder is retired: it could only put the site-header nav and
+// its search dialog back. It must not render the old nav into anything.
+ck('chrome: the retired builder writes no chrome', !str_contains(
+    (string) @file_get_contents(AV_ROOT . '/tools/build-chrome.php'), 'file_put_contents'));
 
 $db->exec('DELETE FROM summit_registrations');

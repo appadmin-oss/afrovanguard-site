@@ -335,7 +335,9 @@ $depth = Mentorship::multiplicationDepth(1);
 ck('levels: a cycle terminates instead of hanging', $depth > 0 && $depth <= 12);
 
 /* ── Promotion recommends; it does not decide ── */
-AvRules::save(['levels.min_days_at_level' => '0', 'levels.min_attendance_pct' => '0'], 'tester');
+/* These pin the mentorship criteria; the Pyramid Manual's points floor is
+   questrules/questpyramid's to test, so it is switched off here. */
+AvRules::save(['levels.min_days_at_level' => '0', 'levels.min_attendance_pct' => '0', 'levels.quest_pyramid' => '0'], 'tester');
 $rec2 = Levels::recommend(1);
 ck('levels: with real active mentees the criteria are met', $rec2['recommend'] === true);
 ck('levels: the recommendation carries its evidence', count($rec2['reasons']) > 0);

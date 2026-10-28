@@ -23,15 +23,25 @@ final class Drive
 
     public static function configured(): bool
     {
-        return self::credentials() !== null
-            && defined('AV_GDRIVE_FOLDER_ID') && (string) AV_GDRIVE_FOLDER_ID !== '';
+        return self::credentials() !== null && self::folderId() !== '';
     }
+
+    /* Read through Config, like GoogleWorkspace: a value set on the Studio's
+       Setup screen counts. This read the constants only, so the two classes
+       disagreed about whether the same service account was configured. */
+    private static function cfg(string $k): string
+    {
+        return trim((string) (class_exists('Config') ? Config::get($k, '') : (defined($k) ? constant($k) : '')));
+    }
+
+    private static function folderId(): string { return self::cfg('AV_GDRIVE_FOLDER_ID'); }
 
     /** Parse the service-account JSON (raw or a file path). Returns null if absent/invalid. */
     private static function credentials(): ?array
     {
-        if (!defined('AV_GDRIVE_SERVICE_ACCOUNT') || (string) AV_GDRIVE_SERVICE_ACCOUNT === '') return null;
-        $v = (string) AV_GDRIVE_SERVICE_ACCOUNT;
+        if (class_exists('GoogleWorkspace')) return GoogleWorkspace::parseKey(class_exists('Config') ? Config::get('AV_GDRIVE_SERVICE_ACCOUNT', '') : '');
+        $v = self::cfg('AV_GDRIVE_SERVICE_ACCOUNT');
+        if ($v === '') return null;
         $json = (str_starts_with(ltrim($v), '{')) ? $v : (is_file($v) ? (string) @file_get_contents($v) : '');
         $c = json_decode($json, true);
         return (is_array($c) && !empty($c['client_email']) && !empty($c['private_key'])) ? $c : null;
@@ -49,7 +59,7 @@ final class Drive
         $header = self::b64url(json_encode(['alg' => 'RS256', 'typ' => 'JWT']));
         $claim  = self::b64url(json_encode([
             'iss' => $c['client_email'], 'scope' => self::SCOPE, 'aud' => self::TOKEN_URL,
-            'iat' => $now, 'exp' => $now + 3600,
+            'iat' => $now - 60, 'exp' => $now + 3540,
         ]));
         $sig = '';
         if (!openssl_sign($header . '.' . $claim, $sig, $c['private_key'], 'sha256WithRSAEncryption')) return null;
@@ -75,10 +85,19 @@ final class Drive
     public static function upload(string $tmpPath, string $originalName, string $mime = 'application/octet-stream'): array
     {
         if (!self::configured()) throw new RuntimeException('Drive is not configured.');
+        /* As the admin the site acts for, into a folder in My Drive or a shared
+           drive. As the bare service account (below, the old way) every upload to
+           a My Drive folder failed: a service account has no storage of its own,
+           and shared drives were not asked for (supportsAllDrives). */
+        if (class_exists('GoogleWorkspace')) {
+            $r = GoogleWorkspace::driveUpload(self::folderId(), $originalName, $mime, (string) file_get_contents($tmpPath));
+            if ($r) return ['url' => $r['url'], 'provider' => 'drive', 'id' => $r['id']];
+            throw new RuntimeException('Drive upload failed. ' . GoogleWorkspace::explain());
+        }
         $tok = self::accessToken();
         if (!$tok) throw new RuntimeException('Drive auth failed.');
 
-        $meta = json_encode(['name' => $originalName !== '' ? $originalName : ('document-' . date('Ymd-His')), 'parents' => [AV_GDRIVE_FOLDER_ID]]);
+        $meta = json_encode(['name' => $originalName !== '' ? $originalName : ('document-' . date('Ymd-His')), 'parents' => [self::folderId()]]);
         $boundary = 'av' . bin2hex(random_bytes(8));
         $body = "--$boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n$meta\r\n"
               . "--$boundary\r\nContent-Type: $mime\r\n\r\n" . (string) file_get_contents($tmpPath) . "\r\n--$boundary--";

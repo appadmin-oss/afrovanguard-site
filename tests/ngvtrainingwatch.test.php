@@ -97,7 +97,10 @@ ck('ngv training watch: three queries, none inside the per-person loop',
 // The console renders it — the table, and one person's months.
 $twSecret = av_secret();
 $twExp = (string) (time() + 600); $twNonce = 'twnonce';
-$_COOKIE[AV_ADMIN_COOKIE] = $twExp . '.' . $twNonce . '.admin.' . hash_hmac('sha256', $twExp . '.' . $twNonce . '.admin', $twSecret);
+/* A token sign-in cookie, minted the way admin/api.php mints one: it stands on
+   ADMIN_TOKEN, so the suite needs one to exist. */
+if (!defined('ADMIN_TOKEN')) define('ADMIN_TOKEN', 'suite-admin-token-0123456789abcdef0123456789');
+$_COOKIE[AV_ADMIN_COOKIE] = av_admin_cookie_value((int) $twExp, $twNonce, 'admin', 't', $twSecret);
 $twHtml = render_page(dirname(__DIR__) . '/academy/ngv/members.php', ['tf' => 'behind', 'm' => '701']);
 unset($_COOKIE[AV_ADMIN_COOKIE]);
 ck('ngv training watch: the console renders without throwing', $twHtml !== '' && !str_contains($twHtml, 'render_page: threw'));

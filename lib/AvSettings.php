@@ -24,7 +24,7 @@
  *    different ways — `Config::str()`, a private `cfg()` helper, or a bare
  *    `getenv()`. Rather than hunt down and rewrite each one, apply() publishes
  *    stored settings into the process environment and Config::get() consults this
- *    store first. AvBot, Gemini, RecallBot, AvWeb and Meetings all pick up a
+ *    store first. AvBot, Gemini, AttendeeBot, AvWeb and Meetings all pick up a
  *    Studio value with no edit at all.
  *
  * PRECEDENCE: the Studio wins over `.env`, `config.php` constants and the real
@@ -81,7 +81,166 @@ final class AvSettings
             'help' => 'Only for a gateway, a proxy or Bedrock. Leave blank otherwise.',
         ],
 
+        /* ── Email: the site's own Google Apps Script, and which road mail takes ── */
+        'AV_MAIL_TRANSPORT' => [
+            'group' => 'Email', 'label' => 'Sending road', 'secret' => false, 'type' => 'enum',
+            'options' => ['auto', 'smtp', 'gas', 'resend', 'host'],
+            'help' => 'auto (recommended): SMTP first; if it fails, Google Apps Script for one-to-one mail (sign-in codes, receipts, replies), then Resend, then this server’s own mail. smtp: SMTP only. gas: Google Apps Script only — announcements are held, because its allowance (about 100 recipients a day on Gmail, 1,500 on Workspace) is kept for mail people are waiting for. resend: the Resend API only. host: this server’s mail() only.',
+        ],
+        'AV_GAS_URL' => [
+            'group' => 'Email', 'label' => 'Apps Script web-app URL', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://script.google.com/macros/s/…/exec',
+            'help' => 'The Web app URL of apps-script/Afrovanguard_Mail.gs, from Deploy → Manage deployments in Apps Script. It ends in /exec. Step-by-step: docs/EMAIL-APPS-SCRIPT.md.',
+        ],
+        'AV_GAS_SECRET' => [
+            'group' => 'Email', 'label' => 'Apps Script secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'the SECRET from the top of the script',
+            'help' => 'Exactly the text between the quotes in const SECRET at the top of the script. The script refuses every request without it.',
+        ],
+        /* VanQuest's mails come from VanQuest, not from Afrovanguard (lib/VanQuest.php). */
+        'AV_VQ_FROM_NAME' => [
+            'group' => 'Email', 'label' => 'VanQuest sender name', 'secret' => false, 'type' => 'text',
+            'ph' => 'VanQuest',
+            'help' => 'The name VanQuest’s mails (confirm your seat, the onboarding mail) come from. Blank: VanQuest. Works on every sending road.',
+        ],
+        'AV_VQ_FROM_EMAIL' => [
+            'group' => 'Email', 'label' => 'VanQuest sender address', 'secret' => false, 'type' => 'email',
+            'ph' => 'vanquest@afrovanguard.org.ng',
+            'help' => 'The address VanQuest’s mails come from, and where replies go. Over SMTP it must be the SMTP account or an alias it may send as (Gmail: Settings → Accounts → Send mail as). Google Apps Script can only send from the account that runs it, so there replies go here and the From stays that account. Blank: the site’s own address.',
+        ],
+
+        /* ── Google: sign-in and Workspace ─────────────────────────────────
+           These lived only in config.php or SetEnv, on a host with no shell —
+           so "Continue with Google" and every Workspace panel stayed dark unless
+           somebody edited a file above the web root. */
+        'AV_GOOGLE_CLIENT_ID' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'OAuth client ID', 'secret' => false, 'type' => 'text',
+            'ph' => '1234567890-abc….apps.googleusercontent.com',
+            'help' => 'Google Cloud console → APIs & Services → Credentials → your OAuth 2.0 Client ID (type: Web application). Turns on “Continue with Google” and lets members connect their own Workspace. Its Authorised redirect URI must be exactly this site’s address followed by /auth/google/callback — the test below prints it.',
+        ],
+        'AV_GOOGLE_CLIENT_SECRET' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'OAuth client secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'GOCSPX-…',
+            'help' => 'The client secret shown next to that client ID.',
+        ],
+        'AV_GWS_CONNECT_ON_SIGNIN' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Ask for Workspace access at sign-in', 'secret' => false, 'type' => 'enum',
+            'options' => ['org', 'all', '0'],
+            'help' => 'org (default): only someone signing in with an organisation address is also asked for Gmail, Calendar, Drive and Chat access. all: everybody is — a personal Gmail account then sees an “unverified app” warning unless Google has verified the app. 0: never; members connect from the portal instead (Today, or the Google account in the side bar).',
+        ],
+        'AV_GWS_MEMBER_ACCESS' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Members’ own Google', 'secret' => false, 'type' => 'enum',
+            'options' => ['delegated', 'oauth'],
+            'help' => 'delegated (default): with the service account below, the site reads each organisation member’s own inbox, calendar, Drive and Chat by acting as them — nobody connects anything and nothing expires. Needs the member scopes in domain-wide delegation (the test lists them). oauth: each member connects their own account, as before.',
+        ],
+        'AV_GDRIVE_SERVICE_ACCOUNT' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Service account key (JSON)', 'secret' => true, 'type' => 'json',
+            'ph' => '{ "type": "service_account", … }',
+            'help' => 'Paste the whole JSON key of the service account (Google Cloud console → IAM & Admin → Service Accounts → Keys → Add key → JSON). Used for the shared calendar, Meet links, the Drive folder and the directory. It is encrypted here and never shown again.',
+        ],
+        'AV_WS_SUBJECT' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Admin to act as', 'secret' => false, 'type' => 'email',
+            'ph' => 'admin@afrovanguard.org.ng',
+            'help' => 'A real Workspace administrator the service account impersonates through domain-wide delegation. Needed for the directory, Meet records and creating events on someone’s calendar.',
+        ],
+        'AV_WS_CALENDAR_ID' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Shared calendar', 'secret' => false, 'type' => 'text',
+            'ph' => 'mentorship@afrovanguard.org.ng',
+            'help' => 'The calendar sessions are written to and “Coming up” reads from. Blank uses the admin above.',
+        ],
+        'AV_GDRIVE_FOLDER_ID' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Drive folder ID', 'secret' => false, 'type' => 'text',
+            'ph' => 'the id at the end of the folder’s URL',
+            'help' => 'Where uploaded documents are stored and which folder the portal lists. Share the folder with the service account’s email.',
+        ],
+        'AV_WS_DIRECTORY_SYNC' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Add Workspace users as members', 'secret' => false, 'type' => 'enum',
+            'options' => ['off', 'daily'],
+            'help' => 'daily: once a day the site cron reads the Workspace directory and gives every active user a member account (existing accounts are left as they are). Needs the service account, the admin above, and the cron.',
+        ],
+
+        /* ── Google Meet: meetings that run themselves ─────────────────────
+           Calendar makes the Meet; these turn on Google's own recording,
+           transcript and notes for it, read it back as the organiser, and
+           take Google's live events from a Pub/Sub queue the cron drains.
+           See docs/google-workspace.md → "Meetings that run themselves". */
+        'AV_MEET_ORGANISER' => [
+            'group' => 'Google Meet', 'label' => 'Meeting organiser mailbox', 'secret' => false, 'type' => 'email',
+            'ph' => 'meetings@afrovanguard.org.ng',
+            'help' => 'A licensed Workspace mailbox that owns every meeting the site makes (its calendar holds the events, its Drive the recordings). Recording, transcripts and notes are switched on as this mailbox, and attendance and transcripts read back as it. Blank uses the shared calendar, then the admin above. Needs Business Standard or higher for recording and transcripts.',
+        ],
+        'AV_MEET_HOST' => [
+            'group' => 'Google Meet', 'label' => 'Whose calendar a meeting goes on', 'secret' => false, 'type' => 'enum',
+            'options' => ['organiser', 'shared'],
+            'help' => 'organiser: the person scheduling (an organisation member) — the event is theirs, the invite comes from them and they own the Meet, so they can record, admit guests and end it for everyone. shared: the organiser mailbox / shared calendar above owns every meeting. Blank: organiser, unless a meeting organiser mailbox is set.',
+        ],
+        'AV_MEET_ARTIFACTS' => [
+            'group' => 'Google Meet', 'label' => 'What Google captures', 'secret' => false, 'type' => 'enum',
+            'options' => ['all', 'transcript', 'off'],
+            'help' => 'all (default): recording, transcript, Gemini notes and an attendance report start on their own in every meeting. transcript: transcript and notes, no recording. off: Google captures nothing on its own; the room captions and check-in still work.',
+        ],
+        'AV_MEET_PUBSUB_TOPIC' => [
+            'group' => 'Google Meet', 'label' => 'Pub/Sub topic for Meet events', 'secret' => false, 'type' => 'text',
+            'ph' => 'projects/your-project/topics/meet-events',
+            'help' => 'Optional, for live joins, leaves and "transcript ready" the moment they happen. Create the topic in Google Cloud and give meet-api-event-push@system.gserviceaccount.com the Pub/Sub Publisher role on it. Without it the site still checks Google every few minutes.',
+        ],
+        'AV_MEET_PUBSUB_SUB' => [
+            'group' => 'Google Meet', 'label' => 'Pub/Sub pull subscription', 'secret' => false, 'type' => 'text',
+            'ph' => 'projects/your-project/subscriptions/meet-events-pull',
+            'help' => 'A PULL subscription on that topic; give the service account the Pub/Sub Subscriber role on it. The cron empties it every minute, so the host needs no public webhook.',
+        ],
+        'AV_MEET_PUSH_AUDIENCE' => [
+            'group' => 'Google Meet', 'label' => 'Push audience (optional)', 'secret' => false, 'type' => 'text',
+            'ph' => 'https://afrovanguard.org.ng/webhooks/google-meet.php',
+            'help' => 'Only if you use a PUSH subscription to /webhooks/google-meet.php instead of pull: the audience set on that subscription. Each push is checked against Google’s signing keys and this audience.',
+        ],
+
         /* ── Gemini ───────────────────────────────────────────────────── */
+        /* ── CACENTRE gate ───────────────────────────────────────────────── */
+        'GATE_PASS_SECRET' => [
+            'group' => 'CACENTRE gate', 'label' => 'Gate pass secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'at least 32 random characters',
+            'help' => 'The same value as AV_PASS_SECRET on the Cloudflare gate (Workers → cacentre-gate → Settings → Variables and Secrets). Signs members’ phone passes at /gate-pass and the gate’s lookups and check-in reports. At least 32 characters. If CACENTRE says Afrovanguard refused the gate’s signature, compare the fingerprint shown here with the one CACENTRE shows under Attendance → Desks: different fingerprints mean different secrets.',
+        ],
+        'GATE_URL' => [
+            'group' => 'CACENTRE gate', 'label' => 'Gate address', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://cacentre.afrovanguard.org.ng',
+            'help' => 'Where the gate runs. Used to withdraw a member’s pass when they are suspended. Nothing after the hostname.',
+        ],
+        /* ── CACENTRE finance (CFIS) ───────────────────────────────────── */
+        'CFIS_SECRET' => [
+            'group' => 'CACENTRE finance (CFIS)', 'label' => 'Property key', 'secret' => true, 'type' => 'text',
+            'ph' => 'collected by pairing — see below',
+            'help' => 'Finance requests and the CFIS checkout are on as soon as this is set. Do not paste it by hand: use Pair with CFIS below, which collects the key from CACENTRE over TLS so it is never displayed on either side. This field stays here for a host that cannot reach CACENTRE outbound, where finance runs `php artisan cfis:connect avg --show-secret` and hands the key over privately instead.',
+        ],
+        'CFIS_PAIRING_CODE' => [
+            'group' => 'CACENTRE finance (CFIS)', 'label' => 'Pair with CFIS', 'secret' => false, 'type' => 'action',
+            'ph' => 'ABCD-EFGH-JKLM-NPQR',
+            'help' => 'Ask CACENTRE’s finance team for a pairing code (`php artisan cfis:pair avg`). Enter it here and this site collects its signing key directly from CFIS. The code works once and expires in fifteen minutes; the key itself is never shown to anybody. Afterwards, compare the key fingerprint this shows with the one finance has on screen — the same sixteen characters means the same key. A code can be re-issued as often as you like without changing the key, so a lost hand-over no longer means a rotation.',
+        ],
+        'CFIS_URL' => [
+            'group' => 'CACENTRE finance (CFIS)', 'label' => 'Finance address', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://cacentre.afrovanguard.org.ng/finance',
+            'help' => 'Where CFIS runs. Blank uses https://cacentre.afrovanguard.org.ng/finance.',
+        ],
+        /* ── NextGen Genius ─────────────────────────────────────────────── */
+        'NGG_WEBHOOK_SECRET' => [
+            'group' => 'NextGen Genius', 'label' => 'Shared secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'a long random string',
+            'help' => 'The same value as afrovanguard.ngv_webhook_secret in NGG’s api/config.php. NGG’s ID Card Studio uses it to fetch Afrovanguard member cards, and NGG signs NGV promotions with it.',
+        ],
+        'NGG_URL' => [
+            'group' => 'NextGen Genius', 'label' => 'NGG address', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://next.afrovanguard.org.ng',
+            'help' => 'Where NextGen Genius runs. This site fetches NGG’s volunteers from there (signed with the shared secret above), so they are recognised when they sign in. Blank uses https://next.afrovanguard.org.ng.',
+        ],
+
+        /* ── CACENTRE CRM ─────────────────────────────────────────────────── */
+        'AV_CRM_INTAKE_SECRET' => [
+            'group' => 'CACENTRE CRM', 'label' => 'Audience secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'the secret CACENTRE generated for Afrovanguard',
+            'help' => 'In the CACENTRE console: Audience → Sites → Afrovanguard → Generate secret, then paste it here. Every few minutes this site then sends its Diary and newsletter subscribers, donors, monthly givers and contact-form enquiries to the CRM’s Audience, signed with it. Unsubscribes are sent too. Blank sends nothing.',
+        ],
         'AV_GEMINI_API_KEY' => [
             'group' => 'Gemini (Google)', 'label' => 'API key', 'secret' => true, 'type' => 'text',
             'ph' => 'AIza…',
@@ -196,48 +355,29 @@ final class AvSettings
             'help' => 'Whatever you have actually pulled — `ollama list` names them. Either this or the endpoint above marks the local provider available, so set it even when the endpoint is the default one.',
         ],
 
-        /* ── The meeting notetaker ────────────────────────────────────── */
+        /* ── The meeting notetaker (optional) ─────────────────────────── */
+        // Attendee is the only third-party notetaker, and nothing here is
+        // required: with these left blank, meetings are still scheduled and
+        // invites still go out, and minutes come from Google's own transcript,
+        // an uploaded recording or pasted text.
         'AV_MEET_BOT_PROVIDER' => [
-            'group' => 'Meeting notetaker', 'label' => 'Backend', 'secret' => false, 'type' => 'enum',
-            'options' => ['', 'attendee', 'recall', 'google', 'webhook', 'none'],
-            'help' => 'Blank auto-detects, preferring the free options. "google" uses Meet\'s own transcription and costs nothing at all. "attendee" runs an open-source bot you host yourself — free per meeting, you pay only for the container. "recall" is the hosted equivalent, billed per meeting-hour. "none" disables it regardless of keys.',
+            'group' => 'Meeting notetaker (optional)', 'label' => 'Notetaker', 'secret' => false, 'type' => 'enum',
+            'options' => ['', 'attendee', 'none'],
+            'help' => 'Optional — the site works without a notetaker. Blank uses Attendee when its API key is set, otherwise Google Meet\'s own transcription when Workspace is connected. "attendee" forces the Attendee bot. "none" switches the notetaker off regardless of keys.',
         ],
         'AV_ATTENDEE_API_KEY' => [
-            'group' => 'Meeting notetaker', 'label' => 'Attendee API key', 'secret' => true, 'type' => 'text',
-            'help' => 'Attendee is the open-source notetaker (github.com/attendee-labs/attendee). Self-hosted it charges nothing per meeting, so it costs you a small always-on container. The recogniser is separate: Meet\'s own captions are free, or you add a Deepgram/OpenAI key inside Attendee and that provider bills you. There is a hosted service too if you would rather not run it.',
+            'group' => 'Meeting notetaker (optional)', 'label' => 'Attendee API key', 'secret' => true, 'type' => 'text',
+            'help' => 'Optional. Attendee is the open-source notetaker (github.com/attendee-labs/attendee) that joins the call, records and transcribes. Self-hosted it charges nothing per meeting, so it costs you a small always-on container. The recogniser is separate: Meet\'s own captions are free, or you add a Deepgram/OpenAI key inside Attendee and that provider bills you. Leave blank to run without it.',
         ],
         'AV_ATTENDEE_BASE_URL' => [
-            'group' => 'Meeting notetaker', 'label' => 'Attendee instance URL', 'secret' => false, 'type' => 'url',
+            'group' => 'Meeting notetaker (optional)', 'label' => 'Attendee instance URL', 'secret' => false, 'type' => 'url',
             'ph' => 'https://meetbot.your-domain.org',
             'help' => 'Your own instance. Leave blank to use the hosted service at app.attendee.dev — which is not free, so set this if the point was to avoid a per-meeting bill.',
         ],
         'AV_ATTENDEE_BOT_NAME' => [
-            'group' => 'Meeting notetaker', 'label' => 'How the Attendee bot appears', 'secret' => false, 'type' => 'text',
+            'group' => 'Meeting notetaker (optional)', 'label' => 'How the Attendee bot appears', 'secret' => false, 'type' => 'text',
             'ph' => 'Afrovanguard Notetaker',
             'help' => 'The name participants see in the meeting.',
-        ],
-        'AV_RECALL_API_KEY' => [
-            'group' => 'Meeting notetaker', 'label' => 'Recall.ai API key', 'secret' => true, 'type' => 'text',
-            'help' => 'Only needed for the "recall" backend. Google\'s own Meet transcripts are free and already wired — prefer those unless you also need Zoom or Teams.',
-        ],
-        'AV_RECALL_WEBHOOK_TOKEN' => [
-            'group' => 'Meeting notetaker', 'label' => 'Recall webhook token', 'secret' => true, 'type' => 'text',
-            'help' => 'SET THIS if you use Recall. It is the shared secret on the callback URL — without it, anyone who guesses the URL can post a transcript into your meeting records.',
-        ],
-        'AV_RECALL_REGION' => [
-            'group' => 'Meeting notetaker', 'label' => 'Recall region', 'secret' => false, 'type' => 'text',
-            'ph' => 'us-west-2',
-            'help' => 'API region host prefix. Leave blank for us-west-2.',
-        ],
-        'AV_RECALL_BOT_NAME' => [
-            'group' => 'Meeting notetaker', 'label' => 'How the bot appears', 'secret' => false, 'type' => 'text',
-            'ph' => 'Afrovanguard Notetaker',
-            'help' => 'The name participants see in the meeting. Make it recognisable — people should know what it is without asking.',
-        ],
-        'AV_MEET_BOT_JOIN_URL' => [
-            'group' => 'Meeting notetaker', 'label' => 'Custom recorder URL', 'secret' => false, 'type' => 'url',
-            'ph' => 'https://recorder.example/join',
-            'help' => 'For the "webhook" backend: your own service that joins the call and posts the transcript back.',
         ],
 
         /* ── Web search ───────────────────────────────────────────────── */
@@ -298,6 +438,12 @@ final class AvSettings
      * on paths where the database may not exist yet. A failure here must degrade
      * to "nothing stored", never break the request.
      */
+    /** @var array<string,bool> secrets present in the table that would not decrypt */
+    private static array $unreadable = [];
+
+    /** @var list<string> ciphertexts that only an older secret would open */
+    private static array $staleKey = [];
+
     private static function all(): array
     {
         if (self::$memo !== null) return self::$memo;
@@ -316,7 +462,25 @@ final class AvSettings
                     // A secret we cannot decrypt (APP_KEY changed, extension gone)
                     // is skipped rather than passed on as ciphertext, which would
                     // be sent to an API as if it were a key.
-                    if ($p === null) { error_log('[settings] cannot decrypt ' . $k . ' — skipping'); continue; }
+                    /* Read under an older secret: rewrite it under the
+                       one in force now, so the next deploy — or the next
+                       person to set APP_KEY — does not take it away
+                       again. Best effort: a read must never fail because
+                       a repair could not be written. */
+                    if ($p !== null && self::$staleKey !== [] && in_array($v, self::$staleKey, true)) {
+                        self::reseal($k, $p);
+                    }
+                    if ($p === null) {
+                        /* Remembered, not only logged. A stored secret that
+                           cannot be read back looks exactly like no secret
+                           at all to every screen that asks — so the site
+                           says "not set up" to somebody who set it up, and
+                           the only trace is a log line nobody on shared
+                           hosting will ever see. */
+                        self::$unreadable[$k] = true;
+                        error_log('[settings] cannot decrypt ' . $k . ' — skipping');
+                        continue;
+                    }
                     $v = $p;
                 }
                 if ($v !== '') self::$memo[$k] = $v;
@@ -327,6 +491,100 @@ final class AvSettings
             self::$reading = false;
         }
         return self::$memo;
+    }
+
+    /**
+     * Re-encrypt a value under the secret in force now.
+     *
+     * Quiet and best effort. It is a repair, not a decision: the value
+     * is unchanged and was already readable on this host a moment ago.
+     */
+    private static function reseal(string $key, string $plain): void
+    {
+        try {
+            $enc = self::enc($plain);
+            if ($enc === null) return;
+            Database::pdo()
+                ->prepare('UPDATE av_settings SET value = ? WHERE setting_key = ? AND is_secret = 1')
+                ->execute([$enc, $key]);
+            error_log('[settings] re-encrypted ' . $key . ' under the current APP_KEY');
+        } catch (Throwable $e) {
+            error_log('[settings] could not re-encrypt ' . $key . ': ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Secrets that ARE stored and cannot be read back.
+     *
+     * Almost always the APP_KEY: changed, lost, or different because the
+     * site was moved or restored onto another host. Re-pasting the value
+     * fixes it, because saving re-encrypts under the key in force now —
+     * but only if somebody is told that is what is wrong.
+     *
+     * @return list<string>
+     */
+    public static function unreadable(): array
+    {
+        self::all();
+
+        return array_keys(self::$unreadable);
+    }
+
+    /**
+     * Whether a row for this setting exists at all, and who wrote it when —
+     * never the value. "Not set up" covers both "never saved" and "saved and
+     * since lost"; this is what tells them apart without a database console.
+     *
+     * @return array{by:string,at:string}|null
+     */
+    public static function storedRow(string $key): ?array
+    {
+        try {
+            self::ensure();
+            $q = Database::pdo()->prepare('SELECT updated_by, updated_at FROM av_settings WHERE setting_key = ?');
+            $q->execute([$key]);
+            $r = $q->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) { return null; }
+
+        return $r ? ['by' => (string) $r['updated_by'], 'at' => (string) $r['updated_at']] : null;
+    }
+
+    /**
+     * Why a stored setting cannot be read, in words an operator can act on,
+     * or '' when the store itself is fine (the value may simply be unset —
+     * that is the caller's own business to describe).
+     *
+     * Two states belong to the STORE rather than to any one integration, and
+     * a plain "is it set?" cannot tell either of them from "never entered":
+     * the crypto is unavailable, and the value is there but will not decrypt.
+     * Both were being re-derived per integration, and each screen that forgot
+     * told the operator to paste a value that is already stored. There is one
+     * of these now; GoogleWorkspace, AppsScriptMail and Config::diagnostics()
+     * all ask it.
+     *
+     * Crypto is checked FIRST, and the order is the point: with no APP_KEY
+     * nothing decrypts AND nothing can be saved, so "paste it again" sends
+     * somebody round a loop they cannot leave.
+     *
+     * @param string $key   the DEFS key, e.g. AV_GAS_SECRET
+     * @param string $what  how to name it to a person, e.g. "Apps Script secret"
+     * @param string $where where it is pasted, when that is not the usual place
+     */
+    public static function whyUnreadable(string $key, string $what, string $where = 'Studio → Rules & AI → Setup'): string
+    {
+        $crypto = self::cryptoStatus();
+        if (empty($crypto['ok'])) {
+            return 'The ' . $what . ' cannot be read until this is fixed: ' . (string) $crypto['reason']
+                . ' A value may already be stored — once the key is right it will either work again, '
+                . 'or need pasting once more.';
+        }
+        if (in_array($key, self::unreadable(), true)) {
+            return 'The ' . $what . ' IS stored on this site, but it cannot be read back — which happens when '
+                . 'APP_KEY changes, or the site is moved or restored onto another host. Paste the '
+                . $what . ' again in ' . $where . ': saving re-encrypts it under the key in force now.';
+        }
+
+        return '';
     }
 
     /** A stored setting, or null. Used by Config::get() before anything else. */
@@ -341,6 +599,7 @@ final class AvSettings
     {
         self::$memo = null;
         self::$applied = false;
+        self::$unreadable = [];
     }
 
     /**
@@ -441,9 +700,19 @@ final class AvSettings
                 'placeholder'=> (string) ($d['ph'] ?? ''),
                 'secret'     => $secret,
                 'is_set'     => $live !== '',
+                /* Stored, and unreadable. Not the same as unset, and the
+                   remedy is different: paste it again to re-encrypt it
+                   under the APP_KEY in force now. */
+                'unreadable' => in_array($key, self::unreadable(), true),
                 // A secret shows only a masked tail; a plain setting shows itself.
                 'value'      => $secret ? '' : $live,
                 'preview'    => $secret ? self::maskOf($live) : '',
+                /* A fingerprint identifies a key without printing it, so
+                   two sides can confirm they hold the same one. The gate
+                   secret's, to compare with the gate's when it is refused;
+                   the CFIS key's, to compare with what finance shows after
+                   pairing. */
+                'fingerprint'=> self::fingerprintOf($key, $live),
                 'source'     => $src['source'],
                 'shadowing'  => $src['shadowing'],
                 'updated_by' => $meta[$key]['by'] ?? '',
@@ -452,7 +721,20 @@ final class AvSettings
         }
         $out = [];
         foreach ($groups as $name => $fields) $out[] = ['group' => $name, 'fields' => $fields];
-        return ['groups' => $out, 'crypto' => self::cryptoStatus()];
+        /* Said out loud, next to the crypto banner: a key that is in the
+           table and cannot be decrypted is the one failure that looks
+           identical to no key at all. */
+        return ['groups' => $out, 'crypto' => self::cryptoStatus(), 'unreadable' => self::unreadable()];
+    }
+
+    /** The 16 characters that identify a key, where a key has such a thing. */
+    private static function fingerprintOf(string $key, string $live): string
+    {
+        if ($live === '') return '';
+        if ($key === 'GATE_PASS_SECRET' && class_exists('GatePass')) return GatePass::fingerprint($live);
+        if ($key === 'CFIS_SECRET' && class_exists('CfisPairing')) return CfisPairing::fingerprint($live);
+
+        return '';
     }
 
     /** The value actually in force for a key, from any source. */
@@ -497,10 +779,24 @@ final class AvSettings
             $key = (string) $key;
             if (!isset(self::DEFS[$key])) { $errors[$key] = 'Unknown setting.'; continue; }
             $d = self::DEFS[$key];
+            /* An 'action' is a button that happens to need a value typed
+               beside it — a pairing code, redeemed once and then worthless.
+               It is NOT a setting, and storing one would put a live
+               credential in av_settings where nobody would think to look
+               for it. Refused here as well as left out of the Studio's save
+               payload, because a hand-made request reaches this and not the
+               page. */
+            if (($d['type'] ?? '') === 'action') { $errors[$key] = 'That is an action, not a setting — it is not stored.'; continue; }
             $val = trim((string) $raw);
 
             // Unchanged masked secret — nothing to do.
-            if (!empty($d['secret']) && ($val === self::MASK || strpos($val, '…') !== false)) continue;
+            if (!empty($d['secret']) && $val === self::MASK) continue;
+            /* The masked preview copied by hand. Skipping it quietly reported
+               the save as fine while nothing was stored; say what happened. */
+            if (!empty($d['secret']) && strpos($val, '…') !== false) {
+                $errors[$key] = 'That is the masked preview, not the value — paste the real one (it never contains “…”).';
+                continue;
+            }
 
             if ($val === '') {
                 try {
@@ -514,6 +810,8 @@ final class AvSettings
             // next API call.
             $bad = self::validate($key, $val);
             if ($bad !== '') { $errors[$key] = $bad; continue; }
+            // A key pasted with its line breaks is stored as one compact line.
+            if (($d['type'] ?? '') === 'json') $val = (string) json_encode(json_decode($val, true), JSON_UNESCAPED_SLASHES);
 
             $store = $val; $isSecret = 0;
             if (!empty($d['secret'])) {
@@ -531,6 +829,22 @@ final class AvSettings
                 $db->prepare('DELETE FROM av_settings WHERE setting_key = ?')->execute([$key]);
                 $db->prepare('INSERT INTO av_settings (setting_key, value, is_secret, updated_by, updated_at) VALUES (?,?,?,?,?)')
                    ->execute([$key, $store, $isSecret, mb_substr($actor, 0, 191), gmdate('c')]);
+                /* Read it back before calling it saved. A secret that went in
+                   and will not come out is the state every screen then reports
+                   as "not set up" — catch it here, while the operator is still
+                   looking at the field. */
+                if ($isSecret) {
+                    $back = $db->prepare('SELECT value FROM av_settings WHERE setting_key = ?');
+                    $back->execute([$key]);
+                    $got = $back->fetchColumn();
+                    if ($got === false || self::dec((string) $got) !== $val) {
+                        $errors[$key] = $got === false
+                            ? 'The database accepted the value but does not have it — nothing is stored. Check System → health → Database.'
+                            : 'Stored, but it does not read back as what was pasted (the stored copy was cut short or cannot be decrypted). Nothing usable is stored; check System → health.';
+                        $db->prepare('DELETE FROM av_settings WHERE setting_key = ?')->execute([$key]);
+                        continue;
+                    }
+                }
                 $saved++;
             } catch (Throwable $e) {
                 error_log('[settings] save: ' . $e->getMessage());
@@ -560,7 +874,23 @@ final class AvSettings
         if ($type === 'url') {
             if (!preg_match('#^https?://#i', $val)) return 'Must be an http or https URL.';
             if (!filter_var($val, FILTER_VALIDATE_URL)) return 'That is not a valid URL.';
+            if ($key === 'AV_GAS_URL') {
+                // `/dev` answers only the script's owner, signed in, in a browser —
+                // it works when they try it and never from this server.
+                $path = rtrim((string) parse_url($val, PHP_URL_PATH), '/');
+                if (stripos($val, 'https://') !== 0) return 'The Apps Script address starts https://script.google.com/.';
+                if (!str_ends_with($path, '/exec')) {
+                    return 'The address must end in /exec — copy the Web app URL from Deploy → Manage deployments, not the editor’s address and not the one ending /dev.';
+                }
+            }
             return '';
+        }
+        if ($type === 'email') {
+            return filter_var($val, FILTER_VALIDATE_EMAIL) ? '' : 'Must be an email address.';
+        }
+        if ($type === 'json') return self::validateServiceAccount($val);
+        if ($key === 'AV_GOOGLE_CLIENT_ID' && !preg_match('/^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/i', $val)) {
+            return 'A Google OAuth client ID ends in .apps.googleusercontent.com — copy the Client ID, not the project number or the secret.';
         }
         if (strlen($val) > 4000) return 'Too long.';
         // A pasted key with whitespace or quotes in it is the commonest setup
@@ -568,6 +898,23 @@ final class AvSettings
         if (!empty($d['secret']) && preg_match('/[\s"\']/', $val)) {
             return 'That looks like it has quotes or spaces in it — paste the key on its own.';
         }
+        return '';
+    }
+
+    /**
+     * A Google service-account key, checked the way Google will check it: the
+     * right type, an email to sign as, and a private key openssl can read.
+     * A secret's usual rule (no quotes, no spaces) cannot apply to JSON.
+     */
+    private static function validateServiceAccount(string $val): string
+    {
+        if (strlen($val) > 12000) return 'Too long for a service-account key.';
+        $j = json_decode($val, true);
+        if (!is_array($j)) return 'That is not JSON. Paste the whole downloaded key file, from { to }.';
+        if (($j['type'] ?? '') !== 'service_account') return 'That JSON is not a service-account key (its "type" should be "service_account"). An OAuth client file will not work here.';
+        if (empty($j['client_email']) || !filter_var((string) $j['client_email'], FILTER_VALIDATE_EMAIL)) return 'The key has no client_email.';
+        $pk = (string) ($j['private_key'] ?? '');
+        if ($pk === '' || !function_exists('openssl_pkey_get_private') || openssl_pkey_get_private($pk) === false) return 'The key’s private_key cannot be read. Download a fresh JSON key and paste it unedited.';
         return '';
     }
 
@@ -591,10 +938,58 @@ final class AvSettings
         if (!function_exists('sodium_crypto_secretbox') && !function_exists('openssl_encrypt')) {
             return ['ok' => false, 'reason' => 'Neither libsodium nor OpenSSL is available on this host, so credentials cannot be encrypted.'];
         }
-        return ['ok' => true, 'reason' => ''];
+
+        /* Working, but on the fallback key. av_secret() prefers APP_KEY
+           and otherwise generates one into the database — which means
+           the credentials here are locked with a key kept beside them,
+           and anyone who reads the database reads them too. Worth
+           saying while everything still works, rather than after. */
+        $onFallback = !(defined('APP_KEY') && APP_KEY) && !getenv('APP_KEY') && !getenv('AV_APP_KEY');
+
+        return ['ok' => true, 'reason' => '', 'weak' => $onFallback, 'weak_reason' => $onFallback
+            ? 'No APP_KEY is set, so stored credentials are encrypted with a key kept in the database '
+                .'beside them — which protects against very little. Set APP_KEY in config.php. Adding it '
+                .'is safe: anything already stored is re-encrypted under it the next time it is read.'
+            : ''];
     }
 
-    private static function key(): string { return hash('sha256', 'avset|' . (function_exists('av_secret') ? av_secret() : ''), true); }
+    private static function key(?string $secret = null): string
+    {
+        $secret ??= function_exists('av_secret') ? av_secret() : '';
+
+        return hash('sha256', 'avset|' . $secret, true);
+    }
+
+    /**
+     * Every secret this host could plausibly have encrypted with.
+     *
+     * av_secret() prefers APP_KEY and falls back to one generated once and
+     * kept in app_meta (lib/security.php) — which means the encryption key
+     * CHANGES SILENTLY the day somebody adds APP_KEY, or the day an upload
+     * drops it from config.php. Everything stored before that moment stops
+     * decrypting, every screen that asks says "not set up", and the only
+     * trace is a log line.
+     *
+     * So a read tries the current secret first and then the others this
+     * host could have used. Nothing is weakened: these are the same
+     * secrets, on the same machine, that this site would already accept —
+     * the alternative is a credential that is present, correct, and
+     * unreachable.
+     *
+     * @return list<string>
+     */
+    private static function candidateSecrets(): array
+    {
+        $out = [];
+        if (function_exists('av_secret')) $out[] = av_secret();
+        if (defined('APP_KEY') && APP_KEY) $out[] = (string) APP_KEY;
+        $env = getenv('APP_KEY') ?: getenv('AV_APP_KEY');
+        if ($env) $out[] = (string) $env;
+        if (function_exists('av_secret_generated')) $out[] = av_secret_generated();
+        if (defined('ADMIN_TOKEN') && ADMIN_TOKEN) $out[] = (string) ADMIN_TOKEN;
+
+        return array_values(array_unique(array_filter($out, fn ($k) => (string) $k !== '')));
+    }
 
     /** Encrypt, or null when we must refuse. */
     private static function enc(string $plain): ?string
@@ -615,18 +1010,38 @@ final class AvSettings
     private static function dec(string $blob): ?string
     {
         if ($blob === '') return '';
+
+        foreach (self::candidateSecrets() as $i => $secret) {
+            $p = self::decWith($blob, $secret);
+            if ($p !== null) {
+                /* Read with something other than the current secret: the
+                   row is correct and stored under a key this host has
+                   since stopped using. Say so, so the caller can put it
+                   right rather than leaving a live credential one deploy
+                   from unreadable. */
+                if ($i > 0) self::$staleKey[] = $blob;
+
+                return $p;
+            }
+        }
+
+        return null;
+    }
+
+    private static function decWith(string $blob, string $secret): ?string
+    {
         try {
             if (strncmp($blob, 's1:', 3) === 0 && function_exists('sodium_crypto_secretbox_open')) {
                 $raw = base64_decode(substr($blob, 3), true);
                 if ($raw === false || strlen($raw) <= SODIUM_CRYPTO_SECRETBOX_NONCEBYTES) return null;
                 $n = substr($raw, 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-                $p = sodium_crypto_secretbox_open(substr($raw, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES), $n, self::key());
+                $p = sodium_crypto_secretbox_open(substr($raw, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES), $n, self::key($secret));
                 return $p === false ? null : $p;
             }
             if (strncmp($blob, 'o1:', 3) === 0 && function_exists('openssl_decrypt')) {
                 $raw = base64_decode(substr($blob, 3), true);
                 if ($raw === false || strlen($raw) <= 28) return null;
-                $p = openssl_decrypt(substr($raw, 28), 'aes-256-gcm', self::key(), OPENSSL_RAW_DATA, substr($raw, 0, 12), substr($raw, 12, 16));
+                $p = openssl_decrypt(substr($raw, 28), 'aes-256-gcm', self::key($secret), OPENSSL_RAW_DATA, substr($raw, 0, 12), substr($raw, 12, 16));
                 return $p === false ? null : $p;
             }
         } catch (Throwable $e) { error_log('[settings] dec: ' . $e->getMessage()); }
@@ -650,8 +1065,15 @@ final class AvSettings
             ['key' => 'gemini',    'label' => 'Gemini', 'ready' => class_exists('Gemini') && Gemini::configured()],
             ['key' => 'openai',    'label' => 'OpenAI', 'ready' => class_exists('OpenAi') && OpenAi::configured()],
             ['key' => 'attendee',  'label' => 'Attendee notetaker', 'ready' => class_exists('AttendeeBot') && AttendeeBot::configured()],
-            ['key' => 'recall',    'label' => 'Recall.ai notetaker', 'ready' => class_exists('RecallBot') && RecallBot::configured()],
             ['key' => 'search',    'label' => 'Web search', 'ready' => class_exists('AvWeb') && AvWeb::searchProvider() !== ''],
+            ['key' => 'apps_script', 'label' => 'Apps Script mail', 'ready' => class_exists('AppsScriptMail') && AppsScriptMail::configured()],
+            ['key' => 'google_signin', 'label' => 'Google sign-in', 'ready' => class_exists('GoogleAuth') && GoogleAuth::configured()],
+            ['key' => 'google_workspace', 'label' => 'Google Workspace', 'ready' => class_exists('GoogleWorkspace') && GoogleWorkspace::configured(),
+             /* Why it is not ready, said beside the button. A key set in
+                config.php that this site cannot read (defined twice, left on
+                the empty template line, under another name) made the button
+                disabled and the press silent — "testing does nothing". */
+             'why' => class_exists('GoogleWorkspace') && !GoogleWorkspace::configured() ? GoogleWorkspace::whyNotConfigured() : ''],
         ];
     }
 
@@ -669,9 +1091,11 @@ final class AvSettings
                 case 'anthropic': $r = self::testAnthropic(); break;
                 case 'gemini':    $r = self::testGemini(); break;
                 case 'openai':    $r = self::testOpenAi(); break;
-                case 'recall':    $r = self::testRecall(); break;
                 case 'attendee':  $r = self::testAttendee(); break;
                 case 'search':    $r = self::testSearch(); break;
+                case 'apps_script': $r = self::testAppsScript(); break;
+                case 'google_signin': $r = self::testGoogleSignin(); break;
+                case 'google_workspace': $r = self::testGoogleWorkspace(); break;
             }
         } catch (Throwable $e) {
             error_log('[settings] test ' . $what . ': ' . $e->getMessage());
@@ -709,22 +1133,6 @@ final class AvSettings
         return ['ok' => true, 'detail' => 'Connected · model ' . OpenAi::model()];
     }
 
-    private static function testRecall(): array
-    {
-        if (!class_exists('RecallBot') || !RecallBot::configured()) return ['ok' => false, 'detail' => 'No Recall.ai API key is set.'];
-        // botStatus() on an id that cannot exist: a bad key fails on auth, a good
-        // key simply finds nothing. No bot is created, so nothing is billed.
-        $probe = RecallBot::botStatus('avsetup-probe-000000000000');
-        $ok = $probe === '';   // '' = reachable but no such bot, which is the pass
-        if (!$ok) return ['ok' => true, 'detail' => 'Connected (unexpected bot state: ' . $probe . ')'];
-        // Distinguish "auth failed" from "no such bot" by checking the webhook
-        // token too, since that is the setting people forget.
-        $warn = RecallBot::webhookToken() === ''
-            ? ' — but no webhook token is set, so the callback URL is unauthenticated'
-            : '';
-        return ['ok' => true, 'detail' => 'Recall.ai reachable' . $warn];
-    }
-
     private static function testAttendee(): array
     {
         if (!class_exists('AttendeeBot') || !AttendeeBot::configured()) return ['ok' => false, 'detail' => 'No Attendee API key is set.'];
@@ -757,6 +1165,92 @@ final class AvSettings
         $n = count((array) ($res['results'] ?? []));
         return ['ok' => true, 'detail' => 'Connected · ' . $p . ' returned ' . $n . ' result' . ($n === 1 ? '' : 's')
             . ($wasOff ? ' — remember web access is still off in the rules' : '')];
+    }
+
+    /** Ask the Apps Script how much it may still send today. Sends nothing. */
+    private static function testAppsScript(): array
+    {
+        if (!class_exists('AppsScriptMail') || !AppsScriptMail::configured()) {
+            return ['ok' => false, 'detail' => 'Set both the Apps Script web-app URL and its secret first.'];
+        }
+        $c = AppsScriptMail::boot()->check();
+        // Already an operator sentence — not passed through humanise(), which
+        // would turn "quota" into "rate-limited" and lose the instructions.
+        return ['ok' => (bool) $c['ok'], 'detail' => (string) $c['detail']];
+    }
+
+    private static function testGoogleSignin(): array
+    {
+        if (!class_exists('GoogleAuth') || !GoogleAuth::configured()) return ['ok' => false, 'detail' => 'Set the OAuth client ID and secret first.'];
+        $p = GoogleAuth::probeClient();
+        return ['ok' => (bool) $p['ok'], 'detail' => (string) $p['detail']];
+    }
+
+    private static function testGoogleWorkspace(): array
+    {
+        if (!class_exists('GoogleWorkspace')) return ['ok' => false, 'detail' => 'Google Workspace support is not installed.'];
+        /* The reason, not "paste the key first" — a key that IS stored and
+           cannot be decrypted was being answered with an instruction the
+           operator had already followed. */
+        if (!GoogleWorkspace::configured()) return ['ok' => false, 'detail' => GoogleWorkspace::whyNotConfigured()];
+        $p = GoogleWorkspace::probe();
+        if (empty($p['token_ok'])) {
+            /* The cause, by name. "Google refused" was said for every failure —
+               including a key this server could not sign with, a server that
+               could not reach Google, and a clock Google would not accept —
+               and each of those is fixed somewhere different. */
+            $err = (string) ($p['error'] ?? '');
+            $who = 'Service account ' . (string) ($p['service_account'] ?? '?') . ' (client ID ' . (string) ($p['client_id'] ?? '?') . ')'
+                . ((string) ($p['subject'] ?? '') !== '' ? ', acting for ' . $p['subject'] : ', acting for nobody — set “Admin to act as”');
+            $clock = isset($p['clock_skew']) && $p['clock_skew'] !== null && abs((int) $p['clock_skew']) > 120
+                ? ' This server’s clock is ' . abs((int) $p['clock_skew']) . ' seconds ' . ((int) $p['clock_skew'] > 0 ? 'ahead of' : 'behind') . ' Google’s.' : '';
+            if (str_contains($err, 'unauthorized_client')) {
+                $fix = 'In the Google Admin console → Security → API controls → Domain-wide delegation, add client ID ' . (string) ($p['client_id'] ?? '')
+                    . ' with exactly these scopes: ' . GoogleWorkspace::delegationLine() . '. It can take a while to take effect.';
+            } else {
+                $fix = GoogleWorkspace::explain($err !== '' ? $err : 'no reason given');
+            }
+            return ['ok' => false, 'detail' => $who . ' — ' . ($err !== '' ? $err : 'no reason given') . '. ' . $fix . $clock];
+        }
+        $bits = ['signed in as ' . (string) $p['service_account'] . ((string) ($p['subject'] ?? '') !== '' ? ' acting for ' . $p['subject'] : '')];
+        foreach (['calendar_read' => 'calendar', 'drive' => 'Drive folder', 'directory' => 'directory', 'groups' => 'groups',
+                  'schedule' => 'scheduling a meeting with a Meet link' . ((string) ($p['schedule_as'] ?? '') !== '' ? ' (as ' . $p['schedule_as'] . ')' : ''),
+                  'meet_api' => 'Meet API (attendance, transcripts)', 'chat_api' => 'Google Chat API'] as $k => $label) {
+            $e = (string) ($p[$k === 'calendar_read' ? 'calendar_error' : $k . '_error'] ?? '');
+            if ($k === 'drive' && (string) ($p['drive_folder'] ?? '') === '') { $bits[] = 'Drive folder not set (optional — documents stay on this site)'; continue; }
+            if (($p[$k] ?? null) === null && $e === '') continue;
+            $bits[] = $label . ($e !== '' ? ' ✗ ' . $e : ' ✓');
+        }
+        if (!empty($p['member_access'])) $bits[] = 'members’ own mail, calendar, Drive and Chat are read through this account — nobody needs to connect';
+        /* Chat is reported, not failed on: a site can run without it. */
+        $bad = array_filter(['calendar_error', 'drive_error', 'directory_error', 'groups_error', 'schedule_error', 'meet_api_error'], static fn($k) => (string) ($p[$k] ?? '') !== '');
+        /* Every scope the features use, not only the four read above: a scope left out of
+           domain-wide delegation fails only when its feature runs, so this used to say ✓
+           while scheduling and Meet were refused. */
+        $missing = [];
+        $unchecked = [];
+        foreach ((array) ($p['scopes'] ?? []) as $scope => $why) {
+            $why = (string) $why;
+            if ($why === '') continue;
+            /* Out of time is not the same as refused, and saying so matters:
+               one sends somebody to the Google Admin console, the other to
+               press the button again. */
+            if ($why === GoogleWorkspace::SCOPE_UNCHECKED) { $unchecked[] = (GoogleWorkspace::DELEGATED_SCOPES[$scope] ?? $scope); continue; }
+            $missing[] = (GoogleWorkspace::DELEGATED_SCOPES[$scope] ?? $scope);
+        }
+        if ($unchecked) {
+            $bits[] = count($unchecked) . ' scope' . (count($unchecked) === 1 ? '' : 's')
+                . ' not checked — the test ran out of time before reaching them ('
+                . implode(', ', $unchecked) . '). What is above is accurate; press Test again to carry on.';
+        }
+        if ($missing) {
+            $bits[] = 'not granted: ' . implode(', ', $missing) . '. In the Google Admin console → Security → API controls → Domain-wide delegation, edit client ID '
+                . (string) ($p['client_id'] ?? '') . ' and set its scopes to exactly: ' . GoogleWorkspace::delegationLine();
+        }
+        /* Unchecked scopes are not a pass: the answer is incomplete, and
+           saying ✓ to an incomplete answer is how a missing scope reaches
+           production. */
+        return ['ok' => !$bad && !$missing && !$unchecked, 'detail' => implode(' · ', $bits)];
     }
 
     /**

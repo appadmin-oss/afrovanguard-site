@@ -16,6 +16,23 @@ $path = __DIR__ . $uri;
 // db/private writes its own deny), but this router served any file it found,
 // so the private store (receipts, donor and contact records) was readable here.
 if (preg_match('~^/db(/|$)~i', $uri)) { http_response_code(403); echo 'Forbidden'; return true; }
+// Mirror the root .htaccess: command-line tools, the test suite, vendor code and
+// the STS form backups are never web endpoints. Without this the dev server ran
+// scripts/seed-mentor-200.php and tests/run.php for anybody who asked.
+if (preg_match('~^/(tools|scripts|bin|tests|deploy|docs|vendor|partials|lib)(/|$)~i', $uri)
+    || preg_match('~^/projects/sts/ceo/api/data(/|$)~i', $uri)) { http_response_code(403); echo 'Forbidden'; return true; }
+
+// Published PDFs. `php -S` answers every request with the whole file — no
+// Range, no ETag, no caching — so a viewer's byte-range fetch of page 1 would
+// download everything. In production Apache serves these static files itself
+// (.htaccess, "PDFs"); here DocStream does the same job, and /doc/<name>.pdf
+// is the named route doc.php answers in both.
+if (preg_match('~^/doc/([a-z0-9-]+)\.pdf$~', $uri, $m)) { $_GET['name'] = $m[1]; require __DIR__ . '/doc.php'; return true; }
+if (str_ends_with(strtolower($uri), '.pdf')) {
+    require_once __DIR__ . '/lib/DocStream.php';
+    $docKey = DocStream::keyForPath($uri);
+    if ($docKey !== null) DocStream::send($docKey);
+}
 
 // Serve existing static files (css, js, images, .html) directly.
 if ($uri !== '/' && is_file($path)) { return false; }
@@ -40,6 +57,10 @@ if (preg_match('~^/projects/africa-gates/?(.*)$~', $uri, $m)) {
 // The CACENTRE door: /cacentre and /cacentre/<path on the far side>.
 // A member's pass for the CACENTRE gate.
 if (preg_match('~^/gate-pass/?$~', $uri)) { require __DIR__ . '/gate-pass.php'; return true; }
+// A shared quote of the week: /quote/week-N (quote.php).
+if (preg_match('~^/quote/week-([0-9]{1,2})/?$~', $uri, $m)) { $_GET['week'] = $m[1]; require __DIR__ . '/quote.php'; return true; }
+// The appeals feed Home reads (.htaccess: give/feed.json → give/feed.php?format=json).
+if ($uri === '/give/feed.json') { $_GET['format'] = 'json'; chdir(__DIR__ . '/give'); require __DIR__ . '/give/feed.php'; return true; }
 // A member card's QR: /q/AVQR-… — the holder's page (q.php).
 if (preg_match('~^/q/(AVQR-[A-Za-z0-9]+)/?$~i', $uri, $m)) { $_GET['c'] = $m[1]; require __DIR__ . '/q.php'; return true; }
 if (preg_match('~^/cacentre/?$~', $uri)) { require __DIR__ . '/cacentre.php'; return true; }
@@ -78,6 +99,8 @@ if (preg_match('~^/diary/([a-z0-9-]+)/?$~', $uri, $m)) {
     return true;
 }
 
+if ($uri === '/events/calendar.ics') { require __DIR__ . '/events/ics.php'; return true; }
+if (preg_match('~^/events/([a-z0-9-]+)/?$~', $uri, $m)) { $_GET['slug'] = $m[1]; require __DIR__ . '/events/view.php'; return true; }
 if (preg_match('~^/ethos/?$~', $uri)) { require __DIR__ . '/ethos/index.php'; return true; }
 
 // Standalone sign-in page (a real /login/ folder in prod; routed here for dev).

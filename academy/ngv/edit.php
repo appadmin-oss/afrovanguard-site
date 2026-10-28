@@ -24,13 +24,13 @@ header('X-Robots-Tag: noindex, nofollow');
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Edit · NextGen Vanguard</title>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
 <style>
 :root{--red:#e4162b;--orange:#ff6a1a;--gold:#ffb703;--ink:#15120e;--line:#e7e9ee;--muted:#5f6874;
   --bg:#f5f6f8;--card:#fff;--grad:linear-gradient(100deg,#e4162b,#ff6a1a 55%,#ffb703);--r:12px}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+body{margin:0;font-family:'Source Sans 3',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
 a{color:var(--red)}
 /* top bar */
 .top{position:sticky;top:0;z-index:20;background:rgba(21,18,14,.96);backdrop-filter:blur(8px);color:#fff;
@@ -194,6 +194,25 @@ a{color:var(--red)}
       {type:'text',path:'cta.title',label:'Heading'},{type:'area',path:'cta.text',label:'Text'},
       {type:'text',path:'cta.button_label',label:'Button label',half:1},{type:'text',path:'cta.button_url',label:'Button URL',half:1},
     ]},
+    /* ── The member portal's Programme view (lib/NgvJourney.php reads these).
+       A block left empty is not shown to members. ─────────────────────── */
+    {id:'j_levels',title:'Portal · Levels',linelist:'j_levels',hint:'One level per line, lowest first. The third is the one members work towards (Vanguard).'},
+    {id:'j_schools',title:'Portal · Academy schools',addLabel:'school',list:'j_schools',itemTitle:'name',item:[
+      {key:'name',label:'School',half:1},{key:'modules',label:'Modules (number)',half:1},{key:'desc',label:'What it covers',full:1},
+    ]},
+    {id:'j_project',title:'Portal · This quarter’s community project',fields:[
+      {type:'text',path:'j_project.quarter',label:'Quarter (e.g. Q4)',half:1},{type:'text',path:'j_project.theme',label:'Theme',half:1},
+      {type:'text',path:'j_project.title',label:'Project title — leave empty to hide the card'},{type:'area',path:'j_project.desc',label:'Description'},
+      {type:'text',path:'j_project.step',label:'Current step, 0–6 (Problem … Report)',half:1},{type:'text',path:'j_project.team',label:'Team',half:1},
+      {type:'text',path:'j_project.budget',label:'Budget',half:1},{type:'text',path:'j_project.measure',label:'Measure',half:1},
+    ]},
+    {id:'j_project_past',title:'Portal · Chapter projects this year',addLabel:'project',list:'j_project_past',itemTitle:'title',item:[
+      {key:'quarter',label:'Quarter',half:1},{key:'status',label:'Status (Reported, Measuring…)',half:1},
+      {key:'title',label:'Title',full:1},{key:'kind',label:'Area (Education, Environment…)',full:1},
+    ]},
+    {id:'j_chapter',title:'Portal · Your chapter',addLabel:'member',fields:[
+      {type:'text',path:'j_chapter.name',label:'Chapter name',half:1},{type:'text',path:'j_chapter.place',label:'Where',half:1},
+    ],list:'j_roster',itemTitle:'name',item:[{key:'name',label:'Name',half:1},{key:'role',label:'Role',half:1}]},
     {id:'offices',title:'Offices',addLabel:'office',list:'offices',itemTitle:'name',item:[{key:'name',label:'Office name',half:1},{key:'address',label:'Address',half:1}]},
     {id:'contact',title:'Contact',fields:[
       {type:'text',path:'contact.phone',label:'Phone',half:1},{type:'text',path:'contact.email',label:'Email',half:1},

@@ -2,7 +2,7 @@
 /**
  * tests/meetbot.test.php — the AI notetaker in Google Meet.
  *
- * No provider is configured in the suite, so nothing here reaches Recall.ai.
+ * No notetaker is configured in the suite, so nothing here reaches Attendee.
  * That is deliberate: what these tests pin is the logic that decides WHETHER a
  * bot may be sent, WHO may send it, WHEN it should join, and what happens when
  * dispatch fails — all of which used to be either absent or wrong:
@@ -21,7 +21,7 @@
 declare(strict_types=1);
 
 require_once AV_ROOT . '/lib/Meetings.php';
-require_once AV_ROOT . '/lib/RecallBot.php';
+require_once AV_ROOT . '/lib/AttendeeBot.php';
 require_once AV_ROOT . '/lib/AvRules.php';
 
 /** Reach a private static without loosening the class's own visibility. */
@@ -67,9 +67,10 @@ ck('bot: no provider means not allowed', Meetings::botAllowed() === false);
 ck('bot: on-demand needs a provider too', Meetings::botOnDemandAllowed() === false);
 
 // The master switch must be able to say no even when a provider IS wired.
-putenv('AV_MEET_BOT_PROVIDER=webhook');
-putenv('AV_MEET_BOT_JOIN_URL=https://example.invalid/join');
-ck('bot: a forced provider is detected', Meetings::botProvider() === 'webhook');
+// Forcing Attendee with no key makes the notetaker "available" without any
+// request ever leaving the suite: dispatch records 'unconfigured' instead.
+putenv('AV_MEET_BOT_PROVIDER=attendee');
+ck('bot: a forced provider is detected', Meetings::botProvider() === 'attendee');
 ck('bot: a wired provider is allowed by default', Meetings::botAllowed() === true);
 
 AvRules::save(['meetings.ai_notetaker' => '0'], 'test');
@@ -147,7 +148,7 @@ $db->exec('DELETE FROM meetings');
 putenv('AV_MEET_BOT_PROVIDER=none');
 ck('bot: the sweep does nothing with no provider', Meetings::dispatchDueBots() === 0);
 
-putenv('AV_MEET_BOT_PROVIDER=webhook');
+putenv('AV_MEET_BOT_PROVIDER=attendee');
 $brules();
 // Due shortly, wants a bot, none dispatched yet → picked up.
 $due  = $mk(['scheduled_at' => gmdate('Y-m-d H:i:s', time() + 120), 'auto_record' => 1, 'bot_state' => 'pending']);
@@ -163,8 +164,8 @@ ck('bot: the sweep dispatches exactly the due meeting', $n === 1);
 ck('bot: the sweep left the distant meeting pending', (string) $db->query('SELECT bot_state FROM meetings WHERE id = ' . $far)->fetchColumn() === 'pending');
 ck('bot: the sweep ignored the opted-out meeting', (string) $db->query('SELECT bot_state FROM meetings WHERE id = ' . $none)->fetchColumn() === '');
 ck('bot: the sweep did not re-send a live bot', (string) $db->query('SELECT bot_state FROM meetings WHERE id = ' . $has)->fetchColumn() === 'requested');
-// The join URL is unreachable, so dispatch fails — and that must be recorded,
-// not silently swallowed, or the retry can never happen.
+// There is no Attendee key, so dispatch cannot happen — and that must be
+// recorded, not silently swallowed, or the retry can never happen.
 ck('bot: a failed dispatch is recorded', in_array((string) $db->query('SELECT bot_state FROM meetings WHERE id = ' . $due)->fetchColumn(), ['error', 'unconfigured'], true));
 
 // A meeting that started while the cron was between runs is still picked up.
@@ -184,15 +185,7 @@ AvRules::save(['meetings.bot_announce' => '0'], 'test');
 ck('bot: announcement can be switched off', AvRules::bool('meetings.bot_announce') === false);
 $brules();
 
-/* ---- RecallBot guards when unconfigured ---- */
-ck('recall: unconfigured reports so', RecallBot::configured() === false);
-ck('recall: createBot refuses without a key', empty(RecallBot::createBot('https://meet.google.com/x')['ok']));
-ck('recall: removeBot refuses without a key', empty(RecallBot::removeBot('bot_1')['ok']));
-ck('recall: botStatus is empty without a key', RecallBot::botStatus('bot_1') === '');
-ck('recall: createBot refuses an empty URL', empty(RecallBot::createBot('')['ok']));
-
 putenv('AV_MEET_BOT_PROVIDER');
-putenv('AV_MEET_BOT_JOIN_URL');
 $brules();
 $db->exec('DELETE FROM meetings');
 $db->exec('DELETE FROM meeting_attendees');
@@ -254,8 +247,7 @@ ck('session: sessions() reports bot_state', array_key_exists('bot_state', $list[
 // The notetaker needs a provider AND leadership's switch, exactly as meetings do.
 putenv('AV_MEET_BOT_PROVIDER=none');
 ck('session: no provider means the notetaker is refused', empty(Mentorship::inviteSessionBot(1, $sesId)['ok']));
-putenv('AV_MEET_BOT_PROVIDER=webhook');
-putenv('AV_MEET_BOT_JOIN_URL=https://example.invalid/join');
+putenv('AV_MEET_BOT_PROVIDER=attendee');
 AvRules::save(['meetings.ai_notetaker' => '0'], 'test');
 ck('session: the master switch blocks the notetaker', empty(Mentorship::inviteSessionBot(1, $sesId)['ok']));
 $brules();
@@ -288,26 +280,31 @@ $db->prepare("INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, m
    ->execute([$pairId, 'Cancelled', gmdate('Y-m-d H:i:s', time() + 120), 'https://meet.google.com/abc-defg-hij', gmdate('Y-m-d H:i:s')]);
 ck('session: a cancelled session is never swept', Mentorship::dispatchDueSessionBots() === 0);
 
-// An unknown bot id is refused rather than silently attaching to something.
-ck('session: an unknown bot id is refused', empty(Mentorship::ingestSessionFromRecall('bot_does_not_exist')['ok']));
+// Session transcripts are collected by polling, as meetings' are. With no
+// Attendee key nothing is asked of anyone and nothing changes.
+$db->exec('DELETE FROM mentor_sessions');
+$db->prepare("INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, meet_url, attendance, bot_state, bot_provider, bot_ref, created_at) VALUES (?,?,?,?,'scheduled','requested','attendee','bot-s1',?)")
+   ->execute([$pairId, 'In flight', gmdate('Y-m-d H:i:s', time() - 600), 'https://meet.google.com/abc-defg-hij', gmdate('Y-m-d H:i:s')]);
+$flySes = (int) $db->lastInsertId();
+ck('session: polling without a key ingests nothing', Mentorship::pollSessionBotTranscripts() === 0);
+ck('session: the in-flight row survives an unconfigured poll',
+   (string) $db->query('SELECT bot_state FROM mentor_sessions WHERE id=' . $flySes)->fetchColumn() === 'requested');
+ck('session: the Recall ingest path is gone', !method_exists('Mentorship', 'ingestSessionFromRecall'));
 
 putenv('AV_MEET_BOT_PROVIDER');
-putenv('AV_MEET_BOT_JOIN_URL');
 $brules();
 reset_users();
 
 /* ════════════════════════════════════════════════════════════════
    Attendee — the free, self-hostable notetaker.
 
-   Recall is billed per meeting-hour, which for a movement running weekly
-   mentorship sessions is a bill that grows with exactly the behaviour the
-   system exists to encourage. Attendee is the same capability as an open
-   project you host yourself.
+   The only third-party notetaker, and an optional one. Self-hosted it costs
+   nothing per meeting, which matters for a movement running weekly mentorship
+   sessions.
    ════════════════════════════════════════════════════════════════ */
 require_once AV_ROOT . '/lib/AttendeeBot.php';
 $brules();
 putenv('AV_MEET_BOT_PROVIDER');
-putenv('AV_MEET_BOT_JOIN_URL');
 putenv('AV_ATTENDEE_API_KEY');
 
 ck('attendee: unconfigured without a key', !AttendeeBot::configured());
@@ -331,18 +328,14 @@ ck('attendee: the custom base carries the API path', AttendeeBot::base() === 'ht
 putenv('AV_ATTENDEE_BASE_URL=https://meetbot.example.org/');
 ck('attendee: a trailing slash is tolerated', AttendeeBot::base() === 'https://meetbot.example.org/api/v1');
 
-// Auto-detection must prefer the free option when both are configured.
+// A key is enough: auto-detection picks Attendee.
 putenv('AV_MEET_BOT_PROVIDER');
-putenv('AV_RECALL_API_KEY=recall-key-not-real');
-ck('attendee: preferred over Recall when both are set', Meetings::botProvider() === 'attendee');
-putenv('AV_ATTENDEE_API_KEY');
-ck('attendee: Recall is still used when Attendee is absent', Meetings::botProvider() === 'recall');
-putenv('AV_RECALL_API_KEY');
-putenv('AV_ATTENDEE_API_KEY=test-key-not-real');
+ck('attendee: a key makes it the provider', Meetings::botProvider() === 'attendee');
+ck('attendee: a key makes the notetaker available', Meetings::botAllowed() === true);
 
-// An explicit choice still wins over the preference.
-putenv('AV_MEET_BOT_PROVIDER=google');
-ck('attendee: an explicit provider overrides the preference', Meetings::botProvider() === 'google');
+// 'none' switches it off even with a key set.
+putenv('AV_MEET_BOT_PROVIDER=none');
+ck('attendee: none overrides the key', Meetings::botProvider() === '' && Meetings::botAllowed() === false);
 putenv('AV_MEET_BOT_PROVIDER=attendee');
 ck('attendee: it can be chosen explicitly', Meetings::botProvider() === 'attendee');
 
@@ -483,4 +476,81 @@ putenv('AV_ATTENDEE_API_KEY');
 putenv('AV_ATTENDEE_BASE_URL');
 $db->exec('DELETE FROM meetings');
 $db->exec('DELETE FROM meeting_attendees');
+reset_users();
+
+/* ════════════════════════════════════════════════════════════════
+   No notetaker at all — the default, and it must simply work.
+
+   Attendee is optional. With no key and no Google Workspace, scheduling a
+   meeting, ticking auto-record, and running the cron must all succeed without
+   a single request to a notetaker, and the portal must not offer one.
+   ════════════════════════════════════════════════════════════════ */
+$brules();
+putenv('AV_MEET_BOT_PROVIDER');
+putenv('AV_ATTENDEE_API_KEY');
+putenv('AV_ATTENDEE_BASE_URL');
+reset_users();
+Meetings::ensure();
+$db->exec('DELETE FROM meetings');
+$db->exec('DELETE FROM meeting_attendees');
+
+$googleOn = class_exists('GoogleWorkspace') && GoogleWorkspace::meetEnabled();
+ck('none: Attendee is not configured', AttendeeBot::configured() === false);
+ck('none: the provider is Google or nothing, never a bot', in_array(Meetings::botProvider(), ['', 'google'], true));
+if (!$googleOn) {
+    ck('none: without Google there is no notetaker', Meetings::botProvider() === '');
+    ck('none: without Google the notetaker is not allowed', Meetings::botAllowed() === false);
+    ck('none: without Google it cannot be added on demand', Meetings::botOnDemandAllowed() === false);
+}
+
+// Scheduling with auto-record still works; the wish is recorded, nothing is sent.
+$sch = Meetings::schedule(1, ['title' => 'No notetaker standup', 'when' => gmdate('Y-m-d\\TH:i', time() + 2 * 86400), 'auto_record' => 1]);
+ck('none: scheduling with auto_record succeeds', !empty($sch['ok']));
+$schId = (int) ($sch['id'] ?? 0);
+$schRow = $db->query('SELECT bot_state, bot_provider, bot_ref, auto_record FROM meetings WHERE id = ' . $schId)->fetch(PDO::FETCH_ASSOC) ?: [];
+ck('none: auto_record is kept', (int) ($schRow['auto_record'] ?? 0) === 1);
+if (!$googleOn) {
+    ck('none: the bot state says unconfigured', (string) ($schRow['bot_state'] ?? '') === 'unconfigured');
+    // A bot reference is only ever written by a successful createBot call, so an
+    // empty one with no provider means no request was made.
+    ck('none: no provider and no bot reference were recorded',
+       (string) ($schRow['bot_provider'] ?? '') === '' && (string) ($schRow['bot_ref'] ?? '') === '');
+    $inv = Meetings::inviteBot(1, $schId);
+    ck('none: adding the notetaker is refused with a reason', empty($inv['ok']) && trim((string) ($inv['error'] ?? '')) !== '');
+}
+// The cron does nothing at all, quickly.
+$db->prepare("UPDATE meetings SET scheduled_at = ?, bot_state = 'pending' WHERE id = ?")
+   ->execute([gmdate('Y-m-d H:i:s', time() + 120), $schId]);
+if (!$googleOn) {
+    ck('none: the dispatch sweep sends nothing', Meetings::dispatchDueBots() === 0);
+    ck('none: the transcript poll asks nothing', Meetings::pollBotTranscripts() === 0);
+    ck('none: the session sweep sends nothing', Mentorship::dispatchDueSessionBots() === 0);
+    ck('none: the session poll asks nothing', Mentorship::pollSessionBotTranscripts() === 0);
+}
+// The manual paths remain: a pasted transcript is still accepted.
+ck('none: a pasted transcript still works', !empty(Meetings::saveTranscript(1, $schId, 'Speaker 1: we agreed the plan.', 'paste')['ok']));
+
+/* ---- The retired endpoints ---- */
+// Recall's webhook now refuses loudly with 410, before the sign-in wall, and the
+// custom recorder's bot_ingest is gone (it falls through to the wall). Run in a
+// child process because json_out() exits.
+$probe = static function (string $action): string {
+    return trim((string) shell_exec(escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg(
+        '$_GET["action"] = ' . var_export($action, true) . '; $_SERVER["REQUEST_METHOD"] = "POST";'
+        . ' register_shutdown_function(function () { echo "|" . http_response_code(); });'
+        . ' require ' . var_export(AV_ROOT . '/portal/meetings.php', true) . ';') . ' 2>/dev/null'));
+};
+$rw = $probe('recall_webhook');
+ck('endpoint: recall_webhook answers 410', substr($rw, -4) === '|410');
+ck('endpoint: recall_webhook says Recall is no longer used', strpos($rw, 'Recall is no longer used.') !== false);
+$bi = $probe('bot_ingest');
+ck('endpoint: bot_ingest no longer accepts a service call', substr($bi, -4) === '|401');
+$apiSrc = (string) file_get_contents(AV_ROOT . '/portal/meetings.php');
+ck('endpoint: nothing in the API reaches a Recall code path',
+   strpos($apiSrc, 'recallWebhook') === false && strpos($apiSrc, 'RecallBot') === false && strpos($apiSrc, 'botIngest') === false);
+ck('endpoint: Meetings no longer has a Recall webhook', !method_exists('Meetings', 'recallWebhook'));
+
+$db->exec('DELETE FROM meetings');
+$db->exec('DELETE FROM meeting_attendees');
+$db->exec('DELETE FROM meeting_transcripts');
 reset_users();

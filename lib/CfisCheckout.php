@@ -67,24 +67,74 @@ final class CfisCheckout
     private const TIMEOUT = 15;
 
     /** Is CACENTRE able to collect for us? */
+    public const DEFAULT_URL = 'https://cacentre.afrovanguard.org.ng/finance';
+    public const DEFAULT_SOURCE = 'avg';
+
     public static function configured(): bool
     {
         return self::base() !== '' && self::source() !== '' && strlen(self::secret()) >= 32;
     }
 
+    /**
+     * CACENTRE's base URL — https only. The request carries the signed
+     * envelope and the payer's details, and the answer is the URL we send the
+     * payer to: over plain http anybody on the path reads the one and rewrites
+     * the other to a checkout of their own. A non-https CFIS_URL is treated as
+     * not configured (so the checkout is not offered) and logged. Plain http is
+     * allowed only to the loopback host, for a dev server and the test suite.
+     */
     public static function base(): string
     {
-        return rtrim((string) (defined('CFIS_URL') ? CFIS_URL : (getenv('CFIS_URL') ?: '')), '/');
+        /* CACENTRE's finance is at one address, and Afrovanguard is one
+           property on it ('avg', CfisFoundationSeeder). Both are defaults
+           now, so finance requests and the CFIS checkout are ON as soon as
+           the one private thing — CFIS_SECRET, minted by `cfis:connect avg`
+           — is in place. They used to need three settings, and a site with
+           the key but no URL read "not switched on" to every member. */
+        $raw = rtrim(trim((string) self::setting('CFIS_URL', self::DEFAULT_URL)), '/');
+        if ($raw === '') return '';
+        return self::safeBase($raw) ? $raw : '';
+    }
+
+    /** Is $url a base URL this site may send a checkout request to? */
+    public static function safeBase(string $url): bool
+    {
+        $p = parse_url($url);
+        $scheme = strtolower((string) ($p['scheme'] ?? ''));
+        $host   = strtolower(trim((string) ($p['host'] ?? ''), '[]'));
+        if ($host === '' || isset($p['user']) || isset($p['pass'])) $ok = false;
+        elseif ($scheme === 'https') $ok = true;
+        else $ok = $scheme === 'http' && in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+        if (!$ok) {
+            static $said = [];
+            if (!isset($said[$url])) { $said[$url] = true; error_log('[cfis] CFIS_URL refused: it must be an https:// URL (http is allowed only to localhost)'); }
+        }
+        return $ok;
     }
 
     public static function source(): string
     {
-        return trim((string) (defined('CFIS_SOURCE') ? CFIS_SOURCE : (getenv('CFIS_SOURCE') ?: '')));
+        return trim((string) self::setting('CFIS_SOURCE', self::DEFAULT_SOURCE));
     }
 
     private static function secret(): string
     {
-        return trim((string) (defined('CFIS_SECRET') ? CFIS_SECRET : (getenv('CFIS_SECRET') ?: '')));
+        return trim((string) self::setting('CFIS_SECRET', ''));
+    }
+
+    /**
+     * Studio → Setup, then a constant, then the environment, then the
+     * default. A setting that is present but EMPTY in the constant or the
+     * environment is an explicit "off" and is kept, not defaulted over.
+     */
+    private static function setting(string $key, string $default): string
+    {
+        if (class_exists('AvSettings')) {
+            try { $s = AvSettings::get($key); if ($s !== null && $s !== '') return (string) $s; } catch (Throwable $e) {}
+        }
+        if (defined($key)) return (string) constant($key);
+        $e = getenv($key);
+        return $e !== false ? (string) $e : $default;
     }
 
     /**

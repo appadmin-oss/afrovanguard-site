@@ -1,0 +1,117 @@
+{
+    "$schema": "schema/values.schema.json",
+    "source": [
+        "The owner's brief, 21 October 2026",
+        "afrovanguard-site lib/ethos_content.php",
+        "afrovanguard-site lib/MentorPortal.php"
+    ],
+    "note": "The id is binding: it is the key MentorPortal::VALUES already stores against. Do not rename without migrating stored observations.",
+    "total_points": 70,
+    "completion_statement": "I become a Vanguard",
+    "levels": [
+        "Not seen",
+        "Emerging",
+        "Demonstrated",
+        "Exemplary"
+    ],
+    "values": [
+        {
+            "id": "individuation",
+            "order": 1,
+            "name": "Individuation",
+            "focus": "Know and develop yourself",
+            "transformation": "I know and develop myself",
+            "definition": "The pursuit of self-discovery, self-mastery, and purpose fulfilment.",
+            "motto": "Stop copying. Become somebody.",
+            "observe": [
+                "Made a choice that was clearly their own",
+                "Explained who they are becoming"
+            ],
+            "challenges": 10
+        },
+        {
+            "id": "faith",
+            "order": 2,
+            "name": "Faith",
+            "focus": "Live by conviction",
+            "transformation": "I live by conviction",
+            "definition": "A deep belief in our roots — our ancestry, our heritage and the generations who came before us — and the confidence to build on them.",
+            "motto": "Know where you come from. Build on it.",
+            "observe": [
+                "Spoke about their family story or heritage with pride",
+                "Drew on their roots to make a hard choice"
+            ],
+            "challenges": 10
+        },
+        {
+            "id": "diligence",
+            "order": 3,
+            "name": "Diligence",
+            "focus": "Excellence and discipline",
+            "transformation": "I do excellent work",
+            "definition": "A consistent commitment to excellence, discipline, and productivity.",
+            "motto": "Talent is cheap. Discipline is rare.",
+            "observe": [
+                "Finished what they promised, on time",
+                "Arrived prepared"
+            ],
+            "challenges": 10
+        },
+        {
+            "id": "accountability",
+            "order": 4,
+            "name": "Accountability",
+            "focus": "Own outcomes",
+            "transformation": "I answer for myself",
+            "definition": "Ownership of actions, responsibilities, decisions, and outcomes.",
+            "motto": "Stop explaining. Start answering.",
+            "observe": [
+                "Owned a mistake without excuses",
+                "Repaired something they got wrong"
+            ],
+            "challenges": 10
+        },
+        {
+            "id": "responsibility",
+            "order": 5,
+            "name": "Responsibility",
+            "focus": "Solve and serve",
+            "transformation": "I solve and serve",
+            "definition": "An active commitment to solving problems and advancing society.",
+            "motto": "If you see it, own it.",
+            "observe": [
+                "Fixed a problem nobody assigned",
+                "Took on a task without being asked"
+            ],
+            "challenges": 10
+        },
+        {
+            "id": "culture",
+            "order": 6,
+            "name": "Cultural Appreciation",
+            "focus": "Understand and advance African culture",
+            "transformation": "I understand and advance culture",
+            "definition": "Respecting, preserving, and advancing humanity’s diverse heritage.",
+            "motto": "You cannot build the future if you are ashamed of your roots.",
+            "observe": [
+                "Explained a tradition and what it teaches",
+                "Brought culture into their work"
+            ],
+            "challenges": 10
+        },
+        {
+            "id": "communal",
+            "order": 7,
+            "name": "Communal Spirit",
+            "focus": "Make yourself useful to others",
+            "transformation": "I make myself useful to others",
+            "definition": "Promoting cooperation, solidarity, collective prosperity, and cohesion.",
+            "motto": "If your success ends with you, it is too small.",
+            "observe": [
+                "Helped a peer succeed",
+                "Shared credit with the team"
+            ],
+            "challenges": 10
+        }
+    ]
+}

@@ -61,15 +61,22 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'guide_ask', 'purge_demo',
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'mail_gas_check', 'guide_ask', 'purge_demo',
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
         'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save', 'ngv_save', 'ngv_reset', 'ngv_restore',
+        'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify',
         'rules_save', 'rules_reset', 'kb_save', 'kb_delete', 'prompts_save', 'prompts_reset', 'level_recommend',
         'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test',
         'summit_resend', 'summit_resend_failed',
         'ac_grant', 'ac_revoke',
-        'roster_create', 'roster_update', 'roster_import', 'roster_membership_change', 'roster_bulk', 'id_format_save', 'offline_submit', 'offline_decide', 'card_format_save', 'card_reissue', 'cards_backfill', 'ngv_intake_email'], true);
+        'roster_create', 'roster_update', 'roster_import', 'roster_membership_change', 'roster_bulk', 'id_format_save', 'offline_submit', 'offline_decide', 'card_format_save', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake_email'], true);
+    /* Every POST is a write. The list above used to be the only definition, so
+       a new action that was not added to it — promotion_review/defer/reopen,
+       aiops_cron, brief_run, dc_publish/dc_remove, superadmin_reveal — was
+       accepted with no CSRF token at all. The list stays for the actions that
+       are named in it; the method is the backstop. */
+    if ($method === 'POST') $writing = true;
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -78,6 +85,7 @@ try {
     $role = function_exists('av_admin_role') ? av_admin_role() : 'superadmin';
     $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'superadmin_reveal', 'auth_policy_save', 'auth_policy_get',
         'db_status', 'db_test', 'db_migrate', 'brand_get', 'brand_save',
+        'db_job_state', 'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify',
         // The rules ARE the organisation's constitution — they decide promotions
         // and escalations movement-wide — and the prompts steer every AI reply.
         // Both stay with the Super Admin. The knowledge base is management-level.
@@ -87,20 +95,41 @@ try {
         'ai_proposal_decide',
         // Provider credentials. Super Admin only — these are the organisation's keys.
         'setup_get', 'setup_save', 'setup_test',
+        // Redeeming a pairing code FETCHES this site's CFIS signing key.
+        'setup_cfis_pair',
         // A card format decides what opens the front door.
-        'card_format_save'];
+        'card_format_save',
+        // What every member is charged in dues, and from when.
+        'dues_settings_save'];
     $managementOnly = [ // not available to editors
         'mem_list', 'mem_save', 'mem_create',
         // The member desk names every member, their phone and their birthday.
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
-        'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
+        'roster_membership', 'roster_membership_change', 'dues_settings', 'dues_owing', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
+        'roles_list', 'role_save', 'role_delete',
+        'centres_list', 'centre_save', 'centre_status', 'centre_delete',
+        'approvals_list', 'approval_decide', 'approval_withdraw', 'member_requests_list', 'member_request_decide',
+        // Programme sessions (kept on CACENTRE): who served in each.
+        'psess_list', 'psess_refresh', 'psess_report',
+        // Academy learners: the roster and its CSV name and email every learner
+        // (NGV youth among them); enrolment, grants and certificates change
+        // their records. Content editors write courses, not people.
+        'ac_roster', 'ac_export', 'ac_grants', 'ac_grant', 'ac_revoke',
+        'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke',
+        // Events: ours are written here; Africa GATES events are read from there.
+        'sev_list', 'sev_refresh', 'sev_save', 'sev_delete',
+        'roster_export', 'roster_centres', 'member_notes', 'member_note_add', 'member_note_delete', 'member_activity', 'member_message',
+        'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
         'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
-        'card_formats', 'card_reissue', 'cards_backfill', 'ngv_intake', 'ngv_intake_email',
+        'card_formats', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_get', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake', 'ngv_intake_email', 'ngv_intake_consent',
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
         'ngv_reset', 'ngv_restore',
-        'sys_health', 'mail_test', 'subscribers', 'enrollments', 'audit_log',
+        // The homepage is the organisation's front door: editors draft it, an admin publishes.
+        // Content goes live only through an admin: publishing, scheduling and approving.
+        'media_delete', 'cms_publish', 'cms_schedule', 'cms_unschedule', 'cms_reject',
+        'sys_health', 'mail_status', 'mail_test', 'mail_gas_check', 'subscribers', 'enrollments', 'audit_log',
         // Seat claims carry names, emails and phone numbers, and resending mail
         // on someone's behalf is a management action. Not for editors.
         'summit_list', 'summit_resend', 'summit_resend_failed', 'summit_export',
@@ -131,6 +160,9 @@ try {
     if ($role === 'editor' && in_array($action, $managementOnly, true)) {
         json_out(['ok' => false, 'error' => 'Editors can manage content only.'], 403);
     }
+    /* An editor moderates what people wrote, not who they are: their addresses stay out of the queues. */
+    $noEmails = static fn(array $rows): array => $role !== 'editor' ? $rows
+        : array_map(static fn($r) => is_array($r) ? array_filter($r, static fn($k) => !is_string($k) || stripos($k, 'email') === false, ARRAY_FILTER_USE_KEY) : $r, $rows);
 
     $repo = new DiaryRepository();
     $ac   = new AcademyRepository();
@@ -142,6 +174,24 @@ try {
         return ['studio_role' => $role, 'self_id' => (int) ($me['id'] ?? 0)];
     };
 
+    /* The member-desk writes a second person may have to approve, run one way
+       whether they come straight from the screen or out of the queue. */
+    $runMemberOp = static function (string $op, array $args, string $actor, array $ctx): array {
+        if ($op === 'roster_bulk') return MemberRoster::bulk((array) ($args['ids'] ?? []), (string) ($args['action'] ?? ''), (array) ($args['value'] ?? []), $actor, $ctx);
+        if ($op === 'roster_update') {
+            $patch = array_intersect_key($args, array_flip(['name', 'email', 'phone', 'centre', 'role', 'status', 'level', 'birthday', 'joined_on', 'notes', 'work_roles', 'about']));
+            return MemberRoster::update((int) ($args['id'] ?? 0), $patch, $actor, $ctx);
+        }
+        return ['ok' => false, 'error' => 'Unknown action.'];
+    };
+    /* One seam: an admin's sensitive member act is kept for a second person
+       (lib/Approvals.php) before any screen's handler can run it. */
+    if ($method === 'POST' && in_array($action, ['roster_bulk', 'roster_update', 'mem_save'], true)) {
+        /* The older console's save is the desk's update by another door (see mem_save), so it waits the same way. */
+        $op = $action === 'mem_save' ? 'roster_update' : $action;
+        if ($held = Approvals::intercept($op, $body, $memberCtx(), av_admin_actor())) json_out($held, 202);
+    }
+
     // Enterprise audit trail: record EVERY state-changing admin action centrally
     // (actor + proxy-validated client IP + action + best-effort target). This is
     // systemic — new write actions are covered automatically. mem_* self-audit
@@ -150,6 +200,13 @@ try {
         $auditTarget = (string) ($body['slug'] ?? $body['course'] ?? $body['email'] ?? $body['id'] ?? $_GET['slug'] ?? $_GET['id'] ?? '');
         if (isset($body['user_id'])) $auditTarget = trim($auditTarget . ' user#' . (int) $body['user_id']);
         $lms->audit($action, $auditTarget);
+    }
+
+    /* Every write in the content screens is a POST, so the CSRF check above
+       always runs: a GET (an <img> on another site) can never publish. */
+    if ($method !== 'POST' && in_array($action, ['media_start', 'media_chunk', 'media_finish', 'media_describe', 'media_edit', 'media_revert', 'media_delete',
+            'cms_save', 'cms_discard', 'cms_submit', 'cms_reject', 'cms_publish', 'cms_schedule', 'cms_unschedule', 'cms_restore'], true)) {
+        json_out(['ok' => false, 'error' => 'POST required.'], 405);
     }
 
     switch ($action) {
@@ -202,11 +259,15 @@ try {
         // ---- Celebrations (custom dates + uploaded doodle art) ----
         case 'cel_list':
             require_once AV_ROOT . '/lib/celebrations.php';
-            json_out(['ok' => true, 'celebrations' => av_celebrations_all(Database::pdo()), 'builtins' => av_celebration_calendar()]);
+            $celYear = max(2000, min(2100, (int) ($_GET['year'] ?? date('Y'))));
+            json_out(['ok' => true, 'celebrations' => av_celebrations_all(Database::pdo()), 'builtins' => av_celebration_calendar(),
+                'year' => $celYear, 'holidays' => av_celebration_year_for_studio(Database::pdo(), $celYear), 'builtin_keys' => av_celebration_builtin_keys()]);
         case 'cel_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_once AV_ROOT . '/lib/celebrations.php';
-            if (trim((string) ($body['name'] ?? '')) === '' || !preg_match('/^\d{2}-\d{2}$/', (string) ($body['md'] ?? ''))) {
+            // A built-in's override may leave the name blank: blank means "keep the calendar's own words".
+            $celBuiltin = in_array(trim((string) ($body['key'] ?? '')), av_celebration_builtin_keys(), true);
+            if ((!$celBuiltin && trim((string) ($body['name'] ?? '')) === '') || !preg_match('/^\d{2}-\d{2}$/', (string) ($body['md'] ?? ''))) {
                 json_out(['ok' => false, 'error' => 'A name and a date (MM-DD) are required.'], 422);
             }
             json_out(['ok' => true, 'id' => av_celebrations_save(Database::pdo(), $body)]);
@@ -285,7 +346,9 @@ try {
             json_out(['ok' => true, 'stats' => [
                 'diary_published'   => $cnt("SELECT COUNT(*) FROM articles WHERE status='published'"),
                 'diary_drafts'      => $cnt("SELECT COUNT(*) FROM articles WHERE status<>'published'"),
-                'moderation'        => $pending,
+                // Both things the Moderation tab holds: member submissions and
+                // reader comments. One number, because it is one queue to work.
+                'moderation'        => $pending + $repo->moderationCount(),
                 'inbox'             => $cnt("SELECT COUNT(*) FROM enrollments"),
                 'subscribers'       => $cnt("SELECT COUNT(*) FROM subscribers"),
                 // Active Afrovanguard members — not dues payers (learners pay dues too) and not learners.
@@ -327,12 +390,18 @@ try {
                 'php_mail'  => function_exists('mail'),
             ];
             $smtpSet = defined('SMTP_HOST') && SMTP_HOST !== '' && defined('SMTP_PASSWORD') && SMTP_PASSWORD !== '';
+            $transports['gas']   = Mailer::gasConfigured();
             $transports['relay'] = Mailer::relayConfigured();
-            $would = $smtpSet && $transports['phpmailer']
+            $mode = Mailer::transport();
+            $would = $mode !== 'auto'
+                ? ['smtp' => 'PHPMailer over authenticated SMTP only', 'gas' => 'Google Apps Script only (one-to-one mail; announcements are held)',
+                   'resend' => 'the Resend HTTPS API only', 'host' => 'PHP mail() only'][$mode]
+                : ($smtpSet && $transports['phpmailer']
                 ? 'PHPMailer over authenticated SMTP'
+                : ($transports['gas'] ? 'the site’s own Google Apps Script'
                 : ($transports['relay'] ? 'the Google Apps Script relay (how NGG sends)' : (Mailer::resendConfigured()
                     ? 'the Resend HTTPS API'
-                    : ($transports['php_mail'] ? 'PHP mail() — unauthenticated, and often filtered' : 'nothing')));
+                    : ($transports['php_mail'] ? 'PHP mail() — unauthenticated, and often filtered' : 'nothing')))));
 
             /* Whether the site's own config.php was READ. Without this the page
                reports an empty host and "not configured", which reads as "you
@@ -374,6 +443,9 @@ try {
                 'transports'  => $transports,
                 'phpmailer'   => $phpmailer,
                 'would_use'   => $would,
+                'mode'        => $mode,
+                'apps_script' => ['configured' => Mailer::gasConfigured(), 'url' => AppsScriptMail::url(),
+                                  'secret_set' => AppsScriptMail::secret() !== ''],
                 'admin_email' => defined('ADMIN_EMAIL') ? ADMIN_EMAIL : '',
             ]);
         }
@@ -391,10 +463,42 @@ try {
                 error_log('[mail_test] ' . $e->getMessage());
                 json_out(['ok' => false, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => '', 'detail' => 'Send failed: ' . $e->getMessage()]);
             }
-            $vianote = $via === 'smtp' ? 'authenticated SMTP' : ($via === 'mail' ? 'PHP mail() — works, but set up SMTP (a Gmail App Password in AV_SMTP_PASSWORD) for reliable, non-spam delivery' : '');
-            json_out(['ok' => $sent, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => $via, 'detail' => $sent
-                ? ('Sent via ' . $vianote . ' — check the inbox (and spam folder).')
-                : ('Send failed: ' . (Mailer::lastError() ?: 'unknown error') . (Mailer::configured() ? '' : ' — nothing is configured. Set MAIL_RELAY_URL + MAIL_RELAY_SECRET (NGG\'s Apps Script, the simplest), or SMTP_HOST, SMTP_USERNAME and AV_SMTP_PASSWORD (a 16-char Gmail App Password), via .htaccess SetEnv or config.php.'))]);
+            $vianote = match ($via) {
+                'smtp'   => 'authenticated SMTP',
+                'gas'    => 'Google Apps Script (MailApp, from the account that deployed the script)',
+                'relay'  => 'the NGG Apps Script relay',
+                'resend' => 'the Resend HTTPS API',
+                'mail'   => 'PHP mail() — works, but set up SMTP (a Gmail App Password in AV_SMTP_PASSWORD) or Google Apps Script for reliable, non-spam delivery',
+                default  => $via,
+            };
+            // When a fallback carried it, say what failed first — "sent" alone
+            // hides an SMTP that is broken for every message.
+            $before = Mailer::lastFailures();
+            json_out(['ok' => $sent, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => $via,
+                'mode' => Mailer::transport(), 'tried' => Mailer::lastTried(), 'failed_first' => $sent ? $before : [],
+                'detail' => $sent
+                ? ('Sent via ' . $vianote . ($before ? ' — after: ' . implode(' | ', $before) : '') . ' — check the inbox (and spam folder).')
+                : ('Send failed: ' . (Mailer::lastError() ?: 'unknown error') . (Mailer::configured() ? '' : ' — nothing is configured. Set up Google Apps Script (Rules & AI → Setup → Email; docs/EMAIL-APPS-SCRIPT.md — the simplest), or SMTP_HOST, SMTP_USERNAME and AV_SMTP_PASSWORD (a 16-char Gmail App Password), via .htaccess SetEnv or config.php.'))]);
+
+        /* The site's own Google Apps Script: set up? reachable? whose account?
+           how much may it still send today? A READ — it sends nothing — but it
+           is an outbound call, so POST + CSRF like mail_test. */
+        case 'mail_gas_check': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!av_rate_ok('mail_gas_check', 20, 300)) json_out(['ok' => false, 'error' => 'Too many checks — wait a moment.'], 429);
+            $url = AppsScriptMail::url();
+            $out = ['configured' => AppsScriptMail::configured(), 'url_set' => $url !== '',
+                    'secret_set' => AppsScriptMail::secret() !== '', 'mode' => Mailer::transport(),
+                    'reachable' => false, 'account' => '', 'remaining' => null];
+            if (!$out['configured']) {
+                json_out($out + ['ok' => false, 'detail' => !$out['url_set']
+                    ? 'Not set up: no Apps Script web-app URL. Rules & AI → Setup → Email (step-by-step: docs/EMAIL-APPS-SCRIPT.md).'
+                    : 'Not set up: no Apps Script secret. Rules & AI → Setup → Email → Apps Script secret.']);
+            }
+            $c = AppsScriptMail::boot()->check();
+            json_out(array_merge($out, ['ok' => (bool) $c['ok'], 'reachable' => (bool) $c['reachable'],
+                'account' => (string) $c['account'], 'remaining' => $c['remaining'], 'detail' => (string) $c['detail']]));
+        }
 
         // ---- Studio AI guide: answer "how do I…" questions about running the site ----
         case 'guide_ask': {
@@ -471,6 +575,7 @@ try {
             if (class_exists('Accountability')) $out['accountability'] = AiOps::run('accountability', static fn() => Accountability::sweep());
             if (class_exists('Agenda'))         $out['agendas']        = AiOps::run('agendas', static fn() => Agenda::sweep());
             if (class_exists('MeetingClock'))   $out['meeting_clock']  = AiOps::run('meeting_clock', static fn() => MeetingClock::sweep());
+            if (class_exists('MeetingMinutes')) $out['meetings_live']  = AiOps::run('meetings_live', static fn() => MeetingMinutes::sweep());
             if (class_exists('Promotion'))      $out['promotions']     = AiOps::run('promotions', static fn() => Promotion::sweep());
             if (class_exists('Brief')) {
                 AiOps::run('brief', static function () use (&$out) {
@@ -691,6 +796,30 @@ try {
             json_out(array_merge(['ok' => true], AvSettings::test((string) ($body['what'] ?? ''))));
         }
 
+        /* ════ Collecting this site's CFIS key from CFIS ════
+           The key used to be printed on a terminal at CACENTRE and carried
+           here by a person. Finance now issues a pairing code — fifteen
+           minutes, one use — and this redeems it, so the key travels machine
+           to machine and is never displayed on either side. See
+           lib/CfisPairing.php for why a second credential is needed at all. */
+        case 'setup_cfis_pair': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            /* Tighter than setup_test: this one redeems a credential. A code
+               is 80 bits and expires, so guessing is not the worry — the rate
+               at which this site will ask should just look like a person
+               typing a code, because that is all it ever is. */
+            if (!av_rate_ok('setup_cfis_pair', 10, 600)) json_out(['ok' => false, 'error' => 'Too many pairing attempts — wait a few minutes.'], 429);
+            $res = CfisPairing::pair((string) ($body['code'] ?? ''), av_admin_role() ?: 'admin');
+            if (!empty($res['ok'])) {
+                /* The fingerprint, never the key — it is the value an
+                   operator compares with what finance has on screen, and it
+                   is useless to anybody who reads the audit log. */
+                AdminAudit::log('rules', 'cfis_paired', (string) ($res['source'] ?? ''),
+                    'Collected the CFIS signing key (key ' . (string) ($res['fingerprint'] ?? '') . ')');
+            }
+            json_out(array_merge($res, ['testable' => AvSettings::testable()]));
+        }
+
         /* ════ The AI bench, the chat console, and the approval queue ════
            Testing a prompt used to mean waiting for a real meeting to end and
            reading what came out. These let an administrator exercise every
@@ -800,7 +929,11 @@ try {
             require_once AV_ROOT . '/lib/Migrator.php';
             $src = Database::pdo();
             $counts = []; $total = 0;
-            foreach (Migrator::ORDER as $t) {
+            /* allTables(), not ORDER: ORDER is a hand-written list of 25 and
+               this database has 32, so the screen that tells an operator what
+               is about to be migrated was leaving ten tables out of the count
+               — av_settings among them. */
+            foreach (Migrator::allTables($src) as $t) {
                 if (Migrator::tableExists($src, $t)) { $n = Migrator::count($src, $t); $counts[$t] = $n; $total += $n; }
             }
             $driver = Database::driver();
@@ -812,6 +945,76 @@ try {
                 'tables'     => $counts,
                 'total_rows' => $total,
             ]);
+        }
+        /* ── Resumable migration (lib/DbMigrateJob) ────────────────────────
+           db_migrate below copies everything in ONE request. A shared host
+           stops a request at 30s, so for any real dataset it dies part-way,
+           leaves the target half-filled, and every retry is then refused
+           because the target is no longer empty — the loop a migration gets
+           stuck in. These do the same work a slice at a time, and the job
+           remembers where it got to.
+
+           The target password is re-sent with each call and never stored. */
+        case 'db_job_state': {
+            require_once AV_ROOT . '/lib/Migrator.php';
+            require_once AV_ROOT . '/lib/DbMigrateJob.php';
+            json_out(['ok' => true, 'job' => DbMigrateJob::state()]);
+        }
+        case 'db_job_cancel': {
+            require_once AV_ROOT . '/lib/Migrator.php';
+            require_once AV_ROOT . '/lib/DbMigrateJob.php';
+            DbMigrateJob::reset();
+            AdminAudit::log('database', 'db_job_cancel', '', 'migration job discarded');
+            json_out(['ok' => true]);
+        }
+        case 'db_job_plan':
+        case 'db_job_begin':
+        case 'db_job_step':
+        case 'db_job_verify': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/Migrator.php';
+            require_once AV_ROOT . '/lib/DbMigrateJob.php';
+            $conf = ['driver' => strtolower(trim((string) ($body['driver'] ?? 'mysql'))),
+                     'host' => (string) ($body['host'] ?? ''), 'port' => (string) ($body['port'] ?? ''),
+                     'name' => (string) ($body['name'] ?? ''), 'user' => (string) ($body['user'] ?? ''),
+                     'pass' => (string) ($body['pass'] ?? '')];
+            if (!in_array($conf['driver'], ['mysql', 'pgsql'], true)) {
+                json_out(['ok' => false, 'error' => 'Choose a MySQL or PostgreSQL target.'], 422);
+            }
+            if (Database::driver() !== 'sqlite') {
+                json_out(['ok' => false, 'error' => 'This site is already running on '
+                    . strtoupper(Database::driver()) . '. There is nothing to move.'], 422);
+            }
+            try { $dst = DbMigrateJob::connect($conf); }
+            catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Could not connect: ' . $e->getMessage()], 502); }
+            $src = Database::pdo();
+
+            try {
+                if ($action === 'db_job_plan') {
+                    json_out(['ok' => true, 'target' => DbMigrateJob::label($conf), 'plan' => DbMigrateJob::plan($src, $dst)]);
+                }
+                if ($action === 'db_job_begin') {
+                    $applied = !empty($body['apply_schema'])
+                        ? DbMigrateJob::applySchema($dst, $conf['driver']) : 0;
+                    $job = DbMigrateJob::begin($src, $dst, $conf, !empty($body['replace']));
+                    AdminAudit::log('database', 'db_job_begin', DbMigrateJob::label($conf),
+                        count($job['tables']) . ' tables' . ($applied ? ", schema applied ($applied stmts)" : ''));
+                    json_out(['ok' => true, 'applied' => $applied, 'job' => $job]);
+                }
+                if ($action === 'db_job_step') {
+                    $job = DbMigrateJob::step($src, $dst, (float) ($body['budget'] ?? 10), DbMigrateJob::label($conf));
+                    if (($job['phase'] ?? '') === 'done') {
+                        AdminAudit::log('database', 'db_job_done', (string) ($job['target'] ?? ''),
+                            array_sum(array_map(static fn($t) => (int) $t['copied'], $job['tables'])) . ' rows copied');
+                    }
+                    json_out(['ok' => ($job['phase'] ?? '') !== 'error', 'job' => $job]);
+                }
+                $v = DbMigrateJob::verify($src, $dst);
+                AdminAudit::log('database', 'db_job_verify', DbMigrateJob::label($conf), $v['ok'] ? 'counts match' : 'MISMATCH');
+                json_out(['ok' => true, 'verify' => $v]);
+            } catch (Throwable $e) {
+                json_out(['ok' => false, 'error' => $e->getMessage()], 422);
+            }
         }
         case 'db_test':
         case 'db_migrate': {
@@ -853,11 +1056,21 @@ try {
                 $file = AV_ROOT . "/db/schema.$to.sql";
                 if (!is_file($file)) json_out(['ok' => false, 'error' => "Schema file missing: db/schema.$to.sql"], 500);
                 $sql = preg_replace('/--[^\n]*/', '', (string) file_get_contents($file));
+                /* "Already there" is not a failure. MySQL has no
+                   CREATE INDEX IF NOT EXISTS, so re-applying this schema always
+                   raises 1061 Duplicate key name on the first index — and this
+                   loop aborted the entire migration on it, which made a second
+                   attempt impossible once the tables existed. */
+                $skipped = 0;
                 foreach (array_filter(array_map('trim', explode(';', (string) $sql))) as $stmt) {
                     try { $target->exec($stmt); $appliedStmts++; }
-                    catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Schema step failed: ' . $e->getMessage(), 'log' => $log], 500); }
+                    catch (Throwable $e) {
+                        if (Database::isBenignSchemaError($e)) { $skipped++; continue; }
+                        json_out(['ok' => false, 'error' => 'Schema step failed: ' . $e->getMessage(), 'log' => $log], 500);
+                    }
                 }
-                $append("Applied db/schema.$to.sql ($appliedStmts statements)\n");
+                $append("Applied db/schema.$to.sql ($appliedStmts statements"
+                    . ($skipped ? ", $skipped already there" : '') . ")\n");
                 require_once AV_ROOT . '/lib/workspace.php';
                 require_once AV_ROOT . '/lib/celebrations.php';
                 require_once AV_ROOT . '/lib/people.php';
@@ -913,7 +1126,7 @@ try {
             json_out([
                 'ok'       => true,
                 'brand'    => is_array($b) ? $b : null,
-                'defaults' => ['accent' => '#f3b416', 'accent_deep' => '#b07e08'],
+                'defaults' => ['accent' => '#f3b416', 'accent_deep' => '#8f6606'],
             ]);
         }
         case 'brand_save': {
@@ -1121,7 +1334,109 @@ try {
             json_out(['ok' => true] + MemberRoster::overview());
         case 'roster_list':
             json_out(['ok' => true, 'roles' => array_keys(LmsAuth::ROLE_RANK), 'levels' => class_exists('Levels') ? Levels::order() : ['O']]
-                + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'membership', 'segment', 'sort', 'dir', 'page', 'page_size']))));
+                + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'work_role', 'sort', 'dir', 'page', 'page_size']))));
+        /* ── The day-to-day desk, as NGG's admin has it (lib/MemberDesk.php) ── */
+        case 'roster_centres':
+            /* The office's list: open centres to put people in, every centre to filter by. */
+            json_out(['ok' => true, 'centres' => array_column(Centres::all(), 'name'), 'open' => Centres::names()]);
+        case 'roster_export':
+            /* The filtered list, or the chosen members within it. It names people and
+               their phones, so who took it, and how many, goes in the audit log. */
+            $f = array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'work_role', 'sort', 'dir']));
+            $ids = array_values(array_filter(array_map('intval', explode(',', (string) ($_GET['ids'] ?? '')))));
+            $x = MemberDesk::export($f, $ids);
+            $lms->audit('member.export', '', $x['count'] . ' members' . ($ids ? ' (chosen)' : '') . ($x['capped'] ? ' — capped' : '') . ($f ? ' · ' . http_build_query($f) : ''), av_admin_actor());
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="afrovanguard-members-' . gmdate('Y-m-d') . '.csv"');
+            header('Cache-Control: no-store');
+            echo $x['csv'];
+            exit;
+        case 'member_notes':
+            json_out(['ok' => true, 'notes' => MemberDesk::notes((int) ($_GET['id'] ?? 0)), 'activity' => MemberDesk::activity((int) ($_GET['id'] ?? 0)), 'me' => av_admin_actor()]);
+        case 'member_activity':
+            json_out(['ok' => true, 'activity' => MemberDesk::activity((int) ($_GET['id'] ?? 0))]);
+        case 'member_note_add':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberDesk::addNote((int) ($body['id'] ?? 0), (string) ($body['body'] ?? ''), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'member_note_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberDesk::deleteNote((int) ($body['note_id'] ?? 0), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 403);
+        case 'member_message':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberDesk::message((array) ($body['ids'] ?? []), (string) ($body['title'] ?? ''), (string) ($body['body'] ?? ''), !empty($body['email']), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        /* ── Work roles, one list with descriptions (lib/MemberRoles.php) ── */
+        case 'psess_list':
+        case 'psess_refresh':
+            /* CACENTRE keeps the calendar; this is what it last sent. */
+            $psCal = ProgrammeSessions::calendar($action === 'psess_refresh');
+            $psYear = max(2000, min(2100, (int) ($_GET['year'] ?? date('Y'))));
+            json_out(['ok' => true, 'year' => $psYear, 'sessions' => ProgrammeSessions::forYear($psYear), 'now' => ProgrammeSessions::now(),
+                'source' => ['fetched_at' => $psCal['fetched_at'] ? gmdate('c', $psCal['fetched_at']) : '', 'stale' => $psCal['stale'], 'error' => $psCal['error'], 'edit_url' => ProgrammeSessions::consoleUrl()]]);
+        /* ── Events: ours (lib/SiteEvents.php) and Africa GATES's (lib/AvEvents.php) ── */
+        case 'sev_list':
+        case 'sev_refresh':
+            $sevAll = SiteEvents::all();
+            json_out(['ok' => true, 'upcoming' => $sevAll['upcoming'], 'past' => array_slice($sevAll['past'], 0, 30),
+                'gates' => AvEvents::status($action === 'sev_refresh'), 'gates_events' => AvEvents::latest(12),
+                'audiences' => SiteEvents::AUDIENCES, 'statuses' => SiteEvents::STATUSES, 'categories' => SiteEvents::CATEGORIES,
+                'google' => class_exists('GoogleWorkspace') && GoogleWorkspace::calendarWriteEnabled()]);
+        case 'sev_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = SiteEvents::save((array) $body, av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'sev_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = SiteEvents::delete((int) ($body['id'] ?? 0), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 404);
+        case 'psess_report':
+            $r = ProgrammeSessions::report((string) ($_GET['sid'] ?? ''));
+            json_out($r ? ['ok' => true] + $r : ['ok' => false, 'error' => 'CACENTRE no longer lists that session.'], $r ? 200 : 404);
+        case 'roles_list':
+            json_out(['ok' => true, 'roles' => MemberRoles::all()]);
+        case 'role_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberRoles::save((int) ($body['id'] ?? 0), (string) ($body['name'] ?? ''), (string) ($body['description'] ?? ''), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'role_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberRoles::delete((int) ($body['id'] ?? 0), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 404);
+        /* ── Approvals: an admin's sensitive acts, kept for a second person (lib/Approvals.php) ── */
+        case 'approvals_list':
+            json_out(Approvals::list((string) ($_GET['status'] ?? 'pending'), av_admin_actor()));
+        case 'approval_decide':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Approvals::decide((int) ($body['id'] ?? 0), (string) ($body['decision'] ?? ''), (string) ($body['reason'] ?? ''), av_admin_actor(), $runMemberOp);
+            json_out($r, $r['ok'] ? 200 : (($r['code'] ?? '') === 'own_request' ? 403 : 409));
+        case 'approval_withdraw':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Approvals::withdraw((int) ($body['id'] ?? 0), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 404);
+        /* ── What members ask for from their own portal (lib/MemberRequests.php) ── */
+        case 'member_requests_list':
+            json_out(MemberRequests::queue((string) ($_GET['status'] ?? 'pending')));
+        case 'member_request_decide':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberRequests::decide((int) ($body['id'] ?? 0), (string) ($body['decision'] ?? ''), (string) ($body['reason'] ?? ''), av_admin_actor(), $memberCtx());
+            json_out($r, $r['ok'] ? 200 : 409);
+        /* ── Centres, one list with codes (lib/Centres.php) ── */
+        case 'centres_list':
+            json_out(['ok' => true, 'centres' => Centres::all(), 'cacentre' => Centres::cacentreState()]);
+        case 'centre_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Centres::save(['id' => $body['id'] ?? 0, 'name' => $body['name'] ?? '', 'code' => $body['code'] ?? ''], av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'centre_status':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Centres::setStatus((int) ($body['id'] ?? 0), (string) ($body['status'] ?? ''), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'centre_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Centres::delete((int) ($body['id'] ?? 0), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 409);
         case 'roster_get':
             $m = MemberRoster::get((int) ($_GET['id'] ?? 0));
             json_out($m ? ['ok' => true, 'member' => $m] : ['ok' => false, 'error' => 'No such member.'], $m ? 200 : 404);
@@ -1131,6 +1446,10 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = NgvIntake::supplyEmail((string) ($body['ngg_member_id'] ?? ''), (string) ($body['email'] ?? ''));
             json_out($r, $r['ok'] ? 200 : 422);
+        case 'ngv_intake_consent':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = NgvIntake::recordConsent((string) ($body['ngg_member_id'] ?? ''), (string) ($body['method'] ?? ''), (string) ($body['guardian'] ?? ''), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
         case 'roster_duplicates':
             json_out(['ok' => true, 'groups' => MemberRoster::duplicates()]);
         case 'roster_create':
@@ -1139,8 +1458,8 @@ try {
             json_out($r, $r['ok'] ? 200 : (isset($r['code']) ? 403 : 422));
         case 'roster_update':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            $patch = array_intersect_key($body, array_flip(['name', 'email', 'phone', 'centre', 'role', 'status', 'level', 'birthday', 'joined_on', 'notes']));
-            $r = MemberRoster::update((int) ($body['id'] ?? 0), $patch, av_admin_actor(), $memberCtx());
+            $patch = array_intersect_key($body, array_flip(['name', 'email', 'phone', 'centre', 'role', 'status', 'level', 'birthday', 'joined_on', 'notes', 'work_roles', 'about']));
+            $r = $runMemberOp('roster_update', ['id' => $body['id'] ?? 0] + $patch, av_admin_actor(), $memberCtx());
             json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['own_account', 'staff_account', 'role_ceiling', 'admin_email', 'org_email'], true) ? 403 : 422));
         /* ── Dues membership (lib/Membership.php) ── */
         case 'roster_membership':
@@ -1163,6 +1482,28 @@ try {
                 default     => ['ok' => false, 'error' => 'Unknown membership change.'],
             };
             json_out($r, $r['ok'] ? 200 : 422);
+        /* ── Dues: the rules, and who is behind (lib/Membership.php) ── */
+        case 'dues_settings':
+            json_out(['ok' => true, 'settings' => Membership::settings(), 'levels' => class_exists('Levels') ? Levels::order() : ['O'],
+                      'owing_levels' => Membership::owingLevels(), 'plan' => defined('AV_DUES_PLAN_CODE') && AV_DUES_PLAN_CODE,
+                      'can_edit' => $role === 'superadmin', 'obliged' => Membership::countWhere(Membership::obligedSql())] + ['owing' => Membership::owingSummary()]);
+        case 'dues_settings_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Membership::saveSettings(array_intersect_key($body, array_flip(['enabled', 'monthly_ngn', 'annual_ngn', 'start', 'from_level'])), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'dues_owing':
+            /* The largest debts first, with names: the list the office calls from. */
+            $o = Membership::owingSummary(max(1, min(500, (int) ($_GET['limit'] ?? 100))));
+            $who = [];
+            if (!empty($o['top'])) {
+                $ids = array_map('intval', array_keys($o['top']));
+                $st = Database::pdo()->query('SELECT u.id, u.name, u.email, u.level, p.phone, p.centre FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id WHERE u.id IN (' . implode(',', $ids) . ')');
+                foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $who[(int) $r['id']] = $r;
+            }
+            $list = [];
+            foreach ($o['top'] ?? [] as $id => $a) $list[] = ($who[$id] ?? ['id' => $id]) + $a;
+            unset($o['top']);
+            json_out(['ok' => true, 'summary' => $o, 'members' => $list]);
         /* ── Offline payments (lib/OfflinePayments.php): credited only once the receipt is checked ── */
         case 'offline_list':
             json_out(['ok' => true, 'payments' => OfflinePayments::queue((string) ($_GET['status'] ?? '')), 'counts' => OfflinePayments::counts(),
@@ -1204,11 +1545,35 @@ try {
             };
             json_out($r, $r['ok'] ? 200 : (($r['code'] ?? '') === 'superadmin_only' ? 403 : 422));
         /* ── Many members, one declared action ── */
+        /* ── Volunteer projects (lib/VolunteerProjects.php) ── */
+        case 'vol_projects':
+            json_out(['ok' => true, 'projects' => VolunteerProjects::projects(false), 'types' => VolunteerProjects::TYPES]);
+        case 'vol_project_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = VolunteerProjects::saveProject($body, av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'vol_project_members':
+            json_out(['ok' => true, 'volunteers' => VolunteerProjects::volunteersOf((int) ($_GET['id'] ?? 0))]);
+        case 'vol_unassign':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            json_out(VolunteerProjects::unassign((int) ($body['id'] ?? 0), (int) ($body['project_id'] ?? 0), (int) $memberCtx()['self_id']));
+        /* ── NGG volunteers seeded from a file, linked as they sign in (lib/VolunteerSeeds.php) ── */
+        case 'vol_seed_status':
+            json_out(['ok' => true] + VolunteerSeeds::status());
+        case 'vol_seed_import':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $parsed = VolunteerSeeds::parseCsv((string) ($body['csv'] ?? ''));
+            if (!$parsed['ok']) json_out($parsed, 422);
+            $apply = !empty($body['apply']);
+            if ($apply && $role !== 'superadmin' && $role !== 'admin') json_out(['ok' => false, 'error' => 'Seeding volunteers needs an Admin. Anybody here can read the dry run.'], 403);
+            $r = VolunteerSeeds::import($parsed['rows'], ['apply' => $apply, 'expect_digest' => (string) ($body['expect_digest'] ?? ''),
+                'source' => mb_substr((string) ($body['source'] ?? ''), 0, 200), 'actor' => av_admin_actor()]);
+            json_out($r, $r['ok'] ? 200 : 422);
         case 'roster_ids':
-            json_out(['ok' => true] + MemberRoster::ids(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'membership', 'segment']))));
+            json_out(['ok' => true] + MemberRoster::ids(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'work_role']))));
         case 'roster_bulk':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            $r = MemberRoster::bulk((array) ($body['ids'] ?? []), (string) ($body['action'] ?? ''), (array) ($body['value'] ?? []), av_admin_actor(), $memberCtx());
+            $r = $runMemberOp('roster_bulk', $body, av_admin_actor(), $memberCtx());
             json_out($r, $r['ok'] ? 200 : 422);
         case 'roster_timeline':
             json_out(['ok' => true, 'events' => MemberRoster::timeline((int) ($_GET['id'] ?? 0))]);
@@ -1221,7 +1586,7 @@ try {
             if ($apply && $role !== 'superadmin' && $role !== 'admin') json_out(['ok' => false, 'error' => 'Importing members needs an Admin. Anybody here can read the dry run.'], 403);
             $r = MemberRoster::import($parsed['rows'], ['apply' => $apply, 'expect_digest' => (string) ($body['expect_digest'] ?? ''),
                 'overwrite' => !empty($body['overwrite']), 'card_format' => (string) ($body['card_format'] ?? ''), 'id_format' => (string) ($body['id_format'] ?? ''),
-                'source' => mb_substr((string) ($body['source'] ?? ''), 0, 200), 'actor' => av_admin_actor()]);
+                'source' => mb_substr((string) ($body['source'] ?? ''), 0, 200), 'actor' => av_admin_actor(), 'ctx' => $memberCtx()]);
             json_out($r + ['columns' => $parsed['columns'], 'unknown_columns' => $parsed['unknown_columns']], $r['ok'] ? 200 : 422);
         case 'card_formats':
             $o = ['ok' => true, 'formats' => MemberCards::formats()];
@@ -1259,6 +1624,32 @@ try {
             $r = MemberCards::backfill(av_admin_actor(), (int) ($body['limit'] ?? 200));
             if ($r['issued']) $lms->audit('card.backfill', '', $r['issued'] . ' cards · ' . $r['remaining'] . ' left', av_admin_actor());
             json_out(['ok' => true] + $r);
+        case 'card_photo_get':
+            $mid = (int) ($_GET['id'] ?? 0);
+            json_out(['ok' => true] + CardPhoto::of($mid) + ['min' => [CardPhoto::MIN_W, CardPhoto::MIN_H], 'save' => [CardPhoto::SAVE_W, CardPhoto::SAVE_H],
+                      'ai' => class_exists('Gemini') && Gemini::configured()]);
+        case 'card_photo_measure':
+            /* Where the head is, so the crop editor opens framed (Gemini). */
+            if ($method !== 'POST' || empty($_FILES['file'])) json_out(['ok' => false, 'error' => 'No photo.'], 400);
+            if ((int) $_FILES['file']['size'] > 4 * 1048576) json_out(['ok' => false, 'error' => 'Too large to measure.'], 413);
+            json_out(CardPhoto::measure((string) file_get_contents((string) $_FILES['file']['tmp_name'])));
+        case 'card_photo_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (empty($_FILES['file'])) json_out(['ok' => false, 'error' => 'No photo arrived. The upload may be over the host’s post_max_size (' . ini_get('post_max_size') . ').'], 400);
+            try { json_out(CardPhoto::save((int) ($_POST['id'] ?? 0), $_FILES['file'], av_admin_actor())); }
+            catch (Throwable $e) { error_log('[card-photo] ' . $e); json_out(['ok' => false, 'error' => 'The photo was not saved: ' . $e->getMessage()], 500); }
+        case 'card_photo_clear':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            try { json_out(CardPhoto::clear((int) ($body['id'] ?? 0), av_admin_actor())); }
+            catch (Throwable $e) { error_log('[card-photo] ' . $e); json_out(['ok' => false, 'error' => 'Not removed: ' . $e->getMessage()], 500); }
+        case 'card_role_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            try { json_out(CardPhoto::setRole((int) ($body['id'] ?? 0), (string) ($body['role'] ?? ''), av_admin_actor())); }
+            catch (Throwable $e) { error_log('[card-photo] ' . $e); json_out(['ok' => false, 'error' => 'The title was not saved: ' . $e->getMessage()], 500); }
+        case 'member_seed':
+            /* The founding members again (lib/MemberSeed.php). Idempotent. */
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            json_out(MemberSeed::run(av_admin_actor()));
 
         case 'mem_create':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
@@ -1267,6 +1658,72 @@ try {
             $res = MemberRoster::create(['name' => (string) ($body['name'] ?? '') ?: ucfirst(explode('@', $email)[0]), 'email' => $email,
                                          'role' => (string) ($body['role'] ?? 'member')], av_admin_actor(), 'studio', $memberCtx());
             json_out($res, !empty($res['ok']) ? 200 : (isset($res['code']) ? 403 : 422));
+
+        /* ══ Media library (lib/Media.php) ══ */
+        case 'media_list':
+            json_out(['ok' => true] + Media::list((string) ($_GET['kind'] ?? ''), (string) ($_GET['q'] ?? ''), (int) ($_GET['page'] ?? 1)));
+        case 'media_start':
+            json_out(Media::start((string) ($body['name'] ?? ''), (int) ($body['size'] ?? 0), av_admin_actor()));
+        case 'media_chunk':
+            $raw = base64_decode((string) ($body['data'] ?? ''), true);
+            if ($raw === false) json_out(['ok' => false, 'error' => 'A piece arrived damaged.'], 400);
+            json_out(Media::chunk((string) ($body['token'] ?? ''), (int) ($body['index'] ?? -1), $raw));
+        case 'media_finish':
+            json_out(Media::finish((string) ($body['token'] ?? ''), (string) ($body['alt'] ?? '')));
+        case 'media_describe':
+            json_out(Media::describe((int) ($body['id'] ?? 0), (string) ($body['alt'] ?? ''), (string) ($body['name'] ?? '')));
+        case 'media_edit':
+            json_out(Media::edit((int) ($body['id'] ?? 0), (array) ($body['ops'] ?? []), av_admin_actor()));
+        case 'media_revert':
+            json_out(Media::revert((int) ($body['id'] ?? 0), av_admin_actor()));
+        case 'media_delete':
+            json_out(Media::delete((int) ($body['id'] ?? 0)));
+
+        /* ══ Site content (lib/Cms.php): the hero, every page, the site details ══
+           One store and one life for each: draft → (review) → publish now or
+           on a schedule; every save and publish is a revision that can be
+           compared and put back. Editors draft and send for review; admins
+           publish, schedule and approve ($managementOnly). */
+        case 'cms_overview':
+            json_out(['ok' => true, 'docs' => Cms::overview(), 'can_publish' => $role !== 'editor']);
+        case 'cms_get':
+            $ref = (string) ($_GET['ref'] ?? '');
+            if (!Cms::known($ref)) json_out(['ok' => false, 'error' => 'That is not something the Studio edits.'], 404);
+            $doc = Cms::doc($ref);
+            $out = ['ok' => true, 'ref' => $ref, 'type' => Cms::type($ref), 'title' => Cms::title($ref), 'href' => Cms::href($ref),
+                'preview' => Cms::previewUrl($ref), 'state' => $doc['state'] ?: 'live', 'note' => (string) $doc['note'],
+                'submitted_by' => $doc['submitted_by'], 'scheduled_at' => $doc['scheduled_at'], 'updated_by' => $doc['updated_by'], 'updated_at' => $doc['updated_at'],
+                'live' => Cms::liveOf($ref) ?? (Cms::type($ref) === 'site' ? SiteSettings::defaults() : []), 'draft' => Cms::draft($ref),
+                'timeline' => Cms::timeline($ref, 40), 'can_publish' => $role !== 'editor'];
+            if ($out['type'] === 'page') {
+                $pf = substr($ref, 5);
+                $out['fields'] = SitePages::fields($pf);
+                $out['seo'] = SitePages::seo((string) @file_get_contents(SitePages::path($pf)));
+                $out['writable'] = is_writable(SitePages::path($pf));
+                $out['draft'] = (object) ($out['draft'] ?? []);
+            }
+            if ($out['type'] === 'site') $out['socials'] = array_map(static fn($x) => $x[0], SiteSettings::SOCIALS);
+            json_out($out);
+        case 'cms_save':
+            json_out(Cms::save((string) ($body['ref'] ?? ''), (array) ($body['data'] ?? []), av_admin_actor()));
+        case 'cms_discard':
+            json_out(Cms::discard((string) ($body['ref'] ?? ''), av_admin_actor()));
+        case 'cms_submit':
+            json_out(Cms::submit((string) ($body['ref'] ?? ''), av_admin_actor(), (string) ($body['note'] ?? '')));
+        case 'cms_reject':
+            json_out(Cms::reject((string) ($body['ref'] ?? ''), av_admin_actor(), (string) ($body['note'] ?? '')));
+        case 'cms_publish':
+            json_out(Cms::publish((string) ($body['ref'] ?? ''), av_admin_actor(), (string) ($body['note'] ?? '')));
+        case 'cms_schedule':
+            json_out(Cms::schedule((string) ($body['ref'] ?? ''), (string) ($body['at'] ?? ''), av_admin_actor()));
+        case 'cms_unschedule':
+            json_out(Cms::unschedule((string) ($body['ref'] ?? ''), av_admin_actor()));
+        case 'cms_restore':
+            json_out(Cms::restore((string) ($body['ref'] ?? ''), (int) ($body['revision'] ?? 0), av_admin_actor()));
+        case 'cms_compare':
+            $ref = (string) ($_GET['ref'] ?? '');
+            if (!Cms::known($ref)) json_out(['ok' => false, 'error' => 'That is not something the Studio edits.'], 404);
+            json_out(Cms::compare($ref, (string) ($_GET['a'] ?? 'live'), (string) ($_GET['b'] ?? 'draft')));
 
         case 'get':
             $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? '')));
@@ -1352,7 +1809,7 @@ try {
         /* ── Vanguard Diary — member-submission moderation ──
            Only public submissions surface here; private/event entries never do. */
         case 'mod_queue':
-            json_out(['ok' => true, 'entries' => (new DiaryJournal())->pendingPublic()]);
+            json_out(['ok' => true, 'entries' => $noEmails((new DiaryJournal())->pendingPublic())]);
         case 'mod_approve':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $res = (new DiaryJournal())->approve((int) ($body['id'] ?? 0), $repo); // promotes into the feed
@@ -1362,6 +1819,21 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $okr = (new DiaryJournal())->reject((int) ($body['id'] ?? 0), (string) ($body['note'] ?? ''));
             json_out($okr ? ['ok' => true] : ['ok' => false, 'error' => 'Entry not found or already handled.'], $okr ? 200 : 404);
+
+        /* ── Diary comments — the moderation queue ──
+           Nothing a reader writes is public until it passes through here. */
+        case 'dc_queue':
+            json_out(['ok' => true, 'comments' => $noEmails($repo->moderationQueue(200)), 'count' => $repo->moderationCount()]);
+        case 'dc_publish':
+        case 'dc_remove': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $id = (int) ($body['id'] ?? 0);
+            if ($id <= 0) json_out(['ok' => false, 'error' => 'Which comment?'], 422);
+            $to = $action === 'dc_publish' ? 'published' : 'removed';
+            if (!$repo->setCommentStatus($id, $to)) json_out(['ok' => false, 'error' => 'Could not update that comment.'], 500);
+            $lms->audit('diary_comment_' . ($to === 'published' ? 'publish' : 'remove'), (string) $id, '');
+            json_out(['ok' => true, 'status' => $to, 'count' => $repo->moderationCount()]);
+        }
 
         /* ── Academy ── */
         case 'ac_list':       json_out(['ok' => true, 'courses' => $ac->allForAdmin()]);

@@ -95,6 +95,9 @@ final class Mentorship
         self::addCol('mentor_sessions', 'started_at', "VARCHAR(32) NOT NULL DEFAULT ''");
         self::addCol('mentor_sessions', 'ended_at', "VARCHAR(32) NOT NULL DEFAULT ''");
         self::addCol('mentor_sessions', 'started_by', 'INTEGER NOT NULL DEFAULT 0');
+        /* What Google captures in the session's Meet (Meetings' meet_capture), or why not. */
+        self::addCol('mentor_sessions', 'meet_capture', "VARCHAR(12) NOT NULL DEFAULT ''");
+        self::addCol('mentor_sessions', 'capture_note', "VARCHAR(500) NOT NULL DEFAULT ''");
         self::addCol('mentor_sessions', 'last_ping', "VARCHAR(32) NOT NULL DEFAULT ''");
         // Where the logged hours came from — '' none yet, 'heartbeat' portal
         // presence (provisional), 'meet'/'reports' confirmed by Google (final).
@@ -474,6 +477,13 @@ final class Mentorship
             $db->prepare('INSERT INTO mentor_profiles (user_id, headline, bio, focus, capacity, accepting, segment, approval, source, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
                ->execute([$uid, $headline, $bio, $focus, $capacity, $accepting, $segment, $approval, 'applied', $now, $now]);
             if (class_exists('Events')) { try { Events::emit('mentor.joined', ['user_id' => $uid, 'headline' => $headline, 'segment' => $segment, 'approval' => $approval]); } catch (Throwable $e) {} }
+            /* modules/EMAILS.md: mentor_application_received. Only for an
+               application that is actually waiting on somebody — an external
+               mentor is approved on the spot and gets mentor_approved below
+               instead, so this would tell them to wait for a decision that
+               has already been made. */
+            if ($approval === 'pending') self::applicationEmail($uid, $now);
+            else self::approvedEmail($uid);
         }
         return ['ok' => true, 'profile' => self::profile($uid)];
     }
@@ -700,11 +710,130 @@ final class Mentorship
                 if ($ev && (!empty($ev['meet_url']) || !empty($ev['id']))) {
                     $db->prepare('UPDATE mentor_sessions SET meet_url = ?, google_event_id = ? WHERE id = ?')
                         ->execute([self::cleanUrl((string) $ev['meet_url'], 400), (string) $ev['id'], $sid]);
+                    self::captureSession($sid, (string) $ev['meet_url']);
                 }
             } catch (Throwable $e) { error_log('[mentorship] calendar sync: ' . $e->getMessage()); }
         }
         if (class_exists('Events')) { try { Events::emit('mentorship.session_scheduled', ['mentorship_id' => $mentorshipId, 'at' => $whenN]); } catch (Throwable $e) {} }
         return ['ok' => true, 'id' => $sid];
+    }
+
+    /**
+     * Switch on Google's own transcript (and recording and notes, where the
+     * edition has them) for a session's Meet, as scheduled meetings do
+     * (Meetings::configureCapture). Best-effort: the reason it could not is
+     * kept, and the session stands either way.
+     */
+    private static function captureSession(int $sid, string $meetUrl): void
+    {
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) return;
+        $code = GoogleWorkspace::meetCodeFromUrl($meetUrl);
+        if ($code === '') return;
+        try {
+            $r = GoogleWorkspace::configureMeetSpace($code);
+            Database::pdo()->prepare('UPDATE mentor_sessions SET meet_capture = ?, capture_note = ? WHERE id = ?')
+                ->execute([$r ? (string) $r['mode'] : '', $r ? '' : mb_substr(GoogleWorkspace::explain(), 0, 500), $sid]);
+        } catch (Throwable $e) { error_log('[mentorship] capture: ' . $e->getMessage()); }
+    }
+
+    /**
+     * Change a session still to come — its title, time, length, agenda or
+     * type. Its mentor only. The Calendar invite is moved with it (both
+     * parties are told by Google), and a session that never had a Meet link
+     * is given one now.
+     */
+    public static function editSession(int $mentorId, int $sessionId, array $in): array
+    {
+        self::ensure();
+        $db = Database::pdo();
+        $st = $db->prepare('SELECT s.*, m.id AS pairing FROM mentor_sessions s JOIN mentorships m ON m.id = s.mentorship_id WHERE s.id = ? AND m.mentor_id = ?');
+        $st->execute([$sessionId, $mentorId]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$r) return ['ok' => false, 'error' => 'Not your session.'];
+        if ((string) $r['attendance'] !== 'scheduled') return ['ok' => false, 'error' => 'This session has been logged; it cannot be moved.'];
+
+        $set = [];
+        if (array_key_exists('title', $in) && ($t = mb_substr(trim((string) $in['title']), 0, 160)) !== '' && $t !== (string) $r['title']) $set['title'] = $t;
+        if (array_key_exists('type', $in) && ($k = self::typeKey((string) $in['type'])) !== (string) $r['session_type']) $set['session_type'] = $k;
+        if (array_key_exists('notes', $in) && ($n = mb_substr(trim((string) $in['notes']), 0, 2000)) !== (string) $r['notes']) $set['notes'] = $n;
+        if (array_key_exists('duration_min', $in) && ($d = self::clampDuration((int) $in['duration_min'] ?: 60)) !== (int) $r['duration_min']) $set['duration_min'] = $d;
+        if (array_key_exists('when', $in) && trim((string) $in['when']) !== '') {
+            $ts = strtotime(trim((string) $in['when']));
+            if (!$ts) return ['ok' => false, 'error' => 'Pick a date and time.'];
+            if ($ts < time() - 300) return ['ok' => false, 'error' => 'That time has passed. Pick one still to come.'];
+            if (($w = gmdate('Y-m-d H:i:s', $ts)) !== (string) $r['scheduled_at']) $set['scheduled_at'] = $w;
+        }
+        if (!$set) return ['ok' => true, 'changed' => false];
+        $db->prepare('UPDATE mentor_sessions SET ' . implode(', ', array_map(static fn($k) => "$k = ?", array_keys($set))) . ' WHERE id = ?')
+           ->execute([...array_values($set), $sessionId]);
+
+        $warning = '';
+        $when = (string) ($set['scheduled_at'] ?? $r['scheduled_at']);
+        $dur = (int) ($set['duration_min'] ?? $r['duration_min']) ?: 60;
+        $title = (string) ($set['title'] ?? $r['title']);
+        $notes = (string) ($set['notes'] ?? $r['notes']);
+        if (class_exists('GoogleWorkspace') && GoogleWorkspace::calendarWriteEnabled() && $when !== '') {
+            $start = strtotime($when . ' UTC') ?: time();
+            if ((string) $r['google_event_id'] !== '') {
+                $tz = (string) (class_exists('Config') ? Config::get('AV_WS_TZ', 'Africa/Lagos') : 'Africa/Lagos');
+                $patch = ['summary' => 'Afrovanguard mentorship · ' . $title,
+                          'description' => $notes !== '' ? 'Agenda: ' . $notes : 'Afrovanguard mentorship session.',
+                          'start' => ['dateTime' => gmdate('c', $start), 'timeZone' => $tz],
+                          'end' => ['dateTime' => gmdate('c', $start + $dur * 60), 'timeZone' => $tz]];
+                if (!GoogleWorkspace::updateCalendarEvent((string) $r['google_event_id'], $patch)) {
+                    $warning = 'Saved here, but Google Calendar was not updated, so tell your mentee. ' . GoogleWorkspace::explain();
+                }
+            } elseif ((string) $r['meet_url'] === '') {
+                try {
+                    $ev = GoogleWorkspace::createMeetEvent('Afrovanguard mentorship · ' . $title, gmdate('c', $start), $dur,
+                        self::pairEmails((int) $r['mentorship_id']), $notes !== '' ? 'Agenda: ' . $notes : 'Afrovanguard mentorship session.');
+                    if ($ev && (!empty($ev['meet_url']) || !empty($ev['id']))) {
+                        $db->prepare('UPDATE mentor_sessions SET meet_url = ?, google_event_id = ? WHERE id = ?')
+                           ->execute([self::cleanUrl((string) $ev['meet_url'], 400), (string) $ev['id'], $sessionId]);
+                        self::captureSession($sessionId, (string) $ev['meet_url']);
+                    }
+                } catch (Throwable $e) { error_log('[mentorship] edit calendar: ' . $e->getMessage()); }
+            }
+        }
+        /* A session given a Meet before capture was set up gets it now. */
+        if ((string) $r['meet_url'] !== '' && (string) ($r['meet_capture'] ?? '') === '') self::captureSession($sessionId, (string) $r['meet_url']);
+        if (class_exists('Events')) { try { Events::emit('mentorship.session_changed', ['session_id' => $sessionId, 'at' => $when]); } catch (Throwable $e) {} }
+        return ['ok' => true, 'changed' => true, 'warning' => $warning];
+    }
+
+    /**
+     * From the cron: the transcript Google wrote for a session that has
+     * ended, read as the Meet organiser, kept as the session's minutes — so a
+     * session on Google Meet needs no notetaker and no pasting. A handful a
+     * tick; a transcript not written yet is tried again next time.
+     */
+    public static function pullGoogleTranscripts(int $limit = 4, ?int $now = null): int
+    {
+        self::ensure();
+        self::ensureMinutes();
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) return 0;
+        $now = $now ?? time();
+        $st = Database::pdo()->prepare("SELECT s.id, s.meet_url, s.scheduled_at, s.duration_min FROM mentor_sessions s
+             WHERE s.meet_url LIKE '%meet.google.com/%' AND s.attendance <> 'cancelled' AND s.scheduled_at <> ''
+               AND s.scheduled_at BETWEEN ? AND ?
+               AND NOT EXISTS (SELECT 1 FROM mentor_session_minutes m WHERE m.session_id = s.id)
+             ORDER BY s.scheduled_at DESC LIMIT 20");
+        $st->execute([gmdate('Y-m-d H:i:s', $now - 3 * 86400), gmdate('Y-m-d H:i:s', $now - 20 * 60)]);
+        $got = 0;
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            if ($limit-- <= 0) break;
+            $start = strtotime((string) $r['scheduled_at'] . ' UTC') ?: 0;
+            if ($start + max(15, (int) $r['duration_min']) * 60 + 15 * 60 > $now) continue;   /* not over yet */
+            $code = GoogleWorkspace::meetCodeFromUrl((string) $r['meet_url']);
+            if ($code === '') continue;
+            try {
+                $conf = GoogleWorkspace::meetConference($code, GoogleWorkspace::organiser(), $start - 3600);
+                if (!$conf) continue;
+                $t = GoogleWorkspace::conferenceTranscript($conf['name'], GoogleWorkspace::organiser());
+                if (($t['state'] ?? '') === 'ready' && trim((string) $t['text']) !== '' && !empty(self::storeTranscript((int) $r['id'], (string) $t['text'], 'google')['ok'])) $got++;
+            } catch (Throwable $e) { error_log('[mentorship] google transcript: ' . $e->getMessage()); }
+        }
+        return $got;
     }
 
     /** A stable, unguessable video-room URL for a session — same for both
@@ -810,7 +939,14 @@ final class Mentorship
         if (!self::participantSession($uid, $sessionId)) return ['ok' => false, 'error' => 'Not your session.'];
         $text = trim($text);
         if ($text === '') return ['ok' => false, 'error' => 'Paste the transcript first.'];
+        $r = self::storeTranscript($sessionId, $text, $source);
+        if (!empty($r['ok'])) $r['minutes'] = self::sessionMinutes($uid, $sessionId);
+        return $r;
+    }
 
+    /** Keep a session's transcript and turn it into minutes. The caller has checked who may. */
+    private static function storeTranscript(int $sessionId, string $text, string $source): array
+    {
         try {
             $db = Database::pdo();
             $db->prepare('DELETE FROM mentor_session_minutes WHERE session_id = ?')->execute([$sessionId]);
@@ -837,7 +973,6 @@ final class Mentorship
                 'ok' => true,
                 'structured' => !empty($st['ok']),
                 'note' => !empty($st['ok']) ? '' : (string) ($st['error'] ?? ''),
-                'minutes' => self::sessionMinutes($uid, $sessionId),
             ];
         } catch (Throwable $e) {
             error_log('[mentorship] saveSessionTranscript: ' . $e->getMessage());
@@ -967,15 +1102,10 @@ final class Mentorship
     /** Dispatch a bot for a session and record its state. */
     private static function requestSessionBot(int $sessionId, string $meetUrl, string $joinAtIso): array
     {
+        // With no notetaker configured this records 'unconfigured' and makes no
+        // network call; the session itself carries on regardless.
         $state = 'unconfigured'; $ref = ''; $provider = Meetings::botProvider();
-        if ($provider === 'recall' && class_exists('RecallBot') && RecallBot::configured()) {
-            $wh = rtrim((string) (defined('SITE_URL') ? SITE_URL : ''), '/') . '/portal/meetings.php?action=recall_webhook';
-            $wt = RecallBot::webhookToken();
-            if ($wt !== '') $wh .= '&t=' . rawurlencode($wt);
-            $res = RecallBot::createBot($meetUrl, $wh, $joinAtIso);
-            if (!empty($res['ok'])) { $state = 'requested'; $ref = (string) $res['bot_id']; }
-            else { $state = 'error'; error_log('[mentorship] recall: ' . (string) ($res['error'] ?? '')); }
-        } elseif ($provider === 'attendee' && class_exists('AttendeeBot') && AttendeeBot::configured()) {
+        if ($provider === 'attendee' && class_exists('AttendeeBot') && AttendeeBot::configured()) {
             $res = AttendeeBot::createBot($meetUrl, '', $joinAtIso, [
                 'metadata' => ['av_session_id' => (string) $sessionId, 'av_source' => 'mentorship'],
                 'dedup'    => 'av-session-' . $sessionId,
@@ -1012,8 +1142,7 @@ final class Mentorship
         $prov = (string) ($s['bot_provider'] ?? '');
         if ($ref !== '') {
             $r = null;
-            if ($prov === 'recall' && class_exists('RecallBot'))         $r = RecallBot::removeBot($ref);
-            elseif ($prov === 'attendee' && class_exists('AttendeeBot')) $r = AttendeeBot::removeBot($ref);
+            if ($prov === 'attendee' && class_exists('AttendeeBot')) $r = AttendeeBot::removeBot($ref);
             if ($r !== null && empty($r['ok'])) return ['ok' => false, 'error' => 'Could not remove the notetaker — try again in a moment.'];
         }
         try {
@@ -1023,26 +1152,56 @@ final class Mentorship
     }
 
     /**
-     * A Recall bot reported in for a SESSION rather than a workspace meeting.
-     * Called by Meetings::ingestFromRecall when the bot id matches no meeting.
+     * Collect transcripts from session notetakers that have finished — the
+     * same polling Meetings::pollBotTranscripts() does for workspace meetings,
+     * so a session's minutes arrive without any inbound callback. Only bots in
+     * flight from the last day are asked. Returns how many were ingested.
      */
-    public static function ingestSessionFromRecall(string $botId): array
+    public static function pollSessionBotTranscripts(int $limit = 20): int
     {
         self::ensure();
-        self::ensureMinutes();
-        if (!class_exists('RecallBot')) return ['ok' => false, 'error' => 'Recall not available.'];
+        if (!class_exists('Meetings') || !Meetings::botAllowed() || !class_exists('AttendeeBot')) return 0;
+        $n = 0;
         try {
-            $st = Database::pdo()->prepare('SELECT id FROM mentor_sessions WHERE bot_ref = ? ORDER BY id DESC LIMIT 1');
-            $st->execute([$botId]);
-            $sid = (int) ($st->fetchColumn() ?: 0);
-            if ($sid <= 0) return ['ok' => false, 'error' => 'Unknown bot.'];
+            $db = Database::pdo();
+            $st = $db->prepare(
+                "SELECT id, bot_ref FROM mentor_sessions
+                  WHERE bot_ref <> '' AND bot_provider = 'attendee'
+                    AND bot_state IN ('requested','joining','in_call')
+                    AND scheduled_at >= ?
+                  ORDER BY scheduled_at ASC"
+            );
+            $st->execute([gmdate('Y-m-d H:i:s', time() - 86400)]);
+            foreach (array_slice($st->fetchAll(PDO::FETCH_ASSOC) ?: [], 0, max(1, $limit)) as $r) {
+                $sid = (int) $r['id'];
+                $ref = (string) $r['bot_ref'];
+                $state = AttendeeBot::botStatus($ref);
+                if ($state === '') continue;   // unreachable or unknown: try next tick
+                if ($state !== 'done') {
+                    $db->prepare('UPDATE mentor_sessions SET bot_state = ? WHERE id = ?')->execute([$state, $sid]);
+                    continue;
+                }
+                $text = AttendeeBot::fetchTranscript($ref);
+                if ($text === '') continue;     // ended but still transcribing
+                if (!empty(self::ingestSessionBotTranscript($sid, $text)['ok'])) $n++;
+            }
+        } catch (Throwable $e) { error_log('[mentorship] pollSessionBotTranscripts: ' . $e->getMessage()); }
+        return $n;
+    }
 
-            $text = RecallBot::fetchTranscript($botId);
-            if ($text === '') return ['ok' => false, 'error' => 'Transcript not ready.'];
-
-            // A service callback has no signed-in user, so the ownership check
-            // that saveSessionTranscript() performs cannot apply. The bot id is
-            // the credential here: it was issued by us for this session.
+    /**
+     * Store a notetaker's transcript for a session and structure it.
+     *
+     * The sweep has no signed-in user, so the ownership check that
+     * saveSessionTranscript() performs cannot apply. The bot reference is the
+     * credential here: it was issued by us for this session.
+     */
+    private static function ingestSessionBotTranscript(int $sid, string $text): array
+    {
+        self::ensureMinutes();
+        $text = trim($text);
+        if ($sid <= 0 || $text === '') return ['ok' => false, 'error' => 'Nothing to ingest.'];
+        try {
             $db = Database::pdo();
             $db->prepare('DELETE FROM mentor_session_minutes WHERE session_id = ?')->execute([$sid]);
             $db->prepare('INSERT INTO mentor_session_minutes (session_id, source, raw_text, structured, created_at) VALUES (?,?,?,0,?)')
@@ -1059,7 +1218,7 @@ final class Mentorship
             $db->prepare("UPDATE mentor_sessions SET bot_state = 'done' WHERE id = ?")->execute([$sid]);
             return ['ok' => true, 'session_id' => $sid, 'structured' => !empty($s['ok'])];
         } catch (Throwable $e) {
-            error_log('[mentorship] ingestSessionFromRecall: ' . $e->getMessage());
+            error_log('[mentorship] ingestSessionBotTranscript: ' . $e->getMessage());
             return ['ok' => false, 'error' => 'Could not ingest that transcript.'];
         }
     }
@@ -1113,7 +1272,7 @@ final class Mentorship
         // every row it renders.
         $st = Database::pdo()->prepare(
             'SELECT s.id, s.title, s.scheduled_at, s.notes, s.status, s.meet_url, s.attendance, s.attended_at,
-                    s.transcript_url, s.duration_min, s.session_type, s.outcome, s.bot_state,
+                    s.transcript_url, s.duration_min, s.session_type, s.outcome, s.bot_state, s.meet_capture, s.capture_note,
                     (SELECT COUNT(*) FROM mentor_session_minutes m WHERE m.session_id = s.id) AS minute_rows
                FROM mentor_sessions s WHERE s.mentorship_id = ? ORDER BY s.scheduled_at ASC, s.id ASC'
         );
@@ -1133,6 +1292,10 @@ final class Mentorship
             'past'       => ($r['scheduled_at'] ?? '') !== '' && strtotime((string) $r['scheduled_at']) < time(),
             'bot_state'  => (string) ($r['bot_state'] ?? ''),
             'has_minutes'=> (int) ($r['minute_rows'] ?? 0) > 0,
+            'capture'    => (string) ($r['meet_capture'] ?? ''),
+            'capture_note' => (string) ($r['capture_note'] ?? ''),
+            /* For the edit form: the time as this server reads a typed one (addSession, editSession). */
+            'when_local' => ($r['scheduled_at'] ?? '') !== '' ? date('Y-m-d\\TH:i', strtotime((string) $r['scheduled_at'] . ' UTC') ?: time()) : '',
         ], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
     }
 
@@ -1465,8 +1628,18 @@ final class Mentorship
         if (!in_array($status, ['pending', 'approved', 'declined'], true)) return false;
         $accepting = $status === 'approved' ? null : 0; // declining/parking stops new requests
         $db = Database::pdo();
+        /* Read the old value first: this is an undo primitive as well as the
+           admin action, so it is called with the status a profile already
+           has. Mailing on the TRANSITION means an undo-redo does not tell a
+           mentor twice that they have been approved. */
+        $was = '';
+        try {
+            $q = $db->prepare('SELECT approval FROM mentor_profiles WHERE user_id = ?');
+            $q->execute([$uid]); $was = (string) $q->fetchColumn();
+        } catch (Throwable $e) { /* fall through; worst case is no email */ }
         if ($accepting === null) $db->prepare('UPDATE mentor_profiles SET approval=?, updated_at=? WHERE user_id=?')->execute([$status, self::now(), $uid]);
         else $db->prepare('UPDATE mentor_profiles SET approval=?, accepting=?, updated_at=? WHERE user_id=?')->execute([$status, $accepting, self::now(), $uid]);
+        if ($status === 'approved' && $was !== 'approved') self::approvedEmail($uid);
         return true;
     }
     public static function setPairStatus(int $id, string $status): bool
@@ -1578,7 +1751,11 @@ final class Mentorship
         $db->prepare("INSERT INTO mentorships (mentor_id, mentee_id, status, message, segment, cohort_id, programme, origin, created_at, updated_at) VALUES (?,?, 'active','', ?,?,?, 'admin', ?,?)")
            ->execute([$mentorId, $menteeId, $seg, max(0, $cohortId), mb_substr($programme, 0, 160), $now, $now]);
         $id = (int) $db->lastInsertId();
-        self::notify($menteeId, 'You’ve been matched with a mentor', 'A mentor has been assigned to you on Afrovanguard — say hello and book your first session.', '/mentorship/');
+        /* modules/EMAILS.md: mentee_matched — the designed email for this
+           exact moment, to the MENTEE. The mentor's copy of the news has no
+           designed template yet, so it stays on notify() below. §5: never
+           any message content, phone number or handle in it. */
+        self::matchedEmail($menteeId, $mentorId, $p);
         self::notify($mentorId, 'A mentee has been assigned to you', 'You’ve been paired with a new mentee on Afrovanguard.', '/mentorship/');
         if (class_exists('Events')) { try { Events::emit('mentorship.assigned', ['id' => $id, 'mentor_id' => $mentorId, 'mentee_id' => $menteeId]); } catch (Throwable $e) {} }
         return ['ok' => true, 'id' => $id];
@@ -1684,6 +1861,70 @@ final class Mentorship
     }
 
     /* ── email (best-effort) ─────────────────────────────────────── */
+    /** "We have your mentor application" — only while a decision is pending. */
+    private static function applicationEmail(int $uid, string $at): void
+    {
+        self::templateTo($uid, 'mentor_application_received', static fn(array $u, string $site): array => [
+            'first_name'     => explode(' ', trim((string) $u['name']))[0] ?: 'there',
+            'submitted_on'   => date('j M Y', strtotime($at) ?: time()),
+            'application_ref'=> 'AVM-' . date('y', strtotime($at) ?: time()) . '-' . str_pad((string) $uid, 4, '0', STR_PAD_LEFT),
+            'status_url'     => $site . '/mentorship/',
+        ]);
+    }
+
+    /** "You're approved to mentor" — sent once, on the transition. */
+    private static function approvedEmail(int $uid): void
+    {
+        self::templateTo($uid, 'mentor_approved', static fn(array $u, string $site): array => [
+            'first_name'   => explode(' ', trim((string) $u['name']))[0] ?: 'there',
+            'training_url' => $site . '/mentorship/mentor/?v=academy',
+            'portal_url'   => $site . '/mentorship/mentor/',
+        ]);
+    }
+
+    /**
+     * Look one user up and send them a designed template. Best-effort: a
+     * missing account, a missing address or a mail failure never fails the
+     * action that triggered it.
+     */
+    private static function templateTo(int $uid, string $template, callable $vars): void
+    {
+        if (!class_exists('Mailer') || !method_exists('Mailer', 'sendTemplate')) return;
+        try {
+            $s = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?');
+            $s->execute([$uid]);
+            $u = $s->fetch(PDO::FETCH_ASSOC);
+            if (!$u || empty($u['email'])) return;
+            $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : 'https://afrovanguard.org.ng';
+            Mailer::sendTemplate((string) $u['email'], $template, $vars($u, $site));
+        } catch (Throwable $e) { error_log('[mentorship] ' . $template . ': ' . $e->getMessage()); }
+    }
+
+    /** The mentee's "meet your mentor" email. Best-effort, like notify(). */
+    private static function matchedEmail(int $menteeId, int $mentorId, array $profile): void
+    {
+        if (!class_exists('Mailer') || !method_exists('Mailer', 'sendTemplate')) return;
+        try {
+            $s = Database::pdo()->prepare('SELECT id, name, email FROM lms_users WHERE id IN (?, ?)');
+            $s->execute([$menteeId, $mentorId]);
+            $by = [];
+            foreach ($s->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) $by[(int) $r['id']] = $r;
+            $mentee = $by[$menteeId] ?? null; $mentor = $by[$mentorId] ?? null;
+            if (!$mentee || empty($mentee['email'])) return;
+            $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : 'https://afrovanguard.org.ng';
+            Mailer::sendTemplate((string) $mentee['email'], 'mentee_matched', [
+                'first_name'        => explode(' ', trim((string) $mentee['name']))[0] ?: 'there',
+                'mentor_name'       => (string) ($mentor['name'] ?? 'your mentor'),
+                'mentor_role'       => (string) ($profile['headline'] ?? ''),
+                'focus'             => (string) ($profile['focus'] ?? ''),
+                'first_session'     => 'To be agreed — book it in your portal',
+                'portal_url'        => $site . '/mentorship/',
+                'safeguarding_email'=> defined('SAFEGUARDING_EMAIL') && SAFEGUARDING_EMAIL !== ''
+                    ? (string) SAFEGUARDING_EMAIL : 'safeguarding@afrovanguard.org.ng',
+            ]);
+        } catch (Throwable $e) { error_log('[mentorship] matched email: ' . $e->getMessage()); }
+    }
+
     private static function notify(int $userId, string $subject, string $line, string $path): void
     {
         if (!class_exists('Mailer')) return;

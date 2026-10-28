@@ -147,6 +147,13 @@ final class LmsRepository
     /** Can this (maybe-null) user open this lesson? */
     public function canAccess(?array $user, array $course, array $lesson): bool
     {
+        /* A scheduled lesson is shut until its date, whoever is asking —
+           otherwise "available_at" is a label on a door that is not locked,
+           and the email announcing the unlock arrives after the fact. Staff
+           are exempt below, because somebody has to check it before it
+           opens. */
+        if (class_exists('LmsDrip') && !LmsDrip::lessonOpen($lesson)
+            && !($user && LmsAuth::canTeach($user))) return false;
         if (!empty($lesson['is_preview'])) return true;             // previews always open
         $access = $course['access_type'] ?? 'open';
         if ($access === 'open') return true;                        // open courses: all lessons free
@@ -536,17 +543,43 @@ final class LmsRepository
                 . var_export($paidKobo, true) . ' kobo < owed ' . (int) $p['amount_kobo']);
             return false;
         }
-        $this->db->prepare("UPDATE payments SET status='paid', paid_at=? WHERE reference=?")->execute([gmdate('Y-m-d H:i:s'), $reference]);
+        /* ONE CLAIM, ONE GRANT. The webhook, the browser's return and the
+           cron sweep can all arrive for the same reference at once, and each
+           read 'pending' above. The update used to be unconditional, so every
+           one of them went on to grantMembership — and a renewal extends from
+           the later of now or the paid-through date, so one payment bought two
+           years. The status test is in the UPDATE now, and only the caller
+           whose UPDATE changed the row grants; the others see it already paid.
+           The claim and the grant commit together, so a grant that throws does
+           not leave a row marked paid with nothing behind it. */
+        $own = !$this->db->inTransaction();
+        if ($own) $this->db->beginTransaction();
+        try {
+            $st = $this->db->prepare("UPDATE payments SET status='paid', paid_at=? WHERE reference=? AND status <> 'paid'");
+            $st->execute([gmdate('Y-m-d H:i:s'), $reference]);
+            if ($st->rowCount() !== 1) {
+                if ($own) $this->db->commit();
+                return true;                            // somebody else claimed it: paid, and granted once, by them
+            }
+            if ($p['kind'] === 'course' && $p['course_id']) {
+                $this->enrol((int) $p['user_id'], (int) $p['course_id']);
+            } elseif ($p['kind'] === 'membership') {
+                $this->grantMembership((int) $p['user_id'], (int) ($p['months'] ?? 12) ?: 12);
+            }
+            if ($own) $this->db->commit();
+        } catch (Throwable $e) {
+            if ($own && $this->db->inTransaction()) $this->db->rollBack();
+            throw $e;
+        }
+        /* Mail after the commit: a slow mailer must not hold the write lock. */
         $user = $this->userRow((int) $p['user_id']);
-        if ($p['kind'] === 'course' && $p['course_id']) {
-            $this->enrol((int) $p['user_id'], (int) $p['course_id']);
-            if ($user && class_exists('Notify')) {
+        if ($user && class_exists('Notify')) {
+            if ($p['kind'] === 'course' && $p['course_id']) {
                 $c = $this->courseRow((int) $p['course_id']);
                 if ($c) Notify::enrolled($user, $c);
+            } elseif ($p['kind'] === 'membership') {
+                Notify::membership($user);
             }
-        } elseif ($p['kind'] === 'membership') {
-            $this->grantMembership((int) $p['user_id'], (int) ($p['months'] ?? 12) ?: 12);
-            if ($user && class_exists('Notify')) Notify::membership($user);
         }
         return true;
     }
@@ -554,14 +587,17 @@ final class LmsRepository
     {
         // Renewals extend from the LATER of now or the member's current paid-through
         // date, so paying dues early (or twice) never forfeits time already paid for.
-        $cur  = $this->latestMembership($userId);
         /* UTC, as isMember() compares and SQLite's datetime('now') writes. This
            used date() — local time — so on a server set to Lagos every paid
-           membership ended an hour after the date it showed. */
-        $base = $cur && !empty($cur['expires_at']) ? max(time(), (int) strtotime((string) $cur['expires_at'] . ' UTC')) : time();
+           membership ended an hour after the date it showed.
+           And from Membership::nextBase, the one answer to "where do these
+           months begin": a member behind on dues pays the OLDEST month owed
+           first. Extending from today forgave every month between their
+           lapse and the day they paid. */
+        $base = Membership::nextBase($userId);
         $exp = gmdate('Y-m-d H:i:s', (int) strtotime("+$months months", $base));
         $this->db->prepare("INSERT INTO memberships (user_id, tier, status, started_at, expires_at) VALUES (?, 'member', 'active', ?, ?)")
-            ->execute([$userId, gmdate('Y-m-d H:i:s'), $exp]);
+            ->execute([$userId, gmdate('Y-m-d H:i:s', min($base, time())), $exp]);
     }
 
     /** Extend a member's membership by N months, found by email (recurring dues). */
@@ -597,8 +633,8 @@ final class LmsRepository
      */
     public function duesStatus(int $userId): array
     {
-        $annualNgn  = defined('AV_DUES_ANNUAL_NGN')  ? (int) AV_DUES_ANNUAL_NGN  : 12000;
-        $monthlyNgn = defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000;
+        $annualNgn  = Membership::annual();
+        $monthlyNgn = Membership::monthly();
         $amountNgn = $annualNgn;
         $m = $this->latestMembership($userId);
         $paidThrough = $m['expires_at'] ?? null;
@@ -647,6 +683,9 @@ final class LmsRepository
             'last_paid_at'  => $lastPaid ? gmdate('c', (int) strtotime((string) $lastPaid)) : null,
             'total_paid_ngn' => $totalPaidNgn,   // cumulative dues contributed
             'payments_count' => (int) $totRow['n'],
+            /* What they are behind by, and why they owe at all — the same
+               figure the office sees (Membership::arrears). */
+            'arrears'       => Membership::arrears($userId),
             /* Can money be taken AT ALL — by us or on our behalf — not "do
                we hold keys". The narrow question hid the Pay button on a
                site whose dues CACENTRE can collect perfectly well. */

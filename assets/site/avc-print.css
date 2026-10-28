@@ -1,0 +1,20 @@
+/* card/print.php — the staff print page. Prefix avcp-. Tokens only. */
+.avcp{margin:0;background:var(--av-sand);color:var(--av-ink);font-family:var(--av-sans);-webkit-font-smoothing:antialiased}
+.avcp-main{max-width:1200px;margin:0 auto;padding:48px 16px 64px}
+.avcp-eyebrow{margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--av-gold-text)}
+.avcp-head h1{margin:0;font-family:var(--av-serif);font-weight:500;font-size:40px;line-height:1}
+.avcp-sub{margin:10px 0 0;font-size:14px;color:var(--av-slate)}
+.avcp-cards{display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start;margin:32px 0 24px}
+.avcp-cards .avc{--u:6px}
+.avcp-actions{display:flex;flex-wrap:wrap;gap:8px}
+.avcp-note{margin:12px 0 0;font-size:14px;color:var(--av-slate)}
+.avcp-msg{margin:16px 0;padding:12px 16px;border-radius:var(--av-r-8);background:var(--av-white);border:1px solid var(--av-line);font-size:15px}
+.avcp-msg--bad{background:var(--av-red-bg);border-color:var(--av-red);color:var(--av-red)}
+.avcp-status{margin-top:12px;min-height:24px;font-size:15px}
+.avcp-status button{margin-left:8px}
+.avcp .avc-btn[aria-busy="true"]{cursor:progress}
+.avcp :focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
+/* The farm: the print faces at 10px per mm, out of sight but
+   laid out (display:none would give snapDOM nothing to measure). */
+.avcp-farm{position:fixed;left:-10000px;top:0;display:flex;gap:40px;pointer-events:none}
+@media (max-width:639px){.avcp-cards .avc{--u:5px}.avcp-head h1{font-size:32px}.avcp .avc-btn{width:100%;justify-content:center}}

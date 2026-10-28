@@ -16,7 +16,17 @@ final class Storage
     public static function mime(string $tmp): string
     {
         if (!is_file($tmp)) return 'application/octet-stream';
-        return (new finfo(FILEINFO_MIME_TYPE))->file($tmp) ?: 'application/octet-stream';
+        // Shared hosts can switch the fileinfo extension off; an image is still an image.
+        if (class_exists('finfo')) {
+            $m = (new finfo(FILEINFO_MIME_TYPE))->file($tmp);
+            if (is_string($m) && $m !== '') return $m;
+        }
+        if (function_exists('mime_content_type')) {
+            $m = @mime_content_type($tmp);
+            if (is_string($m) && $m !== '') return $m;
+        }
+        $i = @getimagesize($tmp);
+        return is_array($i) && !empty($i['mime']) ? (string) $i['mime'] : 'application/octet-stream';
     }
 
     /** 'image' | 'document', from MIME (preferred) then extension. */
@@ -53,11 +63,73 @@ final class Storage
     public static function imagesProvider(): string { return Cloudinary::configured() ? 'cloudinary' : 'local'; }
     public static function documentsProvider(): string { return Drive::configured() ? 'drive' : 'local'; }
 
+    /**
+     * The extension a file is stored under on the local disk.
+     *
+     * Chosen from what the bytes ARE (their MIME type), never from the name the
+     * browser sent. /uploads/ is under the web root, so a JPEG that also
+     * carries PHP in its metadata, uploaded as "x.php", passed every type check
+     * and was then saved — and served, and run — as x.php. An unknown type keeps
+     * its own extension only when that extension is on a short list of inert
+     * ones; anything else is stored as .bin.
+     */
+    public static function safeExt(string $mime, string $originalName): string
+    {
+        static $byMime = [
+            'image/jpeg' => 'jpg', 'image/pjpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif',
+            'image/webp' => 'webp', 'image/avif' => 'avif', 'image/heic' => 'heic', 'image/heif' => 'heif',
+            'application/pdf' => 'pdf', 'application/msword' => 'doc',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+            'application/vnd.ms-excel' => 'xls',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+            'application/vnd.ms-powerpoint' => 'ppt',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'pptx',
+            'text/plain' => 'txt', 'text/csv' => 'csv',
+            'audio/mpeg' => 'mp3', 'audio/mp3' => 'mp3', 'audio/mp4' => 'm4a', 'audio/x-m4a' => 'm4a',
+            'audio/aac' => 'aac', 'audio/ogg' => 'ogg', 'audio/wav' => 'wav', 'audio/x-wav' => 'wav',
+            'audio/webm' => 'webm', 'video/mp4' => 'mp4', 'video/webm' => 'webm',
+        ];
+        static $inert = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'heif', 'pdf', 'doc', 'docx', 'xls', 'xlsx',
+                         'ppt', 'pptx', 'txt', 'csv', 'mp3', 'm4a', 'aac', 'ogg', 'oga', 'wav', 'webm', 'mp4'];
+        $mime = strtolower(trim($mime));
+        if (isset($byMime[$mime])) return $byMime[$mime];
+        $ext = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+        return in_array($ext, $inert, true) ? $ext : 'bin';
+    }
+
+    /**
+     * Make sure /uploads/ can never run what is stored in it, whatever name a
+     * file arrived with — written here as well as shipped, because the folder
+     * is created at runtime on a host where nothing else put the rules there.
+     */
+    public static function guardUploads(): void
+    {
+        $root = AV_ROOT . '/uploads';
+        if (!is_dir($root)) @mkdir($root, 0775, true);
+        $ht = $root . '/.htaccess';
+        /* Rewritten when it differs, not only when missing: a host that kept an
+           older copy would otherwise never receive a rule added since. */
+        if (!is_file($ht) || (string) @file_get_contents($ht) !== self::UPLOADS_HTACCESS) @file_put_contents($ht, self::UPLOADS_HTACCESS);
+    }
+
+    /** The rules /uploads/.htaccess carries (kept in step with the shipped file). */
+    public const UPLOADS_HTACCESS = "# Uploaded files are data, never code.\n"
+        . "Options -Indexes\n"
+        . "<FilesMatch \"(?i)\\.(php[0-9]?|pht|phtml|phar|phps|cgi|pl|py|sh|shtml|asp|aspx|jsp|htaccess|html?|svgz?|xht|xhtml)$\">\n"
+        . "  <IfModule mod_authz_core.c>\n    Require all denied\n  </IfModule>\n"
+        . "  <IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n  </IfModule>\n"
+        . "</FilesMatch>\n"
+        . "<IfModule mod_php.c>\n  php_flag engine off\n</IfModule>\n"
+        . "<IfModule mod_php7.c>\n  php_flag engine off\n</IfModule>\n"
+        . "<IfModule mod_mime.c>\n  RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .pht .phar\n  RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .pht .phar\n</IfModule>\n"
+        . "<IfModule mod_headers.c>\n  Header always set X-Content-Type-Options \"nosniff\"\n  Header always set Content-Security-Policy \"default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox\"\n</IfModule>\n";
+
     private static function local(string $tmp, string $originalName, string $folder): array
     {
+        self::guardUploads();
         $dir = AV_ROOT . '/uploads/' . preg_replace('/[^a-z0-9_-]/', '', $folder);
         if (!is_dir($dir)) @mkdir($dir, 0775, true);
-        $ext  = preg_replace('/[^a-z0-9]/', '', strtolower(pathinfo($originalName, PATHINFO_EXTENSION))) ?: 'bin';
+        $ext  = self::safeExt(self::mime($tmp), $originalName);
         $name = date('Ymd-His') . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
         $dest = $dir . '/' . $name;
         if (!@copy($tmp, $dest) && !@move_uploaded_file($tmp, $dest)) {

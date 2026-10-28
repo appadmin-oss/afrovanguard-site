@@ -270,6 +270,7 @@ if (!defined('AV_ORG_DOMAIN')) define('AV_ORG_DOMAIN', getenv('AV_ORG_DOMAIN') ?
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/DiaryVisitor.php';   // who is reading, for counting only
 require_once __DIR__ . '/DiaryRepository.php';
 require_once __DIR__ . '/DiaryJournal.php';
 // Notebooks, entry tabs and the finding half (tags / pin / archive / search).
@@ -278,41 +279,62 @@ require_once __DIR__ . '/DiaryJournal.php';
 require_once __DIR__ . '/DiaryNotebooks.php';
 require_once __DIR__ . '/DiaryTabs.php';
 require_once __DIR__ . '/DiaryOrganise.php';
+require_once __DIR__ . '/DiaryFollows.php';
 require_once __DIR__ . '/AcademyRepository.php';
 require_once __DIR__ . '/Ngv.php';
 require_once __DIR__ . '/NgvDb.php';       // separate NextGen Vanguard database (isolated connection)
 require_once __DIR__ . '/NgvLedger.php';   // NGV money: membership, commitment, training fee, fines
 require_once __DIR__ . '/NgvMember.php';   // NGV participant/certifications domain (money delegates to NgvLedger)
 require_once __DIR__ . '/NgvReading.php';  // the 24-book challenge: claims, checks, verification
+require_once __DIR__ . '/NgvJourney.php';  // NGV 2.0: levels, the 8-point score, engines, schools
 require_once __DIR__ . '/NgvDamage.php';   // NGV equipment/premises damage, reported → assessed → outcome
 require_once __DIR__ . '/Appeals.php';    // fundraising appeals: campaigns, daily/weekly needs, updates
 require_once __DIR__ . '/Summit.php';       // D'Vanguard National Summit seat registrations
 require_once __DIR__ . '/AuthPolicy.php';
 require_once __DIR__ . '/Otp.php';
 require_once __DIR__ . '/LmsAuth.php';
+// The "signed in" hint (LmsAuth::HINT) without a session cookie at all is stale:
+// clear it so a static page's nav stops offering My portal after sign-out elsewhere.
+if (PHP_SAPI !== 'cli' && !empty($_COOKIE[LmsAuth::HINT]) && empty($_COOKIE[LmsAuth::COOKIE])) LmsAuth::hint(false);
 /* Handing a signed-in member across to the CACENTRE CRM. Loaded here beside
    LmsAuth because the portal needs it to decide whether to show the link. */
 require_once __DIR__ . '/CacSso.php';
+require_once __DIR__ . '/CacBridge.php';  /* a failing CACENTRE link is told to the admins, not the members */
+require_once __DIR__ . '/DirectoryPush.php';
+require_once __DIR__ . '/CacMail.php';        /* CACENTRE's bulk mail, sent from here under this site's name */  /* this site's roster, pushed to CACENTRE's person directory */
 require_once __DIR__ . '/GatePass.php';
 require_once __DIR__ . '/Birthdays.php';        /* members' birthdays (the team's are in people.php) */
 require_once __DIR__ . '/GateAttendance.php';   /* what the gate reports back about members */
 require_once __DIR__ . '/MemberCards.php';      /* the secure and printed cards the gate reads */
 require_once __DIR__ . '/NgvCard.php';          /* the NGV ID card and the one standing it prints */
 require_once __DIR__ . '/MemberRoster.php';     /* the member desk: create, manage, import */
+require_once __DIR__ . '/MemberDesk.php';       /* notes, activity, export and messages on the member desk */
+require_once __DIR__ . '/Centres.php';
+require_once __DIR__ . '/VanQuest.php';     /* VanQuest players: seats, onboarding, community */
+require_once __DIR__ . '/Approvals.php';
+require_once __DIR__ . '/MemberRequests.php';   /* a member asks from their own portal; an admin decides */        /* an admin's sensitive member acts wait for a second person (as NGG's do) */          /* the centres members belong to, one list with codes (as NGG keeps them) */
+require_once __DIR__ . '/MemberRoles.php';      /* the work roles members hold, kept as one list with descriptions */
 require_once __DIR__ . '/Membership.php';       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited once the receipt is verified */
 require_once __DIR__ . '/NgvIntake.php';        /* NGG promotions to NGV become NGV accounts here */
+require_once __DIR__ . '/Backups.php';          /* daily encrypted copies of both databases (tasks/cron.php) */
 require_once __DIR__ . '/NgvFines.php';         /* NGV fines: catalogue, issue, list, import with smart assignment */
 require_once __DIR__ . '/CacTasks.php';   /* the console's tasks, read for the portal */
+require_once __DIR__ . '/CacWeek.php';    /* this week at CACENTRE; portal tasks that count toward it */
+require_once __DIR__ . '/CacGoals.php';   /* CACENTRE's goals, mirrored here and planned into tasks */
 require_once __DIR__ . '/CacInventory.php'; /* and its register, for the same reason */
 require_once __DIR__ . '/CacLeads.php';    /* and the follow-ups a member owes */
 require_once __DIR__ . '/CacWifi.php';     /* and their Wi-Fi: CACENTRE runs it, the PIN is shown here */
 require_once __DIR__ . '/LmsRepository.php';
+require_once __DIR__ . '/LmsDrip.php';
 require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/CfisCheckout.php';  /* CACENTRE collects where this site has no merchant account */
+require_once __DIR__ . '/CfisRequests.php';  /* a member asks CACENTRE finance for money */
+require_once __DIR__ . '/CfisPairing.php';   /* and collects its signing key from CFIS, rather than a person carrying it */
 require_once __DIR__ . '/Payments.php';
 // Email is sent exclusively through PHPMailer (see lib/Mailer.php). The former
 // hand-rolled SMTP client (lib/Smtp.php) is retired and no longer loaded.
+require_once __DIR__ . '/AppsScriptMail.php';   /* the site's own Google Apps Script mail road */
 require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/Notify.php';
 require_once __DIR__ . '/Events.php';
@@ -326,7 +348,25 @@ require_once __DIR__ . '/AvRouter.php';   // which model answers which job, and 
 require_once __DIR__ . '/AiOps.php';     // cron heartbeat, model spend, and the alert list
 require_once __DIR__ . '/ChatBot.php';   // the Google Chat task bot
 require_once __DIR__ . '/AvEvents.php';
+require_once __DIR__ . '/SiteEvents.php';       /* our own events, and Africa GATES', as one list */
 require_once __DIR__ . '/Mentorship.php';
+require_once __DIR__ . '/MentorAcademy.php';  // what a mentor must know before accepting anyone
+require_once __DIR__ . '/MentorPortal.php';   // the read model behind /mentorship/mentor/
+require_once __DIR__ . '/Quest.php';          // the Quest's rules, vendored from van-quest
+require_once __DIR__ . '/QuestRules.php';     // every priced line of the Quest, switchable
+require_once __DIR__ . '/QuestPoints.php';    // the Quest's points, kept apart from the gate's
+require_once __DIR__ . '/Conduct.php';        // a mentor's fines and awards, approved by the compliance committee
+require_once __DIR__ . '/QuestRecord.php';    // a member's Quest record
+require_once __DIR__ . '/QuestMoney.php';     // points against fines by income bracket, month by month
+require_once __DIR__ . '/PortalNav.php';      // the member portal's sections, one registry
+require_once __DIR__ . '/QuestLadder.php';    // demotions, suspensions and fines the manual calls for, suggested to a person
+require_once __DIR__ . '/QuestAdvisor.php';   // figures and AI proposals on the catalogue; a person applies them
+require_once __DIR__ . '/QuestDesk.php';      // the read model behind the Quest desk (/mentorship/compliance/)
+require_once __DIR__ . '/SiteHome.php';       // the homepage hero as content: draft, preview, publish, history
+require_once __DIR__ . '/Media.php';          // the Studio's media library: chunked upload, image edits
+require_once __DIR__ . '/SitePages.php';          // the Studio's Pages editor: every public page's words, links, pictures
+require_once __DIR__ . '/SiteSettings.php';      // the details every page shares (footer email, place, social links)
+require_once __DIR__ . '/Cms.php';               // the content store: drafts, revisions, review, scheduling
 require_once __DIR__ . '/Prefs.php';
 require_once __DIR__ . '/Notifications.php';
 require_once __DIR__ . '/AdminAudit.php';
@@ -342,10 +382,14 @@ require_once __DIR__ . '/GoogleWorkspaceUser.php';
 require_once __DIR__ . '/GoogleWatch.php';
 require_once __DIR__ . '/AvAutomation.php';
 require_once __DIR__ . '/Collab.php';
-require_once __DIR__ . '/RecallBot.php';
 require_once __DIR__ . '/AttendeeBot.php';
+require_once __DIR__ . '/Recurrence.php';  /* how a meeting repeats: one rule for Google, the list, the clock and the minutes */
 require_once __DIR__ . '/Meetings.php';
+require_once __DIR__ . '/CacInbound.php';     /* one check for every door CACENTRE calls */
+require_once __DIR__ . '/CacMeetings.php';
+require_once __DIR__ . '/CacSend.php';        /* CACENTRE's email, sent by this site's mail */    /* CACENTRE staff schedule and read meetings here */
 require_once __DIR__ . '/Storage.php';
+require_once __DIR__ . '/CardPhoto.php';   /* member card photos: framed, resampled, enhanced */
 require_once __DIR__ . '/Tts.php';
 require_once __DIR__ . '/Chioma.php';
 require_once __DIR__ . '/AvRules.php';
@@ -373,6 +417,23 @@ require_once __DIR__ . '/Promotion.php';
 // In-meeting time management (report §10). Reads the agenda §7 produced and
 // warns against it; the portal countdown is exact, cron is the backstop.
 require_once __DIR__ . '/MeetingClock.php';
+require_once __DIR__ . '/Volunteers.php';       /* volunteer teams, roles, hours, the hub */
+require_once __DIR__ . '/VolunteerProjects.php'; /* the projects volunteers serve, and as what */
+require_once __DIR__ . '/MeetEvents.php';        /* Google Meet's own events (Workspace Events → Pub/Sub) */
+require_once __DIR__ . '/MeetingMinutes.php';   /* answers, minutes draft→review→published, reminders */
+require_once __DIR__ . '/MeetingLive.php';
+require_once __DIR__ . '/CrmAudiencePush.php';  /* this site's people, pushed (signed) to CACENTRE's CRM */
+require_once __DIR__ . '/NggVolunteers.php';    /* NGG's volunteers, fetched (signed) from NGG */
+require_once __DIR__ . '/VolunteerSeeds.php';   /* NGG volunteers seeded from a file, linked as they sign in */
+require_once __DIR__ . '/TaskReport.php';       /* the day's tasks: done, undone, unclaimed */
+require_once __DIR__ . '/ProgrammeSessions.php';  /* the year's programme sessions: TONI, MEDI, SUMMER, DOMI */
+require_once __DIR__ . '/TaskLedger.php';       /* what people did with the work they were given */
+require_once __DIR__ . '/TaskMatch.php';        /* who a task fits, from people's labels (+ AI) */
+require_once __DIR__ . '/Todo.php';             /* the to-do pop-up: one list across both sites */
+require_once __DIR__ . '/GoalPlanner.php';      /* tasks come from goals */
+require_once __DIR__ . '/GoalTrack.php';        /* how a goal is measured, judged and forecast, and how its steps move it */
+require_once __DIR__ . '/GoogleHub.php';        /* Google Workspace, as part of the portal */
+require_once __DIR__ . '/VolunteerWork.php';    /* opportunities, kudos, people, the service letter */      /* live capture: Google Meet, notetaker, QR check-in, room captions */
 require_once __DIR__ . '/AvSettings.php';
 // Publish Studio-managed credentials into the process environment, so classes
 // that read a bare getenv() (Meetings::botProvider() among them) see them without
@@ -396,10 +457,17 @@ av_harden_errors();
 AiKnowledge::boot();
 // Membership progression: capture referrals on sign-up.
 Levels::boot();
+QuestLadder::boot();
 // Workspace automation: subscribe event handlers (onboarding, real-time, etc.).
 AvAutomation::register();
 // Collaboration: feed domain events into the team activity stream.
 Collab::bootEvents();
+
+// The founding members (lib/MemberSeed.php): put on the system once, on the
+// first web request after deploy — the host has no shell to run a script.
+// Web only, so the test suite and CLI tools never seed their throwaway DBs.
+require_once __DIR__ . '/MemberSeed.php';
+if (PHP_SAPI !== 'cli') MemberSeed::boot();
 
 // Referral links (/…?ref=<memberId>) drop a short-lived cookie that is consumed
 // when the invited person creates their account (see Levels::boot()).
@@ -437,3 +505,12 @@ function require_admin(): void {
     if (function_exists('av_admin_role') ? av_admin_role() !== '' : (av_admin_cookie_valid() || av_admin_bearer_ok())) return;
     json_out(['ok' => false, 'error' => 'Unauthorized.'], 401);
 }
+
+/* A newly published Diary entry emails its author's followers (once per entry;
+   lib/DiaryFollows.php). Registered here, after both classes are loaded. */
+if (class_exists('Events') && class_exists('DiaryFollows')) {
+    Events::on('diary.published', static function (array $p): void {
+        if (!empty($p['slug'])) (new DiaryFollows())->notifyPublished((string) $p['slug']);
+    });
+}
+

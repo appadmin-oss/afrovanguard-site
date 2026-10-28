@@ -57,10 +57,13 @@ $first = $holder ? (explode(' ', trim((string) $holder['name']))[0] ?: 'Member')
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= $holder ? e($full ? (string) $holder['name'] : $first) . ' · NextGen Vanguard card' : 'Member card' ?> · Afrovanguard</title>
+<link rel="stylesheet" href="<?= e(av_asset('/assets/site/fonts.css')) ?>">
+<link rel="stylesheet" href="<?= e(av_asset('/assets/site/av-tokens.css')) ?>">
+<link rel="stylesheet" href="<?= e(av_asset('/assets/site/avc-card.css')) ?>">
 <style>
 :root{--ink:#15120e;--muted:#4a4f5a;--line:#e3e5ea;--bg:#f5f6f8}
 *{box-sizing:border-box}
-body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;padding:24px 16px}
+body{margin:0;font-family:'Source Sans 3',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;padding:24px 16px}
 main{max-width:460px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
 .box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px}
 .box h2{margin:0 0 6px;font-size:16px}
@@ -85,7 +88,18 @@ button.btn{border:0;font:inherit;font-weight:700;cursor:pointer}
     <p><?= $hit && $hit['void'] ? 'Its holder has a newer card. This one no longer opens anything.' : 'This code is not one of Afrovanguard’s cards.' ?></p>
   </section>
 <?php else: ?>
-  <?= NgvCard::html($holder, ['standing' => $standing, 'public' => !$full]) ?>
+  <?php
+    /* The rebuilt card. q.php already decided who is looking ($full); the
+       partial just draws, and publicFor() is what a stranger gets — a
+       deliberately smaller read, not the full card with fields hidden by a
+       template. */
+    require_once __DIR__ . '/lib/IdCard.php';
+    $card = $full
+        ? IdCard::forMember((int) $holder['id'])
+        : IdCard::strangerCard((int) $holder['id']);   // built from publicFor() alone
+    $avcSide = $full ? 'both' : 'front';
+    include __DIR__ . '/partials/id-card.php';
+  ?>
 <?php if ($full): ?>
   <section class="box" aria-labelledby="st-h">
     <h2 id="st-h"><?= $isHolder && !$isStaff ? 'Your standing' : 'Standing' ?>: <?= e($standing['label']) ?></h2>
@@ -101,7 +115,9 @@ button.btn{border:0;font:inherit;font-weight:700;cursor:pointer}
 <?php if ($isHolder): ?>    <a class="btn" href="/gate-pass">My gate pass</a>
     <a class="btn ghost" href="/portal/#attendance">My portal</a>
 <?php endif; ?>
-<?php if ($isStaff): ?>    <button type="button" class="btn" onclick="window.print()">Print card</button>
+<?php if ($isStaff && class_exists('AdminRoles') && AdminRoles::can('admin')): ?>    <a class="btn" href="/card/print.php?member=<?= (int) $holder['id'] ?>">Print card</a>
+<?php endif; ?>
+<?php if ($isStaff): ?>
     <a class="btn ghost" href="/academy/ngv/attendance.php">NGV attendance</a>
 <?php endif; ?>
   </nav>

@@ -45,7 +45,10 @@ ck('an account that is not active goes as off, with the reason', str_contains($s
 ck('a list over CACENTRE’s cap is not cut and called full', str_contains($src, "count(\$people) > self::ROSTER_MAX"));
 
 /* ── On the member's own dashboard ───────────────────────────────────────── */
-ck('the portal has a Wi-Fi pane for members when the link is set up', str_contains($portal, "\$nav['Work'][] = ['wifi', 'Wi-Fi', 'green', ''];") && str_contains($portal, 'id="view-wifi"'));
+$nav  = (string) file_get_contents(dirname(__DIR__) . '/lib/PortalNav.php');
+$view = (string) file_get_contents(dirname(__DIR__) . '/portal/views/wifi.php');
+ck('the portal has a Wi-Fi pane for members when the CACENTRE link is set up, in the one nav registry', str_contains($nav, "'wifi'        => ['group' => 'Work', 'label' => 'Wi-Fi', 'for' => ['inventory'], 'view' => 'wifi']")
+   && str_contains($view, 'id="view-wifi"') && str_contains($portal, "/portal/wifi.js"));
 ck('their own card only: the member comes from the session', str_contains($api, '$uid = (int) $u[\'id\'];') && !preg_match('/\$_GET\[.(id|uid|member)/', $api));
 ck('a new PIN is a checked write (same origin, CSRF, rate)', str_contains($api, 'require_same_origin();') && str_contains($api, 'av_csrf_require();') && str_contains($api, "av_require_write(\$uid, 'cac_wifi'"));
 ck('the PIN is hidden until asked for, with a pressed state', str_contains($js, "'••••••'") && str_contains($js, "setAttribute('aria-pressed'"));

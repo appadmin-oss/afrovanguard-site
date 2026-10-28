@@ -104,9 +104,7 @@ final class OfflinePayments
     /** What dues for N months cost, the same prices the checkout charges. */
     public static function duesPrice(int $months): int
     {
-        $annual = defined('AV_DUES_ANNUAL_NGN') ? (int) AV_DUES_ANNUAL_NGN : 12000;
-        $monthly = defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000;
-        return intdiv($months, 12) * $annual + ($months % 12) * $monthly;
+        return Membership::price($months);
     }
 
     /* ══ Submitting ═════════════════════════════════════════════════════════ */

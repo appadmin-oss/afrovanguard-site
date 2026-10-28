@@ -38,6 +38,9 @@ $prReset = static function () use ($db): void {
         try { $db->exec('DELETE FROM ' . $t); } catch (Throwable $e) {}
     }
     AvRules::ensure(); AvRules::resetAll('test');
+    /* The engine's mentorship criteria are what this file pins; the Pyramid
+       Manual's points floor is questpyramid.test.php's. */
+    AvRules::save(['levels.quest_pyramid' => '0'], 'test');
 };
 $prPair = static function (int $m, int $e) use ($db): int {
     $db->prepare("INSERT INTO mentorships (mentor_id, mentee_id, status, segment, created_at, updated_at) VALUES (?,?,'active','org','2026-01-01','2026-01-01')")

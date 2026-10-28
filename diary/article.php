@@ -6,6 +6,9 @@
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
+require_once __DIR__ . '/partials.php';   // the engagement blocks (drop-in)
+require_once __DIR__ . '/reader.php';     // the reading rail
+require_once AV_ROOT . '/partials/av-cover.php'; // the cover when an entry has no photo
 
 $raw  = (string) ($_GET['code'] ?? $_GET['slug'] ?? '');
 $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower($raw));
@@ -31,9 +34,24 @@ if (!$a) {
 }
 
 $canonical = diary_url($a['slug'] . '/');
-$related   = $repo->relatedCards((int) $a['id']);
 $me        = LmsAuth::user();
 $commentN  = $repo->commentCount((int) $a['id']);
+$counts    = $repo->counts((int) $a['id']);
+$author    = $repo->authorCard($a);
+$audio     = $repo->audioMeta((int) $a['id']);
+// $me is set above from LmsAuth::user().
+$saved     = $repo->isSaved((int) $a['id'], $me ? (int) $me['id'] : 0);
+$clapped   = $repo->myClaps((int) $a['id']) > 0;
+$sections  = $a['sections'] ?? [];
+$seriesNav = null;
+if (!empty($a['series']) && ($a['series']['prev'] || $a['series']['next'])) {
+    $sx = $a['series'];
+    $seriesNav = [
+        'name' => $sx['title'], 'part' => (int) ($sx['part'] ?: 0), 'of' => (int) $sx['count'],
+        'prev' => $sx['prev'] ? ['title' => $sx['prev']['title'], 'url' => '/diary/' . $sx['prev']['slug'] . '/'] : null,
+        'next' => $sx['next'] ? ['title' => $sx['next']['title'], 'url' => '/diary/' . $sx['next']['slug'] . '/'] : null,
+    ];
+}
 $audioDl   = class_exists('Tts') && Tts::available() && Tts::ext() === 'mp3' && Tts::engine() !== 'mock';
 $ogImage   = !empty($a['og_image']) ? $a['og_image'] : diary_url('og/' . $a['slug'] . '.png');
 $cover     = $a['cover_url'] ?? '';
@@ -78,12 +96,13 @@ render_head([
     'tags'      => [$a['category'], 'Afrovanguard', 'Alimosho', 'youth leadership'],
     'keywords'  => $a['category'] . ', Afrovanguard, Alimosho, Lagos, youth leadership, ' . strtolower($a['title']),
     'jsonld'    => [schema_org(), schema_website(), $blogPosting, $crumbs],
+    'csrf'      => true,
+    'css'       => ['/assets/site/avd.css', '/assets/site/avd-pages.css', '/assets/site/av-tokens.css', '/assets/site/avcv.css', '/assets/site/avde.css'],
 ]);
 render_nav('diary');
-render_subbar($a['title'], $a['slug'], $canonical);
 ?>
 <?php $format = $a['format'] ?? 'standard'; $isFeature = $format === 'feature' && $cover; ?>
-  <main id="main-content">
+  <main id="main" tabindex="-1" class="avd">
     <article class="format-<?= e($format) ?>">
 <?php if ($isFeature): $hcid = (int) ($a['cover_is_dark'] ?? -1); $heroTone = $hcid === 1 ? ' is-on-dark' : ($hcid === 0 ? ' is-on-light' : ''); ?>
       <header class="feature-hero<?= $heroTone ?>" style="background-image:url('<?= e($cover) ?>')">
@@ -94,68 +113,60 @@ render_subbar($a['title'], $a['slug'], $canonical);
         </div>
       </header>
 <?php endif; ?>
-      <div class="article-wrap">
-        <div class="container">
 <?php if (!$isFeature): ?>
-          <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/diary/">The Diary</a><span class="sep">/</span><span><?= e($a['category']) ?></span></nav>
-          <h1 class="article-title"><?= e($a['title']) ?></h1>
+      <header class="avde-head">
+        <div class="avh-topo" data-avh-topo="light" data-seed="7" aria-hidden="true"></div>
+        <div class="avde-head-in">
+          <nav aria-label="Breadcrumb"><ol class="avde-crumbs"><li><a href="/diary/">The Diary</a></li><li><a href="/diary/?cat=<?= e(rawurlencode((string) $a['category_slug'])) ?>" aria-current="page"><?= e($a['category']) ?></a></li></ol></nav>
+          <h1><?= e($a['title']) ?></h1>
+<?php if (trim((string) $a['dek']) !== ''): ?>
+          <p class="avde-dek"><?= e($a['dek']) ?></p>
 <?php endif; ?>
-          <div class="article-meta">
-            <div><div class="meta-label">Written by</div><div class="meta-value"><?= av_byline_html($a['authors_html']) ?></div></div>
-            <div><div class="meta-label">Published</div><div class="meta-value"><?= e($a['published']) ?> · <?= $readMin ?> min read</div></div>
+          <div class="avde-by">
+            <span class="avde-by-who"><span class="avde-av" aria-hidden="true"><?= e(mb_substr((string) ($author['initials'] ?? 'A'), 0, 1)) ?></span><span class="avde-by-name"><?= av_byline_html($a['authors_html']) ?></span></span>
+            <span><?= e($a['published']) ?> · <?= $readMin ?> min read</span>
+<?php if ($counts !== null): ?>
+            <span class="av-num"><?= e(number_format((int) $counts['views'])) ?> views</span>
+            <a class="av-num avde-by-c" href="#comments"><?= (int) $counts['comments'] ?> <?= (int) $counts['comments'] === 1 ? 'comment' : 'comments' ?></a>
+<?php endif; ?>
 <?php if (!empty($a['ref_code'])): ?>
-            <div><div class="meta-label">Reference</div><div class="meta-value"><code class="article-ref" title="Quote this code to identify this entry — it never changes"><?= e($a['ref_code']) ?></code></div></div>
+            <code class="avde-ref" title="Quote this code to identify this entry — it never changes"><?= e($a['ref_code']) ?></code>
 <?php endif; ?>
           </div>
-<?php render_listen_bar($a['slug'], $canonical); ?>
-<?php if (!empty($a['audio_url'])): ?>
-          <figure class="article-audio" id="narration" data-narration>
-            <button type="button" class="na-play" aria-label="Play narration">
-              <svg class="na-ic-play" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-              <svg class="na-ic-pause" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" hidden><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
-            </button>
-            <div class="na-main">
-              <figcaption class="na-label">Listen to this story <span>· narrated by a human</span></figcaption>
-              <div class="na-bar" role="slider" tabindex="0" aria-label="Seek"><span class="na-progress"></span></div>
-            </div>
-            <span class="na-time">0:00</span>
-            <button type="button" class="na-speed" aria-label="Playback speed">1×</button>
-            <audio preload="none" src="<?= e($a['audio_url']) ?>"></audio>
-          </figure>
+        </div>
+        <figure class="avde-cover">
+<?php if ($cover): ?>
+          <img src="<?= e($cover) ?>" alt="<?= e($a['title']) ?>" loading="eager" fetchpriority="high">
+<?php else: /* No photo: the shared cover graphic (partials/av-cover.php), never a blank. */ ?>
+          <?= av_cover([
+              'kind' => 'diary', 'title' => (string) $a['title'], 'category' => mb_strtolower((string) $a['category']),
+              'readTime' => $readMin . ' min read', 'date' => substr((string) ($a['published_at'] ?? ''), 0, 10),
+              'ratio' => '16:9', 'class' => 'avcv--fill',
+          ]) ?>
+<?php endif; ?>
+        </figure>
+      </header>
+<?php else: ?>
+      <div class="avde-feat-meta">
+        <div class="avde-by">
+          <span class="avde-by-who"><span class="avde-av" aria-hidden="true"><?= e(mb_substr((string) ($author['initials'] ?? 'A'), 0, 1)) ?></span><span class="avde-by-name"><?= av_byline_html($a['authors_html']) ?></span></span>
+          <span><?= e($a['published']) ?> · <?= $readMin ?> min read</span>
+<?php if ($counts !== null): ?>
+          <span class="av-num"><?= e(number_format((int) $counts['views'])) ?> views</span>
+          <a class="av-num avde-by-c" href="#comments"><?= (int) $counts['comments'] ?> <?= (int) $counts['comments'] === 1 ? 'comment' : 'comments' ?></a>
+<?php endif; ?>
+<?php if (!empty($a['ref_code'])): ?>
+          <code class="avde-ref"><?= e($a['ref_code']) ?></code>
 <?php endif; ?>
         </div>
       </div>
-
-<?php if ($cover && !$isFeature): ?>
-      <div class="container">
-        <figure class="article-hero"><img src="<?= e($cover) ?>" alt="<?= e($a['title']) ?>" loading="eager" /></figure>
-      </div>
 <?php endif; ?>
 
-      <div class="container">
-        <div class="article-layout<?= empty($a['sections']) ? ' no-toc' : '' ?>">
-<?php if (!empty($a['sections'])): ?>
-          <aside class="toc" aria-label="On this page">
-            <div class="toc-head">On this page</div>
-            <ul class="toc-list">
-<?php foreach ($a['sections'] as $s): ?>
-              <li><a href="#<?= e($s['anchor']) ?>"><?= e($s['label']) ?></a></li>
-<?php endforeach; ?>
-            </ul>
-            <div class="toc-actions">
-              <button type="button" class="toc-btn toc-btn-primary" data-listen aria-label="Listen to this article">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg> Listen
-              </button>
-<?php if ($audioDl): ?>              <a class="toc-btn" href="/diary/audio.php?slug=<?= e($a['slug']) ?>" download>
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg> Download audio
-              </a>
-<?php endif; ?>              <button type="button" class="toc-btn" onclick="window.print()">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg> Print / PDF
-              </button>
-            </div>
-          </aside>
-<?php endif; ?>
-          <div class="article-body">
+      <div class="avde-body">
+        <div class="avd-grid<?= $sections ? '' : ' avde-norail' ?>">
+<?php avd_rail($sections, $readMin); ?>
+          <article class="avd-article article-body">
+<?php avd_listen($a, $a['slug'], $audio); ?>
 <?php if (!empty($a['series'])): $sx = $a['series']; ?>
             <aside class="series-box" aria-label="Part of a series">
               <div class="series-box-head">
@@ -171,80 +182,44 @@ render_subbar($a['title'], $a['slug'], $canonical);
 <?php endif; ?>
 <?= class_exists('IQ') ? IQ::embedShortcodes($a['body_html']) : $a['body_html'] ?>
 
-<?php if (!empty($a['series']) && ($a['series']['prev'] || $a['series']['next'])): $sx = $a['series']; ?>
-            <nav class="series-nav" aria-label="Series navigation">
-<?php if ($sx['prev']): ?>              <a class="series-step series-prev" href="/diary/<?= e($sx['prev']['slug']) ?>/"><span class="series-dir">← Previous in series</span><strong><?= e($sx['prev']['title']) ?></strong></a>
-<?php else: ?>              <span class="series-step is-empty"></span>
-<?php endif; ?>
-<?php if ($sx['next']): ?>              <a class="series-step series-next" href="/diary/<?= e($sx['next']['slug']) ?>/"><span class="series-dir">Next in series →</span><strong><?= e($sx['next']['title']) ?></strong></a>
-<?php endif; ?>
-            </nav>
-<?php endif; ?>
-
-            <div class="reactions">
-              <button class="react-btn" data-react="<?= e($a['slug']) ?>" data-base="<?= (int)$a['claps'] ?>"><span class="emoji">👏</span> <span class="react-count"><?= (int)$a['claps'] ?></span></button>
-              <button class="react-btn" data-share="<?= e($canonical) ?>"><span class="emoji">↗</span> Share</button>
-              <span class="react-hint">Applause is saved server-side and shared by every reader</span>
-            </div>
-            <div class="byline-end">
-              <span>Reply to any entry: <a href="mailto:cacentre@afrovanguard.org.ng">cacentre@afrovanguard.org.ng</a> — we read every message.</span>
-              <span class="share-row">
-                <a href="https://twitter.com/intent/tweet?url=<?= e($canonical) ?>" aria-label="Share on X" target="_blank" rel="noopener"><?= Icons::X ?></a>
-                <a href="https://www.linkedin.com/sharing/share-offsite/?url=<?= e($canonical) ?>" aria-label="Share on LinkedIn" target="_blank" rel="noopener"><?= Icons::LI ?></a>
-                <button data-share="<?= e($canonical) ?>" aria-label="Copy link"><?= Icons::SHARE ?></button>
-              </span>
-            </div>
-
-            <!-- Comments -->
-            <section class="comments" id="comments" data-slug="<?= e($a['slug']) ?>" aria-label="Comments">
-              <h2 class="comments-title">Comments <span class="comments-count" id="commentsCount"<?= $commentN ? '' : ' hidden' ?>><?= (int) $commentN ?></span></h2>
-              <form class="comment-form" id="commentForm" autocomplete="on" novalidate>
-<?php if ($me): ?>
-                <p class="comment-as">Commenting as <strong><?= e($me['name']) ?></strong></p>
-<?php else: ?>
-                <div class="comment-row">
-                  <input type="text" name="name" id="cName" placeholder="Your name" maxlength="120" aria-label="Your name" required />
-                </div>
-<?php endif; ?>
-                <input type="text" name="hp" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
-                <textarea name="body" id="cBody" rows="3" placeholder="Share a thought…" maxlength="4000" aria-label="Your comment" required></textarea>
-                <div class="comment-actions">
-                  <button type="submit" class="btn btn-primary">Post comment</button>
-                  <span class="comment-msg" role="status" aria-live="polite"></span>
-                </div>
-              </form>
-              <ol class="comment-list" id="commentList" aria-live="polite"></ol>
-              <p class="comment-empty" id="commentEmpty" hidden>Be the first to comment.</p>
-            </section>
-          </div>
+            <ul class="avd-tags" aria-label="Filed under">
+              <li><a href="/diary/?cat=<?= e(rawurlencode($a['category_slug'])) ?>"># <?= e($a['category']) ?></a></li>
+            </ul>
+<?php avd_engagement($counts ?? ['claps' => (int) $a['claps'], 'comments' => $commentN], $clapped, $saved, $canonical, $a['title']); ?>
+<?php avd_author($author); ?>
+<?php avd_series($seriesNav); ?>
+<?php avd_comments($a['slug'], $repo->threadCount((int) $a['id']), $repo->commentTree((int) $a['id'], 'top', false), av_csrf_token()); ?>
+          </article>
         </div>
       </div>
 
-      <section class="similar" style="padding-top:8px">
-        <div class="container">
-          <div class="article-cta" data-reveal>
-            <div>
-              <h3>Build leaders Africa cannot buy.</h3>
-              <p>The Diary documents the work — you can join it. Volunteer with a programme or fund a leader today.</p>
-            </div>
-            <div class="cta-actions">
-              <a class="btn btn-primary" href="https://cacentre.afrovanguard.org.ng/volunteer">Join the Movement</a>
-              <a class="btn btn-outline" href="<?= rtrim(SITE_URL,'/') ?>/donate.html">Fund a Leader</a>
-            </div>
-          </div>
-        </div>
-      </section>
-
-<?php if ($related): ?>
-      <section class="similar">
-        <div class="container">
-          <h2>More from the Diary</h2>
-          <div class="post-grid">
-<?php foreach ($related as $r) { render_card($r); } ?>
-          </div>
+      <div class="avde-mission"><?php avd_mission(); ?></div>
+<?php $kr = $repo->keepReading((int) $a['id'], 3); if ($kr): ?>
+      <section class="avde-kr" aria-labelledby="avde-kr-h">
+        <div class="avh-topo" data-avh-topo="light" data-seed="11" aria-hidden="true"></div>
+        <div class="avde-kr-in">
+          <div class="avde-kr-head"><h2 id="avde-kr-h">Keep reading</h2><a href="/diary/">All entries →</a></div>
+          <ul class="avde-kr-grid">
+<?php foreach ($kr as $it): ?>
+            <li><a class="avde-kcard" href="<?= e($it['url']) ?>">
+              <div class="avde-kcard-img"><?php if ($it['cover'] !== ''): ?><img src="<?= e($it['cover']) ?>" alt="" loading="lazy" decoding="async"><?php else: ?><?= av_cover(['kind' => 'diary', 'title' => $it['title'], 'date' => substr($it['published_at'], 0, 10), 'ratio' => '1.91:1', 'class' => 'avcv--fill']) ?><?php endif; ?></div>
+              <div class="avde-kcard-body">
+                <span class="avde-kcard-cat"><?= e($it['category']) ?></span>
+                <span class="avde-kcard-t"><?= e($it['title']) ?></span>
+                <span class="avde-kcard-m av-num"><?= e($it['date']) ?> · <?= (int) $it['minutes'] ?> min read<?= $it['views'] ? ' · ' . e(avd_compact($it['views'])) . ' views' : '' ?></span>
+              </div>
+            </a></li>
+<?php endforeach; ?>
+          </ul>
         </div>
       </section>
 <?php endif; ?>
     </article>
   </main>
+  <div class="avd">
+<?php if ($audio) avd_audio_bar(); ?>
+<?php avd_highlight_toolbar(); ?>
+  </div>
+  <script src="<?= e(av_asset('/assets/site/avd-reader.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/avd.js')) ?>" defer></script>
 <?php render_footer();

@@ -20,6 +20,13 @@
  * a member promoted, demoted and promoted again is one account. A promotion
  * with no email cannot become a sign-in, so it is kept as "needs an email"
  * and shown on the Members dashboard rather than inventing an address.
+ *
+ * A child (under 18, NDPA 2023 s.31) is not enrolled until a parent or
+ * guardian has consented: NGG sends `minor` and `guardianConsent`
+ * {status: granted|none|n/a, method, at, by}. A minor without a granted
+ * consent is held as "needs consent" — the consent NGG later sends, or
+ * the office records on the Members dashboard, releases it. The consent
+ * itself is kept on the intake row as the record of it.
  */
 declare(strict_types=1);
 
@@ -43,6 +50,9 @@ final class NgvIntake
             updated_at    VARCHAR(32) NOT NULL DEFAULT ''
         )");
         try { Database::pdo()->exec('CREATE UNIQUE INDEX uq_ngv_intake_ngg ON ngv_intake (ngg_member_id)'); } catch (Throwable $e) {}
+        foreach (['minor' => 'INTEGER NOT NULL DEFAULT 0', 'consent' => "VARCHAR(255) NOT NULL DEFAULT ''"] as $c => $def) {
+            try { if (!Database::columnExists('ngv_intake', $c)) Database::pdo()->exec("ALTER TABLE ngv_intake ADD COLUMN $c $def"); } catch (Throwable $e) {}
+        }
     }
 
     private static function now(): string { return gmdate('Y-m-d\TH:i:s\Z'); }
@@ -51,7 +61,8 @@ final class NgvIntake
      * Take one promotion from NGG.
      *
      * $d: nggMemberId, name, email, phone, centre, dob (YYYY-MM-DD), track,
-     *     volunteerId, displayId.
+     *     volunteerId, displayId, minor (bool), guardianConsent
+     *     {status, method, at, by}.
      * @return array{ok:bool, status:string, member_id?:int, error?:string}
      */
     public static function take(array $d, string $deliveryId = ''): array
@@ -64,6 +75,22 @@ final class NgvIntake
         $pdo = Database::pdo();
 
         $row = self::row($nggId);
+        /* A child, by NGG's say-so or by the birthday it sent. A consent NGG
+           does not repeat on a retry is the one already on file. */
+        $minor = !empty($d['minor']) || self::under18((string) ($d['dob'] ?? '')) || ($row && (int) ($row['minor'] ?? 0) === 1);
+        $consent = is_array($d['guardianConsent'] ?? null) ? self::cleanConsent($d['guardianConsent'])
+            : (($row && ($kept = json_decode((string) ($row['consent'] ?? ''), true))) ? $kept : null);
+        $consented = $consent && $consent['status'] === 'granted';
+        if ($row) self::keepConsent($nggId, $minor, $consent);
+        if ($minor && !$consented && !($row && (string) $row['status'] === 'linked')) {
+            if (!$row) {
+                $pdo->prepare('INSERT INTO ngv_intake (delivery_id, ngg_member_id, name, email, status, received_at, updated_at) VALUES (?,?,?,?,?,?,?)')
+                    ->execute([mb_substr($deliveryId, 0, 64), $nggId, mb_substr($name, 0, 160), mb_substr($email, 0, 191), 'received', self::now(), self::now()]);
+                self::keepConsent($nggId, $minor, $consent);
+            }
+            self::mark($nggId, 'needs_consent', $row ? (int) $row['member_id'] : 0, 'Under 18: a parent or guardian has to consent before they are enrolled.');
+            return ['ok' => true, 'status' => 'needs_consent'];
+        }
         /* Promoted again after a demotion: the same account, back on the
            programme. Only this path reactivates — a staff withdrawal for any
            other reason is not undone by an intake retry. */
@@ -84,6 +111,7 @@ final class NgvIntake
         if (!$row) {
             $pdo->prepare('INSERT INTO ngv_intake (delivery_id, ngg_member_id, name, email, status, received_at, updated_at) VALUES (?,?,?,?,?,?,?)')
                 ->execute([mb_substr($deliveryId, 0, 64), $nggId, mb_substr($name, 0, 160), mb_substr($email, 0, 191), 'received', self::now(), self::now()]);
+            self::keepConsent($nggId, $minor, $consent);
         } else {
             $pdo->prepare('UPDATE ngv_intake SET name = ?, email = ?, delivery_id = ?, updated_at = ? WHERE ngg_member_id = ?')
                 ->execute([mb_substr($name, 0, 160), mb_substr($email, 0, 191), mb_substr($deliveryId, 0, 64), self::now(), $nggId]);
@@ -179,6 +207,50 @@ final class NgvIntake
         return ['ok' => true, 'status' => 'revoked', 'member_id' => $mid];
     }
 
+    private static function under18(string $dob): bool
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dob)) return false;
+        $t = strtotime($dob . ' +18 years');
+        return $t !== false && $t > time();
+    }
+
+    /** @return array{status:string, method:string, at:string, by:string} */
+    private static function cleanConsent(array $c): array
+    {
+        $status = (string) ($c['status'] ?? '');
+        return [
+            'status' => in_array($status, ['granted', 'none', 'n/a'], true) ? $status : 'none',
+            'method' => mb_substr(trim((string) ($c['method'] ?? '')), 0, 40),
+            'at'     => mb_substr(trim((string) ($c['at'] ?? '')), 0, 32),
+            'by'     => mb_substr(trim((string) ($c['by'] ?? '')), 0, 80),
+        ];
+    }
+
+    private static function keepConsent(string $nggId, bool $minor, ?array $consent): void
+    {
+        Database::pdo()->prepare('UPDATE ngv_intake SET minor = ?, consent = ? WHERE ngg_member_id = ?')
+            ->execute([$minor ? 1 : 0, $consent ? mb_substr((string) json_encode($consent), 0, 255) : '', $nggId]);
+    }
+
+    /**
+     * The office has the guardian's consent in hand (a signed form, a call):
+     * record who gave it and how, then finish the promotion as NGG sent it.
+     */
+    public static function recordConsent(string $nggId, string $method, string $guardian, string $actor): array
+    {
+        self::ensure();
+        $row = self::row($nggId);
+        if (!$row) return ['ok' => false, 'error' => 'No such promotion.'];
+        if ((string) $row['status'] !== 'needs_consent') return ['ok' => false, 'error' => 'This promotion is not waiting for consent.'];
+        $method = trim($method); $guardian = trim($guardian);
+        if (!in_array($method, ['signed_form', 'in_person', 'phone', 'email'], true)) return ['ok' => false, 'error' => 'Say how the consent was given.'];
+        if ($guardian === '') return ['ok' => false, 'error' => 'Name the parent or guardian who consented.'];
+        $consent = ['status' => 'granted', 'method' => $method, 'at' => self::now(), 'by' => mb_substr($guardian, 0, 80)];
+        self::keepConsent($nggId, true, $consent);
+        (new LmsRepository())->audit('ngv.intake.consent', (string) $row['email'], 'guardian consent for NGG ' . $nggId . ' recorded (' . $method . ', ' . $consent['by'] . ')', $actor);
+        return self::take(['nggMemberId' => $nggId, 'name' => (string) $row['name'], 'email' => (string) $row['email'], 'guardianConsent' => $consent]);
+    }
+
     private static function row(string $nggId): ?array
     {
         $st = Database::pdo()->prepare('SELECT * FROM ngv_intake WHERE ngg_member_id = ?');
@@ -196,7 +268,7 @@ final class NgvIntake
     public static function waiting(): array
     {
         self::ensure();
-        return Database::pdo()->query("SELECT ngg_member_id, name, email, status, detail, received_at FROM ngv_intake WHERE status IN ('needs_email', 'needs_review', 'failed') ORDER BY id DESC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC);
+        return Database::pdo()->query("SELECT ngg_member_id, name, email, status, detail, received_at FROM ngv_intake WHERE status IN ('needs_email', 'needs_consent', 'needs_review', 'failed') ORDER BY id DESC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**

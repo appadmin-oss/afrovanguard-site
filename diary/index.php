@@ -1,24 +1,71 @@
 <?php
 /**
- * diary/index.php — The Afrovanguard Diary (listing), rendered from the database.
+ * diary/index.php — The Afrovanguard Diary (listing), from the database.
+ *
+ * Design "Afrovanguard Diary": hero (title, lede, the latest entry large with
+ * the next three beside it) → All entries ("Field Notes": stats, category
+ * chips, sort, search, the card grid, load more) → Series → Mission CTA →
+ * Subscribe. Styles assets/site/avdl.css, behaviour assets/site/avdl.js.
+ *
+ * Everything works without JavaScript: chips, sort and search are one GET
+ * form (?cat=, ?sort=, ?q=, plus ?year=/&month= from archive links) and
+ * "Load more entries" is a link to the next page. With JavaScript the same
+ * controls filter in place and further pages load from /diary/api.php.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
+require_once __DIR__ . '/partials.php';   // avd_mission() (drop-in)
+require_once __DIR__ . '/_avdl.php';
 
 Sitemap::ensureFresh();
-$repo      = new DiaryRepository();
-$PER_PAGE  = 12;
-$first     = $repo->page(['limit' => $PER_PAGE]);   // first page only — the rest load progressively
-$articles  = $first['items'];
-$total     = $first['total'];
-$facets    = $repo->facets();
-$featured  = $repo->featured();
-$seriesList = array_values(array_filter($repo->seriesList(), fn($s) => (int) ($s['n'] ?? 0) > 0));
-$canonical = diary_url();
-$q         = trim((string) ($_GET['q'] ?? ''));
+$repo     = new DiaryRepository();
+$PER_PAGE = 12;
 
-// Structured data: a Blog with its posts, the site graph, and a breadcrumb.
+$sort  = (string) ($_GET['sort'] ?? 'latest');
+if (!in_array($sort, ['latest', 'read', 'discussed'], true)) $sort = 'latest';
+$cat   = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['cat'] ?? '')));
+$q     = trim(mb_substr((string) ($_GET['q'] ?? ''), 0, 80));
+$year  = substr(preg_replace('/\D/', '', (string) ($_GET['year'] ?? '')), 0, 4);
+$month = preg_replace('/\D/', '', (string) ($_GET['month'] ?? ''));
+if (strlen($month) === 1) $month = '0' . $month;
+$month = substr($month, 0, 2);
+$pageN = max(1, min(500, (int) ($_GET['page'] ?? 1)));
+$filtered = ($cat !== '' || $q !== '' || $year !== '' || $month !== '');
+
+$facets   = $repo->facets();
+$featured = $repo->featured();
+$all      = $repo->page(['limit' => 4, 'sort' => 'latest']);
+$allTotal = (int) $all['total'];
+/* The hero: the featured entry (else the latest) large, the next three beside it. */
+$side = array_values(array_filter($all['items'], fn($a) => !$featured || $a['slug'] !== $featured['slug']));
+$side = array_slice($side, 0, 3);
+
+/* The grid. Unfiltered, the hero's large entry is not repeated in it; one
+   extra row is read so the page stays full when it is dropped. */
+$skip  = (!$filtered && $featured) ? $featured['slug'] : '';
+$res   = $repo->page(['limit' => $PER_PAGE * $pageN + ($skip ? 1 : 0), 'offset' => 0, 'sort' => $sort,
+                      'cat' => $cat, 'q' => $q, 'year' => $year, 'month' => $month]);
+$items = array_values(array_filter($res['items'], fn($a) => $a['slug'] !== $skip));
+$shownTotal = (int) $res['total'] - ($skip && $res['total'] > 0 ? 1 : 0);
+$readCount  = count($res['items']);              // rows read, the API's next offset
+$items = array_slice($items, 0, $PER_PAGE * $pageN);
+$hasMore = $readCount < (int) $res['total'];
+
+$ids    = $repo->idsForSlugs(array_merge(array_column($items, 'slug'), $featured ? [$featured['slug']] : []));
+$counts = $ids ? $repo->countsFor(array_values($ids)) : [];
+$cOf    = fn(array $a) => $counts[$ids[$a['slug']] ?? 0] ?? null;
+
+$seriesList = array_values(array_filter($repo->seriesList(), fn($s) => (int) ($s['n'] ?? 0) > 0));
+$series     = $seriesList[0] ?? null;
+
+$canonical = diary_url();
+$S = rtrim(SITE_URL, '/');
+$qs = static function (array $over) use ($sort, $cat, $q, $year, $month): string {
+    $p = array_filter(array_merge(['sort' => $sort === 'latest' ? '' : $sort, 'cat' => $cat, 'q' => $q, 'year' => $year, 'month' => $month], $over), 'strlen');
+    return '/diary/' . ($p ? '?' . http_build_query($p) : '');
+};
+
 $blog = [
     '@type'       => 'Blog',
     '@id'         => $canonical . '#blog',
@@ -27,15 +74,12 @@ $blog = [
     'description' => 'Field notes, methodology, and the mission behind raising one million incorruptible leaders for Africa by 2040.',
     'publisher'   => ['@id' => SITE_URL . '/#organization'],
     'blogPost'    => array_map(fn($a) => [
-        '@type' => 'BlogPosting',
-        'headline' => $a['title'],
-        'url' => diary_url($a['slug'] . '/'),
-        'datePublished' => $a['published_at'],
-        'articleSection' => $a['category'],
-    ], $articles),
+        '@type' => 'BlogPosting', 'headline' => $a['title'], 'url' => diary_url($a['slug'] . '/'),
+        'datePublished' => $a['published_at'], 'articleSection' => $a['category'],
+    ], array_slice($items, 0, 12)),
 ];
 $crumbs = schema_breadcrumb([
-    ['name' => 'Home', 'url' => rtrim(SITE_URL,'/').'/'],
+    ['name' => 'Home', 'url' => $S . '/'],
     ['name' => 'The Diary', 'url' => $canonical],
 ]);
 
@@ -47,167 +91,155 @@ render_head([
     'image'     => $featured ? diary_url('og/' . $featured['slug'] . '.png') : null,
     'keywords'  => 'Afrovanguard, Afrovanguard Diary, youth leadership Nigeria, Alimosho, Lagos NGO, field notes',
     'jsonld'    => [schema_org(), schema_website(), $blog, $crumbs],
+    'css'       => ['/assets/site/avd.css', '/assets/site/avcv.css', '/assets/site/avdl.css'],
+    'robots'    => $filtered || $pageN > 1 ? 'noindex, follow' : null,
 ]);
 render_nav('diary');
 ?>
-  <main id="main-content">
-    <section class="diary-hero">
-      <div class="container">
-        <span class="diary-eyebrow">Est. 2018 · Alimosho, Lagos</span>
-        <h1>The Afrovanguard<br/>Diary</h1>
-        <p>Field notes, methodology, and the mission behind raising <strong>one million incorruptible leaders for Africa by 2040</strong>. We publish the working — what we are learning as we build the movement, including the parts we are still figuring out.</p>
-        <div class="diary-stats">
-          <div class="diary-stat"><div class="num">5,000+</div><div class="lbl">Lives transformed</div></div>
-          <div class="diary-stat"><div class="num"><?= (int) $total ?></div><div class="lbl">Entries published</div></div>
-          <div class="diary-stat"><div class="num">1M</div><div class="lbl">Leaders by 2040</div></div>
-        </div>
-        <p style="margin-top:22px"><a class="diary-cta-link" href="/diary/me/">✍️ Keep your own diary — start writing →</a></p>
-      </div>
-    </section>
-
-    <div class="container">
-      <div class="diary-controls" id="diaryControls" data-total="<?= (int) $total ?>" data-per="<?= (int) $PER_PAGE ?>">
-        <div class="diary-controls-row">
-          <div class="search-wrap"><?= Icons::SEARCH ?><input type="search" class="search-input" id="diarySearch" placeholder="Search the diary…  (press /)" aria-label="Search the diary" value="<?= e($q) ?>" /></div>
-          <div class="diary-selects">
-            <label class="diary-sel"><span class="diary-sel-lbl">Year</span>
-              <select id="diaryYear" aria-label="Filter by year">
-                <option value="">All years</option>
-<?php foreach ($facets['years'] as $yr): ?>
-                <option value="<?= e($yr) ?>"><?= e($yr) ?></option>
-<?php endforeach; ?>
-              </select>
-            </label>
-            <label class="diary-sel"><span class="diary-sel-lbl">Month</span>
-              <select id="diaryMonth" aria-label="Filter by month" disabled>
-                <option value="">All months</option>
-              </select>
-            </label>
+  <main id="main" tabindex="-1" class="avdl">
+    <header class="avdl-hero avdl-pad">
+      <div class="avh-topo" data-avh-topo="light" data-seed="7" aria-hidden="true"></div>
+      <div class="avdl-wrap">
+        <nav aria-label="Breadcrumb"><ol class="avdl-crumbs"><li><a href="/">Home</a></li><li><span aria-current="page">Diary</span></li></ol></nav>
+        <div class="avdl-hero-grid">
+          <h1>The Afrovanguard Diary</h1>
+          <div class="avdl-hero-side">
+            <p>Field notes, methodology, and the mission behind raising one million incorruptible leaders by 2040. We publish the working — including the parts we are still figuring out.</p>
+            <a class="avdl-own" href="/diary/me/">Keep your own diary — start writing →</a>
           </div>
         </div>
-        <div class="diary-filters" role="tablist" aria-label="Filter entries">
-          <button class="chip active" data-filter="all">All<span class="chip-n"><?= (int) $total ?></span></button>
-<?php foreach ($facets['categories'] as $c): ?>
-          <button class="chip" data-filter="<?= e($c['slug']) ?>"><?= e($c['name']) ?><span class="chip-n"><?= (int) $c['n'] ?></span></button>
-<?php endforeach; ?>
-          <button class="chip" data-filter="saved">★ Saved</button>
-        </div>
-      </div>
-      <script type="application/json" id="diaryFacets"><?= json_encode($facets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script>
-
-<?php if ($seriesList): ?>
-      <!-- Series highlight — multi-part collections, each linking to its landing page -->
-      <section class="diary-series" aria-label="Series in the Diary">
-        <div class="diary-series-head">
-          <h2>Series</h2>
-          <p>Multi-part collections — read them start to finish.</p>
-        </div>
-        <div class="diary-series-row">
-<?php foreach ($seriesList as $s): ?>
-          <a class="series-card" href="/diary/series/<?= e($s['slug']) ?>">
-            <span class="series-card-kicker"><?= (int) $s['n'] ?>-part series</span>
-            <span class="series-card-title"><?= e($s['title']) ?></span>
-<?php if (!empty($s['description'])): ?>            <span class="series-card-dek"><?= e($s['description']) ?></span>
-<?php endif; ?>
-            <span class="series-card-go">Start reading →</span>
+<?php if ($featured): ?>
+        <div class="avdl-lead">
+          <a class="avdl-feat" href="/diary/<?= e($featured['slug']) ?>/">
+            <?= avdl_img($featured, '16:9') ?>
+            <span class="avdl-feat-shade" aria-hidden="true"></span>
+            <span class="avdl-feat-body">
+              <span class="avdl-feat-kick">Latest <span class="avdl-sep" aria-hidden="true">|</span> <?= e($featured['category']) ?></span>
+              <h2><?= e($featured['title']) ?></h2>
+              <span class="avdl-feat-meta"><?= e(avdl_meta($featured)) ?></span>
+            </span>
           </a>
-<?php endforeach; ?>
-        </div>
-      </section>
-<?php endif; ?>
-
-<?php if ($total === 0): ?>
-      <section class="diary-grid" aria-label="All diary entries">
-        <div class="diary-empty">
-          <h2>The first dispatch is on its way</h2>
-          <p>We’re putting the finishing touches on the Diary. New field notes on the mission, our programmes and what we’re learning will land here soon.</p>
-          <form class="diary-subscribe sub-inline" novalidate>
-            <input type="email" name="email" placeholder="you@example.com" aria-label="Email address" autocomplete="email" required />
-            <input type="text" name="hp" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
-            <button type="submit" class="btn btn-primary">Notify me →</button>
-            <p class="sub-msg" role="status" aria-live="polite"></p>
-          </form>
-        </div>
-      </section>
-<?php else: ?>
-      <!-- The diary as a canvas "journey map": a winding, year-chaptered trail
-           of entry markers that scales to a lot of entries (camera + culling).
-           The visually-hidden <ul> is the crawlable, keyboard-navigable source
-           of truth AND the List view; the canvas mirrors visible links. -->
-      <section class="diary-journey" aria-label="The diary, entry by entry">
-        <div class="journey-toolbar">
-          <p class="journey-hint"><span id="journeyCount"><?= (int) $total ?></span> entries · newest first · tap a marker to read</p>
-          <div class="journey-tools">
-            <div class="journey-viewtoggle" role="group" aria-label="Choose a view">
-              <button type="button" class="jv-btn is-active" data-view="map" aria-pressed="true">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>
-                Map
-              </button>
-              <button type="button" class="jv-btn" data-view="list" aria-pressed="false">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-                List
-              </button>
-            </div>
-            <button type="button" class="journey-fs" id="journeyFs" aria-pressed="false">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
-              <span>Full screen</span>
-            </button>
-          </div>
-        </div>
-        <div class="journey-canvas-wrap" id="journeyWrap">
-          <nav class="journey-rail" id="journeyRail" aria-label="Jump to a year" hidden></nav>
-          <div class="journey-viewport" id="journeyViewport">
-            <canvas id="journeyCanvas" class="journey-canvas" role="img" aria-label="A winding map of the diary entries — use the list view or the links below to navigate."></canvas>
-            <div class="journey-spacer" id="journeySpacer" aria-hidden="true"></div>
-          </div>
-          <div class="journey-card" id="journeyCard" hidden aria-hidden="true"></div>
-          <button type="button" class="journey-fs-close" id="journeyFsClose" aria-label="Exit full screen" hidden>✕</button>
-          <ul class="journey-a11y" id="journeyList" aria-label="All diary entries">
-<?php $n = $total; foreach ($articles as $i => $a): ?>
-            <li><a href="/diary/<?= e($a['slug']) ?>/"
-                   data-cat="<?= e($a['category_slug']) ?>" data-slug="<?= e($a['slug']) ?>"
-                   data-search="<?= e(strtolower($a['title'] . ' ' . $a['category'] . ' ' . ($a['ref_code'] ?? ''))) ?>"
-                   data-ref="<?= e($a['ref_code'] ?? '') ?>"
-                   data-title="<?= e($a['title']) ?>" data-cat-name="<?= e($a['category']) ?>"
-                   data-published="<?= e($a['published']) ?>" data-date="<?= e($a['published_at']) ?>"
-                   data-min="<?= (int) $a['read_minutes'] ?>"
-                   data-num="<?= $i === 0 ? '★' : ($n - $i) ?>" data-latest="<?= $i === 0 ? '1' : '0' ?>">
-              <span class="je-num"><?= $i === 0 ? '★' : ($n - $i) ?></span>
-              <span class="je-main">
-                <span class="je-cat" data-c="<?= e($a['category_slug']) ?>"><?= e($a['category']) ?><?php if ($i === 0): ?> · Latest<?php endif; ?></span>
-                <span class="je-title"><?= e($a['title']) ?></span>
-                <span class="je-meta"><?= e($a['published']) ?><?php if ((int) $a['read_minutes']): ?> · <?= (int) $a['read_minutes'] ?> min read<?php endif; ?></span>
+<?php if ($side): ?>
+          <ul class="avdl-side" aria-label="More recent entries">
+<?php foreach ($side as $a): ?>
+            <li><a class="avdl-side-card" href="/diary/<?= e($a['slug']) ?>/">
+              <span class="avdl-side-img"><?= avdl_img($a, '1:1') ?></span>
+              <span class="avdl-side-body">
+                <span class="avdl-side-kick"><?= e($a['category']) ?></span>
+                <span class="avdl-side-t"><?= e($a['title']) ?></span>
+                <span class="avdl-side-meta"><?= e(avdl_meta($a)) ?></span>
               </span>
-              <span class="je-arrow" aria-hidden="true">→</span>
             </a></li>
 <?php endforeach; ?>
           </ul>
+<?php endif; ?>
         </div>
-        <div class="no-results">No entries match your search yet. Try another term, or clear the filters.</div>
-      </section>
-      <div class="diary-feed-foot" id="diaryFeedFoot"<?= ($total > count($articles)) ? '' : ' hidden' ?>>
-        <div class="diary-skeleton" id="diarySkeleton" hidden aria-hidden="true">
-          <div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div>
-        </div>
-        <button type="button" class="diary-loadmore" id="diaryLoadMore">Load more entries</button>
-        <div id="diarySentinel" class="diary-sentinel" aria-hidden="true"></div>
+<?php endif; ?>
       </div>
+    </header>
+
+    <section class="avdl-all avdl-pad" aria-labelledby="avdl-all-h" id="entries">
+      <div class="avdl-wrap">
+        <div class="avdl-all-head">
+          <div><div class="avdl-eyebrow">All entries</div><h2 class="avdl-h2" id="avdl-all-h">Field Notes</h2></div>
+          <dl class="avdl-stats">
+            <div><dt>Lives transformed</dt><dd>10,000+</dd></div>
+            <div><dt>Entries published</dt><dd class="av-num"><?= number_format($allTotal) ?></dd></div>
+            <div><dt>Leaders by 2040</dt><dd>1M</dd></div>
+          </dl>
+        </div>
+
+        <form class="avdl-bar" method="get" action="/diary/#entries" role="search" aria-label="Filter the Diary" id="avdlForm"
+              data-total="<?= (int) $shownTotal ?>" data-per="<?= (int) $PER_PAGE ?>" data-offset="<?= (int) $readCount ?>" data-skip="<?= e($skip) ?>">
+          <?php /* Enter in the search box submits the first submit button: this one,
+               so the chosen category travels with it (a chip pressed later in the
+               form overrides the hidden value — the last field of a name wins). */ ?>
+          <button type="submit" class="avdl-default" tabindex="-1" aria-hidden="true">Search</button>
+          <input type="hidden" name="cat" value="<?= e($cat) ?>" data-avdl-cat>
+<?php if ($year !== ''): ?>          <input type="hidden" name="year" value="<?= e($year) ?>">
+<?php endif; ?>
+<?php if ($month !== ''): ?>          <input type="hidden" name="month" value="<?= e($month) ?>">
+<?php endif; ?>
+          <div class="avdl-chips" role="group" aria-label="Category">
+            <button type="submit" name="cat" value="" class="avdl-chip" aria-pressed="<?= $cat === '' ? 'true' : 'false' ?>">All</button>
+<?php foreach ($facets['categories'] as $c): ?>
+            <button type="submit" name="cat" value="<?= e($c['slug']) ?>" class="avdl-chip" aria-pressed="<?= $cat === $c['slug'] ? 'true' : 'false' ?>"><?= e($c['name']) ?></button>
+<?php endforeach; ?>
+            <button type="button" class="avdl-chip" data-avdl-saved aria-pressed="false" hidden>Saved</button>
+          </div>
+          <div class="avdl-tools">
+            <select name="sort" class="avdl-sel" aria-label="Sort entries" data-avdl-sort>
+<?php foreach (['latest' => 'Latest', 'read' => 'Most read', 'discussed' => 'Most discussed'] as $k => $t): ?>
+              <option value="<?= $k ?>"<?= $k === $sort ? ' selected' : '' ?>><?= $t ?></option>
+<?php endforeach; ?>
+            </select>
+            <input type="search" name="q" class="avdl-search" placeholder="Search the Diary" aria-label="Search the Diary" value="<?= e($q) ?>" maxlength="80" data-avdl-q>
+            <noscript><button type="submit" class="avdl-go">Search</button></noscript>
+          </div>
+        </form>
+<?php if ($year !== ''): ?>
+        <p class="avdl-scope">Showing <?= e($month !== '' ? date('F', mktime(0, 0, 0, (int) $month, 1)) . ' ' : '') . e($year) ?> · <a href="<?= e($qs(['year' => '', 'month' => ''])) ?>">All dates</a></p>
+<?php endif; ?>
+        <p class="av-sr" role="status" aria-live="polite" data-avdl-status><?= (int) $shownTotal ?> entries</p>
+
+        <ul class="avdl-grid" data-avdl-grid<?= $items ? '' : ' hidden' ?>>
+<?php foreach ($items as $a) echo '          ' . avdl_card($a, $cOf($a)) . "\n"; ?>
+        </ul>
+        <div class="avdl-skel" data-avdl-skel hidden aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+        <div class="avdl-empty" data-avdl-empty<?= $items ? ' hidden' : '' ?>>
+<?php if ($allTotal === 0): ?>
+          <p>The first dispatch is on its way. New field notes will land here soon.</p>
+          <a class="avdl-clear" href="#subscribe">Get the next dispatch</a>
+<?php else: ?>
+          <p>No entries match your search yet.</p>
+          <a class="avdl-clear" href="/diary/#entries" data-avdl-clear>Clear filters</a>
+<?php endif; ?>
+        </div>
+        <div class="avdl-err" data-avdl-err hidden role="alert"><p>The next entries could not load.</p><button type="button" class="avdl-clear" data-avdl-retry>Try again</button></div>
+        <div class="avdl-more"<?= $hasMore ? '' : ' hidden' ?> data-avdl-more>
+          <a class="avdl-more-btn" href="<?= e($qs(['page' => (string) ($pageN + 1)])) ?>#entries" data-avdl-more-btn>Load more entries</a>
+        </div>
+      </div>
+    </section>
+
+<?php if ($series): ?>
+    <section class="avdl-series-sec avdl-pad" aria-labelledby="avdl-series-h">
+      <a class="avdl-series" href="/diary/series/<?= e($series['slug']) ?>">
+        <span class="avdl-series-body">
+          <span class="avdl-series-kick">Series · Read start to finish</span>
+          <h2 id="avdl-series-h"><?= e($series['title']) ?></h2>
+<?php if (!empty($series['description'])): ?>
+          <span class="avdl-series-dek"><?= e($series['description']) ?></span>
+<?php endif; ?>
+          <span class="avdl-series-go">Start reading →</span>
+        </span>
+        <img src="/Images/storm3.png" alt="" loading="lazy" decoding="async">
+      </a>
+    </section>
 <?php endif; ?>
 
-      <section class="diary-subscribe-band" id="subscribe" data-reveal>
-        <div>
-          <h2>Get the next dispatch</h2>
-          <p>New field notes roughly twice a month. No spam — just the working, as we learn it. Or grab the <a href="<?= e(diary_url('feed.xml')) ?>">RSS feed</a>, or download the Diary as a <a href="<?= e(diary_url('export.php?format=book')) ?>">Journal</a> · <a href="<?= e(diary_url('export.php?format=md')) ?>">Markdown</a> · <a href="<?= e(diary_url('export.php?format=json')) ?>">JSON</a>.</p>
-        </div>
-        <form class="diary-subscribe sub-inline" novalidate>
-          <input type="email" name="email" placeholder="you@example.com" aria-label="Email address" autocomplete="email" required />
-          <input type="text" name="hp" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
-          <button type="submit" class="btn btn-primary">Subscribe →</button>
-          <p class="sub-msg" role="status" aria-live="polite"></p>
+    <div class="avdl-mission-sec avdl-pad"><div class="avdl-wrap"><?php avd_mission(); ?></div></div>
+
+    <section class="avdl-sub avdl-pad" id="subscribe" aria-labelledby="avdl-sub-h">
+      <div class="avh-topo" data-avh-topo="light" data-seed="11" aria-hidden="true"></div>
+      <div class="avdl-sub-in">
+        <h2 id="avdl-sub-h">Get the next dispatch</h2>
+        <p>New field notes roughly twice a month. No spam — just the working, as we learn it.</p>
+        <form class="avdl-sub-form" data-avdl-sub novalidate>
+          <input type="email" name="email" required placeholder="you@example.com" aria-label="Email address" autocomplete="email">
+          <input type="text" name="hp" class="avdl-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <button type="submit">Subscribe</button>
         </form>
-      </section>
-    </div>
+        <p class="avdl-sub-msg" role="status" aria-live="polite" data-avdl-sub-msg></p>
+        <div class="avdl-feeds">
+          <a href="<?= e(diary_url('feed.xml')) ?>">RSS feed</a>
+          <a href="<?= e(diary_url('export.php?format=book')) ?>">Journal</a>
+          <a href="<?= e(diary_url('export.php?format=md')) ?>">Markdown</a>
+          <a href="<?= e(diary_url('export.php?format=json')) ?>">JSON</a>
+        </div>
+      </div>
+    </section>
   </main>
-  <script src="/diary/feed.js" defer></script>
-  <script src="/diary/journey.js" defer></script>
+  <script src="<?= e(av_asset('/assets/site/avcv.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/avdl.js')) ?>" defer></script>
 <?php render_footer();

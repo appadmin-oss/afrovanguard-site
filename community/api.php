@@ -35,9 +35,20 @@ function comm_same_origin(): bool
     $host = $_SERVER['HTTP_HOST'] ?? '';
     $o = $_SERVER['HTTP_ORIGIN'] ?? ($_SERVER['HTTP_REFERER'] ?? '');
     if ($o === '') return true; // no Origin/Referer (same-origin fetch / curl) — cookie+Lax still gates
-    $oh = parse_url($o, PHP_URL_HOST) ?: '';
+    $oh = strtolower((string) (parse_url($o, PHP_URL_HOST) ?: ''));
     if ($oh === '' || $host === '') return true;
-    return stripos($host, $oh) !== false || stripos($oh, $host) !== false;
+    /* The host, exactly — as require_same_origin() does. A substring test
+       either way round let "afrovanguard.org.ng.evil.example" (and any sibling
+       subdomain) through. */
+    return $oh === strtolower((string) preg_replace('/:\d+$/', '', $host));
+}
+
+/** The post a write is about, as this member may see it — or a 404. */
+function comm_visible_post(int $postId, int $uid): array
+{
+    $p = $postId > 0 ? Community::post($postId, $uid) : null;
+    if (!$p) json_out(['ok' => false, 'error' => 'Post not found.'], 404);
+    return $p;
 }
 
 try {
@@ -76,6 +87,7 @@ try {
             if (!av_rate_ok('community_reply', 40, 900)) json_out(['ok' => false, 'error' => 'Slow down a touch.'], 429);
             $bodyText = trim((string) ($body['body'] ?? ''));
             if (mb_strlen($bodyText) < 1) json_out(['ok' => false, 'error' => 'Empty reply.'], 422);
+            comm_visible_post((int) ($body['id'] ?? 0), (int) $u['id']);
             $rid = Community::reply((int) $u['id'], (int) ($body['id'] ?? 0), $bodyText);
             if (!$rid) json_out(['ok' => false, 'error' => 'Could not reply.'], 422);
             json_out(['ok' => true, 'reply' => Community::post($rid, (int) $u['id'])]);
@@ -86,6 +98,7 @@ try {
             $u = LmsAuth::user();
             if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
             if (!av_rate_ok('community_like', 120, 900)) json_out(['ok' => false, 'error' => 'Slow down a touch.'], 429);
+            comm_visible_post((int) ($body['id'] ?? 0), (int) $u['id']);
             json_out(['ok' => true] + Community::toggleLike((int) ($body['id'] ?? 0), (int) $u['id']));
         }
         case 'mod_delete': {
@@ -141,9 +154,9 @@ try {
             // so the bot doesn't receive it twice (once as history, once as prompt).
             $history = [];
             if ($threadId > 0) {
-                $root = Community::post($threadId);
-                if ($root) $history[] = ['role' => $root['is_bot'] ? 'bot' : 'member', 'name' => $root['author'], 'text' => $root['body']];
-                foreach (Community::replies($threadId) as $r) {
+                $root = comm_visible_post($threadId, $uid);
+                $history[] = ['role' => $root['is_bot'] ? 'bot' : 'member', 'name' => $root['author'], 'text' => $root['body']];
+                foreach (Community::replies($threadId, $uid) as $r) {
                     $history[] = ['role' => $r['is_bot'] ? 'bot' : 'member', 'name' => $r['author'], 'text' => $r['body']];
                 }
             }

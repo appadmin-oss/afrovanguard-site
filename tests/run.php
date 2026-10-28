@@ -9,6 +9,7 @@
  * Exits non-zero if anything fails (so CI goes red). No PHPUnit needed.
  */
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit("CLI only\n"); }
 
 $dbFile = sys_get_temp_dir() . '/av-test-' . getmypid() . '.db';
 @unlink($dbFile); @unlink($dbFile . '-wal'); @unlink($dbFile . '-shm');
@@ -24,6 +25,14 @@ putenv('AV_DB_DSN=sqlite:' . $dbFile);
 $ngvFile = sys_get_temp_dir() . '/av-test-ngv-' . getmypid() . '.db';
 @unlink($ngvFile); @unlink($ngvFile . '-wal'); @unlink($ngvFile . '-shm');
 putenv('AV_NGV_DB_PATH=' . $ngvFile);
+// And force the DRIVER, not just the path. NgvDb picks MySQL as soon as any of
+// AV_NGV_DB_HOST/_NAME/_USER is set — in the environment or in config.php — and
+// the NGV tests run DELETE FROM ngv_charges / ngv_payments / ngv_participants.
+// On a host configured for a real NGV ledger the path above would be ignored and
+// those deletes would land on it. putenv() wins over a config.php constant.
+putenv('AV_NGV_DB_DRIVER=sqlite');
+putenv('AV_NGV_DB_DSN=sqlite:' . $ngvFile);
+putenv('AV_DB_DRIVER=sqlite');
 putenv('APP_KEY=ci_test_key_0123456789abcdefghij');
 // No outbound mail from the suite. Without this every message shells out to a
 // sendmail that is not there — slow, noisy, and one misconfigured CI runner away
@@ -34,6 +43,19 @@ $ROOT = dirname(__DIR__);
 require $ROOT . '/lib/bootstrap.php';
 
 $GLOBALS['__pass'] = 0; $GLOBALS['__fail'] = 0; $GLOBALS['__fails'] = [];
+
+/**
+ * The member portal's source, as one string. Since the v2 shell (row 14) the
+ * portal is portal/index.php plus one file per view in portal/views/ plus the
+ * shell script portal/avp.js; the source checks read all of it, as they read
+ * the single v1 file before.
+ */
+function av_portal_source(): string {
+    $root = dirname(__DIR__) . '/portal';
+    $src = (string) file_get_contents($root . '/index.php');
+    foreach (glob($root . '/views/*.php') ?: [] as $f) $src .= "\n" . (string) file_get_contents($f);
+    return $src . "\n" . (string) @file_get_contents($root . '/avp.js');
+}
 
 function ck(string $label, bool $cond): void {
     if ($cond) { $GLOBALS['__pass']++; }
@@ -96,7 +118,19 @@ function reset_users(): void {
 }
 
 $files = glob(__DIR__ . '/*.test.php') ?: [];
-foreach ($files as $f) { echo "\n# " . basename($f) . "\n"; require $f; }
+// `php tests/run.php security ngvpay` runs only the files whose names contain a word given.
+$only = array_slice($argv ?? [], 1);
+if ($only) $files = array_values(array_filter($files, static fn($f) => (bool) array_filter($only, static fn($w) => str_contains(basename($f), $w))));
+foreach ($files as $f) {
+    echo "\n# " . basename($f) . "\n"; require $f;
+    /* A statement left half-read in a global holds an SQLite read snapshot open
+       on the shared connection for the rest of the run. Harmless while this is
+       the only process — but a test that has another process write the same
+       database (the payment race, the webhook over HTTP) then finds every
+       later write here refused as "database is locked", because a connection
+       may not write from a stale snapshot. Close them between files. */
+    foreach ($GLOBALS as $__v) { if ($__v instanceof PDOStatement) $__v->closeCursor(); }
+}
 
 @unlink($dbFile); @unlink($dbFile . '-wal'); @unlink($dbFile . '-shm');
 @unlink($ngvFile); @unlink($ngvFile . '-wal'); @unlink($ngvFile . '-shm');

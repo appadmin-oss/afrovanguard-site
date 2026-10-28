@@ -1,0 +1,710 @@
+{
+    "$schema": "schema/challenges.schema.json",
+    "source": [
+        "The owner's brief, 21 October 2026"
+    ],
+    "note": "Seventy slots, ten per value, ids allocated and stable. The official wording lives on vquest.afrovanguard.org.ng and has NOT been supplied. Every slot is deliberately empty — invented text would let a member be scored against something nobody wrote. Supplying text will not renumber anything.",
+    "total": 70,
+    "challenges": [
+        {
+            "id": "individuation.1",
+            "value": "individuation",
+            "index": 1,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "individuation.2",
+            "value": "individuation",
+            "index": 2,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "individuation.3",
+            "value": "individuation",
+            "index": 3,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "individuation.4",
+            "value": "individuation",
+            "index": 4,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "individuation.5",
+            "value": "individuation",
+            "index": 5,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "individuation.6",
+            "value": "individuation",
+            "index": 6,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "individuation.7",
+            "value": "individuation",
+            "index": 7,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "individuation.8",
+            "value": "individuation",
+            "index": 8,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "individuation.9",
+            "value": "individuation",
+            "index": 9,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "individuation.10",
+            "value": "individuation",
+            "index": 10,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "faith.1",
+            "value": "faith",
+            "index": 1,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "faith.2",
+            "value": "faith",
+            "index": 2,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "faith.3",
+            "value": "faith",
+            "index": 3,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "faith.4",
+            "value": "faith",
+            "index": 4,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "faith.5",
+            "value": "faith",
+            "index": 5,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "faith.6",
+            "value": "faith",
+            "index": 6,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "faith.7",
+            "value": "faith",
+            "index": 7,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "faith.8",
+            "value": "faith",
+            "index": 8,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "faith.9",
+            "value": "faith",
+            "index": 9,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "faith.10",
+            "value": "faith",
+            "index": 10,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "diligence.1",
+            "value": "diligence",
+            "index": 1,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "diligence.2",
+            "value": "diligence",
+            "index": 2,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "diligence.3",
+            "value": "diligence",
+            "index": 3,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "diligence.4",
+            "value": "diligence",
+            "index": 4,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "diligence.5",
+            "value": "diligence",
+            "index": 5,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "diligence.6",
+            "value": "diligence",
+            "index": 6,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "diligence.7",
+            "value": "diligence",
+            "index": 7,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "diligence.8",
+            "value": "diligence",
+            "index": 8,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "diligence.9",
+            "value": "diligence",
+            "index": 9,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "diligence.10",
+            "value": "diligence",
+            "index": 10,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "accountability.1",
+            "value": "accountability",
+            "index": 1,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "accountability.2",
+            "value": "accountability",
+            "index": 2,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "accountability.3",
+            "value": "accountability",
+            "index": 3,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "accountability.4",
+            "value": "accountability",
+            "index": 4,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "accountability.5",
+            "value": "accountability",
+            "index": 5,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "accountability.6",
+            "value": "accountability",
+            "index": 6,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "accountability.7",
+            "value": "accountability",
+            "index": 7,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "accountability.8",
+            "value": "accountability",
+            "index": 8,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "accountability.9",
+            "value": "accountability",
+            "index": 9,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "accountability.10",
+            "value": "accountability",
+            "index": 10,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "responsibility.1",
+            "value": "responsibility",
+            "index": 1,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "responsibility.2",
+            "value": "responsibility",
+            "index": 2,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "responsibility.3",
+            "value": "responsibility",
+            "index": 3,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "responsibility.4",
+            "value": "responsibility",
+            "index": 4,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "responsibility.5",
+            "value": "responsibility",
+            "index": 5,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "responsibility.6",
+            "value": "responsibility",
+            "index": 6,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "responsibility.7",
+            "value": "responsibility",
+            "index": 7,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "responsibility.8",
+            "value": "responsibility",
+            "index": 8,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "responsibility.9",
+            "value": "responsibility",
+            "index": 9,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "responsibility.10",
+            "value": "responsibility",
+            "index": 10,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "culture.1",
+            "value": "culture",
+            "index": 1,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "culture.2",
+            "value": "culture",
+            "index": 2,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "culture.3",
+            "value": "culture",
+            "index": 3,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "culture.4",
+            "value": "culture",
+            "index": 4,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "culture.5",
+            "value": "culture",
+            "index": 5,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "culture.6",
+            "value": "culture",
+            "index": 6,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "culture.7",
+            "value": "culture",
+            "index": 7,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "culture.8",
+            "value": "culture",
+            "index": 8,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "culture.9",
+            "value": "culture",
+            "index": 9,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "culture.10",
+            "value": "culture",
+            "index": 10,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "communal.1",
+            "value": "communal",
+            "index": 1,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "communal.2",
+            "value": "communal",
+            "index": 2,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "communal.3",
+            "value": "communal",
+            "index": 3,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "communal.4",
+            "value": "communal",
+            "index": 4,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "communal.5",
+            "value": "communal",
+            "index": 5,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "communal.6",
+            "value": "communal",
+            "index": 6,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "communal.7",
+            "value": "communal",
+            "index": 7,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "communal.8",
+            "value": "communal",
+            "index": 8,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "communal.9",
+            "value": "communal",
+            "index": 9,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        },
+        {
+            "id": "communal.10",
+            "value": "communal",
+            "index": 10,
+            "points": 1,
+            "status": "awaiting-official-text",
+            "text": "",
+            "evidence": "",
+            "repeatable": false
+        }
+    ]
+}

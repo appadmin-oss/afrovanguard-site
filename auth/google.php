@@ -50,7 +50,7 @@ if ($action === 'start') {
     ]);
     // Connect-on-sign-in: also request offline Workspace scopes so a single
     // Google sign-in both authenticates AND connects their Workspace.
-    $extra = GoogleWorkspaceUser::connectOnSignin() ? GoogleWorkspaceUser::scopes() : '';
+    $extra = GoogleWorkspaceUser::connectOnSignin($hint) ? GoogleWorkspaceUser::scopes() : '';
     header('Location: ' . GoogleAuth::authUrl($state, $hint, $extra));
     exit;
 }
@@ -62,9 +62,9 @@ if ($action === 'connect') {
     $u = LmsAuth::user();
     // Not signed in → send to login and come back to the connect flow. (Avoid
     // av_login_url(): partials.php isn't loaded on this endpoint.)
-    if (!$u) { header('Location: /login?next=' . rawurlencode('/auth/google/connect?next=/workspace')); exit; }
-    if (!av_rate_ok('gws_connect', 20, 600)) av_oauth_bounce('/workspace?e=rate');
-    $state = GoogleWorkspaceUser::makeState((int) $u['id'], (string) ($_GET['next'] ?? '/workspace'));
+    if (!$u) { header('Location: /login?next=' . rawurlencode('/auth/google/connect?next=/portal/')); exit; }
+    if (!av_rate_ok('gws_connect', 20, 600)) av_oauth_bounce('/portal/?google_e=rate');
+    $state = GoogleWorkspaceUser::makeState((int) $u['id'], (string) ($_GET['next'] ?? '/portal/'));
     setcookie(GoogleWorkspaceUser::STATE_COOKIE, $state, [
         'expires' => time() + GoogleWorkspaceUser::STATE_TTL, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
     ]);
@@ -78,7 +78,7 @@ if ($action === 'disconnect') {
     if ($u && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && av_csrf_valid((string) ($_POST['csrf'] ?? ''))) {
         GoogleWorkspaceUser::disconnect((int) $u['id']);
     }
-    header('Location: /workspace');
+    header('Location: /portal/');
     exit;
 }
 
@@ -86,7 +86,7 @@ if ($action === 'callback') {
     if (isset($_GET['error'])) {
         // A cancelled connect returns to the hub; a cancelled sign-in to /login.
         $isConnect = ($_COOKIE[GoogleWorkspaceUser::STATE_COOKIE] ?? '') !== '';
-        av_oauth_bounce($isConnect ? '/workspace?e=connect_cancelled' : '/login?e=google_cancelled');
+        av_oauth_bounce($isConnect ? '/portal/?google_e=connect_cancelled' : '/login?e=google_cancelled');
     }
     $state = (string) ($_GET['state'] ?? '');
 
@@ -96,9 +96,14 @@ if ($action === 'callback') {
     if ($connState !== null && $connCookie !== '' && hash_equals($connCookie, $state)) {
         setcookie(GoogleWorkspaceUser::STATE_COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
         $u = LmsAuth::user();
-        if (!$u || (int) $u['id'] !== $connState['uid']) av_oauth_bounce('/workspace?e=connect_session');
+        if (!$u || (int) $u['id'] !== $connState['uid']) av_oauth_bounce('/portal/?google_e=connect_session');
         $ok = GoogleWorkspaceUser::exchangeAndStore((string) ($_GET['code'] ?? ''), (int) $u['id']);
-        av_oauth_bounce($connState['next'] . (str_contains($connState['next'], '?') ? '&' : '?') . ($ok ? 'connected=1' : 'e=connect_failed'));
+        if (!$ok) GoogleAuth::recordFailure('workspace connect', GoogleWorkspaceUser::lastHttpError());
+        /* Back into the portal, saying how it went — before any #fragment, or the fragment swallows it. */
+        $nx = (string) $connState['next'];
+        if ($nx === '/workspace' || str_starts_with($nx, '/workspace?')) $nx = '/portal/';
+        [$path, $frag] = array_pad(explode('#', $nx, 2), 2, '');
+        av_oauth_bounce($path . (str_contains($path, '?') ? '&' : '?') . ($ok ? 'google=connected' : 'google_e=connect_failed') . ($frag !== '' ? '#' . $frag : ''));
     }
 
     // …otherwise the normal sign-in flow.
@@ -108,18 +113,35 @@ if ($action === 'callback') {
     if ($next === null) av_oauth_bounce('/login?e=google_state');
 
     $tokens = GoogleAuth::exchangeTokens((string) ($_GET['code'] ?? ''));
-    $profile = $tokens ? GoogleAuth::profileFromTokens($tokens) : null;
-    if (!$profile) av_oauth_bounce('/login?e=google_failed');
+    $profile = $tokens ? GoogleAuth::profileFromTokens($tokens, GoogleAuth::stateNonce($state)) : null;
+    if (!$profile) {
+        GoogleAuth::recordFailure('sign-in', $tokens ? 'the id_token was refused (audience, issuer, expiry or nonce)' : GoogleAuth::lastError());
+        av_oauth_bounce('/login?e=google_failed');
+    }
+    /* An address Google has not verified signs nobody in: sign-in finds the
+       account by email, so it would open whoever registered that address here. */
+    if (empty($profile['verified'])) av_oauth_bounce('/login?e=google_unverified');
 
-    $res = LmsAuth::oauthSignIn($profile['email'], $profile['name'], (bool) $profile['verified'], 'google');
-    if (empty($res['ok'])) av_oauth_bounce('/login?e=google_failed');
+    $res = LmsAuth::oauthSignIn($profile['email'], $profile['name'], true, 'google', GoogleAuth::orgVerified($profile));
+    if (empty($res['ok'])) av_oauth_bounce('/login?e=' . (($res['code'] ?? '') === 'inactive' ? 'google_inactive' : 'google_failed'));
 
     // Connect-on-sign-in: if the grant carried offline Workspace scopes, capture
-    // the connection for the just-signed-in member (best-effort — never blocks login).
+    // the connection for the just-signed-in member (best-effort — never blocks
+    // login). captureFromSignin() stores nothing unless an API scope was granted.
     $uid = (int) ($res['user']['id'] ?? 0);
-    if ($uid > 0 && GoogleWorkspaceUser::connectOnSignin()) {
+    if ($uid > 0 && GoogleWorkspaceUser::configured()) {
         try { GoogleWorkspaceUser::captureFromSignin($uid, $tokens); }
         catch (Throwable $e) { error_log('[google] connect-on-signin: ' . $e->getMessage()); }
+    }
+    /* The Google profile photo becomes the card photo when there is none —
+       after the redirect has gone, so signing in never waits on it. */
+    if ($uid > 0 && ($profile['picture'] ?? '') !== '') {
+        $pic = (string) $profile['picture'];
+        register_shutdown_function(static function () use ($uid, $pic): void {
+            if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
+            elseif (function_exists('litespeed_finish_request')) @litespeed_finish_request();
+            try { CardPhoto::fromGoogle($uid, $pic); } catch (Throwable $e) { error_log('[google] card photo: ' . $e->getMessage()); }
+        });
     }
     av_oauth_bounce($next); // success → back to where they started
 }

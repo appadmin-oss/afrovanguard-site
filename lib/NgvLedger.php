@@ -561,6 +561,7 @@ final class NgvLedger
 
         $start = self::startDate($p);
         if ($start === '') { $out['skipped'] = 'no_start_date'; return $out; }
+        $began = $start;   // the membership year runs from here, whatever the guard below moves
         $floor = self::validDate((string) ($cfg['accrueFrom'] ?? ''));
         if ($floor !== '' && $floor > $start) $start = $floor;   // the rollout guard
         /* Back from a pause or a withdrawal: from the day they came back. */
@@ -584,16 +585,21 @@ final class NgvLedger
             return $last < $today ? $last : $today;
         };
 
+        /* The ceiling is tested before EVERY charge, not once before the
+           run. Tested once, an account a single naira under it took a whole
+           backlog of months in one go and sailed past it. */
         $membership = (int) $amt['membership']['amount'];
         if ($membership > 0) {
-            foreach (self::periods($start, $upto($amt['membership']['cadence']), $amt['membership']['cadence']) as $k) {
+            foreach (self::periods($start, $upto($amt['membership']['cadence']), $amt['membership']['cadence'], self::PERIODS_MAX, $began) as $k) {
+                if (self::atCap($memberId, $cfg)) { $out['skipped'] = 'at_cap'; break; }
                 if (self::postCharge($memberId, 'membership', $membership, $k,
                         ['note' => 'Membership ' . $k, 'source' => 'accrual'])) $out['membership']++;
             }
         }
         $commitment = (int) $amt['commitment']['amount'];
         if ($commitment > 0) {
-            foreach (self::periods($start, $upto($amt['commitment']['cadence']), $amt['commitment']['cadence']) as $k) {
+            foreach (self::periods($start, $upto($amt['commitment']['cadence']), $amt['commitment']['cadence'], self::PERIODS_MAX, $began) as $k) {
+                if (self::atCap($memberId, $cfg)) { $out['skipped'] = 'at_cap'; break; }
                 if (self::postCharge($memberId, 'commitment', $commitment, $k,
                         ['note' => 'Commitment ' . $k, 'source' => 'accrual'])) $out['commitment']++;
             }
@@ -1073,7 +1079,9 @@ final class NgvLedger
     private static function postCredit(int $memberId, string $creditKind, string $line, $amount, array $opt, int $byUid): array
     {
         $p = self::participantRow($memberId);
-        if (!$p) return ['ok' => false, 'error' => 'No such participant.'];
+        /* Fines are the one line a member outside NGV has (NgvFines): money
+           against a fine is taken for any active member. */
+        if (!$p && !($line === 'fine' && class_exists('NgvFines') && NgvFines::isMember($memberId))) return ['ok' => false, 'error' => 'No such participant.'];
         if (!in_array($creditKind, self::CREDIT_KINDS, true)) return ['ok' => false, 'error' => 'Unknown credit.'];
         if (!in_array($line, self::CREDIT_LINES, true)) $line = 'other';
         $amount = self::money($amount);
@@ -2019,11 +2027,22 @@ final class NgvLedger
         return 'NGV/' . $year . '/' . str_pad((string) (int) $pay['id'], 6, '0', STR_PAD_LEFT);
     }
 
-    /** Short, unforgeable, storage-free. */
-    public static function receiptCode(int $payId): string
+    /**
+     * Short, unforgeable, storage-free — and '' when there is no key to make it
+     * unforgeable with. With no APP_KEY, no ADMIN_TOKEN and no generated key it
+     * used a fixed literal string as the key, printed in this source: a
+     * code anybody could compute for any payment id, opening any receipt (name,
+     * amount, what it was for) and minting convincing ones. No key now means no
+     * code: receipts are still numbered, but no link is issued and none verifies.
+     * $secret is for the tests; callers pass nothing.
+     */
+    public static function receiptCode(int $payId, ?string $secret = null): string
     {
-        $secret = function_exists('av_secret') ? (string) av_secret() : '';
-        if ($secret === '') $secret = 'ngv-receipt-fallback';
+        $secret ??= function_exists('av_secret') ? (string) av_secret() : '';
+        if ($secret === '') {
+            error_log('[ngv] receipt codes refused: no signing key (set APP_KEY)');
+            return '';
+        }
         return self::RECEIPT_PREFIX . '-' . strtoupper(substr(hash_hmac('sha256', 'ngv-receipt:' . $payId, $secret), 0, 10));
     }
 
@@ -2037,6 +2056,11 @@ final class NgvLedger
         if (!$p) return null;
         if ((string) ($p['credit_kind'] ?? 'payment') !== 'payment') return null;
         $who = self::participantRow((int) $p['member_id']) ?: [];
+        /* A fine paid by a member outside NGV: their name and email are the portal's. */
+        if (!$who) {
+            try { $u = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?'); $u->execute([(int) $p['member_id']]); $who = $u->fetch(PDO::FETCH_ASSOC) ?: []; }
+            catch (Throwable $e) { $who = []; }
+        }
         return [
             'id' => (int) $p['id'],
             'no' => self::receiptNo($p),
@@ -2068,7 +2092,8 @@ final class NgvLedger
     public static function receiptForVerify(int $payId, string $code): ?array
     {
         if ($payId <= 0) return null;
-        if (!hash_equals(self::receiptCode($payId), strtoupper(trim($code)))) return null;
+        $want = self::receiptCode($payId);
+        if ($want === '' || !hash_equals($want, strtoupper(trim($code)))) return null;   // no key: nothing verifies
         return self::receiptFor($payId);
     }
 
@@ -2290,8 +2315,9 @@ final class NgvLedger
         foreach ($pays as $p) {
             $id = (int) $p['id'];
             $total += (int) $p['amount'];
-            $link = $site . '/academy/ngv/receipt.php?id=' . $id . '&c=' . rawurlencode(self::receiptCode($id));
-            $lines[] = '<a href="' . self::esc($link) . '">' . self::esc(self::receiptNo($p)) . '</a> · '
+            $rc = self::receiptCode($id);
+            $link = $site . '/academy/ngv/receipt.php?id=' . $id . '&c=' . rawurlencode($rc);
+            $lines[] = ($rc !== '' ? '<a href="' . self::esc($link) . '">' . self::esc(self::receiptNo($p)) . '</a>' : self::esc(self::receiptNo($p))) . ' · '
                      . self::esc(substr((string) $p['created_at'], 0, 10)) . ' · '
                      . self::esc(self::lineLabel((string) $p['kind']))
                      . ((string) $p['period'] !== '' ? ' ' . self::esc((string) $p['period']) : '')
@@ -2660,19 +2686,47 @@ final class NgvLedger
      * Every period key from $start to $upto inclusive, bounded so an ancient or
      * malformed start date cannot generate ten thousand charges in one run.
      */
-    public static function periods(string $start, string $upto, string $cadence, int $max = self::PERIODS_MAX): array
+    public static function periods(string $start, string $upto, string $cadence, int $max = self::PERIODS_MAX, string $anchor = ''): array
     {
         if ($cadence === 'once') return ['once'];
         $out = [];
-        $step = $cadence === 'month' ? '+1 month' : '+1 year';
-        $t = strtotime(($cadence === 'month' ? substr($start, 0, 8) . '01' : substr($start, 0, 4) . '-01-01') . ' 00:00:00 UTC');
+        if ($cadence !== 'month') {
+            /* A year is a year OF MEMBERSHIP, from the day they started, not a
+               calendar year. Counting calendar years charged somebody who
+               started on 5 December for a second year on 1 January, four weeks
+               later. The key stays the year the anniversary falls in, so a
+               charge already posted under the old count is still the same
+               charge, and nobody is billed twice for the change.
+               The years run from $anchor (the day they began) when it is
+               given; $start, moved later by a rollout guard or a return from
+               a pause, only drops the years that ENDED before it — the year
+               they are in when fees switch on is still owed. */
+            $s = self::validDate(substr($start, 0, 10));
+            $a = self::validDate(substr($anchor, 0, 10));
+            if ($a === '' || $a > $s) $a = $s;
+            if ($s === '') return $out;
+            [$y, $m, $d] = array_map('intval', explode('-', $a));
+            $on = static function (int $i) use ($y, $m, $d): string {
+                /* 29 February falls on the 28th in a year without one. */
+                $day = min($d, (int) gmdate('t', (int) gmmktime(0, 0, 0, $m, 1, $y + $i)));
+                return sprintf('%04d-%02d-%02d', $y + $i, $m, $day);
+            };
+            for ($i = 0; $i < $max + 200; $i++) {
+                $from = $on($i);
+                if ($from > substr($upto, 0, 10) || count($out) >= $max) break;
+                if ($on($i + 1) <= $s) continue;          // that year was over before $start
+                $out[] = substr($from, 0, 4);
+            }
+            return $out;
+        }
+        $t = strtotime(substr($start, 0, 8) . '01 00:00:00 UTC');
         if ($t === false) return $out;
         $end = self::periodKey($upto, $cadence);
         for ($i = 0; $i < $max; $i++) {
             $k = self::periodKey(gmdate('Y-m-d', $t), $cadence);
             if ($k > $end) break;
             $out[] = $k;
-            $t = strtotime($step, $t);
+            $t = strtotime('+1 month', $t);
             if ($t === false) break;
         }
         return $out;

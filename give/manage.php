@@ -142,9 +142,9 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Appeals · Afrovanguard Studio</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@600;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link href="/assets/site/tokens.css" rel="stylesheet">
-<link href="/give/manage.css" rel="stylesheet">
+  <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
+<link href="<?= e(av_asset('/assets/site/tokens.css')) ?>" rel="stylesheet">
+<link href="<?= e(av_asset('/give/manage.css')) ?>" rel="stylesheet">
 </head>
 <body>
 <?php if (!$isAdmin): ?>
@@ -633,7 +633,7 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
 
 <div class="gm-toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script>window.GIVE_CSRF = <?= json_encode($csrf) ?>; window.GIVE_APPEAL = <?= (int) ($sel['id'] ?? 0) ?>;</script>
-<script src="/give/manage.js" defer></script>
+<script src="<?= e(av_asset('/give/manage.js')) ?>" defer></script>
 <?php endif; ?>
 </body>
 </html>

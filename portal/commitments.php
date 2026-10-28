@@ -63,13 +63,9 @@ try {
         case 'queue': {
             // Redacted: these belong to other people, or to nobody yet.
             $rows = array_map([Commitments::class, 'redactedFor'], Commitments::unassignedFor($uid, 60));
-            // Names for the confirm control, so the chair picks rather than types.
-            $members = [];
-            try {
-                foreach (Database::pdo()->query('SELECT id, name FROM lms_users ORDER BY name') as $m) {
-                    $members[] = ['id' => (int) $m['id'], 'name' => (string) $m['name']];
-                }
-            } catch (Throwable $e) { /* the queue still works without the picker */ }
+            // Names for the confirm control, so the chair picks rather than types:
+            // only the people who were in those rooms (Commitments::assignableFor).
+            $members = Commitments::assignableFor(Commitments::unassignedFor($uid, 60));
             json_out(['ok' => true, 'queue' => $rows, 'members' => $members]);
         }
 

@@ -1,0 +1,74 @@
+/* avde.css — a Diary entry's shell (design "Afrovanguard Diary Entry"):
+   the centred header on the sand ground with the cover at its foot, the body
+   frame, the mission ground and Keep reading. The rail, the text and the
+   engagement blocks are avd-pages.css / avd.css. Prefix avde-. Tokens only. */
+.avde-head{background:var(--av-sand);padding:clamp(40px,5vw,64px) clamp(20px,3vw,32px) 0;position:relative;overflow:hidden;isolation:isolate}
+.avde-head-in{max-width:880px;margin:0 auto;text-align:center}
+.avde-crumbs{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;font-size:13.5px;color:var(--av-muted-2);margin:0 0 28px;padding:0;list-style:none}
+.avde-crumbs li{display:flex;gap:8px}
+.avde-crumbs li+li::before{content:"/";color:var(--av-muted-2)}
+.avde-crumbs a{color:inherit;text-decoration:none}
+.avde-crumbs a:hover{color:var(--av-gold-text)}
+.avde-crumbs [aria-current]{color:var(--av-gold-text);font-weight:600}
+.avde-head h1{font-family:var(--av-serif);font-weight:400;font-size:clamp(44px,6vw,84px);line-height:1;letter-spacing:-.015em;margin:0 0 24px;color:var(--av-ink);text-wrap:balance}
+.avde-dek{font-size:18.5px;line-height:1.6;color:var(--av-copy-0);margin:0 auto 28px;max-width:60ch;text-wrap:pretty}
+.avde-by{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:10px 22px;font-size:14px;color:var(--av-nav-sub);padding-bottom:40px}
+.avde-by-who{display:flex;align-items:center;gap:10px}
+.avde-av{width:32px;height:32px;border-radius:50%;background:var(--av-ink);color:var(--av-gold-light);display:flex;align-items:center;justify-content:center;font-family:var(--av-serif);font-weight:600;flex-shrink:0}
+.avde-by-name{color:var(--av-ink);font-weight:600}
+.avde-by-name a{color:inherit}
+.avde-by .avde-by-c{color:inherit;text-decoration:underline;text-underline-offset:3px;font-variant-numeric:tabular-nums}
+.avde-ref{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--av-white);border:1px solid var(--av-line-menu);border-radius:var(--av-r-6);padding:3px 8px;color:var(--av-ink)}
+.avde-cover{max-width:1120px;margin:0 auto;position:relative;aspect-ratio:16/8;border-radius:var(--av-r-14) var(--av-r-14) 0 0;overflow:hidden;background:var(--av-img-bg)}
+.avde-cover img,.avde-cover .avcv{width:100%;height:100%;object-fit:cover;display:block;color:transparent}
+.avde-feat-meta{padding:20px clamp(20px,3vw,32px) 0}
+.avde-feat-meta .avde-by{padding-bottom:0}
+
+/* Body frame: the grid is avd-pages.css (200px rail + 700px text, gap 64). */
+.avde-body{padding:clamp(36px,6vw,80px) clamp(20px,3vw,32px) clamp(40px,5vw,64px)}
+.avde-body .avd-grid{max-width:1040px;margin:0 auto;padding:0}
+@media (min-width:960px){
+  .avde-body .avd-grid{grid-template-columns:200px minmax(0,1fr);justify-content:start}
+  .avde-body .avd-grid.avde-norail{grid-template-columns:minmax(0,1fr)}
+  .avde-body .avd-article{max-width:700px}
+}
+/* The entry's text, where diary.css still speaks: pull quotes and the size group */
+.avde-body .article-body blockquote{margin:2em 0;padding:.1em 0 .1em 1.2em;border-left:3px solid var(--av-gold);background:none;border-radius:0;
+  font-family:var(--av-serif);font-size:1.65em;line-height:1.22;color:var(--av-ink)}
+.avde-body .avd-size{align-items:center;gap:6px;padding-top:10px;margin-top:4px;border-top:1px solid var(--av-line)}
+.avde-body .avd-size-l{font-size:12.5px;color:var(--av-nav-sub);margin-right:2px}
+.avde-body .avd-rail-left{margin:14px 0 0;padding-left:16px;color:var(--av-muted-2)}
+
+/* Mission CTA on the design's patterned ground */
+.avde-mission{padding:0 clamp(20px,3vw,32px) clamp(56px,6vw,80px)}
+.avde-mission .avd-mission{max-width:1120px;margin:0 auto;background:linear-gradient(90deg,var(--av-ink) 0%,var(--av-ink) 38%,var(--av-dl-ink-clear) 78%),var(--av-ink) url("/assets/site/av-pattern-shapes.svg") 0 0/80px 80px repeat}
+.avde-mission .avd-mission h2{color:var(--av-white);font-family:var(--av-serif);font-weight:400;font-size:clamp(34px,3.8vw,52px);line-height:1.04;letter-spacing:0}
+.avde-mission .avd-mission h2 em{color:var(--av-gold-light)}
+.avde-mission .avd-mbtn{min-height:52px}
+
+/* Keep reading */
+.avde-kr{padding:clamp(56px,6vw,80px) clamp(20px,3vw,32px);background:var(--av-sand);position:relative;overflow:hidden;isolation:isolate}
+.avde-kr-in{max-width:1120px;margin:0 auto}
+.avde-kr-head{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:24px}
+.avde-kr-head h2{font-family:var(--av-serif);font-weight:400;font-size:clamp(34px,3.6vw,48px);margin:0;color:var(--av-ink)}
+.avde-kr-head a{font-size:15px;font-weight:600;color:var(--av-gold-text);text-decoration:none;display:inline-flex;align-items:center;min-height:44px}
+.avde-kr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:16px;list-style:none;margin:0;padding:0}
+.avde-kr-grid li{display:flex}
+.avde-kcard{flex:1;background:var(--av-white);border-radius:var(--av-r-12);overflow:hidden;display:flex;flex-direction:column;color:var(--av-body);text-decoration:none}
+.avde-kcard:hover{color:var(--av-ink)}
+.avde-kcard:focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
+.avde-kcard-img{aspect-ratio:1200/630;background:var(--av-img-bg);overflow:hidden}
+.avde-kcard-img img,.avde-kcard-img .avcv{width:100%;height:100%;object-fit:cover;display:block;color:transparent}
+.avde-kcard-body{padding:16px 18px 20px;display:flex;flex-direction:column;gap:8px}
+.avde-kcard-cat{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--av-gold-text)}
+.avde-kcard-t{font-size:17px;font-weight:600;line-height:1.35}
+.avde-kcard-m{font-size:12.5px;color:var(--av-muted-2)}
+
+/* Phone and tablet: the rail is a full-bleed sticky bar between the cover and
+   the text, as in the design (top 68px = the site bar). */
+@media (max-width:959px){
+  .avde-body{padding-top:0}
+  .avde-body .avd-rail{top:68px;margin:0 calc(-1 * clamp(20px,3vw,32px)) clamp(28px,6vw,48px);padding:0 clamp(20px,3vw,32px)}
+  .avde-body .avd-grid.avde-norail{padding-top:clamp(36px,6vw,80px)}
+  .avde-body .avd-rail-eyebrow{color:var(--av-gold-text)}
+}

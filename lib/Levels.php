@@ -71,8 +71,22 @@ final class Levels
         return self::ORDER;
     }
 
+    /** The older ladder's name, whatever levels.quest_titles says — for what is printed. */
+    public static function printedLabelOf(string $code): string
+    {
+        if (class_exists('AvRules') && AvRules::bool('levels.quest_titles_on_card')) return self::labelOf($code);
+        return (string) (self::LADDER[$code]['label'] ?? ('Level ' . $code));
+    }
+
     public static function labelOf(string $code): string
     {
+        /* The Pyramid Manual names the same eight letters (Ordinary Member …
+           Grandfather). Switchable, because the older names are printed in
+           places and leadership may want both for a while. */
+        if (class_exists('AvRules') && class_exists('Quest') && AvRules::bool('levels.quest_titles')) {
+            $t = (string) (Quest::rank($code)['full_title'] ?? '');
+            if ($t !== '') return $t;
+        }
         return (string) (self::LADDER[$code]['label'] ?? ('Level ' . $code));
     }
 
@@ -145,9 +159,10 @@ final class Levels
         if (!in_array($level, self::order(), true)) return false;
         self::ensure();
         try {
+            $from = self::of($userId);
             self::db()->prepare('UPDATE lms_users SET level = ?, level_at = ?, level_by = ? WHERE id = ?')
                       ->execute([$level, gmdate('c'), $actor, $userId]);
-            if (class_exists('Events')) Events::emit('member.level.changed', ['user_id' => $userId, 'level' => $level, 'by' => $actor]);
+            if (class_exists('Events')) Events::emit('member.level.changed', ['user_id' => $userId, 'level' => $level, 'from' => $from, 'by' => $actor]);
             return true;
         } catch (\Throwable $e) { error_log('[levels] set: ' . $e->getMessage()); return false; }
     }
@@ -299,6 +314,10 @@ final class Levels
         // ── Multiplication: the criterion that distinguishes this ladder ──
         if ($idx === 0) {
             // base → second level: active mentorship, verified by real meetings.
+            // On the Pyramid Manual's floors, the manual's number for that level.
+            if (class_exists('AvRules') && AvRules::bool('levels.quest_pyramid') && class_exists('Quest')) {
+                $needA = max(1, (int) (Quest::rank((string) $next)['mentees']['min'] ?? $needA));
+            }
             if ($mult['active'] >= $needA) {
                 $out['reasons'][] = 'Actively mentoring ' . $mult['active'] . ' member(s) — each met recently, not merely listed.';
             } else {
@@ -318,14 +337,19 @@ final class Levels
             if ($mult['active'] < $needA) {
                 $out['gaps'][] = 'Direct active mentees have dropped to ' . $mult['active'] . ' (expected at least ' . $needA . ').';
             }
-        } else {
+        } elseif (!(class_exists('AvRules') && AvRules::bool('levels.quest_pyramid'))) {
             $out['gaps'][] = 'Levels above ' . ($order[1] ?? 'A') . ' are granted by leadership (multiplication requirement is switched off).';
             return $out;   // nothing to compute — leadership decides outright
         }
+        /* With multiplication off but the Pyramid Manual's floors on, the
+           manual's points and direct mentees are the criteria for the rungs
+           above A — checked below. */
 
-        // ── Consistency ──
+        // ── Consistency ── (0 switches it off, like every other floor)
         $rate = $cons['rate'];
-        if ($rate === null) {
+        if ($minAtt <= 0) {
+            // not asked
+        } elseif ($rate === null) {
             $out['gaps'][] = 'No completed mentorship sessions on record yet, so meeting consistency cannot be verified.';
         } elseif ((int) $rate >= $minAtt) {
             $out['reasons'][] = 'Meeting consistency ' . (int) $rate . '% across ' . (int) ($cons['held'] ?? 0) . ' session(s).';
@@ -344,8 +368,72 @@ final class Levels
             }
         }
 
+        // ── The Pyramid Manual's floors (levels.quest_pyramid) ──
+        if (class_exists('AvRules') && AvRules::bool('levels.quest_pyramid') && class_exists('Quest')) {
+            self::pyramid($userId, (string) $next, $out);
+        }
+
         $out['recommend'] = empty($out['gaps']);
         return $out;
+    }
+
+    /**
+     * The manual's criteria for the next level, added to a recommendation.
+     *
+     * Measurable ones are checked: the next level's Quest points, its
+     * direct-mentee floor (vquest pairings actually being met, from Becoming
+     * upward), points earned month by month, a mentee already promoted (if
+     * switched on), and no open integrity finding. The ones no record holds —
+     * the value assessment, the behaviour score, three major projects — are
+     * listed for the reviewer, never guessed.
+     */
+    private static function pyramid(int $userId, string $next, array &$out): void
+    {
+        $rank = Quest::rank($next);
+        if (!$rank) return;
+        $points = class_exists('QuestPoints') ? QuestPoints::total($userId) : 0;
+        $direct = class_exists('QuestRecord') ? QuestRecord::activeMentees($userId) : 0;
+        $out['metrics']['quest_points'] = $points;
+        $out['metrics']['direct_mentees'] = $direct;
+        $out['metrics']['next_points'] = (int) $rank['points']['min'];
+        $out['metrics']['next_mentees'] = (int) $rank['mentees']['min'];
+
+        $need = (int) $rank['points']['min'];
+        if ($points >= $need) $out['reasons'][] = $points . ' Quest points (' . $next . ' starts at ' . $need . ').';
+        else $out['gaps'][] = $points . ' Quest points; ' . $next . ' starts at ' . $need . '.';
+
+        $needM = (int) $rank['mentees']['min'];
+        if (!empty($rank['binding_mentees'])) {
+            if ($direct >= $needM) $out['reasons'][] = $direct . ' direct mentee(s) actively mentored (' . $next . ' needs ' . $needM . ').';
+            else $out['gaps'][] = $direct . ' direct mentee(s) actively mentored; ' . $next . ' needs ' . $needM . '. Points alone do not promote.';
+        }
+
+        $perMonth = AvRules::int('quest.promotion_monthly_points');
+        if ($perMonth > 0 && class_exists('QuestPoints')) {
+            $months = QuestPoints::earnedByMonth($userId, max(1, AvRules::int('quest.promotion_months')));
+            $out['metrics']['monthly_points'] = $months;
+            $short = array_filter($months, static fn($p) => $p < $perMonth);
+            if (!$short) $out['reasons'][] = 'At least ' . $perMonth . ' points in each of the last ' . count($months) . ' month(s).';
+            else $out['gaps'][] = 'Needs ' . $perMonth . ' points in each of the last ' . count($months) . ' month(s); short in ' . implode(', ', array_keys($short)) . '.';
+        }
+
+        if (AvRules::bool('quest.promotion_needs_mentee_promoted') && class_exists('QuestRecord')) {
+            $base = self::base();
+            $risen = array_filter(QuestRecord::vquestPairedIds($userId), static fn($m) => self::of((int) $m) !== $base);
+            if ($risen) $out['reasons'][] = count($risen) . ' mentee(s) already promoted.';
+            else $out['gaps'][] = 'No mentee has been promoted yet.';
+        }
+
+        if (class_exists('QuestRecord') && !QuestRecord::holdsIntegrity($userId)) {
+            $out['gaps'][] = 'An integrity finding is open. No quantity of points clears it; only resolving it does.';
+        }
+
+        $out['metrics']['for_review'] = [
+            'A value assessment (Faith, Accountability, Diligence, Communal Spirit …)',
+            'An 80% positive behaviour score',
+            'At least 3 major projects or initiatives completed',
+            'Mentees held for at least 2 cycles',
+        ];
     }
 
     /**
@@ -389,6 +477,9 @@ final class Levels
         $next  = self::nextOf($level);
         $rec   = self::recommend($userId);
         $needA = class_exists('AvRules') ? max(1, AvRules::int('levels.active_mentees_for_a')) : 2;
+        /* On the manual's floors, the next level's mentee floor is the number
+           that matters, counted the Quest's way. */
+        if (isset($rec['metrics']['next_mentees'])) $needA = max(1, (int) $rec['metrics']['next_mentees']);
 
         return [
             'level'            => $level,
@@ -398,7 +489,9 @@ final class Levels
             'next_label'       => $next ? self::labelOf($next) : null,
             'referrals'        => self::referralCount($userId),
             'referrals_needed' => $needA,   // kept for template compatibility
-            'active_mentees'   => $rec['metrics']['active_mentees'] ?? 0,
+            'active_mentees'   => $rec['metrics']['direct_mentees'] ?? ($rec['metrics']['active_mentees'] ?? 0),
+            'quest_points'     => $rec['metrics']['quest_points'] ?? null,
+            'next_points'      => $rec['metrics']['next_points'] ?? null,
             'mentees_needed'   => $needA,
             'eligible_next'    => (bool) $rec['recommend'],
             'reasons'          => $rec['reasons'],

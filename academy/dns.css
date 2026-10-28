@@ -75,11 +75,11 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
 .dns-section--dark{background:var(--dns-black);color:var(--dns-cream)}
 
 /* ── Type ─────────────────────────────────────────────────────────────── */
-.dns-kicker{display:inline-block;font:700 .72rem/1 var(--afg-font-body,Montserrat,system-ui);
+.dns-kicker{display:inline-block;font:700 .72rem/1 var(--afg-font-body,'Source Sans 3',system-ui);
   letter-spacing:.22em;text-transform:uppercase;color:var(--dns-accent-ink)}
 .dns-section--dark .dns-kicker,.dns-closer .dns-kicker,
 .dns-hero .dns-kicker{color:var(--dns-gold)}
-.dns-h2{font:600 clamp(2rem,4.4vw,3.4rem)/1.02 var(--afg-font-display,Cormorant,Georgia,serif);
+.dns-h2{font:600 clamp(2rem,4.4vw,3.4rem)/1.02 var(--afg-font-display,'Cormorant Garamond',Georgia,serif);
   letter-spacing:-.02em;color:var(--dns-ink);margin:.35em 0 .28em;text-wrap:balance}
 .dns-section--dark .dns-h2{color:var(--dns-cream-2)}
 .dns-lead{color:var(--dns-muted);font-size:clamp(1rem,1.25vw,1.1rem);line-height:1.65;max-width:62ch;margin:0}
@@ -92,7 +92,7 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
 
 /* ── Buttons ──────────────────────────────────────────────────────────── */
 .dns-btn{display:inline-flex;align-items:center;justify-content:center;gap:.55em;
-  font:700 .95rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.04em;
+  font:700 .95rem/1 var(--afg-font-body,'Source Sans 3',system-ui);letter-spacing:.04em;
   padding:16px 28px;border:1.5px solid transparent;border-radius:var(--dns-r);
   text-decoration:none;cursor:pointer;transition:background .16s,color .16s,border-color .16s,transform .16s}
 .dns-btn:hover{transform:translateY(-1px)}
@@ -113,18 +113,18 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
   background:radial-gradient(900px 520px at 78% -10%,rgba(224,31,45,.20),transparent 62%),
              radial-gradient(700px 440px at 6% 108%,rgba(163,201,58,.13),transparent 60%)}
 .dns-hero-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:28px;align-items:start}
-.dns-presents{display:flex;align-items:center;gap:12px;font:700 .68rem/1 var(--afg-font-body,Montserrat,system-ui);
+.dns-presents{display:flex;align-items:center;gap:12px;font:700 .68rem/1 var(--afg-font-body,'Source Sans 3',system-ui);
   letter-spacing:.26em;text-transform:uppercase;color:rgba(222,210,187,.72)}
 .dns-presents b{color:var(--dns-cream-2);letter-spacing:.2em}
 .dns-badge{align-self:start;justify-self:end;border:1.5px solid var(--dns-gold);border-radius:999px;
-  padding:12px 24px;font:600 1.15rem/1 var(--afg-font-display,Cormorant,Georgia,serif);
+  padding:12px 24px;font:600 1.15rem/1 var(--afg-font-display,'Cormorant Garamond',Georgia,serif);
   color:var(--dns-gold);white-space:nowrap;transform:rotate(-4deg)}
-.dns-hero h1{font:600 clamp(2.9rem,10vw,6.2rem)/.92 var(--afg-font-display,Cormorant,Georgia,serif);
+.dns-hero h1{font:600 clamp(2.9rem,10vw,6.2rem)/.92 var(--afg-font-display,'Cormorant Garamond',Georgia,serif);
   letter-spacing:-.025em;color:#fff;margin:.22em 0 0;text-transform:uppercase;text-wrap:balance}
 .dns-hero h1 span{display:block}
 .dns-triad{display:inline-block;background:var(--dns-lime);color:#101400;margin-top:26px;
   padding:12px 22px;border-radius:var(--dns-r);
-  font:800 clamp(.85rem,1.9vw,1.05rem)/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.16em;text-transform:uppercase}
+  font:800 clamp(.85rem,1.9vw,1.05rem)/1 var(--afg-font-body,'Source Sans 3',system-ui);letter-spacing:.16em;text-transform:uppercase}
 .dns-hero-sub{margin:26px 0 0;max-width:56ch;color:rgba(222,210,187,.82);font-size:clamp(1rem,1.3vw,1.13rem);line-height:1.65}
 .dns-hero .dns-cta-row{margin-top:32px}
 .dns-hero-note{margin:16px 0 0;font-size:.85rem;color:rgba(222,210,187,.6)}
@@ -135,7 +135,7 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
   border-radius:var(--dns-r-lg);display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
 .dns-fact{padding:22px clamp(16px,2.2vw,26px);border-left:1px solid rgba(18,16,13,.14)}
 .dns-fact:first-child{border-left:0}
-.dns-fact dt{font:700 .66rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.2em;
+.dns-fact dt{font:700 .66rem/1 var(--afg-font-body,'Source Sans 3',system-ui);letter-spacing:.2em;
   text-transform:uppercase;color:rgba(18,16,13,.72);margin-bottom:9px}
 .dns-fact dd{margin:0;font-weight:700;font-size:clamp(.95rem,1.3vw,1.05rem);line-height:1.35;color:#12100d}
 .dns-fact dd small{display:block;font-weight:500;font-size:.85em;color:rgba(18,16,13,.62);margin-top:3px}
@@ -144,13 +144,13 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
 .dns-count{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px;align-items:stretch}
 .dns-count-unit{min-width:78px;background:rgba(255,255,255,.05);border:1px solid rgba(222,210,187,.18);
   border-radius:var(--dns-r);padding:12px 14px;text-align:center}
-.dns-count-n{display:block;font:600 1.9rem/1 var(--afg-font-display,Cormorant,Georgia,serif);color:#fff;
+.dns-count-n{display:block;font:600 1.9rem/1 var(--afg-font-display,'Cormorant Garamond',Georgia,serif);color:#fff;
   font-variant-numeric:tabular-nums}
-.dns-count-l{display:block;margin-top:5px;font:700 .6rem/1 var(--afg-font-body,Montserrat,system-ui);
+.dns-count-l{display:block;margin-top:5px;font:700 .6rem/1 var(--afg-font-body,'Source Sans 3',system-ui);
   letter-spacing:.18em;text-transform:uppercase;color:rgba(222,210,187,.6)}
 .dns-count-live{margin-top:30px;display:inline-flex;align-items:center;gap:10px;
   background:var(--dns-lime);color:#101400;padding:12px 20px;border-radius:var(--dns-r);
-  font:800 .82rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.14em;text-transform:uppercase}
+  font:800 .82rem/1 var(--afg-font-body,'Source Sans 3',system-ui);letter-spacing:.14em;text-transform:uppercase}
 .dns-count-dot{width:9px;height:9px;border-radius:50%;background:#101400;animation:dns-pulse 1.6s ease-in-out infinite}
 @keyframes dns-pulse{0%,100%{opacity:1}50%{opacity:.25}}
 
@@ -158,9 +158,9 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
 .dns-pillars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--dns-line);
   border:1px solid var(--dns-line);border-radius:var(--dns-r-lg);overflow:hidden}
 .dns-pillar{background:var(--dns-card);padding:clamp(26px,3.4vw,40px)}
-.dns-pillar-n{font:700 .68rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.2em;
+.dns-pillar-n{font:700 .68rem/1 var(--afg-font-body,'Source Sans 3',system-ui);letter-spacing:.2em;
   text-transform:uppercase;color:var(--dns-muted)}
-.dns-pillar h3{font:600 clamp(1.7rem,2.8vw,2.4rem)/1 var(--afg-font-display,Cormorant,Georgia,serif);
+.dns-pillar h3{font:600 clamp(1.7rem,2.8vw,2.4rem)/1 var(--afg-font-display,'Cormorant Garamond',Georgia,serif);
   text-transform:uppercase;letter-spacing:-.01em;color:var(--dns-ink);margin:14px 0 12px}
 .dns-pillar p{margin:0;color:var(--dns-muted);line-height:1.65;font-size:.97rem}
 .dns-pillar::after{content:"";display:block;width:44px;height:4px;margin-top:22px;background:var(--dns-lime);border-radius:2px}
@@ -173,7 +173,7 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
   border-radius:var(--dns-r-lg);padding:22px 24px;transition:border-color .16s,transform .16s}
 .dns-session:hover{border-color:var(--dns-ink);transform:translateY(-2px)}
 .dns-session-mark{flex:none;width:10px;height:10px;margin-top:7px;background:var(--dns-red);border-radius:1px}
-.dns-session h3{margin:0 0 6px;font:700 1.02rem/1.3 var(--afg-font-body,Montserrat,system-ui);color:var(--dns-ink)}
+.dns-session h3{margin:0 0 6px;font:700 1.02rem/1.3 var(--afg-font-body,'Source Sans 3',system-ui);color:var(--dns-ink)}
 .dns-session p{margin:0;color:var(--dns-muted);font-size:.92rem;line-height:1.6}
 
 /* ── Speakers ─────────────────────────────────────────────────────────── */
@@ -185,28 +185,28 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
   background:var(--dns-black-3);display:grid;place-items:center}
 .dns-portrait picture{display:block;width:100%;height:100%}
 .dns-portrait img{width:100%;height:100%;object-fit:cover;object-position:center 22%;display:block}
-.dns-monogram{font:600 clamp(2.6rem,7vw,3.6rem)/1 var(--afg-font-display,Cormorant,Georgia,serif);
+.dns-monogram{font:600 clamp(2.6rem,7vw,3.6rem)/1 var(--afg-font-display,'Cormorant Garamond',Georgia,serif);
   color:rgba(222,210,187,.52);letter-spacing:.04em}
 .dns-speaker--lead .dns-portrait{background:#0a0a0a}
 .dns-speaker--lead .dns-monogram{color:rgba(243,180,22,.72)}
 .dns-tag{display:inline-block;margin-top:16px;padding:7px 13px;border-radius:var(--dns-r);
-  font:800 .68rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.11em;text-transform:uppercase}
+  font:800 .68rem/1 var(--afg-font-body,'Source Sans 3',system-ui);letter-spacing:.11em;text-transform:uppercase}
 .dns-tag-lime{background:var(--dns-lime);color:#101400}
 .dns-tag-red{background:var(--dns-red);color:#fff}
 .dns-tag-gold{background:var(--dns-gold);color:#12100d}
-.dns-speaker-role{margin:12px 0 0;font:600 .68rem/1.4 var(--afg-font-body,Montserrat,system-ui);
+.dns-speaker-role{margin:12px 0 0;font:600 .68rem/1.4 var(--afg-font-body,'Source Sans 3',system-ui);
   letter-spacing:.18em;text-transform:uppercase;color:rgba(222,210,187,.72)}
 
 /* ── Details / logistics ──────────────────────────────────────────────── */
 .dns-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px;
   background:var(--dns-line);border:1px solid var(--dns-line);border-radius:var(--dns-r-lg);overflow:hidden}
 .dns-detail{background:var(--dns-card);padding:clamp(24px,3vw,32px)}
-.dns-detail dt{font:700 .66rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.2em;
+.dns-detail dt{font:700 .66rem/1 var(--afg-font-body,'Source Sans 3',system-ui);letter-spacing:.2em;
   text-transform:uppercase;color:var(--dns-muted);margin-bottom:10px}
 .dns-detail dd{margin:0;color:var(--dns-ink);font-weight:600;line-height:1.5}
 .dns-detail dd span{display:block;font-weight:400;color:var(--dns-muted);font-size:.9rem;margin-top:6px}
 .dns-detail dd a{color:var(--dns-accent-ink);text-underline-offset:3px}
-.dns-price{font:600 2.4rem/1 var(--afg-font-display,Cormorant,Georgia,serif);color:var(--dns-ink)}
+.dns-price{font:600 2.4rem/1 var(--afg-font-display,'Cormorant Garamond',Georgia,serif);color:var(--dns-ink)}
 
 /* ── Register ─────────────────────────────────────────────────────────── */
 .dns-form-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);
@@ -218,7 +218,7 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
 .dns-form{background:var(--dns-card);border:1px solid var(--dns-line);border-radius:var(--dns-r-lg);
   padding:clamp(24px,3.2vw,36px)}
 .dns-fld{margin-bottom:18px}
-.dns-fld label{display:block;font:700 .78rem/1 var(--afg-font-body,Montserrat,system-ui);
+.dns-fld label{display:block;font:700 .78rem/1 var(--afg-font-body,'Source Sans 3',system-ui);
   letter-spacing:.05em;color:var(--dns-ink);margin-bottom:8px}
 .dns-req{color:var(--dns-accent-ink)}
 .dns-form input,.dns-form select,.dns-form textarea{width:100%;box-sizing:border-box;
@@ -238,14 +238,14 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
 .dns-done{text-align:center;padding:12px 4px}
 .dns-done-mark{width:56px;height:56px;margin:0 auto 18px;border-radius:50%;background:var(--dns-lime);
   display:grid;place-items:center;color:#101400;font-size:1.6rem;font-weight:800}
-.dns-done h3{font:600 1.7rem/1.15 var(--afg-font-display,Cormorant,Georgia,serif);color:var(--dns-ink);margin:0 0 10px}
+.dns-done h3{font:600 1.7rem/1.15 var(--afg-font-display,'Cormorant Garamond',Georgia,serif);color:var(--dns-ink);margin:0 0 10px}
 .dns-done p{color:var(--dns-muted);max-width:46ch;margin:0 auto 12px;line-height:1.65}
 
 /* ── FAQ ──────────────────────────────────────────────────────────────── */
 .dns-faq{border-top:1px solid var(--dns-line)}
 .dns-faq details{border-bottom:1px solid var(--dns-line)}
 .dns-faq summary{list-style:none;cursor:pointer;padding:22px 44px 22px 0;position:relative;
-  font:700 1.02rem/1.4 var(--afg-font-body,Montserrat,system-ui);color:var(--dns-ink)}
+  font:700 1.02rem/1.4 var(--afg-font-body,'Source Sans 3',system-ui);color:var(--dns-ink)}
 .dns-faq summary::-webkit-details-marker{display:none}
 .dns-faq summary::after{content:"+";position:absolute;right:8px;top:50%;translate:0 -50%;
   font-size:1.5rem;font-weight:400;color:var(--dns-muted);transition:rotate .18s}
@@ -255,7 +255,7 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
 /* ── Closing band ─────────────────────────────────────────────────────── */
 .dns-closer{background:var(--dns-black);color:var(--dns-cream);text-align:center;
   padding-block:clamp(56px,7vw,96px)}
-.dns-closer h2{font:600 clamp(2.1rem,5vw,3.6rem)/1.02 var(--afg-font-display,Cormorant,Georgia,serif);
+.dns-closer h2{font:600 clamp(2.1rem,5vw,3.6rem)/1.02 var(--afg-font-display,'Cormorant Garamond',Georgia,serif);
   color:#fff;margin:.2em 0 .3em;text-transform:uppercase;letter-spacing:-.02em}
 .dns-closer p{color:rgba(222,210,187,.78);max-width:52ch;margin:0 auto 30px;line-height:1.65}
 .dns-closer .dns-cta-row{justify-content:center}
@@ -290,11 +290,11 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
 .dns-share-btn{display:inline-flex;align-items:center;justify-content:center;
   padding:13px 22px;border:1.5px solid var(--dns-line);border-radius:var(--dns-r);
   background:var(--dns-card);color:var(--dns-ink);text-decoration:none;
-  font:700 .9rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.03em;
+  font:700 .9rem/1 var(--afg-font-body,'Source Sans 3',system-ui);letter-spacing:.03em;
   transition:border-color .16s,transform .16s,background .16s}
 .dns-share-btn:hover{border-color:var(--dns-ink);transform:translateY(-1px)}
 .dns-share-link{margin:26px auto 0;max-width:520px;text-align:center}
-.dns-share-link label{display:block;font:700 .68rem/1 var(--afg-font-body,Montserrat,system-ui);
+.dns-share-link label{display:block;font:700 .68rem/1 var(--afg-font-body,'Source Sans 3',system-ui);
   letter-spacing:.18em;text-transform:uppercase;color:var(--dns-muted);margin-bottom:10px}
 .dns-share-link input{width:100%;box-sizing:border-box;text-align:center;
   border:1.5px solid var(--dns-line);border-radius:var(--dns-r);padding:13px 14px;

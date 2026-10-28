@@ -22,7 +22,16 @@ declare(strict_types=1);
 
 final class Migrator
 {
-    /** Dependency-safe table order (parents first). Children truncate in reverse. */
+    /**
+     * Dependency-safe ORDER (parents first); children truncate in reverse.
+     *
+     * This is the order, NOT the membership. It used to be both, and every
+     * table absent from it was silently never copied — on this database that
+     * was ten of them, av_settings (every stored secret), member_passes,
+     * course_access, lesson_notes and the diary's comment tables among them.
+     * A migration reported success and left them behind. allTables() now
+     * takes the source's own list and uses this only to sort it.
+     */
     const ORDER = [
         'categories', 'lms_users', 'courses',
         'articles', 'modules', 'lessons',
@@ -36,6 +45,30 @@ final class Migrator
     public static function driver(PDO $db): string
     {
         return (string) $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+    }
+
+    /**
+     * Every table the source actually has, the ones ORDER names first (so
+     * parents still precede children) and everything else after. Reading the
+     * source rather than a hand-written list is what stops a table added
+     * next year from being dropped by a migration that reports success.
+     */
+    public static function allTables(PDO $src): array
+    {
+        $all = [];
+        if (self::driver($src) === 'sqlite') {
+            foreach ($src->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'") as $r) {
+                $all[] = (string) $r['name'];
+            }
+        } else {
+            $sql = 'SELECT table_name FROM information_schema.tables WHERE '
+                 . (self::driver($src) === 'mysql' ? 'table_schema = DATABASE()' : "table_schema = 'public'");
+            foreach ($src->query($sql) as $r) { $all[] = (string) array_values($r)[0]; }
+        }
+        sort($all);
+        $known = array_values(array_filter(self::ORDER, static fn($t) => in_array($t, $all, true)));
+
+        return array_merge($known, array_values(array_diff($all, $known)));
     }
 
     /** Quote an identifier for the given driver (mysql backticks, else double-quotes). */
@@ -72,6 +105,147 @@ final class Migrator
         return array_map('strval', $s->fetchAll(PDO::FETCH_COLUMN));
     }
 
+    /**
+     * Create table $t on the MySQL target, shaped like the SQLite source.
+     *
+     * Only the tables in db/schema.mysql.sql existed on a fresh target — the
+     * rest (some 125: roles, meetings, tasks, gate attendance, …) are created
+     * by each feature the first time it runs, so a migration skipped them and
+     * their rows never moved. This builds each one from the source's own
+     * column list (PRAGMA table_info), not from its DDL text: a type is mapped,
+     * a default carried, the key and indexes kept. Every rule is one MySQL
+     * itself imposes:
+     *   · TEXT can neither be a key nor be indexed whole — an indexed or key
+     *     TEXT column becomes VARCHAR(191) when its data fits, else it is
+     *     indexed by a 191-character prefix;
+     *   · a row is at most 64 KB, so a long VARCHAR(n>255) becomes TEXT;
+     *   · a TEXT or BLOB default must be an expression: DEFAULT ('…').
+     * Returns null on success, else MySQL's refusal.
+     */
+    public static function createLike(PDO $src, PDO $dst, string $t): ?string
+    {
+        $cols = $src->query('PRAGMA table_info(' . self::q($src, $t) . ')')->fetchAll(PDO::FETCH_ASSOC);
+        if (!$cols) return 'the source has no columns for ' . $t;
+        $ddl = (string) ($src->query("SELECT sql FROM sqlite_master WHERE type='table' AND name = " . $src->quote($t))->fetchColumn() ?: '');
+        $auto = (bool) preg_match('/AUTOINCREMENT/i', $ddl);
+        $pk = array_values(array_map(static fn($c) => (string) $c['name'], array_filter($cols, static fn($c) => (int) $c['pk'] > 0)));
+        usort($cols, static fn($a, $b) => (int) $a['cid'] <=> (int) $b['cid']);
+
+        /* Indexes: name, unique, columns. */
+        $idx = [];
+        foreach ($src->query('PRAGMA index_list(' . self::q($src, $t) . ')')->fetchAll(PDO::FETCH_ASSOC) as $i) {
+            if (($i['origin'] ?? 'c') === 'pk') continue;
+            $c = array_map(static fn($r) => (string) $r['name'], $src->query('PRAGMA index_info(' . self::q($src, (string) $i['name']) . ')')->fetchAll(PDO::FETCH_ASSOC));
+            if ($c && !in_array('', $c, true)) $idx[] = ['unique' => (int) $i['unique'] === 1, 'cols' => $c];
+        }
+        $keyed = array_flip($pk);
+        foreach ($idx as $i) foreach ($i['cols'] as $c) $keyed[$c] = true;
+
+        $lines = []; $prefix = [];
+        foreach ($cols as $c) {
+            $n = (string) $c['name'];
+            $decl = strtoupper(trim((string) $c['type']));
+            if (in_array($n, $pk, true) && count($pk) === 1 && str_contains($decl, 'INT') && ($auto || $decl === 'INTEGER')) {
+                $lines[] = self::q($dst, $n) . ' BIGINT NOT NULL AUTO_INCREMENT';
+                continue;
+            }
+            $lines[] = self::columnDef($src, $dst, $t, $c, isset($keyed[$n]), $isPrefix);
+            if ($isPrefix) $prefix[$n] = true;
+        }
+        $col = static fn(string $c) => self::q($dst, $c) . (isset($prefix[$c]) ? '(191)' : '');
+        if ($pk) $lines[] = 'PRIMARY KEY (' . implode(', ', array_map($col, $pk)) . ')';
+        $k = 0;
+        foreach ($idx as $i) {
+            $lines[] = ($i['unique'] ? 'UNIQUE ' : '') . 'KEY ' . self::q($dst, 'ix_' . substr(md5($t . '|' . implode(',', $i['cols'])), 0, 10) . '_' . (++$k))
+                . ' (' . implode(', ', array_map($col, $i['cols'])) . ')';
+        }
+        try {
+            /* The same collation as the tables already there (those from
+               db/schema.mysql.sql and the site's own, which name no collation
+               and so take the server's). Two collations on one database and
+               any join between them is refused (1267: illegal mix). */
+            $coll = self::collation($dst);
+            $dst->exec('CREATE TABLE IF NOT EXISTS ' . self::q($dst, $t) . " (\n  " . implode(",\n  ", $lines) . "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4" . ($coll !== '' ? ' COLLATE=' . $coll : ''));
+            return null;
+        } catch (Throwable $e) {
+            return $e->getMessage();
+        }
+    }
+
+    /**
+     * Add to the target's table every column the source has and it lacks.
+     * db/schema.mysql.sql is older than the SQLite tables it describes
+     * (lms_users has since gained level, phone, …), and a column missing on
+     * the target is a column whose data the copy leaves behind. Returns the
+     * columns that could not be added, with MySQL's reason.
+     */
+    /** The collation the target's tables already use (lms_users, else articles), or '' for the server's own. */
+    public static function collation(PDO $dst): string
+    {
+        static $memo = [];
+        $k = spl_object_id($dst);
+        if (isset($memo[$k])) return $memo[$k];
+        $c = '';
+        try {
+            $st = $dst->query("SELECT table_collation FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('lms_users','articles') ORDER BY table_name = 'lms_users' DESC LIMIT 1");
+            $c = (string) ($st ? $st->fetchColumn() : '');
+        } catch (Throwable $e) {}
+        return $memo[$k] = preg_match('/^utf8mb4_[a-z0-9_]+$/', $c) ? $c : '';
+    }
+
+    /** One column's MySQL definition from its SQLite PRAGMA table_info row. */
+    public static function columnDef(PDO $src, PDO $dst, string $t, array $c, bool $keyed = false, ?bool &$prefix = null): string
+    {
+        $prefix = false;
+        $n = (string) $c['name'];
+        $decl = strtoupper(trim((string) $c['type']));
+        $blob = false;
+        if (str_contains($decl, 'INT')) $type = 'BIGINT';
+        elseif (preg_match('/^(VAR)?CHAR\s*\((\d+)\)/', $decl, $m)) $type = (int) $m[2] > 255 && !$keyed ? 'TEXT' : 'VARCHAR(' . min((int) $m[2], 255) . ')';
+        elseif (preg_match('/REAL|FLOA|DOUB/', $decl)) $type = 'DOUBLE';
+        elseif (preg_match('/^(NUMERIC|DECIMAL)\s*\(\s*\d+\s*,\s*\d+\s*\)$/', $decl)) $type = $decl;
+        elseif (str_contains($decl, 'BLOB')) { $type = 'LONGBLOB'; $blob = true; }
+        elseif (preg_match('/BOOL/', $decl)) $type = 'TINYINT';
+        else $type = 'TEXT';
+        if ($type === 'TEXT' && $keyed) {
+            $max = (int) $src->query('SELECT COALESCE(MAX(LENGTH(' . self::q($src, $n) . ')), 0) FROM ' . self::q($src, $t))->fetchColumn();
+            if ($max <= 191) $type = 'VARCHAR(191)'; else $prefix = true;
+        }
+        if ($type === 'TEXT' && !$keyed) $type = 'MEDIUMTEXT';
+        $line = self::q($dst, $n) . ' ' . $type . ((int) $c['notnull'] === 1 ? ' NOT NULL' : ' NULL');
+        $d = $c['dflt_value'];
+        if ($d !== null && strtoupper(trim((string) $d)) !== 'NULL') {
+            $d = trim((string) $d);
+            $long = in_array($type, ['MEDIUMTEXT', 'TEXT', 'LONGBLOB'], true) || $blob;
+            if (preg_match("/^\\(?\\s*datetime\\s*\\(\\s*'now'/i", $d) || strtoupper($d) === 'CURRENT_TIMESTAMP') {
+                $lit = $long ? '(CURRENT_TIMESTAMP)' : (str_starts_with($type, 'VARCHAR') ? null : 'CURRENT_TIMESTAMP');
+                if ($lit !== null) $line .= ' DEFAULT ' . $lit;
+            } else {
+                if (preg_match('/^\((.*)\)$/s', $d, $m)) $d = trim($m[1]);
+                $lit = preg_match("/^'.*'$/s", $d) || preg_match('/^-?\d+(\.\d+)?$/', $d) ? $d : $dst->quote($d);
+                $line .= ' DEFAULT ' . ($long ? '(' . $lit . ')' : $lit);
+            }
+        }
+        return $line;
+    }
+
+    public static function addMissingColumns(PDO $src, PDO $dst, string $t): array
+    {
+        $have = array_flip(self::columns($dst, $t));
+        $bad = [];
+        foreach ($src->query('PRAGMA table_info(' . self::q($src, $t) . ')')->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            $n = (string) $c['name'];
+            if (isset($have[$n])) continue;
+            /* The column's MySQL definition, as createLike() would write it. */
+            $def = self::columnDef($src, $dst, $t, $c);
+            /* NOT NULL with no default cannot be added to rows that exist. */
+            if (str_contains($def, ' NOT NULL') && !str_contains($def, ' DEFAULT ')) $def = str_replace(' NOT NULL', ' NULL', $def);
+            try { $dst->exec('ALTER TABLE ' . self::q($dst, $t) . ' ADD COLUMN ' . $def); }
+            catch (Throwable $e) { $bad[] = $t . '.' . $n . ': ' . $e->getMessage(); }
+        }
+        return $bad;
+    }
+
     public static function count(PDO $db, string $t): int
     {
         return (int) $db->query('SELECT COUNT(*) FROM ' . self::q($db, $t))->fetchColumn();
@@ -95,9 +269,8 @@ final class Migrator
         $log      = $opts['log'] ?? static function (): void {};
         $dstDrv   = self::driver($dst);
 
-        $tables = array_values(array_filter(self::ORDER, static function ($t) use ($src, $dst, $only) {
-            return Migrator::tableExists($src, $t) && Migrator::tableExists($dst, $t)
-                && (!$only || in_array($t, $only, true));
+        $tables = array_values(array_filter(self::allTables($src), static function ($t) use ($src, $dst, $only) {
+            return Migrator::tableExists($dst, $t) && (!$only || in_array($t, $only, true));
         }));
 
         if ($truncate && !$dryRun) {

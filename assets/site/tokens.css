@@ -27,8 +27,8 @@
  *     #b07e08 is 3.60:1 on white: AA for LARGE text only (>=24px, or >=18.66px
  *     bold). The small gold labels this site is fond of — 11px uppercase
  *     eyebrows and column headings — need --afg-gold-ink (5.16:1).
- *   • ONE body font: Montserrat (Inter is dropped — see design-system.md).
- *   • ONE display font: Cormorant. ONE mono: JetBrains Mono.
+ *   • ONE body font: Source Sans 3 (Montserrat dropped — handoff CHECKLIST G-06).
+ *   • ONE display font: Cormorant Garamond. ONE mono: JetBrains Mono.
  *   • 4px spacing scale, tokenized radii/shadows, documented breakpoints.
  * ==========================================================================*/
 
@@ -58,7 +58,7 @@
 
   /* Accent (semantic wrappers over the brand gold) */
   --afg-accent:        var(--afg-gold);        /* fills, active bars       */
-  --afg-accent-ink:    var(--afg-gold-deep);   /* accent TEXT (AA)         */
+  --afg-accent-ink:    var(--afg-gold-ink);    /* accent TEXT: AA at any size (5.16:1); gold-deep is large-text only */
   --afg-accent-soft:   var(--afg-gold-soft);
   --afg-on-accent:     #111827;                /* text on a gold fill      */
 
@@ -74,8 +74,8 @@
   --afg-focus-ring:    0 0 0 2px var(--afg-surface), 0 0 0 4px var(--afg-focus);
 
   /* ── Typography ───────────────────────────────────────────────────────── */
-  --afg-font-display:  'Cormorant', Georgia, 'Times New Roman', serif;
-  --afg-font-body:     'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --afg-font-display:  'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --afg-font-body:     'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --afg-font-mono:     'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* Type scale (1.200 minor-third-ish, tuned) */
@@ -139,6 +139,8 @@
     --afg-body:          #c3cad6;
     --afg-muted:         #8a93a3;
     --afg-accent-ink:    #f3b416;              /* gold is AA on dark, so text can use it */
+    --afg-gold-ink:      #f3c34a;              /* small gold text on dark (the light value is 2.9:1 here) */
+    --afg-gold-deep:     #f3b416;
     --afg-success:       #34d399;
     --afg-danger:        #f87171;
     --afg-on-accent:     #111827;
@@ -158,6 +160,8 @@
   --afg-body:          #c3cad6;
   --afg-muted:         #8a93a3;
   --afg-accent-ink:    #f3b416;
+  --afg-gold-ink:      #f3c34a;
+  --afg-gold-deep:     #f3b416;
   --afg-success:       #34d399;
   --afg-danger:        #f87171;
   --afg-on-accent:     #111827;
@@ -174,7 +178,7 @@
   --afg-ink:           #111827;
   --afg-body:          #374151;
   --afg-muted:         #646b77;   /* keep in step with the :root default above */
-  --afg-accent-ink:    var(--afg-gold-deep);
+  --afg-accent-ink:    var(--afg-gold-ink);
   --afg-success:       #16a34a;
   --afg-danger:        #b91c1c;
 }
@@ -243,3 +247,60 @@ html { scroll-padding-top: var(--afg-nav-offset); }
       Reverts to a solid colour under High Contrast. */
 .av-blend-text { color: #fff; mix-blend-mode: difference; isolation: isolate; }
 @media (forced-colors: active) { .av-blend-text { color: CanvasText; mix-blend-mode: normal; } }
+
+/* ============================================================================
+ * Afrovanguard handoff tokens (`--av-*`)
+ * ----------------------------------------------------------------------------
+ * The token layer the strict Mentor Portal / Diary / ID-card handoff is built
+ * on. Added here rather than in each module's stylesheet because the handoff
+ * names this file as the one place hex literals are allowed, and because all
+ * three modules share the set — three copies would drift the first time one
+ * colour changed.
+ *
+ * It collides with nothing: this file had no `--av-*` property before, and the
+ * three helper rules below are scoped to `.avc` / `.avd` / `.avm`, which no
+ * page carries yet. Adding it changes nothing on screen.
+ *
+ * Values are the handoff's, unchanged. Do not edit one here to suit a
+ * component — a component that needs a different colour needs a new token.
+ * ========================================================================= */
+:root{
+  --av-ink:#111827;
+  --av-ink-2:#22262D;
+  --av-paper:#FAF9F6;
+  --av-white:#FFFFFF;
+  --av-sand:#EFEDE8;
+  --av-stone:#F5F3EF;
+  --av-stone-2:#F8F7F4;
+  --av-stone-3:#F1F0EC;
+  --av-line:#E8E6E1;
+  --av-line-2:#D6D3CC;
+  --av-text-2:#454A56;
+  --av-muted:#5F636D;
+  --av-faint:#8B8B8B;
+  --av-on-ink-muted:#C9CCD3;
+  --av-on-ink-line:#4B5566;
+  --av-gold:#F3B416;
+  --av-gold-text:#8A6406;
+  --av-gold-soft:#FBF4E0;
+  --av-gold-light:#F6D77E;
+  --av-gold-grad-a:#E19A0B;
+  --av-gold-grad-b:#F7C45A;
+  --av-green:#17673D;   --av-green-bg:#EAF5EE;
+  --av-red:#B0361C;     --av-red-bg:#FBEAEA;
+  --av-indigo:#4338CA;  --av-indigo-bg:#EEF0FD;
+  --av-focus:#2F6FDB;
+  --av-registration:#000000; /* crop marks only */
+  /* card status bands (≥6:1 with white) */
+  --av-band-ok:#0F6B34; --av-band-warn:#8A4B00; --av-band-bad:#A3121F; --av-band-neutral:#3B4252;
+
+  --av-serif:"Cormorant Garamond",Georgia,serif;
+  --av-sans:"Source Sans 3",system-ui,sans-serif;
+  --av-r-6:6px; --av-r-8:8px; --av-r-10:10px; --av-r-12:12px; --av-r-14:14px; --av-r-pill:999px;
+  --av-shadow:0 12px 40px rgba(17,24,39,.14);
+  --av-shadow-sel:0 1px 2px rgba(17,24,39,.12);
+}
+:where(.avc,.avd,.avm) :focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
+:where(.avc,.avd,.avm) .av-num{font-variant-numeric:tabular-nums}
+.av-sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media (prefers-reduced-motion:reduce){:where(.avc,.avd,.avm) *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

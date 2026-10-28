@@ -166,9 +166,7 @@ final class LmsAuth
             if ($u && class_exists('Events')) Events::emit('member.created', ['email' => $email, 'name' => (string) $u['name'], 'role' => (string) $u['role'], 'via' => 'otp']);
         } else {
             if (($u['status'] ?? 'active') !== 'active') return ['ok' => false, 'error' => 'This account is not active. Please contact us.'];
-            if ((int) ($u['email_verified'] ?? 0) === 0) {
-                $db->prepare('UPDATE lms_users SET email_verified = 1, verify_hash = NULL, verify_expires = NULL WHERE id = ?')->execute([$u['id']]);
-            }
+            if ((int) ($u['email_verified'] ?? 0) === 0) self::claimUnverified((int) $u['id']);
             if (self::isOrgEmail($email) && self::rank((string) $u['role']) < self::ROLE_RANK['member']) {
                 $db->prepare("UPDATE lms_users SET role = 'member' WHERE id = ?")->execute([$u['id']]);
                 $u['role'] = 'member';
@@ -181,6 +179,23 @@ final class LmsAuth
         return ['ok' => true, 'user' => self::publicUser($u), 'has_password' => self::hasPassword((int) $u['id'])];
     }
 
+    /**
+     * The address's owner has just proved it (an emailed code, or Google) on an
+     * account that was never verified. Whoever registered that account first
+     * chose its password without ever proving the address, so that password is
+     * not the owner's: it is discarded, with any session, before the owner is
+     * signed in. Kept, it let somebody register a member's email in advance and
+     * sign in as them the moment the member first used a code or Google.
+     */
+    private static function claimUnverified(int $id): void
+    {
+        self::ensureSecurity();
+        $db = Database::pdo();
+        $db->prepare('UPDATE lms_users SET email_verified = 1, verify_hash = NULL, verify_expires = NULL, password_hash = ?, has_password = 0 WHERE id = ? AND email_verified = 0')
+           ->execute([password_hash(bin2hex(random_bytes(18)), PASSWORD_BCRYPT), $id]);
+        $db->prepare('DELETE FROM lms_sessions WHERE user_id = ?')->execute([$id]);
+    }
+
     /** Set (or change) the signed-in member's password — the "add a password
      *  after verifying" path. Validated against the live security policy. */
     public static function setPassword(int $userId, string $new): array
@@ -190,8 +205,108 @@ final class LmsAuth
         self::ensureSecurity();
         Database::pdo()->prepare('UPDATE lms_users SET password_hash = ?, has_password = 1 WHERE id = ?')
             ->execute([password_hash($new, PASSWORD_BCRYPT), $userId]);
+        /* Every other device signs in again; this one stays signed in. */
+        $mine = (string) ($_COOKIE[self::COOKIE] ?? '');
+        Database::pdo()->prepare('DELETE FROM lms_sessions WHERE user_id = ? AND token_hash <> ?')
+            ->execute([$userId, preg_match('/^[a-f0-9]{40}$/', $mine) ? hash('sha256', $mine) : '']);
         if (class_exists('Events')) { try { Events::emit('member.password.set', ['user_id' => $userId]); } catch (Throwable $e) {} }
         return ['ok' => true, 'message' => 'Password saved. You can now sign in with it.'];
+    }
+
+    /* ── Forgotten password ──────────────────────────────────────────────────
+       The site signs people in by emailed code as well as by password, so a
+       reset is not the only way back in — but an account WITH a password and
+       no way to change it is a dead end, and it was one.
+
+       Two rules shape what follows:
+
+       1. It never says whether an address has an account. The answer to
+          "forgot password" is the same sentence either way, or the form
+          becomes a way to ask the site who its members are. The existing
+          otp-request endpoint already works this way.
+       2. The token is stored hashed and used once. A reset link sitting in a
+          mailbox is a password; it is treated like one. */
+
+    public const RESET_TTL = 3600;   // one hour
+
+    /** Start a reset. Always reports the same thing, account or no account. */
+    public static function requestPasswordReset(string $email): array
+    {
+        $same = ['ok' => true, 'message' => 'If that address has an account, a reset link is on its way.'];
+        $email = strtolower(trim($email));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return $same;
+        self::ensureSecurity();
+        try {
+            $db = Database::pdo();
+            $st = $db->prepare("SELECT id, name, email FROM lms_users WHERE email = ? AND status = 'active'");
+            $st->execute([$email]);
+            $u = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$u) return $same;
+
+            /* One live token per account: asking twice retires the first, so a
+               link forwarded or logged earlier stops working. */
+            $db->prepare("UPDATE lms_password_resets SET used_at = ? WHERE user_id = ? AND used_at = ''")
+               ->execute([gmdate('Y-m-d H:i:s'), (int) $u['id']]);
+
+            $token = bin2hex(random_bytes(32));
+            $ip    = function_exists('av_client_ip') ? (string) av_client_ip() : (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+            $db->prepare('INSERT INTO lms_password_resets (user_id, token_hash, ip, expires_at, used_at, created_at) VALUES (?,?,?,?,?,?)')
+               ->execute([(int) $u['id'], hash('sha256', $token), $ip,
+                          gmdate('Y-m-d H:i:s', time() + self::RESET_TTL), '', gmdate('Y-m-d H:i:s')]);
+
+            if (class_exists('Mailer') && method_exists('Mailer', 'sendTemplate')) {
+                $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '';
+                Mailer::sendTemplate((string) $u['email'], 'password_reset', [
+                    'first_name'       => explode(' ', trim((string) $u['name']))[0] ?: 'there',
+                    'reset_url'        => $site . '/login/?reset=' . $token,
+                    'expires_minutes'  => (string) (int) (self::RESET_TTL / 60),
+                    'request_time'     => date('j M Y, g:ia'),
+                    'request_location' => $ip !== '' ? $ip : 'an unrecognised device',
+                ]);
+            }
+        } catch (Throwable $e) { error_log('[auth] reset request: ' . $e->getMessage()); }
+        return $same;
+    }
+
+    /** Whose reset this token is, if it is live. Null for spent/expired/junk. */
+    public static function resetTokenUser(string $token): ?array
+    {
+        if (!preg_match('/^[a-f0-9]{64}$/', $token)) return null;
+        self::ensureSecurity();
+        try {
+            $st = Database::pdo()->prepare(
+                "SELECT r.id, r.user_id, u.name, u.email
+                   FROM lms_password_resets r JOIN lms_users u ON u.id = r.user_id
+                  WHERE r.token_hash = ? AND r.used_at = '' AND r.expires_at > ?
+                  LIMIT 1");
+            $st->execute([hash('sha256', $token), gmdate('Y-m-d H:i:s')]);
+            return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (Throwable $e) { return null; }
+    }
+
+    /**
+     * Finish a reset: set the password, spend the token, and sign every other
+     * session out — whoever took the account is holding a cookie, and a new
+     * password that leaves their session alive has changed nothing.
+     */
+    public static function completePasswordReset(string $token, string $password): array
+    {
+        $row = self::resetTokenUser($token);
+        if (!$row) return ['ok' => false, 'error' => 'That reset link has expired or been used. Ask for a new one.'];
+        if ($e = AuthPolicy::passwordError($password)) return ['ok' => false, 'error' => $e];
+        $db = Database::pdo();
+        /* email_verified too: clicking a link we posted to that mailbox IS
+           proof of control over it. Without this, somebody who never got
+           round to verifying can complete a reset and still be told to
+           verify — a dead end at the end of the road out of a dead end. */
+        $db->prepare('UPDATE lms_users SET password_hash = ?, has_password = 1, email_verified = 1 WHERE id = ?')
+           ->execute([password_hash($password, PASSWORD_BCRYPT), (int) $row['user_id']]);
+        $db->prepare('UPDATE lms_password_resets SET used_at = ? WHERE id = ?')
+           ->execute([gmdate('Y-m-d H:i:s'), (int) $row['id']]);
+        try { $db->prepare('DELETE FROM lms_sessions WHERE user_id = ?')->execute([(int) $row['user_id']]); }
+        catch (Throwable $e) { error_log('[auth] reset: could not clear sessions: ' . $e->getMessage()); }
+        if (class_exists('Events')) { try { Events::emit('member.password.reset', ['user_id' => (int) $row['user_id']]); } catch (Throwable $e) {} }
+        return ['ok' => true, 'message' => 'Password changed. Sign in with it now.'];
     }
 
     /**
@@ -201,11 +316,18 @@ final class LmsAuth
      * higher role), then start the session. Created accounts are passwordless
      * (a random unusable hash) so password login can't be used against them.
      */
-    public static function oauthSignIn(string $email, string $name, bool $emailVerified, string $provider = 'google'): array
+    public static function oauthSignIn(string $email, string $name, bool $emailVerified, string $provider = 'google', ?bool $orgDomainVerified = null): array
     {
         $email = strtolower(trim($email));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Your provider did not return a usable email.'];
-        $orgVerified = $emailVerified && self::isOrgEmail($email);
+        /* An unverified address proves nothing about who holds it, and this
+           finds the account BY that address — so it would sign a stranger in
+           as its owner. Refused, whatever the caller does. */
+        if (!$emailVerified) return ['ok' => false, 'code' => 'unverified', 'error' => 'Your provider has not verified that email address.'];
+        /* The member role on an org address also needs the provider to vouch
+           for the domain (Google's hd claim, GoogleAuth::orgVerified). null
+           means the caller has no such signal and the address decides. */
+        $orgVerified = $emailVerified && self::isOrgEmail($email) && ($orgDomainVerified ?? true);
         $db = Database::pdo();
         $u = self::byEmail($email);
         if (!$u) {
@@ -217,11 +339,9 @@ final class LmsAuth
             if ($u && class_exists('Notify')) Notify::welcome($u);
             if ($u && class_exists('Events')) Events::emit('member.created', ['email' => $email, 'name' => (string) $u['name'], 'role' => (string) $u['role'], 'via' => $provider]);
         } else {
-            if (($u['status'] ?? 'active') !== 'active') return ['ok' => false, 'error' => 'This account is not active. Please contact us.'];
+            if (($u['status'] ?? 'active') !== 'active') return ['ok' => false, 'code' => 'inactive', 'error' => 'This account is not active. Please contact us.'];
             // A successful OAuth sign-in proves email ownership — clear any pending verification.
-            if ($emailVerified && (int) ($u['email_verified'] ?? 0) === 0) {
-                $db->prepare('UPDATE lms_users SET email_verified = 1, verify_hash = NULL, verify_expires = NULL WHERE id = ?')->execute([$u['id']]);
-            }
+            if ($emailVerified && (int) ($u['email_verified'] ?? 0) === 0) self::claimUnverified((int) $u['id']);
             if ($orgVerified && self::rank((string) $u['role']) < self::ROLE_RANK['member']) {
                 $db->prepare("UPDATE lms_users SET role = 'member' WHERE id = ?")->execute([$u['id']]);
                 $u['role'] = 'member';
@@ -240,7 +360,29 @@ final class LmsAuth
             Database::pdo()->prepare('DELETE FROM lms_sessions WHERE token_hash = ?')->execute([hash('sha256', $tok)]);
         }
         setcookie(self::COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+        self::hint(false);
         unset($_COOKIE[self::COOKIE]); self::$cache = null; self::$checked = false;
+        /* Signing out of the site ends the Studio too. A bridged admin cookie
+           would be refused on its next request anyway (AdminRoles::current
+           re-checks the member), but a credential that lingers in the jar after
+           "Sign out" is one a shared computer's next user inherits. */
+        if (function_exists('av_admin_cookie_clear')) av_admin_cookie_clear();
+    }
+
+    /**
+     * `av_si` — a readable "signed in" hint for pages the server does not
+     * render (the static .html pages), so their nav can show My portal instead
+     * of Sign in / Join the Movement before first paint. It carries nothing
+     * but "1": the session itself stays in the HttpOnly `av_lms` cookie, and a
+     * hint that outlives its session is cleared the next time PHP sees it.
+     */
+    const HINT = 'av_si';
+    public static function hint(bool $on, int $ttl = 0): void
+    {
+        if ($on) $_COOKIE[self::HINT] = '1'; else unset($_COOKIE[self::HINT]);
+        if (headers_sent()) return;
+        $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+        setcookie(self::HINT, $on ? '1' : '', ['expires' => $on ? time() + $ttl : time() - 3600, 'path' => '/', 'secure' => $secure, 'httponly' => false, 'samesite' => 'Lax']);
     }
 
     public static function user(): ?array
@@ -248,13 +390,14 @@ final class LmsAuth
         if (self::$checked) return self::$cache;
         self::$checked = true;
         $tok = $_COOKIE[self::COOKIE] ?? '';
-        if (!$tok || !preg_match('/^[a-f0-9]{40}$/', $tok)) return self::$cache = null;
+        if (!$tok || !preg_match('/^[a-f0-9]{40}$/', $tok)) { if (!empty($_COOKIE[self::HINT])) self::hint(false); return self::$cache = null; }
         $st = Database::pdo()->prepare(
             'SELECT u.* FROM lms_sessions s JOIN lms_users u ON u.id = s.user_id
              WHERE s.token_hash = ? AND s.expires_at > ? AND u.status = \'active\''
         );
         $st->execute([hash('sha256', $tok), gmdate('Y-m-d H:i:s')]);
         $u = $st->fetch();
+        if (!$u && !empty($_COOKIE[self::HINT])) self::hint(false);
         return self::$cache = ($u ?: null);
     }
 
@@ -284,7 +427,12 @@ final class LmsAuth
             ->execute([hash('sha256', $token), $userId, av_client_ip(), substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 240), date('Y-m-d H:i:s', time() + $ttl)]);
         $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
         setcookie(self::COOKIE, $token, ['expires' => time() + $ttl, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax']);
+        self::hint(true, $ttl);
         $_COOKIE[self::COOKIE] = $token; self::$cache = null; self::$checked = false;
+        /* A volunteer is recognised as they sign in (lib/Volunteers.php). */
+        /* An NGG volunteer seeded from a file is linked to them first (lib/VolunteerSeeds.php). */
+        if (class_exists('VolunteerSeeds')) VolunteerSeeds::claim($userId);
+        if (class_exists('Volunteers')) Volunteers::recognizeAtLogin($userId);
     }
 
     /* ── security tables / brute-force lockout ──────────────────────
@@ -307,6 +455,15 @@ final class LmsAuth
             fails INTEGER NOT NULL DEFAULT 0,
             locked_until VARCHAR(32) NOT NULL DEFAULT '',
             updated_at VARCHAR(32) NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS lms_password_resets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL DEFAULT 0,
+            token_hash VARCHAR(64) NOT NULL DEFAULT '',
+            ip VARCHAR(64) NOT NULL DEFAULT '',
+            expires_at VARCHAR(32) NOT NULL DEFAULT '',
+            used_at VARCHAR(32) NOT NULL DEFAULT '',
+            created_at VARCHAR(32) NOT NULL DEFAULT ''
         );";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
         try { Database::execSchema($db, $ddl); } catch (Throwable $e) {}

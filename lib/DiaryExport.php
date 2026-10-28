@@ -2,7 +2,7 @@
 /**
  * lib/DiaryExport.php — render a set of diary items as JSON, Markdown, a clean
  * standalone HTML reader, or a print-ready "Journal" book (Bible-style: title
- * page, contents, chaptered with drop caps + justified serif, page breaks —
+ * page, contents, chaptered, justified serif, page breaks —
  * Print → Save as PDF in the browser).
  *
  * Works on a normalised item shape so it serves both the public Diary (articles
@@ -175,7 +175,6 @@ final class DiaryExport
             . '.ch-num{text-align:center;font-family:system-ui,sans-serif;letter-spacing:3px;color:#f3b416;font-weight:700;margin:0 0 4px;}'
             . '.ch-sub{font-style:italic;color:#8d480e;margin:0 0 22px;}'
             . '.ch-body{font-size:18px;line-height:1.75;text-align:justify;hyphens:auto;}'
-            . '.ch-body p:first-of-type::first-letter{font-size:54px;float:left;line-height:.8;padding:6px 8px 0 0;color:#0d1220;font-weight:600;}'
             . '.ch-body img{max-width:100%;height:auto;}.ch-body a{color:#b45309;text-decoration:none;}';
     }
 }

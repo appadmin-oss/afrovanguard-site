@@ -550,6 +550,10 @@ SYS;
     public static function replies(int $postId, int $viewerId = 0): array
     {
         self::ensure();
+        /* A thread is as private as the post it hangs off. Replies carry no
+           classification of their own, so without this an anonymous GET
+           listed every reply under a members-only or confidential post. */
+        if (self::post($postId, $viewerId) === null) return [];
         $st = Database::pdo()->prepare('SELECT ' . self::POST_COLS . '
             FROM community_posts p JOIN community_spaces s ON s.id = p.space_id JOIN lms_users u ON u.id = p.author_id
             WHERE p.reply_to = ? AND p.status = \'published\' ORDER BY p.id ASC LIMIT 200');

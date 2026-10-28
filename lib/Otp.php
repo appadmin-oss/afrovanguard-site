@@ -100,20 +100,19 @@ final class Otp
 
     private static function email(string $to, string $code, int $ttl): void
     {
-        if (!class_exists('Mailer')) { error_log("[otp] (mailer off) code for {$to}: {$code}"); return; }
-        $mins  = max(1, (int) round($ttl / 60));
-        $spaced = trim(chunk_split($code, 3, ' '));   // "123 456" — easier to read
-        $html = Mailer::shell(
-            'Your sign-in code',
-            [
-                'Use this code to sign in to Afrovanguard:',
-                '<div style="font:700 34px/1 \'Montserrat\',Arial,sans-serif;letter-spacing:8px;color:#111827;background:#f6f4ee;border-radius:12px;padding:18px 0;text-align:center;margin:6px 0">' . htmlspecialchars($spaced, ENT_QUOTES) . '</div>',
-                'It expires in ' . $mins . ' minutes and can be used once. If you didn’t request this, you can safely ignore this email — no changes were made.',
-            ],
-            null,
-            'Your Afrovanguard sign-in code: ' . $code
-        );
-        try { Mailer::send($to, 'Your sign-in code — Afrovanguard', $html); }
+        /* Never the code, nor the whole address: an error log is read by whoever runs the host. */
+        if (!class_exists('Mailer')) { error_log('[otp] mailer unavailable; no code sent to ' . preg_replace('/^(.).*?(@.*)$/', '$1***$2', $to)); return; }
+        /* The designed template (modules/EMAILS.md: sign_in_code). It draws
+           the code as separate digits itself, so the code goes in raw. */
+        $ip  = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        try {
+            Mailer::sendTemplate($to, 'sign_in_code', [
+                'code'             => $code,
+                'expires_minutes'  => (string) max(1, (int) round($ttl / 60)),
+                'request_time'     => date('j M Y, g:ia'),
+                'request_location' => $ip !== '' ? $ip : 'an unrecognised device',
+            ]);
+        }
         catch (Throwable $e) { error_log('[otp] send failed: ' . $e->getMessage()); }
     }
 }

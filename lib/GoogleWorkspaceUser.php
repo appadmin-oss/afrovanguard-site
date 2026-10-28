@@ -38,23 +38,116 @@ final class GoogleWorkspaceUser
         . 'https://www.googleapis.com/auth/chat.messages '
         . 'https://www.googleapis.com/auth/chat.users.readstate.readonly';
 
-    public static function configured(): bool { return GoogleAuth::configured(); }
+    /* Two ways in. DELEGATED (the default once the organisation's service account
+       is set up): the service account acts as the member — nothing to press,
+       nothing expires. OAUTH: the member connects their own account — kept for a
+       site without a service account, and as a fallback for a member delegation
+       refuses. */
+    public static function configured(): bool
+    {
+        return GoogleAuth::configured() || (class_exists('GoogleWorkspace') && GoogleWorkspace::memberAccess());
+    }
+
+    private static array $emails = [];
+    private static function emailOf(int $uid): string
+    {
+        if ($uid <= 0) return '';
+        if (!isset(self::$emails[$uid])) {
+            $st = Database::pdo()->prepare('SELECT email FROM lms_users WHERE id = ?');
+            $st->execute([$uid]);
+            self::$emails[$uid] = strtolower(trim((string) ($st->fetchColumn() ?: '')));
+        }
+        return self::$emails[$uid];
+    }
+
+    /** Does the organisation's service account act for this member? */
+    public static function delegated(int $uid): bool
+    {
+        return class_exists('GoogleWorkspace') && GoogleWorkspace::memberAccess() && GoogleWorkspace::isOrgAddress(self::emailOf($uid));
+    }
+
+    /* Delegation lets the organisation's service account read ANY member's
+       mail, Drive and Chat with nobody asking them. Calendar is how meetings
+       are hosted, so it stays on; reading the private three is the member's
+       own choice (NDPA 2023 s.25-26: consent, and purpose limitation), off
+       until they turn it on. A member who connected their own account by
+       hand consented on Google's screen, so that path is unaffected. */
+    const PRIVATE_SCOPES = [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/drive.readonly',
+        'https://www.googleapis.com/auth/chat.spaces.readonly',
+        'https://www.googleapis.com/auth/chat.messages',
+        'https://www.googleapis.com/auth/chat.users.readstate.readonly',
+    ];
+
+    /** May the site read this member's mail, Drive and Chat through delegation? */
+    public static function readsAllowed(int $uid): bool
+    {
+        return $uid > 0 && class_exists('Prefs') && Prefs::get($uid, 'gws_reads', '') === '1';
+    }
+
+    public static function setReads(int $uid, bool $on): bool
+    {
+        if ($uid <= 0) return false;
+        Prefs::set($uid, 'gws_reads', $on ? '1' : '');
+        try { (new LmsRepository())->audit($on ? 'google.reads.on' : 'google.reads.off', self::emailOf($uid), $on ? 'member allowed the portal to read their Gmail, Drive and Chat' : 'member stopped the portal reading their Gmail, Drive and Chat', 'member:' . $uid); } catch (Throwable $e) {}
+        return true;
+    }
+
+    /** 'delegated' | 'oauth' | '' — how this member's Google is reached. */
+    public static function mode(int $uid): string
+    {
+        if (self::delegated($uid)) return 'delegated';
+        $r = self::rawRow($uid);
+        return $r !== null && (string) $r['refresh_token'] !== '' ? 'oauth' : '';
+    }
+
+    /** The scope a Google REST path needs, for a delegated token. */
+    private static function scopeFor(string $path): string
+    {
+        return match (true) {
+            str_starts_with($path, '/gmail/') => GoogleWorkspace::SCOPE_GMAIL_RO,
+            str_starts_with($path, '/drive/') => GoogleWorkspace::SCOPE_DRIVE_RO,
+            default => GoogleWorkspace::SCOPE_CALENDAR_RW,
+        };
+    }
+
+    /** Why the last call as this member failed, in words ('' = it did not). */
+    private static string $lastWhy = '';
+    public static function lastWhy(): string { return self::$lastWhy; }
 
     public static function scopes(): string
     {
-        $s = trim((string) getenv('AV_GWS_USER_SCOPES'));
+        $s = trim((string) Config::get('AV_GWS_USER_SCOPES', ''));
         return $s !== '' ? $s : self::DEFAULT_SCOPES;
     }
 
-    /** Should ordinary Google sign-in ALSO request offline Workspace access
-     *  (so it captures a connection)? On by default once OAuth is configured;
-     *  set AV_GWS_CONNECT_ON_SIGNIN=0 to keep sign-in lightweight. */
-    public static function connectOnSignin(): bool
+    /**
+     * Should this Google sign-in ALSO request offline Workspace access (so it
+     * captures a connection)?
+     *
+     * By default only for an address at the organisation's domain. It used to
+     * be on for EVERY sign-in, so a learner signing in with a personal Gmail
+     * account was asked to let the site read their Gmail, Calendar, Drive and
+     * Chat — restricted scopes that put an unverified-app warning in front of
+     * them, and that an Internal consent screen refuses outright for anybody
+     * outside the tenant. Sign-in itself then failed for the very people the
+     * button is offered to.
+     *
+     *   AV_GWS_CONNECT_ON_SIGNIN = org (default) | all | 0
+     *
+     * $email is the address the person typed (the login hint), when there is one.
+     */
+    public static function connectOnSignin(string $email = ''): bool
     {
-        if (!self::configured()) return false;
-        $v = getenv('AV_GWS_CONNECT_ON_SIGNIN');
-        if ($v === false || trim((string) $v) === '') return true;
-        return !in_array(strtolower(trim((string) $v)), ['0', 'off', 'false', 'no'], true);
+        if (!GoogleAuth::configured()) return false;
+        /* Delegated: an org member's Google is already reached without asking them. */
+        if (class_exists('GoogleWorkspace') && GoogleWorkspace::memberAccess() && GoogleWorkspace::isOrgAddress($email)) return false;
+        $v = strtolower(trim((string) Config::get('AV_GWS_CONNECT_ON_SIGNIN', '')));
+        if (in_array($v, ['0', 'off', 'false', 'no'], true)) return false;
+        if (in_array($v, ['all', '1', 'on', 'true', 'yes'], true)) return true;
+        $at = strrchr(strtolower(trim($email)), '@');
+        return $at !== false && substr($at, 1) === GoogleAuth::orgDomain();
     }
 
     /** True if a scope string carries at least one Workspace API scope (i.e. more
@@ -131,7 +224,7 @@ final class GoogleWorkspaceUser
         $nonce = bin2hex(random_bytes(8));
         $b64 = rtrim(strtr(base64_encode(GoogleAuth::safeNext($next)), '+/', '-_'), '=');
         $payload = 'c.' . $exp . '.' . $nonce . '.' . $uid . '.' . $b64; // 'c' = connect marker
-        return $payload . '.' . hash_hmac('sha256', $payload, av_secret());
+        return $payload . '.' . av_mac('google-connect', $payload);
     }
 
     /** Verify a connect-state; returns ['uid'=>int,'next'=>string] or null. */
@@ -144,15 +237,15 @@ final class GoogleWorkspaceUser
         if (!ctype_digit($uid)) return null;
         if (av_secret() === '') return null;
         $payload = "$mark.$exp.$nonce.$uid.$b64";
-        if (!hash_equals(hash_hmac('sha256', $payload, av_secret()), $sig)) return null;
+        if (!hash_equals(av_mac('google-connect', $payload), $sig)) return null;
         $next = base64_decode(strtr($b64, '-_', '+/'), true);
-        return ['uid' => (int) $uid, 'next' => $next === false ? '/workspace' : GoogleAuth::safeNext($next)];
+        return ['uid' => (int) $uid, 'next' => $next === false ? '/portal/' : GoogleAuth::safeNext($next)];
     }
 
     public static function connectUrl(string $state, string $loginHint = ''): string
     {
         $params = [
-            'client_id'             => AV_GOOGLE_CLIENT_ID,
+            'client_id'             => GoogleAuth::clientId(),
             'redirect_uri'          => GoogleAuth::redirectUri(),
             'response_type'         => 'code',
             'scope'                 => self::scopes(),
@@ -175,8 +268,8 @@ final class GoogleWorkspaceUser
         if (!self::configured() || $code === '' || $uid <= 0) return false;
         $tok = self::post(self::tokenUrl(), [
             'code'          => $code,
-            'client_id'     => AV_GOOGLE_CLIENT_ID,
-            'client_secret' => AV_GOOGLE_CLIENT_SECRET,
+            'client_id'     => GoogleAuth::clientId(),
+            'client_secret' => GoogleAuth::clientSecret(),
             'redirect_uri'  => GoogleAuth::redirectUri(),
             'grant_type'    => 'authorization_code',
         ]);
@@ -239,6 +332,7 @@ final class GoogleWorkspaceUser
 
     public static function connected(int $uid): bool
     {
+        if (self::delegated($uid)) return true;
         $r = self::rawRow($uid);
         return $r !== null && ((string) $r['refresh_token']) !== '';
     }
@@ -259,9 +353,19 @@ final class GoogleWorkspaceUser
         Database::pdo()->prepare('DELETE FROM google_connections WHERE user_id = ?')->execute([$uid]);
     }
 
-    /** A valid access token for this user, refreshing via the refresh token if needed. */
-    public static function accessTokenFor(int $uid): ?string
+    /** A valid access token for this user: delegated for $scope, else their own connection (refreshed if needed). */
+    public static function accessTokenFor(int $uid, string $scope = ''): ?string
     {
+        $scope = $scope !== '' ? $scope : GoogleWorkspace::SCOPE_CALENDAR_RW;
+        if (self::delegated($uid) && in_array($scope, self::PRIVATE_SCOPES, true) && !self::readsAllowed($uid)) {
+            self::$lastWhy = 'Showing your mail, Drive and Chat here is off. Turn it on on your Google card.';
+            /* Their own connection, if they made one, is their consent. */
+        } elseif (self::delegated($uid)) {
+            $tok = GoogleWorkspace::memberToken(self::emailOf($uid), $scope);
+            if ($tok) { self::$lastWhy = ''; return $tok; }
+            self::$lastWhy = GoogleWorkspace::explain();
+            /* A member who also connected by hand still has that. */
+        }
         $r = self::rawRow($uid);
         if (!$r) return null;
         if ((int) $r['access_expires'] > time()) {
@@ -276,13 +380,25 @@ final class GoogleWorkspaceUser
     private static function refresh(int $uid, string $refreshToken): ?string
     {
         $tok = self::post(self::tokenUrl(), [
-            'client_id'     => AV_GOOGLE_CLIENT_ID,
-            'client_secret' => AV_GOOGLE_CLIENT_SECRET,
+            'client_id'     => GoogleAuth::clientId(),
+            'client_secret' => GoogleAuth::clientSecret(),
             'refresh_token' => $refreshToken,
             'grant_type'    => 'refresh_token',
         ]);
         if (!is_array($tok) || empty($tok['access_token'])) {
             error_log('[gws-user] refresh failed for uid ' . $uid);
+            /* invalid_grant means the refresh token is dead for good: the
+               member revoked access, changed their password, or — the common
+               case — the OAuth consent screen is in "Testing", where Google
+               expires every refresh token after seven days. Keeping it made the
+               connection read as live for ever while every panel came back
+               empty. Forget it, so the portal asks them to connect again. */
+            if (str_contains(self::$lastHttp['body'], 'invalid_grant')) {
+                Database::pdo()->prepare("UPDATE google_connections SET refresh_token='', access_token='', access_expires=0, updated_at=? WHERE user_id=?")
+                    ->execute([gmdate('Y-m-d H:i:s'), $uid]);
+                error_log('[gws-user] refresh token for uid ' . $uid . ' was refused (invalid_grant) — connection cleared; they must reconnect');
+                if (class_exists('GoogleAuth')) GoogleAuth::recordFailure('workspace refresh', 'invalid_grant for member ' . $uid . ' — connection cleared; if this recurs every 7 days the OAuth consent screen is still in Testing');
+            }
             return null;
         }
         $expires = time() + max(0, (int) ($tok['expires_in'] ?? 3600)) - self::SKEW;
@@ -294,24 +410,24 @@ final class GoogleWorkspaceUser
     /* ── authenticated API calls as the user ── */
     public static function apiGet(int $uid, string $path): ?array
     {
-        $tok = self::accessTokenFor($uid);
+        $tok = self::accessTokenFor($uid, self::scopeFor($path));
         if (!$tok) return null;
         return self::http('GET', self::apiBase() . $path, $tok, null);
     }
     public static function apiPost(int $uid, string $path, array $body): ?array
     {
-        $tok = self::accessTokenFor($uid);
+        $tok = self::accessTokenFor($uid, self::scopeFor($path));
         if (!$tok) return null;
         return self::http('POST', self::apiBase() . $path, $tok, $body);
     }
 
     /* ── Google Chat (chat.googleapis.com, separate host) ────────────────── */
-    private static function chatBase(): string { return 'https://chat.googleapis.com/v1'; }
+    private static function chatBase(): string { return rtrim((string) (Config::get('AV_CHAT_BASE_URL', '') ?: 'https://chat.googleapis.com'), '/') . '/v1'; }
 
     /** The member's Chat spaces: [{name,id,label,type}]. name = "spaces/AAA…". */
     public static function chatSpaces(int $uid, int $max = 50): array
     {
-        $tok = self::accessTokenFor($uid);
+        $tok = self::accessTokenFor($uid, GoogleWorkspace::SCOPE_CHAT_SPACES);
         if (!$tok) return [];
         $r = self::http('GET', self::chatBase() . '/spaces?' . http_build_query(['pageSize' => max(1, min(100, $max))]), $tok, null);
         $out = [];
@@ -329,7 +445,7 @@ final class GoogleWorkspaceUser
     /** Recent messages in a space, oldest→newest: [{id,text,sender,ts,mine?}]. */
     public static function chatMessages(int $uid, string $spaceId, int $max = 30): array
     {
-        $tok = self::accessTokenFor($uid);
+        $tok = self::accessTokenFor($uid, GoogleWorkspace::SCOPE_CHAT_MESSAGES);
         if (!$tok) return [];
         $spaceId = preg_replace('/[^A-Za-z0-9_\-]/', '', $spaceId);
         if ($spaceId === '') return [];
@@ -352,12 +468,13 @@ final class GoogleWorkspaceUser
      *  Bounded (one read-state + one message lookup per space) to keep it cheap. */
     public static function chatUnreadMap(int $uid, int $maxSpaces = 20): array
     {
-        $tok = self::accessTokenFor($uid);
-        if (!$tok) return [];
+        $tok = self::accessTokenFor($uid, GoogleWorkspace::SCOPE_CHAT_MESSAGES);
+        $rsTok = self::delegated($uid) ? (self::accessTokenFor($uid, GoogleWorkspace::SCOPE_CHAT_READSTATE) ?? '') : $tok;
+        if (!$tok || !$rsTok) return [];
         $out = [];
         foreach (self::chatSpaces($uid, $maxSpaces) as $s) {
             $id = $s['id'];
-            $rs = self::http('GET', self::chatBase() . '/users/me/spaces/' . rawurlencode($id) . '/spaceReadState', $tok, null);
+            $rs = self::http('GET', self::chatBase() . '/users/me/spaces/' . rawurlencode($id) . '/spaceReadState', $rsTok, null);
             $lastRead = is_array($rs) ? (string) ($rs['lastReadTime'] ?? '') : '';
             $mr = self::http('GET', self::chatBase() . '/spaces/' . rawurlencode($id) . '/messages?'
                 . http_build_query(['pageSize' => 1, 'orderBy' => 'createTime desc']), $tok, null);
@@ -371,7 +488,7 @@ final class GoogleWorkspaceUser
     /** Post a message to a space as the member. Returns true on success. */
     public static function chatSend(int $uid, string $spaceId, string $text): bool
     {
-        $tok = self::accessTokenFor($uid);
+        $tok = self::accessTokenFor($uid, GoogleWorkspace::SCOPE_CHAT_MESSAGES);
         if (!$tok) return false;
         $spaceId = preg_replace('/[^A-Za-z0-9_\-]/', '', $spaceId);
         $text = trim($text);
@@ -448,7 +565,7 @@ final class GoogleWorkspaceUser
     public static function createEvent(int $uid, string $title, string $startIso, int $durationMin = 60, string $desc = '', bool $withMeet = true): ?array
     {
         $start = strtotime($startIso) ?: time();
-        $tz = getenv('AV_WS_TZ') ?: 'Africa/Lagos';
+        $tz = (string) Config::get('AV_WS_TZ', 'Africa/Lagos');
         $body = [
             'summary'     => mb_substr($title, 0, 300),
             'description' => mb_substr($desc, 0, 4000),
@@ -491,13 +608,35 @@ final class GoogleWorkspaceUser
     /** One-call snapshot for the hub (each piece independent + best-effort). */
     public static function snapshot(int $uid): array
     {
-        return [
+        /* Each piece's failure is kept: an empty list used to read as "your inbox
+           is clear" when Google had refused, and nobody could tell the two apart. */
+        $errs = [];
+        $take = static function (callable $f, string $what) use (&$errs) {
+            self::$lastWhy = ''; self::$lastHttp = ['code' => 0, 'body' => ''];
+            $v = $f();
+            $why = self::$lastWhy !== '' ? self::$lastWhy : (self::$lastHttp['code'] >= 400 ? 'Google answered ' . self::$lastHttp['code'] . ' ' . self::apiMessage(self::$lastHttp['body']) : '');
+            if ($why !== '') $errs[$what] = $why;
+            return $v;
+        };
+        $out = [
             'connected'      => self::connected($uid),
-            'unread'         => self::gmailUnread($uid),
-            'mail'           => self::gmailRecent($uid, 5),
-            'events'         => self::calendarUpcoming($uid, 6),
-            'files'          => self::driveRecent($uid, 6),
+            'mode'           => self::mode($uid),
+            'reads'          => self::mode($uid) !== 'delegated' || self::readsAllowed($uid),
+            'unread'         => $take(fn() => self::gmailUnread($uid), 'mail'),
+            'mail'           => $take(fn() => self::gmailRecent($uid, 5), 'mail'),
+            'events'         => $take(fn() => self::calendarUpcoming($uid, 6), 'events'),
+            'files'          => $take(fn() => self::driveRecent($uid, 6), 'files'),
         ];
+        $out['errors'] = $errs;
+        return $out;
+    }
+
+    /** Google's error JSON → its message. */
+    private static function apiMessage(string $body): string
+    {
+        $j = json_decode($body, true);
+        $m = is_array($j) ? (string) ($j['error']['message'] ?? ($j['error_description'] ?? ($j['error'] ?? ''))) : '';
+        return $m !== '' ? '(' . mb_substr($m, 0, 200) . ')' : '';
     }
 
     /* ── helpers ── */
@@ -571,9 +710,11 @@ final class GoogleWorkspaceUser
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
         if (!is_string($res) || $http < 200 || $http >= 300) {
+            self::$lastHttp = ['code' => (int) $http, 'body' => substr((string) $res, 0, 300)];
             error_log('[gws-user] POST ' . $url . ' → HTTP ' . $http . ' ' . substr((string) $res, 0, 200));
             return null;
         }
+        self::$lastHttp = ['code' => (int) $http, 'body' => ''];
         $j = json_decode($res, true);
         return is_array($j) ? $j : null;
     }

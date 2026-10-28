@@ -18,6 +18,42 @@ final class Database
      *  on the wrong database. null = no fallback (running on the chosen driver). */
     private static ?string $fellBackFrom = null;
     public static function fellBack(): ?string { return self::$fellBackFrom; }
+
+    /**
+     * Where this site's database settings came from, and — the part that
+     * matters — whether a set of credentials exists somewhere pdo() never
+     * looks. pdo() reads getenv() only, and deliberately: it runs before
+     * Config and AvSettings exist, and asking either would recurse straight
+     * back into this class.
+     *
+     * The trap that costs people their data: config.php is this project's
+     * documented home for every other secret, so AV_DB_HOST and friends get
+     * written there, pdo() never sees them, and the site quietly runs on
+     * SQLite. A redeploy that replaces .env or .htaccess does the same thing
+     * to a site that WAS on MySQL. Either way nothing is broken enough to
+     * notice until somebody asks where a week of records went.
+     *
+     * Reports rather than switches. Flipping a live site onto the empty
+     * MySQL named in its config.php would look exactly like being wiped.
+     *
+     * @return array{source:string, ignored:list<string>}
+     */
+    public static function configSource(): array
+    {
+        $keys = ['AV_DB_DSN', 'AV_DB_DRIVER', 'AV_DB_HOST', 'AV_DB_NAME', 'AV_DB_USER', 'AV_DB_PASS'];
+
+        $inEnv = false;
+        foreach ($keys as $k) { if ((string) getenv($k) !== '') { $inEnv = true; break; } }
+
+        /* Constants only — no Config::get(), which would reach AvSettings,
+           which would reach this class. */
+        $ignored = [];
+        foreach ($keys as $k) {
+            if (defined($k) && trim((string) constant($k)) !== '' && (string) getenv($k) === '') $ignored[] = $k;
+        }
+
+        return ['source' => $inEnv ? 'environment' : 'none', 'ignored' => $ignored];
+    }
     /** When true, an unreachable primary DB is a hard error rather than a silent SQLite fallback. */
     public static function dbStrict(): bool {
         $v = getenv('AV_DB_STRICT');
@@ -366,7 +402,14 @@ final class Database
         $stamp = 'srv:' . self::SCHEMA_REV . ':' . (@md5_file(AV_ROOT . '/db/schema.sql') ?: '0');
         try { if (self::metaGet('schema_state') === $stamp) return; } catch (Throwable $e) { return; /* meta not ready */ }
 
-        foreach (['ensureAcademy', 'ensureLmsVerify', 'ensureDiaryEntries'] as $step) {
+        // ensureColumns BELONGS HERE. The SQLite path runs it; this one did not,
+        // and `syncSchemaFromFile()` — which fills the gaps from db/schema.sql —
+        // is SQLite-only too. So on MySQL or Postgres the articles table got
+        // whatever db/schema.<driver>.sql happened to list and nothing since:
+        // series_id, series_part and cover_is_dark were never created on a
+        // server database, on a fresh install or an old one. That is the exact
+        // bug class tests/drift.test.php exists to catch, and it caught it.
+        foreach (['ensureColumns', 'ensureAcademy', 'ensureLmsVerify', 'ensureDiaryEntries'] as $step) {
             try { self::$step(); } catch (Throwable $e) { error_log('[db] server migration ' . $step . ': ' . $e->getMessage()); }
         }
         try { self::metaSet('schema_state', $stamp); self::metaSet('schema_migrated_at', gmdate('c')); }
@@ -683,8 +726,11 @@ final class Database
         }
     }
 
-    /** True for "object already exists / duplicate" DDL errors that make an ensure() re-run a no-op. */
-    private static function isBenignSchemaError(Throwable $e): bool
+    /** True for "object already exists / duplicate" DDL errors that make an ensure() re-run a no-op.
+     *  Public because applying a schema to a migration target needs exactly this
+     *  judgement, and had been making it up — one path aborted on a duplicate
+     *  index, the other swallowed every error including the real ones. */
+    public static function isBenignSchemaError(Throwable $e): bool
     {
         $m = $e->getMessage();
         // MySQL: 1050 table exists · 1060 dup column · 1061 dup key/index · 1826 dup FK.

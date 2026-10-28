@@ -1,6 +1,6 @@
 <?php
 /**
- * search.php — JSON site search for the accessible search modal.
+ * search.php — site search: JSON for the search modal, a page for browsers.
  *
  *   GET ?q=<query>[&ai=1]
  *
@@ -13,6 +13,17 @@
  */
 declare(strict_types=1);
 require_once __DIR__ . '/lib/bootstrap.php';
+
+/* The page view. A browser that navigates here (a search form on the 404 page,
+   a shared link, no JavaScript) asks for text/html and gets the results as a
+   page in the Home chrome — the Home nav has no search dialog, so this is the
+   site's search page. The modal's fetch() sends Accept: *\/* and keeps the JSON;
+   ?format=json forces it. Same results, same ranking (SiteSearch). */
+$accept = (string) ($_SERVER['HTTP_ACCEPT'] ?? '');
+if (($_GET['format'] ?? '') !== 'json' && stripos($accept, 'text/html') !== false) {
+    require AV_ROOT . '/lib/search-page.php';
+    exit;
+}
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -29,7 +40,12 @@ $results = SiteSearch::query($q, 12, (string) ($_GET['type'] ?? ''));
 /* ── Optional AI answer, grounded on the live site knowledge. ────────────── */
 $ai = null;
 if ((string) ($_GET['ai'] ?? '') === '1' && class_exists('AvBot')) {
-    if (AvBot::configured()) {
+    /* Each answer is a paid model call and this endpoint needs no sign-in: a
+       script looping ?ai=1 ran up the provider bill without limit. The plain
+       results above are still served when the answer is held back. */
+    if (function_exists('av_rate_ok') && !av_rate_ok('search_ai', 20, 600)) {
+        $ai = ['ok' => false, 'text' => '', 'limited' => true];
+    } elseif (AvBot::configured()) {
         $sys = "You are the Afrovanguard website search assistant. Answer the visitor's query in 2-3 concise, warm sentences and, when relevant, point them to the right place using these paths: Academy /academy/, the Diary /diary/, Donate /donate.html, Projects /projects/, About /about.html, Contact /contact.html, the member Portal /portal/, Events https://afg.afrovanguard.org.ng/events. Don't invent pages or facts. If you don't know, say so and suggest Contact.";
         if (class_exists('AiKnowledge')) $sys .= AiKnowledge::asPromptBlock();
         try {

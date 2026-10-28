@@ -341,3 +341,19 @@ $cfGive = (string) file_get_contents(AV_ROOT . '/assets/site/give-pay.js');
 ck('donate: with no access code the donor is sent to the hosted page rather '
    . 'than left on a button that does nothing',
    str_contains($cfGive, 'if (!d.access_code) {'));
+
+/* ══ CFIS_URL must be https ═══════════════════════════════════════════════
+   The checkout request carries the signed envelope and the payer's details,
+   and its answer is where the payer is sent. Over plain http both are open to
+   whoever is on the path. */
+ck('cfis url: https is accepted', CfisCheckout::safeBase('https://finance.example.test'));
+ck('cfis url: plain http to a real host is refused', !CfisCheckout::safeBase('http://finance.example.test'));
+ck('cfis url: http to localhost is allowed for dev', CfisCheckout::safeBase('http://localhost:8080') && CfisCheckout::safeBase('http://127.0.0.1:9000'));
+ck('cfis url: a host that merely starts with localhost is not localhost', !CfisCheckout::safeBase('http://localhost.evil.example'));
+ck('cfis url: credentials in the URL are refused', !CfisCheckout::safeBase('https://u:p@finance.example.test'));
+ck('cfis url: a scheme-less or odd scheme is refused', !CfisCheckout::safeBase('finance.example.test') && !CfisCheckout::safeBase('ftp://finance.example.test'));
+putenv('CFIS_URL=http://finance.example.test'); putenv('CFIS_SOURCE=avg'); putenv('CFIS_SECRET=' . str_repeat('k', 64));
+ck('cfis url: with an http CFIS_URL the checkout is not configured, so it is never offered', CfisCheckout::base() === '' && !CfisCheckout::configured());
+putenv('CFIS_URL=https://finance.example.test');
+ck('cfis url: with https it is', CfisCheckout::configured());
+foreach (['CFIS_URL', 'CFIS_SOURCE', 'CFIS_SECRET'] as $k) putenv($k);

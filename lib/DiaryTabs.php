@@ -71,7 +71,7 @@ final class DiaryTabs
             updated_at VARCHAR(32) NOT NULL DEFAULT ''
         );
         CREATE INDEX IF NOT EXISTS idx_dtab_entry ON diary_entry_tabs(entry_id, sort);";
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);   /* one statement at a time; on MySQL an index that is already there (no CREATE INDEX IF NOT EXISTS) is not an error */
 
         // The name of tab 0. Stored on the entry because tab 0 IS the entry —
         // see the class note. Defaults to empty, which the reader renders as
@@ -188,6 +188,7 @@ final class DiaryTabs
 
         $title = self::cleanTitle($title);
         if ($title === '') $title = 'Tab ' . $have;   // 1-based including the first
+        if (DiaryJournal::isHtml($body)) $body = DiaryJournal::sanitizeHtml($body);
 
         $s = $this->db->prepare('SELECT COALESCE(MAX(sort),0) + 1 FROM diary_entry_tabs WHERE entry_id = ?');
         $s->execute([$entryId]);
@@ -213,6 +214,10 @@ final class DiaryTabs
     {
         self::ensure();
         if ($this->authorOf($entryId) !== $userId) return false;
+        // Tab bodies are read back as HTML by the author AND by everyone the
+        // notebook is shared with, so they go through the same allowlist as an
+        // entry's body. Plain text is stored as typed.
+        if ($body !== null && DiaryJournal::isHtml($body)) $body = DiaryJournal::sanitizeHtml($body);
 
         if ($tabId === 0) {
             $set = []; $args = [];

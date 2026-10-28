@@ -9,6 +9,7 @@
  *   GET ?action=member&id=N      → single member profile
  *   GET ?action=votm             → current Volunteer of the Month
  *   GET ?action=celebrations     → today's auto-celebrations (holidays/birthdays/VOTM)
+ *   GET ?action=sessions         → the programme session running now, the next, and the countdown
  */
 declare(strict_types=1);
 require_once __DIR__ . '/lib/bootstrap.php';
@@ -23,7 +24,7 @@ if (function_exists('av_rate_ok') && !av_rate_ok('public_api', 120, 60)) {
 }
 
 $action = (string) ($_GET['action'] ?? 'members');
-if (!in_array($action, ['members', 'member', 'votm', 'celebrations'], true)) {
+if (!in_array($action, ['members', 'member', 'votm', 'celebrations', 'sessions'], true)) {
     json_out(['status' => 'error', 'error' => 'Unknown action.'], 400);
 }
 
@@ -31,16 +32,45 @@ try {
     $pdo = Database::pdo();
     if ($action === 'members') {
         $out = av_team_members($pdo);
+        $out['members'] = array_map('av_team_public_dict', $out['members'] ?? []);
     } elseif ($action === 'member') {
         $id = (int) ($_GET['id'] ?? 0);
         if ($id < 1) json_out(['status' => 'error', 'error' => 'A member id is required.'], 400);
         $out = av_team_one($pdo, $id);
+        if (isset($out['member'])) $out['member'] = av_team_public_dict($out['member']);
     } elseif ($action === 'votm') {
         $out = av_votm($pdo);
+    } elseif ($action === 'sessions') {
+        $n = ProgrammeSessions::now();
+        $out = ['status' => 'ok', 'today' => $n['today'], 'current' => $n['current'], 'next' => $n['next'], 'countdown' => $n['countdown']];
     } else { // celebrations
         if (is_file(AV_ROOT . '/lib/celebrations.php')) {
             require_once AV_ROOT . '/lib/celebrations.php';
-            $out = ['status' => 'ok', 'celebration' => av_celebration_today($pdo)];
+            $date = date('Y-m-d');
+            $cel = av_celebration_today($pdo, $date);
+            // The signed-in member's own birthday (design 5a, “your birthday”).
+            // Per-user, so this response must never be cached by a proxy.
+            header('Cache-Control: private, no-store');
+            try {
+                $u = class_exists('LmsAuth') ? LmsAuth::user() : null;
+                if ($u) {
+                    $b = class_exists('Birthdays') ? Birthdays::of((int) $u['id']) : null;
+                    $pts = class_exists('GateAttendance') ? (int) (GateAttendance::pointRules()['birthday'] ?? 0) : 0;
+                    $cel = av_celebration_for_viewer($cel, ['name' => (string) $u['name'], 'birthday' => $b['birthday'] ?? '', 'year' => $b['year'] ?? 0], $date, $pts);
+                }
+            } catch (Throwable $e) { error_log('[api] celebrations viewer: ' . $e->getMessage()); $u = null; }
+            /* Teammates' birthdays are for the team. A visitor, or a member outside
+               the organisation, gets the day's other celebrations but never whose
+               birthday it is or their photo: polled daily, that built a birthday
+               list of everyone on the team. */
+            if ($cel && !($u && LmsAuth::isOrgMember($u))) {
+                $keep = array_values(array_filter($cel['items'] ?? [], static fn($it) => ($it['type'] ?? '') !== 'birthday' || !empty($it['mine'])));
+                $keep = array_map(static function ($it) { if (empty($it['mine'])) unset($it['people']); return $it; }, $keep);
+                $cel = $keep ? ['date' => $cel['date'], 'items' => $keep, 'primary' => $keep[0]] + $cel : null;
+            }
+            $theme = null;
+            try { $theme = av_celebration_theme($pdo, $date); } catch (Throwable $e) { error_log('[api] celebrations theme: ' . $e->getMessage()); }
+            $out = ['status' => 'ok', 'celebration' => $cel, 'theme' => $theme];
             // Best-effort lazy trigger so birthday emails still go out on hosts
             // without a configured cron. Idempotent (once per person per day),
             // and wrapped so it can never affect this response.
@@ -56,5 +86,8 @@ try {
     json_out(['status' => 'error', 'error' => 'Directory is temporarily unavailable.'], 500);
 }
 
-header('Cache-Control: public, max-age=60, stale-while-revalidate=30');
+/* Celebrations depend on who is asking (their own birthday, and whether they
+   may see the team's), so that response stays private; it set private above and
+   this used to overwrite it with public. */
+if ($action !== 'celebrations') header('Cache-Control: public, max-age=60, stale-while-revalidate=30');
 json_out($out, ($out['status'] ?? 'ok') === 'ok' ? 200 : 404);

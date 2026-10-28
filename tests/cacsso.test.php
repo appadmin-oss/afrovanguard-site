@@ -85,7 +85,7 @@ ck('the door does not try to decide CRM access itself — that rule lives on the
    !preg_match('/isOrgMember|atLeast|canManageMembers/', $portal . $door));
 
 /* ── The link is hidden when the bridge is off ──────────────────────────── */
-$dash = (string) @file_get_contents(AV_ROOT . '/portal/index.php');
+$dash = av_portal_source();
 ck('portal: the workspace link only shows when a secret is set',
    str_contains($dash, 'CacSso::ready()') && str_contains($dash, 'CacSso::DOOR'));
 ck('portal: and it is named for the place, not for one screen in it — behind it are '

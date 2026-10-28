@@ -91,33 +91,9 @@ NgvLedger::saveSettings(['enabled' => true], 'test');
 NgvLedger::saveSettings(['enabled' => $ncLedgerWas], 'test');
 
 /* ── The card ─────────────────────────────────────────────────────────────── */
-$card = NgvCard::html($ncU($ada));
-ck('Card: shows the name, the NGV ID, the QR and the status word', str_contains($card, 'Adaeze Okafor Vanguard') && str_contains($card, (string) GateAttendance::cardFor($ada))
-   && str_contains($card, '<svg') && str_contains($card, '>Active<'));
-ck('Card: says when its status was true, because print goes stale', str_contains($card, 'Status as of') && str_contains($card, 'scan for the live one'));
-$pub = NgvCard::html($ncU($ada), ['public' => true]);
-ck('Card: the public card has the first name only — not even the surname’s initial', str_contains($pub, '>Adaeze<') && !str_contains($pub, 'Okafor') && str_contains($pub, 'aria-hidden="true">A<'));
-$none = NgvCard::html($ncU($wd));
-ck('Card: somebody with no gate card is told to ask, not shown a broken code', str_contains($none, 'No gate card yet') && !str_contains($none, '<svg'));
 
-/* ── The page a phone opens ───────────────────────────────────────────────── */
-$ncAs(null);
-$h = render_page(dirname(__DIR__) . '/q.php', ['c' => $code]);
-ck('Page: a stranger sees the first name and "Active member"', str_contains($h, 'Adaeze') && str_contains($h, 'Active member') && !str_contains($h, 'Okafor'));
-ck('Page: …and no gate verdict, no money, and a way to sign in if it is theirs', !str_contains($h, 'CACENTRE gate</dt>') && str_contains($h, 'Sign in'));
-$ncAs($ada);
-$h = render_page(dirname(__DIR__) . '/q.php', ['c' => $code]);
-ck('Page: the holder sees their full name, their standing and the gate verdict', str_contains($h, 'Adaeze Okafor Vanguard') && str_contains($h, 'Your standing') && str_contains($h, 'Lets you in') && str_contains($h, '/gate-pass'));
-$coord = $ncUser('Cora Coordinator', 'coordinator');
-$ncAs($coord);
-$h = render_page(dirname(__DIR__) . '/q.php', ['c' => strtolower($code)]);
-ck('Page: NGV staff see the whole record, even from a lower-cased code', str_contains($h, 'Adaeze Okafor Vanguard') && str_contains($h, '<dt>Card</dt>') && str_contains($h, 'NGV attendance') && str_contains($h, 'Print card'));
-$ncAs(null);
-$old = $code; $code = MemberCards::issue($ada, 'test');
-$h = render_page(dirname(__DIR__) . '/q.php', ['c' => $old]);
-ck('Page: a replaced card says it was replaced, and shows nobody', str_contains($h, 'has been replaced') && !str_contains($h, 'Adaeze'));
-$h = render_page(dirname(__DIR__) . '/q.php', ['c' => 'AVQR-0000000000000000']);
-ck('Page: an unknown code says only that', str_contains($h, 'Not an Afrovanguard member card') && !str_contains($h, '<article'));
-ck('Page: the routes exist in production and in dev', str_contains((string) file_get_contents(dirname(__DIR__) . '/.htaccess'), 'RewriteRule ^q/(AVQR-')
-   && str_contains((string) file_get_contents(dirname(__DIR__) . '/router.php'), "require __DIR__ . '/q.php'"));
-$ncAs(null);
+/* The .ngvc- card's own assertions went with NgvCard::html() and
+   NgvCard::css() (ID_CARD_PRINT §2). standing(), qrSvg(), user() and
+   participant() are the contracts that remain, and they are covered above;
+   the card itself is now partials/id-card.php and is covered by
+   tests/idcard.test.php. */

@@ -18,6 +18,7 @@
  * the extracted fragment, which is the number you actually need.
  */
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit("CLI only\n"); }
 
 $root  = dirname(__DIR__);
 $files = array_slice($argv, 1);

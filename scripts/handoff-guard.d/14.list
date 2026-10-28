@@ -1,0 +1,6 @@
+# Row 14: member portal shell (design: Afrovanguard Portal v2)
+portal/index.php
+portal/avp.css
+portal/avp.js
+portal/views/today.php
+portal/views/membership.php

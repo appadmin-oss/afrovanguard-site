@@ -274,3 +274,217 @@ NEVER commit api/config.php; camera Permissions-Policy is camera=(self) in
   each chapter plus the whole-book reflection — see `docs/ngv-reading.md`.
 - Tests: `tests/gateattendance.test.php` (Leave:), `tests/ngvreading.test.php`
   (book list:), `tests/ngvfines.test.php` (a vanguard's own fines).
+
+## 2026-10-22 — Centres follow CACENTRE's locations; absences by each location's calendar
+
+- **CACENTRE decides the places.** Its locations list is the only one. The
+  CACENTRE gate sends it to `integrations/cacentre-gate.php` as
+  `{op:"locations", version, tz, locations:[{id, name, status, aliases, calendar}]}`,
+  signed with the resolve key the gate already uses, and retries every five
+  minutes until this answers `{ok:true}`.
+- `Centres::syncFromCacentre()`: checked whole, one transaction, one audit line
+  (`centre.cacentre`). A location is linked to a centre by its id (`av_centres.cac_id`,
+  added by `Centres::ensure()`), else by its name or a former name. New → a centre
+  with a code from its name. Renamed → the same centre renamed, with its members
+  (`member_profiles.centre`). Removed → retired. The calendar goes in `cac_calendar`.
+  The list's version and time are kept in meta `av_cac_locations`.
+- Once the list has arrived: `Centres::save()` refuses a new centre and a linked
+  centre's rename; `setStatus()` and `delete()` refuse a linked centre
+  (`managed_by_cacentre`, with where to do it). The code is still the portal's.
+  `adopt()` no longer adds a centre typed on a member. Studio → Members →
+  Centres shows the note, a CACENTRE badge, and read-only names.
+- **Absences by the member's location.** `GateAttendance::isProgrammeDayFor($member, $day)`:
+  the portal's holidays never count; otherwise the member's centre's calendar
+  decides (`meetsOn()`: its weekdays, inside the terms it runs, not on its
+  holidays); a member at no centre, or a centre with no calendar, keeps
+  `gate.programme_days`. Used by `sweep()` (absences and absence fines),
+  `award()`, runs and perfect weeks, and the day register's "not in yet" list.
+  Members' centres are read in one query per request (`centreOf`).
+- Tests: `tests/cacentrelocations.test.php`; CACENTRE's
+  `tests/integration/gate-e2e.php` renames a location in CACENTRE and sees it
+  arrive here through the real gate.
+
+## 2026-10-22 — Fines for any member, not only NGV participants
+
+- `NgvFines` fines any active portal member (`MemberRoster::memberWhere`), NGV
+  or not. The roll (`population()`) is the NGV participants plus every active
+  member, each marked `ngv`; the desk's picker and the spreadsheet import match
+  them the same way (NGV ID, card, email, phone, name).
+- Same ledger: a member outside NGV gets `ngv_charges` rows of kind `fine`
+  under their portal id (one id space). `issue()` posts directly for them
+  (`NgvLedger::charge()` stays participant-only for fees). `NgvLedger::postCredit`
+  accepts the `fine` line for any member, so a payment, waiver or void works;
+  `receiptFor()` takes name and email from `lms_users` when there is no
+  participant row. Fees, Paystack and reminders stay NGV-only.
+- The fines desk (`/academy/ngv/fines.php`) has **Record payment** on an open
+  fine (`NgvFines::payOne`: cash, transfer, POS or other, with a reference).
+  Like every payment it comes off the member's oldest fine first.
+- The portal: a member outside NGV who has had a fine gets **Fines** under You
+  (`portal/views/fines.php`); the email and notification say "Afrovanguard
+  account" and link there. A vanguard's fines are unchanged, under NextGen
+  Vanguard.
+- Tests: `tests/finesanymember.test.php`.
+
+## 2026-10-22 — The fines import, smarter
+
+- **Reads what people have** (`NgvFines::parseAny`): an `.xlsx` workbook (first
+  sheet, read with ZipArchive + SimpleXML; Excel day numbers become dates), a
+  CSV with headings (as before), a CSV or tab sheet with NO headings (each
+  column typed by what most of its cells are: `kindOf()` — email, phone, NGV
+  ID, date, amount, reason, name, note), and a typed list, one fine a line
+  ("Tunde Bakare – late – 12 Oct – 2k"). Amounts read "2k", "₦1,500", "N2000".
+  A day with no year is the last one that has passed. The desk says how it read
+  the sheet (`read_as`).
+- **Remembers who people meant**: when a person picks who a row is for and the
+  import is applied, the row's name, email and phone are remembered for that
+  member (meta `ngv_fine_aliases`, at most 3000). The next sheet that says the
+  same is matched "by what you chose before" — unless that name now belongs
+  exactly to someone else, when it asks again.
+- **No double fines**: a row for a member already fined for the same reason on
+  the same day — by the CACENTRE gate (`late:`/`absent:`/`nocard:` periods), at
+  the desk, or by an earlier import — is "already fined", and says how.
+- **Repeat offences are pointed out**: "3rd late arrival fine in 30 days".
+  Nothing is escalated automatically; the amount is still the catalogue's.
+- Tests: `tests/finessmart.test.php`.
+
+
+## Members owe dues; dues are calculated, not just recorded (Oct 2026)
+
+Before this, dues were only ever *paid*: nothing said a member owed them, so
+a member who never paid read "never paid" and owed nothing, and a member who
+lapsed in March and renewed in October got a year from October (the seven
+months between were forgiven). `lib/Membership.php` now owns the obligation:
+
+- **Who owes**: an Afrovanguard member (not a learner), active, at a level
+  from `from_level` up, not a NextGen Vanguard (membership is on their NGV
+  account), not lifetime, not ended by the office, not the community bot.
+  `Membership::obligation()` gives the reason when somebody does not owe.
+- **How much**: from the later of the start date, the day they joined (or the
+  moment the account was made) and the day paid dues ran out, a month falls
+  due on that day and every month after. Arrears = months × the monthly
+  price, with whole years at the yearly price (`Membership::price`).
+  Computed when read, with no cron and no charge table.
+- **Paying clears the oldest month first**: `Membership::nextBase()` is where
+  new months begin, read by the office's grant and by Paystack's
+  `LmsRepository::grantMembership`.
+- **The rules are the office's**: Studio → Members → **Dues** (prices, start
+  date, from level, on/off; changing them is Super Admin only), meta
+  `av_dues_settings`. The start date is fixed the first time it is read (the
+  first of that month) so it does not slide. Every price reader (portal,
+  offline receipt check, how-it-works, the assistant) reads
+  `Membership::monthly()/annual()/price()`. A Paystack monthly plan's amount
+  is set in Paystack, and the screen says so.
+- **Member management**: dashboard tiles "Behind on dues" (total owed) and
+  "Owe dues"; roster filters for both; an "Owes ₦…" badge per row (one query
+  per page); the drawer says how far behind and why; the Dues tab lists the
+  largest debts first; the CSV export has months and naira owed.
+- **Portal**: Membership shows what is owed and since when, a "Pay what's
+  owed" button (period `arrears`), and the offline form offers that amount.
+- **Bug fixed**: `portal/dues.php` read `$body` without ever setting it, so
+  "Pay a month" started a checkout for a year.
+- **NGV ledger**: a membership year runs from the day somebody began, not
+  the calendar year (a 5 December start was charged again on 1 January). The
+  keys are still `YYYY`, so nothing already posted is charged twice. The year
+  that straddles a rollout guard is still owed. The balance ceiling is tested
+  before every charge, not once per run.
+- **Finance requests are on by default**: CFIS's address
+  (`https://cacentre.afrovanguard.org.ng/finance`) and Afrovanguard's property
+  code (`avg`) are defaults, so the private key alone switches finance
+  requests and the CFIS checkout on. It can be pasted into Studio → Setup →
+  CACENTRE finance (CFIS), or set as `CFIS_SECRET`. An explicitly empty
+  setting still switches it off.
+- Tests: `tests/dues.test.php`, `tests/cfisdefault.test.php`.
+
+## Setup → Test Google Workspace always answers (Oct 2026)
+
+The Test buttons on Studio → Rules & AI → Setup were drawn **disabled** when a
+provider was not ready, with the reason only in a hover tooltip. A Workspace
+key set in config.php that the site could not use (cut short, no
+private_key, defined twice, on the empty template line) therefore made
+"Test Google Workspace" do nothing. Every test button can now be pressed. One
+that is not ready shows the server's reason beside it before it is pressed
+(`AvSettings::testable()['why']`, from `GoogleWorkspace::whyNotConfigured()`).
+That reason says when the bad key is in config.php rather than the Studio, and
+what is wrong with it. A refusal before the test (not a Super Admin, rate
+limited) now prints its error instead of a bare ✗. Test:
+`tests/setuptests.test.php`.
+
+## Meetings: everybody sees them; CACENTRE staff schedule them (Oct 2026)
+
+Every member and staff member now sees every meeting, and the organiser can
+keep a meeting's minutes to the people in it. CACENTRE's Staff Office schedules
+and lists meetings through `integrations/cacentre-meetings.php`, which is
+signed with the existing `AV_SSO_SECRET`. Meetings has its own portal menu
+entry. Details: docs/meetings.md, "Everybody sees every meeting". The nav test
+now recognises router aliases (`portal/avp.js` `ALIAS`).
+
+## CACENTRE's email goes out through this site's mail (Oct 2026)
+
+CACENTRE's own outbound mail was not being delivered. Its mailer
+(`cac/includes/mail-transport.php`) now hands each message here first, through
+`integrations/cacentre-send.php` (`lib/CacSend.php`). The request is signed with
+the bridge secret both sites already hold (`AV_SSO_SECRET`), for the
+`mail-send` door, bound to the message, with a nonce spent once. One check
+covers every door CACENTRE calls: `lib/CacInbound.php` (meetings now uses it
+too). This site sends it at once with its own roads (`Mailer::send`), with the
+sender name "CACENTRE", replies to CACENTRE, and this site's own From address
+(the one its mail may send as). Only List-Unsubscribe headers are carried.
+There is a daily ceiling: `AV_CAC_SEND_DAILY`, default 500. Past it the answer
+is `daily_cap` and CACENTRE falls through to its own routes. Tests:
+`tests/cacsend.test.php` here, and `cac/tests/avmail.test.php` in CACENTRE.
+
+## Finance requests on by default; volunteer meetings editable (Oct 2026)
+
+- **Finance requests are always open.** With CFIS not connected, or not
+  answering, a member's request is kept under its own reference (status
+  `unsent`, with who asked and the bank details). The office is emailed
+  (`AV_FINANCE_EMAIL`, else `ADMIN_EMAIL`), and the cron sends it by itself
+  once finance can take it (`CfisRequests::sendPending`). The form offers
+  CFIS's own default spending kinds while finance cannot be asked
+  (`CfisRequests::DEFAULT_CATEGORIES`, mirroring CFIS `config/cfis.php`);
+  CFIS still decides on arrival. A refusal from finance is still shown as
+  such. Tests: `tests/cfisrequests.test.php`, rewritten for this rule.
+- **Volunteer dashboard → Coming up:** the edit button always reads "Edit".
+  It said "⚠ Add Meet link" on any meeting without a link, which was every
+  meeting on a site without Google Workspace, so nobody saw it could edit.
+  `portal/volunteer.js` and `portal/views/volunteer.php` now write no inline
+  styles: bar and meter sizes are 5% step classes (`.vh-w*`, `.vh-h*`), and
+  the toast is `.vh-toast`. Test: `tests/volunteerui.test.php`.
+
+## The CFIS key is collected, not carried (Oct 2026)
+
+Setup used to say: "CACENTRE's finance team mints it with
+`php artisan cfis:connect avg` and hands it over privately. Minting a new one
+stops the old one working." Behind that, a 64-character signing key was
+printed to a terminal at CACENTRE, lived in scrollback, travelled by whatever
+the two people found convenient, and was pasted into a form here. The
+instruction to keep it private was the entire control. And because the only
+verb was `cfis:connect`, a lost hand-over and a compromised key had the same
+remedy — which mints a NEW key, so the commoner problem was fixed by breaking
+this site until somebody carried the new key across.
+
+- **Setup → CACENTRE finance → Pair with CFIS.** Finance runs
+  `php artisan cfis:pair avg` and gives out a pairing code (sixteen
+  characters, fifteen minutes, one use, stored by CFIS only as a hash). Enter
+  it and this site fetches its key from CFIS over TLS. The key is never
+  displayed on either side.
+- **Why a second credential at all.** This site cannot simply ask for its own
+  key, because the only thing that proves it is Afrovanguard is that key. The
+  code breaks the loop with something whose leaking matters far less, and
+  whose use CFIS records (`income_source.paired`, with when and from where).
+- **A re-pair does not change the key**, so a hand-over that goes astray no
+  longer means a rotation. Only `cfis:connect` changes a key.
+- **The fingerprint is the check.** Both sides show the same 16 characters
+  (`CfisPairing::fingerprint()`, mirroring CFIS's `IncomeSource::fingerprintFor()`).
+  This site also verifies the key against the fingerprint CFIS sends with it,
+  so a truncated answer is refused here rather than failing every settlement
+  days later with nothing pointing back.
+- `CFIS_PAIRING_CODE` is declared as type **`action`** — a button, not a
+  setting. `AvSettings::save()` refuses to store an action, and the Studio
+  field carries no `data-skey`, so a live credential cannot end up in
+  `av_settings` by either route.
+- `CFIS_SECRET` stays in Setup for a host that cannot reach CFIS outbound;
+  there finance uses `cfis:connect avg --show-secret` as before.
+- Super Admin only, rate-limited (10 per 10 minutes), audited by fingerprint
+  and never by key. Tests: `tests/cfispairing.test.php` here, and
+  `tests/Feature/Integrations/PropertyPairingTest.php` in CACENTRE.

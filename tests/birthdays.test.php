@@ -74,7 +74,7 @@ ck('Birthdays: the gate is never told a birthday', !str_contains((string) json_e
 
 /* Recorded by the office, never by the member. */
 $prefs = (string) file_get_contents(AV_ROOT . '/portal/prefs.php');
-$portal = (string) file_get_contents(AV_ROOT . '/portal/index.php');
+$portal = av_portal_source();
 ck('Birthdays: a member has no way to set their own — not in their preferences API', !str_contains($prefs, 'birthday'));
 ck('Birthdays: …nor on their Account card, which only shows what the office recorded', !str_contains($portal, 'set_birthday') && !str_contains($portal, 'id="bdForm"') && str_contains($portal, 'Birthdays::label($bday)'));
 ck('Birthdays: the Studio records them, on the member\'s record, audited', preg_match("~case 'mem_save':.*?MemberRoster::update\\(~s", (string) file_get_contents(AV_ROOT . '/admin/api.php')) === 1

@@ -145,7 +145,7 @@ $mrPdo->exec("DELETE FROM lms_users WHERE email LIKE '%@roster.test'");
 Database::metaSet('gate_card_formats', '');
 
 /* ── NextGen Vanguard inside the member portal ────────────────────────── */
-$portal = (string) file_get_contents(AV_ROOT . '/portal/index.php');
+$portal = av_portal_source();
 ck('Portal: a vanguard\'s NGV dashboard is a section of the portal, from the same files as the old page',
     str_contains($portal, "NgvMember::isVanguard((int) \$u['id'])") && str_contains($portal, '_dashboard-data.php') && str_contains($portal, '_dashboard-body.php'));
 ck('Portal: …read in its own scope, so its names cannot overwrite the portal\'s', str_contains($portal, 'get_defined_vars()'));
@@ -154,10 +154,12 @@ ck('Portal: the old dashboard sends a vanguard to the portal, and still writes e
     str_contains($dash, "Location: /portal/#ngv") && str_contains($dash, 'NgvMember::saveSelf') && str_contains((string) file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-body.php'), "NGV_URL = '/academy/ngv/dashboard.php'"));
 
 ck('Portal: NGV is three portal views — Programme, Fees & account, Attendance & pass — not a page inside a page',
-    str_contains($portal, "['ngv', 'Programme'") && str_contains($portal, "['ngv-account', 'Fees & account'") && str_contains($portal, 'data-view="attendance"')
+    PortalNav::SECTIONS['ngv']['label'] === 'Programme' && PortalNav::SECTIONS['ngv-account']['label'] === 'Fees & account'
+    && PortalNav::visible('attendance', ['ngv' => true]) && str_contains((string) file_get_contents(AV_ROOT . '/portal/views/attendance.php'), 'data-view="attendance"')
     && str_contains($portal, "'ngvStandalone' => false"));
 ck('Portal: Today carries the programme and what needs doing about it', str_contains($portal, 'today-ngv') && str_contains($portal, "outstanding on your NGV account") && str_contains($portal, 'The CACENTRE gate cannot let you in'));
-ck('Portal: Membership shows the NGV ID, the NGV account and the gate beside the dues', str_contains($portal, '>NGV ID<') && str_contains($portal, '>NGV account<') && str_contains($portal, '>CACENTRE gate<'));
+ck('Portal: Membership shows the ID (named by its kind), the NGV account and the gate beside the dues', str_contains($portal, 'IdCard::kindLabel($myId)') && str_contains($portal, '>NGV account<') && str_contains($portal, '>CACENTRE gate<'));
+ck('IDs: only an NGV number is an NGV ID; a member\'s is a Member ID', IdCard::kindLabel('B-NGV-25-0005') === 'NGV ID' && IdCard::kindLabel('E-AVM-17-0001') === 'Member ID' && IdCard::kindLabel('CAC-001') === 'Member ID');
 ck('Portal: the sidebar names a vanguard as one', str_contains($portal, "\$isNgv ? 'NextGen Vanguard'"));
 $gp = (string) file_get_contents(AV_ROOT . '/gate-pass.php');
 ck('Portal: telling the office about a day away from the portal comes back to the portal', str_contains($gp, "Location: /portal/#attendance") && str_contains((string) file_get_contents(AV_ROOT . '/portal/_attendance.php'), 'name="return" value="portal"'));
