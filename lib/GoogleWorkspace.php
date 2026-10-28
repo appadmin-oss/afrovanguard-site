@@ -53,6 +53,37 @@ final class GoogleWorkspace
      * identical on every screen. The Setup test and System page read this.
      */
     private static string $lastError = '';
+
+    /**
+     * Did the last directoryUsers() reach the end of the directory?
+     *
+     * It pages, and it stops at $max. A truncated list looks exactly like
+     * a complete one from outside, and the difference matters enormously:
+     * "these are everybody" is what licenses suspending an account that
+     * is NOT in the list. Against a truncated page that would suspend
+     * every person past the cap. False until a run proves otherwise.
+     */
+    private static bool $lastListComplete = false;
+
+    public static function lastDirectoryListComplete(): bool { return self::$lastListComplete; }
+
+    /**
+     * Stands in for Google's directory, so the SYNC can be tested and not
+     * only the pieces under it.
+     *
+     * Added because a test that reached past syncDirectoryUsers() and
+     * called the suspend helper directly proved nothing about the sync:
+     * putting the old `skipped++` back at the call site broke no test at
+     * all, which is the original defect returning in silence. A seam here
+     * is cheaper than that.
+     *
+     * The closure is handed ($max) and returns [users, complete].
+     *
+     * @param  null|Closure(int): array{0: array, 1: bool}  $f
+     */
+    private static ?Closure $directoryFetcher = null;
+
+    public static function useDirectoryFetcher(?Closure $f): void { self::$directoryFetcher = $f; }
     /** The scope the last refused token was asked for — the one to add to delegation. */
     private static string $lastScope = '';
     /** curl's own words for the last call that got no answer at all — DNS, TLS, a firewall. */
@@ -612,6 +643,13 @@ final class GoogleWorkspace
     /** Org users from the Directory API (needs domain-wide delegation + AV_WS_SUBJECT). */
     public static function directoryUsers(int $max = 200): array
     {
+        self::$lastListComplete = false;
+        if (self::$directoryFetcher !== null) {
+            [$rows, $complete] = (self::$directoryFetcher)($max);
+            self::$lastListComplete = (bool) $complete;
+
+            return (array) $rows;
+        }
         if (!self::configured() || self::subject() === '') return [];
         $domain = (string) Config::get('AV_ORG_DOMAIN', 'afrovanguard.org.ng');
         /* admin_view, not domain_public: `suspended` and `isAdmin` are admin-only
@@ -627,6 +665,11 @@ final class GoogleWorkspace
             foreach ((array) ($d['users'] ?? []) as $u) $users[] = $u;
             $page = (string) ($d['nextPageToken'] ?? '');
         } while ($page !== '' && count($users) < $max);
+        /* No next page means we reached the end; a page token still in
+           hand means we stopped at $max and this is only part of the
+           directory. Nothing may be concluded from an ABSENCE in a
+           partial list. */
+        self::$lastListComplete = ($page === '');
         if (!$users) return [];
         $out = [];
         foreach ($users as $u) {
@@ -914,17 +957,43 @@ final class GoogleWorkspace
      */
     public static function syncDirectoryUsers(int $max = 500): array
     {
-        $sum = ['created' => 0, 'updated' => 0, 'skipped' => 0];
-        if (!self::configured() || self::subject() === '' || !class_exists('Database')) return $sum + ['ok' => false, 'error' => 'not configured'];
+        $sum = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'suspended' => 0, 'absent_not_swept' => 0];
+        if (!class_exists('Database')) return $sum + ['ok' => false, 'error' => 'not configured'];
+        if (self::$directoryFetcher === null && (!self::configured() || self::subject() === '')) {
+            return $sum + ['ok' => false, 'error' => 'not configured'];
+        }
         $users = self::directoryUsers($max);
         if (!$users) return $sum + ['ok' => true];
+        $complete = self::lastDirectoryListComplete();
         $db = Database::pdo();
         $find = $db->prepare('SELECT id FROM lms_users WHERE email = ?');
         $ins  = $db->prepare('INSERT INTO lms_users (name, email, password_hash, role, email_verified, has_password) VALUES (?,?,?,?,1,0)');
         $upd  = $db->prepare("UPDATE lms_users SET name = ? WHERE id = ? AND (name IS NULL OR name = '')");   // '' not "": a double-quoted "" is an identifier on Postgres and ANSI MySQL
+
+        /* Every address Workspace told us about this run, so an account
+           that is NOT here can be recognised below. */
+        $seen = [];
+
         foreach ($users as $u) {
             $email = strtolower(trim((string) $u['email']));
-            if ($email === '' || !empty($u['suspended'])) { $sum['skipped']++; continue; }
+            if ($email === '') { $sum['skipped']++; continue; }
+            $seen[$email] = true;
+
+            /*
+             * SUSPENDED IN WORKSPACE MEANS SUSPENDED HERE.
+             *
+             * This used to `continue` — count them skipped and leave them
+             * alone. So somebody who left the organisation kept their
+             * member account, whatever password they had set, their gate
+             * pass, and any Studio role tied to their address. Their
+             * Workspace was closed on their last day and nothing here
+             * noticed.
+             */
+            if (!empty($u['suspended'])) {
+                $sum['suspended'] += self::suspendLocally($email, 'suspended in Google Workspace');
+                continue;
+            }
+
             $name = trim((string) $u['name']) ?: ucfirst(explode('@', $email)[0]);
             $find->execute([$email]);
             $id = (int) ($find->fetchColumn() ?: 0);
@@ -935,7 +1004,74 @@ final class GoogleWorkspace
                 if (class_exists('Events')) { try { Events::emit('member.created', ['email' => $email, 'name' => $name, 'role' => 'member', 'via' => 'workspace_sync']); } catch (Throwable $e) {} }
             } catch (Throwable $e) { $sum['skipped']++; }
         }
-        return $sum + ['ok' => true, 'total' => count($users)];
+
+        /*
+         * DELETED FROM WORKSPACE — gone rather than suspended.
+         *
+         * Only when the listing is COMPLETE. directoryUsers() pages but
+         * stops at $max, and from outside a truncated list is
+         * indistinguishable from a whole one. Concluding "absent, so
+         * departed" from a partial page would suspend every active
+         * member past the cap — a far worse failure than the one being
+         * fixed. When it is partial, the count is reported instead of
+         * acted on, so the System page says so rather than going quiet.
+         */
+        $domain = strtolower((string) Config::get('AV_ORG_DOMAIN', 'afrovanguard.org.ng'));
+        $local = $db->query("SELECT email FROM lms_users WHERE status = 'active' AND LOWER(email) LIKE "
+                            . $db->quote('%@' . $domain))->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        foreach ($local as $e) {
+            $e = strtolower(trim((string) $e));
+            if ($e === '' || isset($seen[$e])) continue;
+            if (!$complete) { $sum['absent_not_swept']++; continue; }
+            $sum['suspended'] += self::suspendLocally($e, 'no longer in Google Workspace');
+        }
+
+        return $sum + ['ok' => true, 'total' => count($users), 'directory_complete' => $complete];
+    }
+
+    /**
+     * Close a local account because Workspace closed theirs.
+     *
+     * Through MemberRoster::update(), never a direct UPDATE: that is the
+     * one path that also ends their sessions and withdraws their gate
+     * pass. Suspending the row alone would leave a departed person
+     * holding a card that still opens the door, which is most of what
+     * this is for.
+     *
+     * No $ctx, deliberately. The desk's guards exist to stop one admin
+     * suspending another by accident, and staff lifecycle being
+     * "one at a time, in the drawer" is right for a human. This is not a
+     * human: it is Workspace stating a fact, and staff are exactly who it
+     * is about.
+     *
+     * Returns 1 if it suspended somebody, 0 otherwise.
+     */
+    private static function suspendLocally(string $email, string $why): int
+    {
+        if (!class_exists('MemberRoster')) return 0;
+        try {
+            $st = Database::pdo()->prepare("SELECT id FROM lms_users WHERE LOWER(email) = ? AND status = 'active'");
+            $st->execute([strtolower(trim($email))]);
+            $id = (int) ($st->fetchColumn() ?: 0);
+            if ($id <= 0) return 0;
+
+            $r = MemberRoster::update($id, ['status' => 'suspended'], 'Google Workspace sync');
+            if (empty($r['ok'])) {
+                error_log('[workspace] could not suspend ' . $email . ': ' . (string) ($r['error'] ?? ''));
+                return 0;
+            }
+            if (class_exists('AdminAudit')) {
+                AdminAudit::log('workspace', 'account_suspended', $email,
+                    'Suspended by the directory sync — ' . $why . '. Sessions ended and gate pass withdrawn.');
+            }
+
+            return 1;
+        } catch (Throwable $e) {
+            /* One account must not stop the sweep. */
+            error_log('[workspace] suspend ' . $email . ': ' . $e->getMessage());
+
+            return 0;
+        }
     }
 
     /** Is the daily directory sync switched on (Setup → AV_WS_DIRECTORY_SYNC) and not yet run today? */
