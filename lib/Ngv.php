@@ -112,29 +112,18 @@ final class Ngv
             ],
 
             'plans_enabled' => true,
-            'plans_title'   => 'Choose the plan that fits you',
-            'plans_intro'   => 'Each plan runs for a different length of time at a different fee — pick your entry point. No one is turned away for lack; committed applicants who need support can write to their track lead.',
+            'plans_title'   => 'One programme, one year',
+            'plans_intro'   => 'Six months of training, then six months of a guided internship. The programme fee is not a bill while you are on the programme: you work it off through your internship, and it is written off when you finish. No one is turned away for lack; committed applicants who need support can write to their track lead.',
+            /* One plan. "Training Only" and "Internship Only" were retired on
+               29 Oct 2026 — the programme is the year, and the fee is worked off
+               through its second half, which a half-year plan cannot do. */
             'plans' => [
                 [
-                    'name' => 'Training Only', 'duration' => '6 months', 'price' => 'Free', 'price_note' => 'Limited slots',
-                    'desc' => 'Phase 1 — full learning access with classes three times a day.',
-                    'features' => ['All core courses & your chosen track', 'Three global certifications', 'Weekly workshops & panels', '24-book leadership reading challenge'],
-                    'cta_label' => 'Apply free', 'cta_url' => '/academy/ngv/register.php',
-                    'featured' => false, 'enabled' => true,
-                ],
-                [
-                    'name' => 'Full Programme', 'duration' => '12 months', 'price' => '₦240,000', 'price_note' => 'per year',
+                    'name' => 'Full Programme', 'duration' => '12 months', 'price' => '₦240,000', 'price_note' => 'for the year · worked off through your internship',
                     'desc' => 'The complete transformation — six months of training plus a guided, paid internship.',
-                    'features' => ['Everything in Training', 'Guided internship on real projects', 'Six global certifications', 'Weekly stipends', 'Portfolio & final showcase'],
+                    'features' => ['All core courses & your chosen track', 'Guided internship on real projects', 'Six global certifications', 'Weekly stipends', '24-book leadership reading challenge', 'Portfolio & final showcase'],
                     'cta_label' => 'Start your application', 'cta_url' => '/academy/ngv/register.php',
                     'featured' => true, 'enabled' => true,
-                ],
-                [
-                    'name' => 'Internship Only', 'duration' => '6 months', 'price' => 'Free', 'price_note' => 'Limited slots',
-                    'desc' => 'Phase 2 — serve on real Afrovanguard projects and earn stipends as you build experience.',
-                    'features' => ['Real project placement', 'Weekly stipends', 'Mentorship & references', 'Three global certifications'],
-                    'cta_label' => 'Apply free', 'cta_url' => '/academy/ngv/register.php',
-                    'featured' => false, 'enabled' => true,
                 ],
             ],
 
@@ -152,7 +141,7 @@ final class Ngv
             'fees_enabled' => true,
             'fees_title'   => 'Simple, purposeful commitment',
             'fees' => [
-                ['name' => 'Membership fee', 'amount' => '₦10,000 / year', 'desc' => 'A symbol of commitment. Covers your uniform package, ID card & file setup, program starter pack, digital onboarding and induction/graduation prep.'],
+                ['name' => 'Membership fee', 'amount' => '₦10,000 / year', 'desc' => 'A symbol of commitment. Covers your ID card & file setup, program starter pack, digital onboarding and induction/graduation prep. Paid on registration day.'],
                 ['name' => 'Commitment fee', 'amount' => '₦1,000 / month', 'desc' => 'Not for profit — a leadership-culture tool. Covers resource refreshers, guest-speaker honorariums, community outreach and facility upkeep.'],
             ],
             'fees_note' => 'No one is turned away for lack. If you\'re truly committed and need support, speak to your track lead or send a letter requesting consideration — we\'re here to help you rise, not shame you.',
@@ -255,8 +244,26 @@ final class Ngv
         return preg_match('~^\s*(https?://)?(www\.)?(bit\.ly/ngv(/|\?|#|\s*$)|chat\.whatsapp\.com/)~i', $url) ? self::APPLY_URL : $url;
     }
 
+    /** Plans withdrawn from the programme. A stored copy of the page from before still lists them. */
+    public const RETIRED_PLANS = ['training only', 'internship only'];
+
     private static function mendApplyLinks(array $doc): array
     {
+        /* Content the programme has withdrawn, mended on the way out like the
+           apply links: a stored page saved before still carries it, and a
+           visitor must not be offered a plan that no longer exists, nor a
+           uniform NGV does not issue. */
+        if (is_array($doc['plans'] ?? null)) {
+            $doc['plans'] = array_values(array_filter($doc['plans'], static fn($pl) =>
+                !is_array($pl) || !in_array(mb_strtolower(trim((string) ($pl['name'] ?? ''))), self::RETIRED_PLANS, true)));
+        }
+        if (is_array($doc['fees'] ?? null)) {
+            foreach ($doc['fees'] as $i => $f) {
+                if (is_array($f) && isset($f['desc']) && is_string($f['desc'])) {
+                    $doc['fees'][$i]['desc'] = trim((string) preg_replace('/\byour uniform package,\s*|\buniform package,\s*|\buniform,\s*/i', '', $f['desc']));
+                }
+            }
+        }
         foreach ([['hero', 'cta_primary_url'], ['cta', 'button_url'], ['contact', 'apply_url']] as [$sec, $key]) {
             if (isset($doc[$sec][$key]) && is_string($doc[$sec][$key])) $doc[$sec][$key] = self::mendApplyUrl($doc[$sec][$key]);
         }

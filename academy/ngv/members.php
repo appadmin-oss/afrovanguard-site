@@ -214,6 +214,7 @@ if ($method === 'POST') {
     /* ── Programme-wide ── */
     if ($act === 'fees_settings') {
         $cfg = NgvLedger::saveSettings(is_array($in['settings'] ?? null) ? $in['settings'] : [], 'admin');
+        if (isset($cfg['error'])) json_out(['ok' => false, 'error' => (string) $cfg['error']], 400);
         json_out(['ok' => true, 'settings' => $cfg]);
     }
     if ($act === 'fees_reviewed') {
@@ -1592,11 +1593,11 @@ details.sect>summary{margin-bottom:8px}
               </div>
             <?php endforeach; ?>
             <div class="amt-box">
-              <div class="k">Training fee</div>
-              <?php $paid = array_filter($planOn, static fn($p) => (int) $p['fee'] > 0); ?>
-              <div class="v"><?= $paid ? '₦' . number_format((int) reset($paid)['fee']) : 'Free' ?>
-                <?php if ($paid): ?><span class="sub">/ <?= $e((string) reset($paid)['cadence']) ?></span><?php endif; ?></div>
-              <div class="sub"><?= $paid ? $e((string) key($paid)) . ' · from the plans table' : 'no paid plan on the page' ?></div>
+              <div class="k">Programme fee</div>
+              <?php $pT = NgvProgrammeFee::terms(); ?>
+              <div class="v"><?= $pT['rate'] !== null ? '₦' . number_format((int) $pT['rate']) : 'Not set' ?>
+                <span class="sub"><?= $e(NgvProgrammeFee::BASIS_LABEL[$pT['basis']]) ?></span></div>
+              <div class="sub"><?= $e(['page' => 'the plan price on the page', 'pinned' => 'set below', 'fallback' => 'default — no price on the page', 'unset' => 'set a rate below'][$pT['source']] ?? '') ?></div>
             </div>
           </div>
           <p class="sub">
@@ -1625,6 +1626,34 @@ details.sect>summary{margin-bottom:8px}
             <div class="fld"><label for="s_commitmentMonthly">Pin commitment (₦/month)</label>
               <input id="s_commitmentMonthly" type="number" min="0" step="100" placeholder="auto — read off the page"
                      value="<?= $fees['commitmentMonthly'] === null ? '' : (int)$fees['commitmentMonthly'] ?>"></div>
+          </div>
+        </div>
+
+        <div class="sect"><h3>Programme fee</h3>
+          <p class="sub">Worked off through the internship, never asked for while somebody is on the programme, written off when they
+             finish; what is left becomes owed only if they withdraw. Each participant keeps the terms on the MoU they signed —
+             changing these changes what the <b>next</b> person signs.</p>
+          <div class="grid2">
+            <div class="fld"><label for="s_programmeBasis">Charged</label>
+              <select id="s_programmeBasis">
+                <?php foreach (NgvProgrammeFee::BASES as $bs): ?>
+                  <option value="<?= $e($bs) ?>" <?= ($fees['programmeBasis'] ?? 'total') === $bs ? 'selected' : '' ?>><?= $e(ucfirst(NgvProgrammeFee::BASIS_LABEL[$bs])) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <p class="sub">"Per term" counts the terms their CACENTRE runs; "per meeting day" and "per week" count the days it meets.
+                 Only days they are active are charged.</p></div>
+            <div class="fld"><label for="s_programmeRate">Amount (₦)</label>
+              <input id="s_programmeRate" type="number" min="0" step="500" placeholder="for the year: read off the page"
+                     value="<?= ($fees['programmeRate'] ?? null) === null ? '' : (int)$fees['programmeRate'] ?>">
+              <p class="sub">For the year, or per term, day or week, to match. Changing how it is charged needs the amount
+                 changed with it, so the old figure is never carried to the new basis.</p></div>
+          </div>
+          <div class="grid2">
+            <div class="fld"><label for="s_trainingMonths">Training half (months)</label>
+              <input id="s_trainingMonths" type="number" min="1" max="<?= (int) NgvProgrammeFee::MONTHS_MAX ?>" value="<?= (int)($fees['trainingMonths'] ?? 6) ?>"></div>
+            <div class="fld"><label for="s_internshipMonths">Internship half (months)</label>
+              <input id="s_internshipMonths" type="number" min="1" max="<?= (int) NgvProgrammeFee::MONTHS_MAX ?>" value="<?= (int)($fees['internshipMonths'] ?? 6) ?>">
+              <p class="sub">The fee is worked off, day by active day, across this half.</p></div>
           </div>
         </div>
 
@@ -1877,7 +1906,9 @@ details.sect>summary{margin-bottom:8px}
           accrueFrom: val('s_accrueFrom'), balanceCap: val('s_balanceCap'),
           membershipYearly: val('s_membershipYearly'), commitmentMonthly: val('s_commitmentMonthly'),
           remindEnabled: chk('s_remindEnabled'), remindEveryDays: val('s_remindEveryDays'),
-          remindMinBalance: val('s_remindMinBalance')
+          remindMinBalance: val('s_remindMinBalance'),
+          programmeBasis: val('s_programmeBasis'), programmeRate: val('s_programmeRate'),
+          trainingMonths: val('s_trainingMonths'), internshipMonths: val('s_internshipMonths')
         };
       }
       else if(act==='remind_run'){ if(!confirm('Send reminders now? This cannot be recalled.')) return; }

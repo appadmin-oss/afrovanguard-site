@@ -197,6 +197,14 @@ final class NgvLedger
                only `markReviewed()` and `noteReviewDue()` write them. */
             'reviewedAt'     => '',
             'reviewNotedAt'  => '',
+            /* The programme fee (lib/NgvProgrammeFee.php): how it is charged,
+               the amount (null = read the year's total off the public page's
+               plan), and the two halves of the year. Frozen on each participant
+               at registration, so editing these changes the next MoU only. */
+            'programmeBasis'   => 'total',
+            'programmeRate'    => null,
+            'trainingMonths'   => NgvProgrammeFee::TRAINING_MONTHS,
+            'internshipMonths' => NgvProgrammeFee::INTERNSHIP_MONTHS,
         ];
     }
 
@@ -242,7 +250,9 @@ final class NgvLedger
             return self::money($v);
         };
         $wasEnabled = !empty($cur['enabled']);
-        $clean = [
+        $prog = NgvProgrammeFee::cleanSettings($in, $cur);
+        if (empty($prog['ok'])) return ['error' => (string) $prog['error']] + $cur;
+        $clean = $prog['fields'] + [
             'enabled'           => $bool('enabled'),
             'currency'          => 'NGN',
             'membershipYearly'  => $pin('membershipYearly'),
@@ -278,6 +288,9 @@ final class NgvLedger
             'Fees ' . ($clean['enabled'] ? 'on' : 'off')
             . ' · reminders ' . ($clean['remindEnabled'] ? 'on every ' . $clean['remindEveryDays'] . 'd' : 'off')
             . ' · training ' . ($clean['trainingAuto'] ? 'auto' : 'raised by staff')
+            . ' · programme fee ' . ($clean['programmeRate'] !== null ? self::money_text((int) $clean['programmeRate']) : 'from the page')
+            . ' ' . NgvProgrammeFee::BASIS_LABEL[$clean['programmeBasis']]
+            . ' · ' . $clean['trainingMonths'] . '+' . $clean['internshipMonths'] . ' months'
             . ' · from ' . ($clean['accrueFrom'] ?: 'not set'), $by);
         return $clean;
     }
@@ -371,8 +384,9 @@ final class NgvLedger
 
     /**
      * The plans, with their fee parsed off the same page that advertises them.
-     * "Training Only" and "Internship Only" are free; "Full Programme" carries
-     * the tuition. Parsed rather than duplicated so the dashboard and the page
+     * One plan now, "Full Programme", whose price is the year's programme fee
+     * on the `total` basis (NgvProgrammeFee::terms). Parsed rather than
+     * duplicated so the dashboard and the page
      * can never quote different money.
      */
     public static function planCatalogue(): array
@@ -550,7 +564,11 @@ final class NgvLedger
            unattended machine running somebody into a number) does not apply to
            a figure they agreed. Stopping it is a decision with its own button:
            stopTrainingFee(), then waive or write off what is left. */
-        if (self::trainingPlanOf($p) !== null) {
+        if (NgvProgrammeFee::snapshot($p) !== null) {
+            /* The programme fee as signed. Its own rules decide which units are
+               due (active days only, inside the training half) — see the file. */
+            $out['programme'] = NgvProgrammeFee::accrue($p, $asOf);
+        } elseif (self::trainingPlanOf($p) !== null) {
             $out['programme'] = self::accrueTraining($memberId, $asOf);
         }
         /* Membership and the monthly commitment are for time ON the
@@ -611,7 +629,7 @@ final class NgvLedger
            `trainingAuto` is the escape hatch for an organisation that wants the
            plan price charged without anybody agreeing it first. Off by default,
            and it starts a schedule rather than posting a lump sum. */
-        if (self::trainingPlanOf($p) === null && !empty($cfg['trainingAuto'])) {
+        if (NgvProgrammeFee::snapshot($p) === null && self::trainingPlanOf($p) === null && !empty($cfg['trainingAuto'])) {
             $plan = self::planFor($p);
             if ($plan !== null && (int) $plan['fee'] > 0) {
                 $r = self::startTrainingFee($memberId, (int) ($cfg['trainingInstalments'] ?? 1), 0, null, $asOf);
@@ -646,7 +664,7 @@ final class NgvLedger
         do {
             /* Active participants, AND anybody with a training schedule still
                running whatever their status — see accrueParticipant(). */
-            $st = NgvDb::pdo()->prepare("SELECT * FROM ngv_participants WHERE (status = 'active' OR training_months > 0)
+            $st = NgvDb::pdo()->prepare("SELECT * FROM ngv_participants WHERE (status = 'active' OR training_months > 0 OR prog_basis <> '')
                                          AND id > ? ORDER BY id LIMIT " . $limit);
             $st->execute([$cursor]);
             $batch = $st->fetchAll() ?: [];
@@ -1092,6 +1110,12 @@ final class NgvLedger
         $room = in_array($line, self::CREDIT_LINES, true) && $line !== 'other'
             ? (int) ($b['due'][$line] ?? 0)
             : (int) $b['payable'];
+        /* The programme fee as signed is not "due" while somebody is on the
+           programme — that is the point of it — but it can still be written
+           off (the year finished) or waived: up to what is not yet settled. */
+        if ($line === 'programme' && $b['programmeFee'] !== null) {
+            $room = max(0, (int) ($b['chargedBy']['programme'] ?? 0) - (int) ($b['paidBy']['programme'] ?? 0));
+        }
         if ($room <= 0) return ['ok' => false, 'error' => 'There is nothing outstanding on that line.'];
         $give = min($asked, $room);
         $r = self::postCredit($memberId, $kind, $line, $give, ['note' => $reason], $byUid);
@@ -1400,7 +1424,7 @@ final class NgvLedger
      */
     public static function balance(int $memberId): array
     {
-        return self::reduce(self::charges($memberId), self::credits($memberId));
+        return self::reduce(self::charges($memberId), self::credits($memberId), null, self::participantRow($memberId));
     }
 
     /**
@@ -1414,7 +1438,7 @@ final class NgvLedger
      *
      * `n` on a row is its row count, for callers that summed before arriving.
      */
-    private static function reduce(array $charges, array $credits, ?array $cfg = null): array
+    private static function reduce(array $charges, array $credits, ?array $cfg = null, ?array $person = null): array
     {
         $cfg = $cfg ?? self::settings();
         $chargedBy = []; $paidBy = []; $countBy = [];
@@ -1444,10 +1468,17 @@ final class NgvLedger
            without a note saying what it was for. */
         $pool = (int) ($paidBy['other'] ?? 0);
 
+        /* The programme fee as signed is NOT money anybody is asked for while
+           they are on the programme: it is worked off through the internship.
+           Only on withdrawal does what is left become due. Kept out of the
+           shortfall (and so out of `payable`, the ceiling, reminders and the
+           arrears list) until then — NGG counting its notional fee against the
+           ceiling is what stopped its real dues being charged. */
+        $prog = $person ? NgvProgrammeFee::position($person, (int) ($chargedBy['programme'] ?? 0), (int) ($paidBy['programme'] ?? 0)) : null;
         $due = []; $shortfall = 0; $ahead = 0;
         foreach (self::CHARGE_KINDS as $k) {
             $ch = (int) ($chargedBy[$k] ?? 0); $pd = (int) ($paidBy[$k] ?? 0);
-            $due[$k] = max(0, $ch - $pd);
+            $due[$k] = ($k === 'programme' && $prog !== null) ? (int) $prog['owed'] : max(0, $ch - $pd);
             $shortfall += $due[$k];
             $ahead += max(0, $pd - $ch);
         }
@@ -1463,6 +1494,7 @@ final class NgvLedger
             'payable' => max(0, $shortfall - $pool),
             'paidAhead' => $ahead, 'unallocated' => $pool,
             'cap' => $cap, 'atCap' => $cap > 0 && $shortfall >= $cap,
+            'programmeFee' => $prog,
         ];
     }
 
@@ -1496,13 +1528,15 @@ final class NgvLedger
             $people[(int) $p['member_id']] = $p;
         }
         $out = [];
+        NgvProgrammeFee::preload();
         foreach ($chargesBy as $id => $rows) {
             /* A charge with no participant row is a data fault, not a person to
                chase — skipped rather than reported as a nameless debtor. */
             if (!isset($people[$id])) continue;
-            $out[$id] = ['balance' => self::reduce($rows, $creditsBy[$id] ?? [], $cfg),
+            $out[$id] = ['balance' => self::reduce($rows, $creditsBy[$id] ?? [], $cfg, $people[$id]),
                          'person' => $people[$id]];
         }
+        NgvProgrammeFee::release();
         return $out;
     }
 
@@ -1546,6 +1580,7 @@ final class NgvLedger
         $always = ['membership', 'commitment', 'programme'];
         $training = self::trainingSchedule($memberId);
         $entries = self::entries($memberId);
+        if ($b['programmeFee'] !== null) $labels['programme'] = 'Programme fee';
         $lines = [];
         foreach ($labels as $k => $label) {
             $ch = (int) ($b['chargedBy'][$k] ?? 0);
@@ -1558,7 +1593,8 @@ final class NgvLedger
                 'ok' => (int) $b['due'][$k] === 0,
                 'free' => $k === 'programme' && $ch === 0 && ($plan === null || (int) $plan['fee'] === 0),
                 'expected' => $ch,          // the shape older callers read
-                'detail' => self::lineDetail($k, $ch, $pd, (int) $b['due'][$k], $plan, $amt, $training),
+                'detail' => ($k === 'programme' && $b['programmeFee'] !== null)
+                    ? self::programmeDetail($b['programmeFee']) : self::lineDetail($k, $ch, $pd, (int) $b['due'][$k], $plan, $amt, $training),
             ];
         }
 
@@ -1584,6 +1620,8 @@ final class NgvLedger
             /* Empty array when no commitment is running, so a screen can test it
                without also having to know what "no training fee" looks like. */
             'training'   => $training,
+            /* The programme fee as signed, or null for somebody from before it. */
+            'programmeFee' => $b['programmeFee'],
             'requests'   => self::requestsFor($memberId),
             'lines'      => $lines,
             'entries'    => $entries,
@@ -1597,6 +1635,17 @@ final class NgvLedger
             'payTo'      => (string) $amt['payTo'],
             'note'       => (string) $amt['note'],
         ];
+    }
+
+    /** The programme fee in one sentence, said as what it is: not a bill while they are on the programme. */
+    private static function programmeDetail(array $f): string
+    {
+        $m = fn(int $n) => self::money_text($n);
+        if ($f['owed'] > 0) return $m($f['owed']) . ' left of the programme fee when you withdrew — the part not worked off through the internship.';
+        if ($f['charged'] === 0) return 'Programme fee ' . $m($f['rate']) . ' ' . $f['basisLabel'] . ' · not charged yet.';
+        if ($f['remaining'] === 0) return $m($f['charged']) . ' · fully covered. Nothing to pay.';
+        return $m($f['charged']) . ' · ' . $m($f['covered']) . ' covered so far · worked off through your internship ('
+             . $f['trainingEnds'] . ' to ' . $f['internshipEnds'] . '). Not asked for while you stay on the programme.';
     }
 
     /** One readable sentence per line, so a screen never has to compose money. */

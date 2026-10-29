@@ -654,3 +654,26 @@ records the guardian's consent when they have it.
 
 Tests: `tests/ngvguardian.test.php`; `tests/ngvregister.test.php`'s form check
 was rewritten to the new rule.
+
+---
+
+## 29 Oct 2026 — The NGV programme fee, worked off through the internship
+
+Asked: make NGV's full programme fee work like NGG's training fee; one year,
+₦240,000 by default and editable; every NGG basis available; remove the
+half-year plans; no uniform.
+
+An audit of NGG's fee (run against its real code with a throwaway database)
+found it wrong in ways that would have carried across, so this is modelled on
+what NGG's fee was MEANT to do rather than copied: see `docs/ngv-fees.md`, "The
+programme fee". The NGG findings themselves were reported to the owner and NGG
+was left unchanged pending a decision.
+
+New: `lib/NgvProgrammeFee.php`, `ngv_status_log`, the `prog_*` columns on
+`ngv_participants`, the fee settings section in the Vanguards console, the
+dashboard's "not a bill" explanation (its chip says "% covered", never "Paid").
+`tests/ngvprogrammefee.test.php`; three older tests that used "Training Only" as
+the second real plan now use a fixture plan, the rule unchanged.
+
+Not yet wired: `freeze()` is called by nothing in production — the registration
+desk (next) is where it belongs, so until then nobody new carries the fee.

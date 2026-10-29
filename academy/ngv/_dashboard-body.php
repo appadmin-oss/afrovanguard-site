@@ -216,7 +216,18 @@ $ngvModal      = $ngvModal ?? ($ngvParts === null || in_array('reading', $ngvPar
               <?php endif; ?>
 
               <?php $T = is_array($account['training'] ?? null) && !empty($account['training']) ? $account['training'] : null; ?>
-              <?php if ($account['planLabel'] !== ''): ?>
+              <?php if (($PFb = $account['programmeFee'] ?? null) !== null): ?>
+              <div class="ngv-box">
+                <b>Your programme fee</b> is ₦<?= number_format((int)$PFb['rate']) ?> <?= $e((string)$PFb['basisLabel']) ?>, as your MoU states.
+                <?php if ((int)$PFb['owed'] > 0): ?>
+                  You withdrew before working it off, so ₦<?= number_format((int)$PFb['owed']) ?> of it is now owed.
+                <?php else: ?>
+                  It is <b>not a bill</b>: you work it off through your internship (<?= $e((string)$PFb['trainingEnds']) ?> to
+                  <?= $e((string)$PFb['internshipEnds']) ?>), and it is written off when you finish. It would only become owed if you
+                  left the programme early.
+                <?php endif; ?>
+              </div>
+              <?php elseif ($account['planLabel'] !== ''): ?>
               <div class="ngv-box">
                 You're on the <b><?= $e((string)$account['planLabel']) ?></b> plan.
                 <?php if ($account['planFree']): ?>Your training is <b>free</b> — only membership and the monthly commitment apply.
@@ -234,7 +245,9 @@ $ngvModal      = $ngvModal ?? ($ngvParts === null || in_array('reading', $ngvPar
                 <div class="ngv-row">
                   <div><span class="k"><?= $e((string)$ln['label']) ?></span><span class="d"><?= $e((string)$ln['detail']) ?></span></div>
                   <span class="amt">
-                    <?php if (!empty($ln['free'])): ?><span class="pchip pchip--green">Free</span>
+                    <?php $PF = $ln['key'] === 'programme' ? ($account['programmeFee'] ?? null) : null; ?>
+                    <?php if ($PF !== null && (int)$PF['owed'] === 0): ?><span class="pchip pchip--gold"><?= (int)$PF['coveredPct'] ?>% covered</span>
+                    <?php elseif (!empty($ln['free'])): ?><span class="pchip pchip--green">Free</span>
                     <?php elseif ((int)$ln['due'] > 0): ?><span class="pchip pchip--red">₦<?= number_format((int)$ln['due']) ?></span>
                     <?php elseif ((int)$ln['charged'] > 0): ?><span class="pchip pchip--green">Paid</span>
                     <?php else: ?><span class="pchip pchip--gold">Not yet charged</span><?php endif; ?>

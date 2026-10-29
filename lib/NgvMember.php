@@ -177,6 +177,7 @@ final class NgvMember
                 mb_substr(trim((string) ($seed['email'] ?? '')), 0, 160),
                 $track, $plan, $phase, $books, $note, self::today(),
             ]);
+            if (class_exists('NgvProgrammeFee')) NgvProgrammeFee::logStatus($memberId, 'active', self::today());
         } catch (Throwable $e) {
             // Unique race: another request created it — just read it back.
             error_log('[ngv] ensureParticipant: ' . $e->getMessage());
@@ -257,6 +258,9 @@ final class NgvMember
             }
         }
         if (isset($patch['status']) && in_array((string) $patch['status'], self::STATUSES, true)) { $set[] = 'status = ?'; $args[] = (string) $patch['status']; }
+        /* The day it changed, for the programme fee: it is worked off only on
+           active days, and a current status cannot say which days those were. */
+        if ($newStatus !== null && $newStatus !== $oldStatus && class_exists('NgvProgrammeFee')) NgvProgrammeFee::logStatus($memberId, $newStatus);
         if (array_key_exists('plan', $patch) && ($p = self::validPlan((string) $patch['plan'])) !== null) { $set[] = 'plan = ?'; $args[] = $p; }
         if (array_key_exists('cohort', $patch)) { $set[] = 'cohort = ?'; $args[] = mb_substr(trim((string) $patch['cohort']), 0, 60); }
         if (array_key_exists('track', $patch) && ($t = self::validTrack((string) $patch['track'])) !== null) { $set[] = 'track = ?'; $args[] = $t; }
@@ -362,6 +366,12 @@ final class NgvMember
             $up->execute([(int) $p['id']]);
             if ($up->rowCount() < 1) continue;
             $done[] = (int) $p['member_id'];
+            /* Finished: the programme fee is discharged, on the record as a
+               write-off, and the day goes in the status history. */
+            if (class_exists('NgvProgrammeFee')) {
+                NgvProgrammeFee::logStatus((int) $p['member_id'], 'completed', $w['end'] < $today ? $w['end'] : $today);
+                try { NgvProgrammeFee::discharge((int) $p['member_id']); } catch (Throwable $e) { error_log('[ngv] discharge: ' . $e->getMessage()); }
+            }
             if (class_exists('AdminAudit')) {
                 try {
                     AdminAudit::log('ngv', 'ngv_programme_complete', 'ngv:member:' . (int) $p['member_id'],
@@ -1043,9 +1053,10 @@ final class NgvMember
     }
 
     /* ── plans (the programme / training fee) ────────────────────────────
-     * A participant's plan is the single fact that says whether they owe a
-     * training fee at all: "Training Only" and "Internship Only" are free,
-     * "Full Programme" carries the tuition. The catalogue and its prices are
+     * Since 29 Oct 2026 there is one plan, "Full Programme"; the two free
+     * half-year plans were retired, and a participant who registers carries the
+     * programme fee as signed (NgvProgrammeFee), not a plan price. A plan still
+     * matters for anybody from before. The catalogue and its prices are
      * parsed from the live public page so the dashboard and the page can never
      * quote different money — the parser lives in NgvLedger, which is also what
      * prices a charge, so there is exactly one of it. */

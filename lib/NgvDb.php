@@ -182,6 +182,17 @@ final class NgvDb
              start_date (NgvMember::PROGRAMME_MONTHS). Set only when staff
              extend or shorten one person's programme. */
           end_date    VARCHAR(10) NOT NULL DEFAULT '',
+          /* The programme fee as SIGNED (lib/NgvProgrammeFee.php): the basis,
+             the rate, the day it starts and the two halves' lengths, frozen at
+             registration. A later settings edit changes what the next person
+             signs, never this one. An empty basis is a participant from before
+             it — their fee, if any, is the training schedule above. */
+          prog_basis            VARCHAR(10) NOT NULL DEFAULT '',
+          prog_rate             INTEGER NOT NULL DEFAULT 0,
+          prog_start            VARCHAR(10) NOT NULL DEFAULT '',
+          prog_training_months  INTEGER NOT NULL DEFAULT 0,
+          prog_internship_months INTEGER NOT NULL DEFAULT 0,
+          prog_mou_version      VARCHAR(40) NOT NULL DEFAULT '',
           created_at  TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -348,6 +359,19 @@ final class NgvDb
           created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_ngv_cert_member ON ngv_certifications (member_id);
+        /* Every change of a participant's status, with the day it took effect.
+           The programme fee is worked off only on days somebody was ACTIVE, and
+           a current status alone cannot say which days those were: paused in
+           March and back in May looks exactly like never paused. */
+        CREATE TABLE IF NOT EXISTS ngv_status_log (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          member_id  INTEGER NOT NULL,
+          status     VARCHAR(20) NOT NULL DEFAULT '',
+          since      VARCHAR(10) NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_ngv_status_log_member ON ngv_status_log (member_id, id);
+
         CREATE TABLE IF NOT EXISTS ngv_applications (
           id          INTEGER PRIMARY KEY AUTOINCREMENT,
           name        TEXT NOT NULL DEFAULT '',

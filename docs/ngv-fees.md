@@ -169,6 +169,48 @@ the programme advertises without anyone deciding to. Instead `reviewDue()` says
 out loud, at most once a month, that the amounts have gone a year unreviewed —
 and a human goes and looks.
 
+## The programme fee (from 29 Oct 2026)
+
+`lib/NgvProgrammeFee.php`. Replaces the training-fee instalments for everybody who
+registers from now on; a participant already on an instalment schedule keeps it
+(their row has no `prog_basis`, and the old path runs for them unchanged).
+
+It works the way NGG's training fee was meant to: **the place is given, and the
+participant works the cost off through the internship half of the year.** Nobody
+is asked for it while they are on the programme; it is written off (a ledger
+`writeoff` on the `programme` line) when they finish; what is left becomes owed
+only if they **withdraw**.
+
+| setting | default | |
+|---|---|---|
+| `programmeBasis` | `total` | `total` (one charge for the year), `session` (per term their CACENTRE runs), `day` (per day it meets), `week` (per week it meets) |
+| `programmeRate` | null | null = the year's total read off the page's plan (₦240,000); pinned otherwise. Required for the three per-unit bases |
+| `trainingMonths` / `internshipMonths` | 6 / 6 | the two halves of the year |
+
+Each participant's basis, rate, start day, half lengths and MoU version are
+**frozen at registration** (`freeze()`), so a settings edit changes the next MoU
+and nothing else.
+
+What an audit of NGG's fee found, and how this differs:
+
+| NGG (as found) | NGV |
+|---|---|
+| ₦75,000 per session came to ₦450,000 or ₦375,000 by join date | a fixed total by default; per-unit bases are explicit |
+| switching basis kept the rate (₦75,000 a session → ₦75,000 a day, ₦5.25m) | a basis switch is refused unless a new rate comes with it |
+| phase lengths re-read from today's settings — editing rewrote everyone | frozen per participant |
+| a leaver kept working it off by the calendar | worked off only on **active** days (`ngv_status_log`); a pause or withdrawal stops it and the time is never credited back |
+| what a leaver owed never became payable | on withdrawal the remainder is `due` and in `payable` |
+| the notional fee counted against the ceiling, stopping real dues | excluded from `shortfall`, `payable`, the ceiling, reminders and arrears while they are on the programme |
+
+Units on the `day`/`week` bases are only for days the participant was active and
+their centre meets (`GateAttendance::isProgrammeDayFor`); a `session` is charged
+for a term that starts in the training half while they were active.
+
+The two half-year plans ("Training Only", "Internship Only") were retired: the
+page offers one plan, and a stored copy that still lists them is mended on read
+(`Ngv::RETIRED_PLANS`), as is the membership fee's mention of a uniform NGV does
+not issue.
+
 ## Damage
 
 `lib/NgvDamage.php`. A damage report is an **incident**, not a charge.
