@@ -2,9 +2,11 @@
  *
  * Loaded the first time the Wi-Fi pane opens, never before: the dashboard is
  * the first thing a member sees and must not wait on another site for a pane
- * most visits never open. The PIN is hidden until asked for — this is read on
- * phones in a room full of people. Loading, an empty card and an honest error
- * with a retry are all said.
+ * most visits never open. The sign-in name is the member's ID; the password
+ * is one they choose here, and is never shown back. This page opens on the
+ * centre's Wi-Fi before the member has signed in to it (CACENTRE's walled
+ * garden), so it is where a first-time member sets theirs. Loading, an empty
+ * card and an honest error with a retry are all said.
  */
 (function () {
   'use strict';
@@ -13,12 +15,13 @@
   if (!pane) return;
 
   var CSRF = pane.getAttribute('data-csrf') || '';
-  var msg = document.getElementById('wifiMsg'), dl = document.getElementById('wifiDl'), foot = document.getElementById('wifiFoot');
-  var userEl = document.getElementById('wifiUser'), pinEl = document.getElementById('wifiPin'), showBtn = document.getElementById('wifiShow');
-  var speedRow = document.getElementById('wifiSpeedRow'), speedEl = document.getElementById('wifiSpeed'), whereEl = document.getElementById('wifiWhere');
-  var todayEl = document.getElementById('wifiToday'), monthEl = document.getElementById('wifiMonth');
-  var newBtn = document.getElementById('wifiNew'), leftEl = document.getElementById('wifiLeft'), retry = document.getElementById('wifiRetry');
-  var card = null, shown = false, loaded = false, busy = false;
+  var $ = function (id) { return document.getElementById(id); };
+  var msg = $('wifiMsg'), dl = $('wifiDl'), form = $('wifiFoot'), retry = $('wifiRetry');
+  var userEl = $('wifiUser'), pwState = $('wifiPwState'), formH = $('wifiFormH');
+  var speedRow = $('wifiSpeedRow'), speedEl = $('wifiSpeed'), whereEl = $('wifiWhere');
+  var todayEl = $('wifiToday'), monthEl = $('wifiMonth');
+  var pw1 = $('wifiPw1'), pw2 = $('wifiPw2'), save = $('wifiSave'), leftEl = $('wifiLeft'), err = $('wifiPwErr');
+  var card = null, loaded = false, busy = false;
 
   function bytes(b) {
     b = +b || 0;
@@ -27,28 +30,33 @@
     return b > 0 ? Math.max(1, Math.round(b / 1024)) + ' KB' : 'Nothing yet';
   }
   function say(text, bad) { msg.hidden = text === ''; msg.textContent = text; msg.classList.toggle('is-bad', !!bad); }
-  function pin() { pinEl.textContent = shown && card ? card.pin : '••••••'; showBtn.textContent = shown ? 'Hide' : 'Show'; showBtn.setAttribute('aria-pressed', shown ? 'true' : 'false'); showBtn.setAttribute('aria-label', shown ? 'Hide your PIN' : 'Show your PIN'); }
+  function oops(text) { err.hidden = text === ''; err.textContent = text; }
+  function day(s) { var d = s ? new Date(s.replace(' ', 'T')) : null; return d && !isNaN(d) ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''; }
 
   function draw() {
     retry.hidden = true;
-    if (!card) { dl.hidden = foot.hidden = true; say('Your Wi-Fi details are on their way from CACENTRE, which runs the Wi-Fi. Look again in a quarter of an hour.'); return; }
-    if (card.access === 'off') { dl.hidden = foot.hidden = true; say('You don’t have Wi-Fi access right now' + (card.why ? ': ' + card.why.replace(/\.$/, '') + '.' : '.') + ' Ask the team if you think this is wrong.', true); return; }
-    say(card.hasRouter ? (card.access === 'limited' ? 'Limited for now' + (card.why ? ': ' + card.why.replace(/\.$/, '') : '') + '. ' : '') + 'Join the CACENTRE Wi-Fi; when the sign-in page opens, use these.'
-                       : 'The Wi-Fi isn’t set up where you sign in yet. These details will work as soon as it is.');
+    if (!card) { dl.hidden = form.hidden = true; say('You are not on the Wi-Fi list yet. Ask the team to check your membership is active.'); return; }
+    if (card.access === 'off') { dl.hidden = form.hidden = true; say('You don’t have Wi-Fi access right now' + (card.why ? ': ' + card.why.replace(/\.$/, '') + '.' : '.') + ' Ask the team if you think this is wrong.', true); return; }
+    var lim = card.access === 'limited' ? 'Limited for now' + (card.why ? ': ' + card.why.replace(/\.$/, '') : '') + '. ' : '';
+    if (!card.hasPassword) say(lim + 'Choose a Wi-Fi password below. Then join the CACENTRE Wi-Fi and, when the sign-in page opens, use your username and this password.');
+    else say(card.hasRouter ? lim + 'Join the CACENTRE Wi-Fi; when the sign-in page opens, use your username and the password you set.'
+                            : 'The Wi-Fi isn’t set up where you sign in yet. Your details will work as soon as it is.');
     userEl.textContent = card.username;
-    pin();
+    pwState.textContent = card.hasPassword ? 'Set' + (card.pinSetAt ? ' on ' + day(card.pinSetAt) : '') : 'Not set yet';
     speedRow.hidden = !card.speed;
     if (card.speed) speedEl.textContent = 'Up to ' + card.speed.down + ' Mbit/s · ' + (card.speed.devices === 1 ? 'one device' : card.speed.devices + ' devices') + ' at a time' + (card.speed.hours ? ' · ' + card.speed.hours.replace('-', '–') : '');
     whereEl.textContent = card.where ? card.where.charAt(0).toUpperCase() + card.where.slice(1) : '';
     var u = card.usage || {};
     todayEl.textContent = bytes(u.today) + (u.dayMb ? ' of ' + bytes(u.dayMb * 1048576) : '');
     monthEl.textContent = bytes(u.month) + (u.monthMb ? ' of ' + bytes(u.monthMb * 1048576) : '');
-    newBtn.disabled = busy || card.resetsLeft < 1;
-    leftEl.textContent = card.resetsLeft < 1 ? 'You’ve changed it three times today. Try again tomorrow.' : card.resetsLeft + ' left today';
-    dl.hidden = foot.hidden = false;
+    formH.textContent = card.hasPassword ? 'Change your Wi-Fi password' : 'Set your Wi-Fi password';
+    save.textContent = card.hasPassword ? 'Change password' : 'Set password';
+    save.disabled = busy || card.resetsLeft < 1;
+    leftEl.textContent = card.resetsLeft < 1 ? 'You’ve changed it three times today. Try again tomorrow.' : card.resetsLeft + (card.resetsLeft === 1 ? ' change' : ' changes') + ' left today';
+    dl.hidden = form.hidden = false;
   }
 
-  function fail(text) { dl.hidden = foot.hidden = true; say(text, true); retry.hidden = false; }
+  function fail(text) { dl.hidden = form.hidden = true; say(text, true); retry.hidden = false; }
 
   function load() {
     if (busy) return;
@@ -59,20 +67,34 @@
       .catch(function () { busy = false; fail('Your Wi-Fi details couldn’t load. Check your connection.'); });
   }
 
-  showBtn.addEventListener('click', function () { shown = !shown; pin(); });
-  retry.addEventListener('click', load);
-  newBtn.addEventListener('click', function () {
-    if (busy || !window.confirm('Get a new Wi-Fi PIN? The old one stops working at each router’s next update; devices already signed in stay signed in until they leave.')) return;
-    busy = true; newBtn.disabled = true;
-    fetch('/portal/cac-wifi.php?action=newpin', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF }, body: '{}' })
+  /* Checked here first so the common slips are said at once; CACENTRE checks again. */
+  function problem(a, b) {
+    if (a.length < 8) return 'Use at least 8 characters.';
+    if (a.length > 64) return 'Use at most 64 characters.';
+    if (/\s/.test(a)) return 'Leave out spaces.';
+    if (a.indexOf(';') !== -1) return 'A semicolon (;) can’t be used in a Wi-Fi password.';
+    if (card && a.toLowerCase() === String(card.username).toLowerCase()) return 'Your password can’t be your sign-in name.';
+    if (a !== b) return 'The two passwords are not the same.';
+    return '';
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (busy) return;
+    var why = problem(pw1.value, pw2.value);
+    if (why) { oops(why); pw1.focus(); return; }
+    oops(''); busy = true; save.disabled = true; save.setAttribute('aria-busy', 'true');
+    fetch('/portal/cac-wifi.php?action=password', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF }, body: JSON.stringify({ password: pw1.value }) })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        busy = false;
-        if (!d || !d.ok) { newBtn.disabled = false; leftEl.textContent = (d && d.error) || 'Couldn’t change your PIN. Try again later.'; return; }
-        card = d.card; shown = true; draw(); say('New PIN ready. Devices signed in with the old one stay signed in until they leave.');
+        busy = false; save.removeAttribute('aria-busy');
+        if (!d || !d.ok) { save.disabled = false; oops((d && d.error) || 'Your password wasn’t saved. Try again.'); return; }
+        pw1.value = pw2.value = ''; card = d.card; draw();
+        say('Saved. Your password works at each centre’s Wi-Fi within a few minutes. Devices already signed in stay signed in.');
       })
-      .catch(function () { busy = false; newBtn.disabled = false; leftEl.textContent = 'Couldn’t change your PIN. Check your connection.'; });
+      .catch(function () { busy = false; save.disabled = false; save.removeAttribute('aria-busy'); oops('Your password wasn’t saved. Check your connection.'); });
   });
+  retry.addEventListener('click', load);
 
   function maybeLoad(view) { if (view === 'wifi' && !loaded) load(); }
   document.addEventListener('portal:view', function (e) { maybeLoad(e && e.detail ? e.detail.view : ''); });

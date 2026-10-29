@@ -14,8 +14,11 @@
  *
  *   roster()/push()   every Afrovanguard member and our say about each, from
  *                     the cron. `full`: anybody not sent loses Wi-Fi there.
- *   card($id)         one member's card for the portal, op show
- *   newPin($id)       a new PIN (CACENTRE allows three a day)
+ *   card($id)         one member's card for the portal, op show. The token
+ *                     carries the member's own roster row (`me`), so a member
+ *                     CACENTRE has not been sent yet is added there at once.
+ *   setPassword($id)  the Wi-Fi password the member chose (three changes a
+ *                     day). In the POST body, never a URL; never stored here.
  *
  * WHAT TRAVELS: id, kind (member | staff), name, email, our verdict and its
  * reason. Nothing else.
@@ -41,9 +44,17 @@ final class CacWifi
     {
         $out = [];
         foreach (Database::pdo()->query('SELECT id, name, email, role, status FROM lms_users ORDER BY id')->fetchAll(PDO::FETCH_ASSOC) as $u) {
-            if (!LmsAuth::isOrgMember($u)) continue;
+            if (($row = self::row($u)) !== null) $out[] = $row;
+        }
+        return $out;
+    }
+
+    /** One member's roster row, or null when they are not an org member. */
+    public static function row(array $u): ?array
+    {
+            if (!LmsAuth::isOrgMember($u)) return null;
             $active = (string) ($u['status'] ?? 'active') === 'active';
-            $out[] = [
+            return [
                 'id'        => (string) (int) $u['id'],
                 'kind'      => LmsAuth::canManageMembers($u) ? 'staff' : 'member',
                 'name'      => mb_substr(trim((string) $u['name']), 0, 160),
@@ -53,8 +64,6 @@ final class CacWifi
                 'verdict'   => $active ? 'on' : 'off',
                 'why'       => $active ? '' : 'The Afrovanguard account is not active',
             ];
-        }
-        return $out;
     }
 
     /** Send the roster. One full push; a list over the cap is not sent at all, and says so. */
@@ -79,21 +88,28 @@ final class CacWifi
         return self::ask($memberId, null);
     }
 
-    public static function newPin(int $memberId): array
+    public static function setPassword(int $memberId, string $password): array
     {
-        return self::ask($memberId, ['action' => 'newpin']);
+        return self::ask($memberId, ['action' => 'password', 'password' => $password]);
     }
 
     private static function ask(int $memberId, ?array $post): array
     {
         if ($memberId <= 0) return ['ok' => false, 'card' => null, 'error' => 'no-member'];
         if (!CacSso::ready()) return ['ok' => false, 'card' => null, 'error' => 'not-configured'];
-        $url = CacTasks::site() . self::PATH . '?t=' . rawurlencode(CacSso::sign(['aud' => 'wifi', 'uid' => $memberId]));
+        $claims = ['aud' => 'wifi', 'uid' => $memberId];
+        if ($post === null) {
+            $st = Database::pdo()->prepare('SELECT id, name, email, role, status FROM lms_users WHERE id = ?');
+            $st->execute([$memberId]);
+            if (($u = $st->fetch(PDO::FETCH_ASSOC)) && ($me = self::row($u)) !== null) $claims['me'] = $me;
+        }
+        $url = CacTasks::site() . self::PATH . '?t=' . rawurlencode(CacSso::sign($claims));
         $raw = self::send($url, $post, self::TIMEOUT);
         if ($raw === null) return ['ok' => false, 'card' => null, 'error' => 'unreachable'];
         $d = json_decode($raw, true);
-        if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'card' => null, 'error' => is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreadable'];
-        return ['ok' => true, 'card' => is_array($d['card'] ?? null) ? self::clean($d['card']) : null, 'error' => ''];
+        if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'card' => null, 'error' => is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreadable',
+                                                      'message' => is_array($d) ? mb_substr((string) ($d['message'] ?? ''), 0, 200) : ''];
+        return ['ok' => true, 'card' => is_array($d['card'] ?? null) ? self::clean($d['card']) : null, 'error' => '', 'message' => ''];
     }
 
     /** Only the fields the portal draws, each bounded. */
@@ -103,7 +119,8 @@ final class CacWifi
         $u = is_array($c['usage'] ?? null) ? $c['usage'] : [];
         return [
             'username'   => mb_substr((string) ($c['username'] ?? ''), 0, 64),
-            'pin'        => preg_match('/^\d{4,8}$/', (string) ($c['pin'] ?? '')) ? (string) $c['pin'] : '',
+            'hasPassword' => !empty($c['hasPassword']),
+            'pinSetAt'   => preg_match('/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/', (string) ($c['pinSetAt'] ?? '')) ? (string) $c['pinSetAt'] : '',
             'access'     => in_array($c['access'] ?? '', ['on', 'limited', 'off'], true) ? (string) $c['access'] : 'off',
             /* CACENTRE words a reason for its staff ("Afrovanguard has no Wi-Fi
                for them: …"); on the member's own screen our part is just our reason. */

@@ -35,10 +35,10 @@ putenv('AV_SSO_SECRET');
 /* ── It fails soft ───────────────────────────────────────────────────────── */
 ck('no member id makes no request at all', CacWifi::card(0)['error'] === 'no-member');
 ck('no shared secret has its own answer, and sends nothing', CacWifi::card(7)['error'] === 'not-configured' && CacWifi::push()['error'] === 'not-configured');
-ck('nothing is stored here: CACENTRE holds the PINs', !preg_match('/INSERT|UPDATE |DELETE|CREATE TABLE/', $src));
+ck('nothing is stored here: CACENTRE holds the passwords', !preg_match('/INSERT|UPDATE |DELETE|CREATE TABLE/', $src));
 
 /* ── Only the agreed fields travel ───────────────────────────────────────── */
-preg_match("/\\\$out\\[\\] = \\[(.*?)\\];/s", $src, $m);
+preg_match("/function row\\(.*?return \\[(.*?)\\];/s", $src, $m);
 preg_match_all("/'(\\w+)'\\s*=>/", $m[1] ?? '', $keys);
 ck('the roster carries id, kind, name, email, the verdict and its reason — nothing else', $keys[1] === ['id', 'kind', 'name', 'email', 'printedId', 'homeSite', 'verdict', 'why']);
 ck('an account that is not active goes as off, with the reason', str_contains($src, "'verdict'   => \$active ? 'on' : 'off'"));
@@ -50,7 +50,10 @@ $view = (string) file_get_contents(dirname(__DIR__) . '/portal/views/wifi.php');
 ck('the portal has a Wi-Fi pane for members when the CACENTRE link is set up, in the one nav registry', str_contains($nav, "'wifi'        => ['group' => 'Work', 'label' => 'Wi-Fi', 'for' => ['inventory'], 'view' => 'wifi']")
    && str_contains($view, 'id="view-wifi"') && str_contains($portal, "/portal/wifi.js"));
 ck('their own card only: the member comes from the session', str_contains($api, '$uid = (int) $u[\'id\'];') && !preg_match('/\$_GET\[.(id|uid|member)/', $api));
-ck('a new PIN is a checked write (same origin, CSRF, rate)', str_contains($api, 'require_same_origin();') && str_contains($api, 'av_csrf_require();') && str_contains($api, "av_require_write(\$uid, 'cac_wifi'"));
-ck('the PIN is hidden until asked for, with a pressed state', str_contains($js, "'••••••'") && str_contains($js, "setAttribute('aria-pressed'"));
-ck('loading, an empty card and an honest error with a retry are all said', str_contains($js, 'Loading your Wi-Fi details') && str_contains($js, 'on their way from CACENTRE') && str_contains($js, 'retry.hidden = false'));
+ck('setting a password is a checked write (same origin, CSRF, rate)', str_contains($api, 'require_same_origin();') && str_contains($api, 'av_csrf_require();') && str_contains($api, "av_require_write(\$uid, 'cac_wifi'"));
+ck('the member sets their own password, typed twice, and it is never shown back', str_contains($js, "JSON.stringify({ password: pw1.value })") && str_contains($js, 'The two passwords are not the same') && !preg_match('/card\.pin\b/', $js));
+ck('the password travels in the body, never in a URL', str_contains($src, "['action' => 'password', 'password' => \$password]") && !preg_match('/[?&]password=/', $src . $js));
+ck('a member CACENTRE has not been sent yet is added at once: the card token carries their own roster row', str_contains($src, "\$claims['me'] = \$me"));
+ck('the old PIN is gone from what the portal draws', !str_contains($src, "'pin'        =>") && str_contains($src, "'hasPassword' =>"));
+ck('loading, an empty card and an honest error with a retry are all said', str_contains($js, 'Loading your Wi-Fi details') && str_contains($js, 'not on the Wi-Fi list yet') && str_contains($js, 'retry.hidden = false'));
 ck('the roster goes from the cron, under the heartbeat', str_contains($cron, "AiOps::run('wifi'") && str_contains($cron, 'CacWifi::push()'));
