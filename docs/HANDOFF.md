@@ -602,3 +602,55 @@ alongside `total` (how many are on the wall) so the page's "N gifts so far"
 does not shrink because people stopped consenting to be named.
 
 Tests: `tests/donorwall.test.php`, including the endpoint over HTTP.
+
+---
+
+## 29 Oct 2026 — Applying to NGV: the form, the account, and a guardian's own consent
+
+Asked: make "Apply" reach the application, take the account step off the
+applicant, ask a date of birth, and have a child's guardian confirm for
+themselves.
+
+**Every "Apply now" on `/academy/ngv/` went to `bit.ly/ngv`, which is a WhatsApp
+group invite.** The form at `/academy/ngv/register.php` existed and the shipped
+defaults pointed at it, but the page's stored copy (`ngv_content`) still held the
+old link, so nobody reached the form, the staff queue or the consent notice.
+`Ngv::mendApplyUrl()` maps the shortlink and any `chat.whatsapp.com/` group link
+to the form in every apply field (hero primary, closing CTA, contact, each plan),
+on the way OUT of `Ngv::get()` and after `save()`, so it holds for the stored
+copy and for the old link pasted back in. The "Chat on WhatsApp" button
+(`cta_secondary_url`) is a chat and is left alone. The Academy course card
+(`db/academy_content.php`, and `academy/course.php` for seeded rows) and the
+editor's new-plan default were the other two places carrying it.
+
+**NGG hands over pre-filled.** NGG's application sends 18-and-overs to
+`register.php?from=ngg&name=…&dob=…&email=…&phone=…`; the form fills those in
+on a GET and saves nothing until it is sent (`<meta name="referrer"
+content="same-origin">` keeps them on this site).
+
+**Enrolment makes the account** (`NgvMember::enrollApplication`), through
+`MemberRoster::create`, as `NgvIntake` already did for NGG promotions. The old
+path marked the application `accepted` and emailed the applicant to make an
+account with the same address; nothing chased the ones who never did. The
+welcome email says to sign in with a code; no password is needed first.
+
+**Date of birth, not age.** `ngv_applications.dob` (the column sync adds it);
+`age` is still written, derived, for older readers. `NgvMember::applicantIsMinor`
+reads the date, or the typed age on an application from before.
+
+**A child's guardian consents themselves.** The form takes the guardian's email
+(not the applicant's own) and `NgvMember::askGuardian` emails them a link to
+`/academy/ngv/guardian.php`. Opening it agrees to nothing — mail scanners open
+every link — the guardian ticks and POSTs. The token is single use, 14 days
+(`GUARDIAN_LINK_DAYS`), and only its hash is stored; a new link voids the last.
+The office can record consent given another way (signed form, in person, phone
+— never "email link") from the console, logged by name. Enrol is disabled for a
+child until one or the other has happened, and refused on the server too
+(`needs_guardian`).
+
+**Behaviour change to know about:** an application filed before this whose only
+consent was the applicant's own tick now shows "no consent yet". The office
+records the guardian's consent when they have it.
+
+Tests: `tests/ngvguardian.test.php`; `tests/ngvregister.test.php`'s form check
+was rewritten to the new rule.

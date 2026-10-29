@@ -371,6 +371,17 @@ final class NgvDb
           guardian_name    TEXT NOT NULL DEFAULT '',
           guardian_phone   TEXT NOT NULL DEFAULT '',
           guardian_consent INTEGER NOT NULL DEFAULT 0,
+          /* A date of birth, not an age: an age goes stale, and it alone decided
+             whether a guardian was needed. `age` stays, derived, for older readers.
+             The guardian CONFIRMS by a link emailed to them (NgvMember::askGuardian),
+             because the only consent before was a box the applicant ticked, which is
+             not consent. Only the token's hash is kept. */
+          dob                   TEXT NOT NULL DEFAULT '',
+          guardian_email        TEXT NOT NULL DEFAULT '',
+          guardian_token        TEXT NOT NULL DEFAULT '',
+          guardian_asked_at     TEXT NOT NULL DEFAULT '',
+          guardian_confirmed_at TEXT NOT NULL DEFAULT '',
+          guardian_method       TEXT NOT NULL DEFAULT '',
           created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_ngv_app_status ON ngv_applications (status);

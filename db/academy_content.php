@@ -51,6 +51,6 @@ return [
     'summary' => 'A focused online academy extending Afrovanguard’s training beyond Alimosho to young people across Africa.',
     'outcomes' => "Learn online at your own pace\nApply skills to a capstone project\nJoin a continent-wide cohort\nEarn a certificate of completion",
     'body_html' => '<p>NGV Academy takes the Afrovanguard method online, so distance is no longer a barrier to formation. It is how the movement scales past a single local government.</p>',
-    'cta_url' => 'https://bit.ly/ngv', 'featured' => 0, 'sort' => 6,
+    'cta_url' => '/academy/ngv/register.php', 'featured' => 0, 'sort' => 6,
   ],
 ];

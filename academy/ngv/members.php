@@ -286,6 +286,17 @@ if ($method === 'POST') {
         if ($ok) ngv_console_audit('app_status', 'application#' . (int) ($in['app_id'] ?? 0), (string) ($in['status'] ?? ''));
         json_out(['ok' => $ok, 'error' => $ok ? '' : 'Bad application/status.']);
     }
+    if ($act === 'app_guardian_resend') {
+        $r = NgvMember::askGuardian((int) ($in['app_id'] ?? 0));
+        if (!empty($r['ok'])) ngv_console_audit('app_guardian_resend', 'application#' . (int) ($in['app_id'] ?? 0), 'guardian emailed');
+        json_out($r + ['ok' => false], empty($r['ok']) ? 400 : 200);
+    }
+    if ($act === 'app_guardian_record') {
+        $method = (string) ($in['method'] ?? '');
+        $r = NgvMember::recordGuardianConsent((int) ($in['app_id'] ?? 0), $method, $adminUid);
+        if (!empty($r['ok'])) ngv_console_audit('app_guardian_record', 'application#' . (int) ($in['app_id'] ?? 0), 'guardian consent recorded (' . $method . ')');
+        json_out($r + ['ok' => false], empty($r['ok']) ? 400 : 200);
+    }
     if ($act === 'app_enroll') {
         $r = NgvMember::enrollApplication((int) ($in['app_id'] ?? 0), $adminUid);
         ngv_console_audit('app_enroll', 'application#' . (int) ($in['app_id'] ?? 0), !empty($r['ok']) ? 'enrolled member #' . (int) ($r['member_id'] ?? 0) : (string) ($r['error'] ?? 'not enrolled'));
@@ -1019,13 +1030,30 @@ details.sect>summary{margin-bottom:8px}
         <tbody>
         <?php foreach ($apps as $a): $st = (string)$a['status']; ?>
           <tr>
-            <td><b><?= $e((string)($a['name'] ?: '—')) ?></b><br><span class="sub"><?= $e((string)$a['email']) ?><?= !empty($a['phone']) ? ' · '.$e((string)$a['phone']) : '' ?></span></td>
+            <?php $minorA = NgvMember::applicantIsMinor($a); $gOk = NgvMember::guardianConfirmed($a); ?>
+            <td><b><?= $e((string)($a['name'] ?: '—')) ?></b><br><span class="sub"><?= $e((string)$a['email']) ?><?= !empty($a['phone']) ? ' · '.$e((string)$a['phone']) : '' ?></span>
+              <?php if ($minorA): ?>
+                <br><span class="sub">Under 18 · <?= $e((string)($a['guardian_name'] ?: 'no guardian named')) ?><?= !empty($a['guardian_phone']) ? ' · '.$e((string)$a['guardian_phone']) : '' ?>:
+                <?php if ($gOk): ?><b>consent confirmed</b> (<?= $e(str_replace('_', ' ', (string)$a['guardian_method'])) ?>, <?= $e(substr((string)$a['guardian_confirmed_at'],0,10)) ?>)
+                <?php elseif ((string)$a['guardian_asked_at'] !== ''): ?><b>waiting for them to confirm</b> (emailed <?= $e(substr((string)$a['guardian_asked_at'],0,10)) ?>)
+                <?php else: ?><b>no consent yet</b><?php endif; ?></span>
+              <?php endif; ?></td>
             <td class="sub"><?= $e(trim(((string)($a['track'] ?: '')).' '.((string)($a['plan'] ? '· '.$a['plan'] : '')), ' ·')) ?: '—' ?><?= !empty($a['location']) ? '<br>'.$e((string)$a['location']) : '' ?></td>
             <td><span class="badge b-<?= $st==='enrolled'?'active':($st==='rejected'?'withdrawn':($st==='accepted'?'completed':'applicant')) ?>"><?= $e($st) ?></span></td>
             <td class="sub"><?= $e(substr((string)$a['created_at'],0,10)) ?></td>
             <td>
               <?php if ($st !== 'enrolled'): ?>
-                <button class="btn sm primary" data-act="app_enroll" data-app="<?= (int)$a['id'] ?>">Enrol</button>
+                <?php /* A child is not enrolled before their parent or guardian consents:
+                         the button is off and says why, rather than failing on press. */ ?>
+                <button class="btn sm primary" data-act="app_enroll" data-app="<?= (int)$a['id'] ?>"<?= $minorA && !$gOk ? ' disabled title="Waiting for a parent or guardian to consent"' : '' ?>>Enrol</button>
+                <?php if ($minorA && !$gOk && $st !== 'rejected'): ?>
+                  <?php if (filter_var((string)$a['guardian_email'], FILTER_VALIDATE_EMAIL)): ?><button class="btn sm" data-act="app_guardian_resend" data-app="<?= (int)$a['id'] ?>">Email guardian again</button><?php endif; ?>
+                  <?php if (trim((string)$a['guardian_name']) !== ''): ?>
+                    <label class="sr-only" for="gm-<?= (int)$a['id'] ?>">How the guardian consented</label>
+                    <select id="gm-<?= (int)$a['id'] ?>" class="gm-sel"><option value="">Consent given by…</option><option value="signed_form">Signed form</option><option value="in_person">In person</option><option value="phone">Phone call</option></select>
+                    <button class="btn sm" data-act="app_guardian_record" data-app="<?= (int)$a['id'] ?>">Record consent</button>
+                  <?php endif; ?>
+                <?php endif; ?>
                 <?php /* `reviewing` and `accepted` were in the vocabulary with no way to
                          reach them, so every application sat at `new` until somebody
                          enrolled or rejected it — and a queue with one state cannot show
@@ -1838,6 +1866,11 @@ details.sect>summary{margin-bottom:8px}
                              if(why===null || !why.trim()){ return; } body.reason = why; }
       else if(act==='app_status'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); body.status=btn.getAttribute('data-status')||''; if(body.status==='rejected' && !confirm('Reject this application?')) return; }
       else if(act==='app_enroll'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); }
+      else if(act==='app_guardian_resend'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); if(!confirm('Email their parent or guardian a new link? The old one stops working.')) return; }
+      else if(act==='app_guardian_record'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10);
+                                            var gm=document.getElementById('gm-'+body.app_id); body.method=gm?gm.value:'';
+                                            if(!body.method){ toast('Say how the parent or guardian consented', false); return; }
+                                            if(!confirm('Record that their parent or guardian has consented ('+body.method.replace('_',' ')+')? It is logged with your name.')) return; }
       else if(act==='fees_settings'){
         body.settings = {
           enabled: chk('s_enabled'), trainingAuto: chk('s_trainingAuto'),
