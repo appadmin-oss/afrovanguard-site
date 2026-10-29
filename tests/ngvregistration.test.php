@@ -31,6 +31,11 @@ ck('ngv reg: the applicant reads it with reference AND email — a photocopied M
    && NgvRegistration::forApplicant((string) $app['ref'], 'someone@reg2.test') === null);
 ck('ngv reg: the desk finds it by reference alone', (int) NgvRegistration::forDesk((string) $app['ref'])['id'] === $a);
 
+$k = NgvRegistration::key((string) $app['ref']);
+ck('ngv reg: the emailed link opens the application with its signed key, and nothing else does',
+   (int) NgvRegistration::forKey((string) $app['ref'], $k)['id'] === $a && NgvRegistration::forKey((string) $app['ref'], str_repeat('0', 24)) === null
+   && NgvRegistration::forKey('NGV-AAAAAA', $k) === null && str_contains(NgvRegistration::link((string) $app['ref']), 'k=' . $k));
+
 /* ── Do they understand? ───────────────────────────────────────────────── */
 $qs = NgvRegistration::questions();
 $right = []; foreach ($qs as $i => $q) $right[$i] = $q['answer'];
@@ -109,6 +114,16 @@ ck('ngv reg: the MoU is the office\'s text with this applicant\'s details in, an
    $m['version'] === 'NGV-MoU-2026.10' && str_contains($m['body'], 'Tunde Apply') && str_contains($m['body'], 'Mr Boss') && str_contains($m['body'], 'Employer')
    && str_contains($m['body'], '₦240,000') && !preg_match('/\{[a-z_]+\}/', $m['body']));
 ck('ngv reg: and it says the guarantor is not responsible for fees', str_contains($m['body'], 'not responsible for my fees'));
+
+/* ── The pages ──────────────────────────────────────────────────────────── */
+$rgPage = static fn(string $f) => (string) file_get_contents(AV_ROOT . '/academy/ngv/' . $f);
+ck('ngv reg: the MoU page opens only with the signed key, and only once invited',
+   str_contains($rgPage('mou.php'), 'NgvRegistration::forKey(') && str_contains($rgPage('mou.php'), "['invited', 'accepted', 'booked', 'attended']"));
+ck('ngv reg: the status page finds by reference AND email, and says the same thing whether the reference exists or not',
+   str_contains($rgPage('status.php'), 'NgvRegistration::forApplicant($ref') && substr_count($rgPage('status.php'), 'We could not find an application') === 1);
+ck('ngv reg: the form checks understanding, the guarantor, the centre and availability before saving',
+   ($f = $rgPage('register.php')) && strpos($f, 'checkUnderstanding') < strpos($f, 'NgvMember::submitApplication(')
+   && strpos($f, 'cleanGuarantor') < strpos($f, 'NgvMember::submitApplication(') && str_contains($f, "trim(\$old['availability']) === ''"));
 
 Ngv::reset();
 $rgNgv->exec("DELETE FROM ngv_bookings WHERE application_id IN (SELECT id FROM ngv_applications WHERE email LIKE '%@reg2.test')");

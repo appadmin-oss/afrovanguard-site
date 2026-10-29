@@ -90,6 +90,34 @@ final class NgvRegistration
         return ($app && hash_equals(mb_strtolower((string) $app['email']), $email)) ? $app : null;
     }
 
+    /**
+     * The key that opens an application's page from an emailed link, so the
+     * applicant does not have to type their email again. Signed with the
+     * site's secret under its own purpose label; it is as private as the email
+     * it was sent to, and no more.
+     */
+    public static function key(string $ref): string
+    {
+        return function_exists('av_mac') ? substr(av_mac('ngv-application', self::cleanRef($ref)), 0, 24) : '';
+    }
+
+    /** An application by reference and emailed key. */
+    public static function forKey(string $ref, string $key): ?array
+    {
+        $ref = self::cleanRef($ref);
+        $want = self::key($ref);
+        if ($ref === '' || $want === '' || !hash_equals($want, $key)) return null;
+        $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_applications WHERE ref = ?');
+        $st->execute([$ref]);
+        return $st->fetch() ?: null;
+    }
+
+    /** The applicant's own link to a page of their application. */
+    public static function link(string $ref, string $page = 'status.php'): string
+    {
+        return self::site() . '/academy/ngv/' . $page . '?ref=' . rawurlencode(self::cleanRef($ref)) . '&k=' . rawurlencode(self::key($ref));
+    }
+
     /** Staff: by reference alone (the desk has the person standing there). */
     public static function forDesk(string $ref): ?array
     {
@@ -205,13 +233,12 @@ final class NgvRegistration
         $ref = self::ensureRef($id);
         NgvDb::pdo()->prepare("UPDATE ngv_applications SET status = 'invited', invited_at = ?, no_shows = 0, reviewed_by = ? WHERE id = ?")
             ->execute([self::now(), max(0, $byUid), $id]);
-        $site = self::site();
         self::mail((string) $app['email'], 'You are invited to register for NextGen Vanguard', 'Come in and finish registering',
             ['Your application has been reviewed, and you are invited to register.',
              'To finish, come to a CACENTRE with: the MoU printed and signed by you and your guarantor, your ID, and your guarantor in person. Your application page has the MoU to print, the full list of what to bring, and the times you can book.',
              'Your reference is <b>' . self::esc($ref) . '</b>. Bring it with you.',
              'The invitation stays open for ' . self::INVITE_LAPSE_DAYS . ' days.'],
-            ['text' => 'Open your application', 'url' => $site . '/academy/ngv/status.php?ref=' . rawurlencode($ref)]);
+            ['text' => 'Open your application', 'url' => self::link($ref)]);
         $g = mb_strtolower(trim((string) ($app['g_email'] ?? '')));
         if (filter_var($g, FILTER_VALIDATE_EMAIL)) {
             self::mail($g, (trim((string) $app['name']) ?: 'An applicant') . ' named you as their guarantor', 'NextGen Vanguard',
@@ -320,7 +347,7 @@ final class NgvRegistration
             ['You are booked at <b>' . self::esc($centre) . '</b> on <b>' . self::esc(self::longDate($date)) . '</b> at <b>' . self::esc($time) . '</b>.',
              'Bring the MoU, printed and signed by you and your guarantor, your ID, and your guarantor in person. Your reference is <b>' . self::esc(self::ensureRef($id)) . '</b>.',
              'If you cannot come, change the time from your application page.'],
-            ['text' => 'Open your application', 'url' => self::site() . '/academy/ngv/status.php?ref=' . rawurlencode(self::ensureRef($id))]);
+            ['text' => 'Open your application', 'url' => self::link(self::ensureRef($id))]);
         return ['ok' => true];
     }
 

@@ -37,9 +37,10 @@ function ngv_notify_application(int $id, array $d): void
             [
                 "Hi {$first},",
                 'Thank you for applying to <b>NextGen Vanguard</b> — we\'ve received your application and our team will review it and be in touch.',
-                '<b>Next step:</b> nothing for now. If you are offered a place, we will set up your Afrovanguard account with this email and tell you how to sign in.',
+                'Your reference is <b>' . $esc($ref = class_exists('NgvRegistration') ? NgvRegistration::ensureRef($id) : '') . '</b>. Keep it.',
+                '<b>What happens next:</b> if you are invited, you print the MoU from your application page, book a time, and come to the CACENTRE to finish registering with the MoU signed by you and your guarantor, your ID, and your guarantor in person. You do not need to make an account — one is made for you then.',
             ],
-            null,
+            $ref !== '' ? ['text' => 'Open your application', 'url' => NgvRegistration::link($ref)] : null,
             'We received your NextGen Vanguard application.',
             ['eyebrow' => 'NextGen Vanguard']
         );
@@ -63,15 +64,20 @@ function ngv_notify_application(int $id, array $d): void
 $c        = Ngv::get();
 $e        = 'e';
 $tracks   = is_array($c['tracks'] ?? null) ? $c['tracks'] : [];
-$plans    = Ngv::activePlans();
 $ct       = is_array($c['contact'] ?? null) ? $c['contact'] : [];
 $enabled  = Ngv::isEnabled();
 
 $done = false;
 $err  = '';
 $old  = ['name' => '', 'email' => '', 'phone' => '', 'dob' => '', 'gender' => '', 'location' => '', 'education' => '', 'track' => '', 'plan' => '', 'message' => '',
-         'guardian_name' => '', 'guardian_phone' => '', 'guardian_email' => ''];
+         'centre' => '', 'availability' => '',
+         'g_name' => '', 'g_relationship' => '', 'g_relationship_other' => '', 'g_phone' => '', 'g_email' => ''];
 $agreed = false;
+$questions = NgvRegistration::questions();
+$centres   = NgvRegistration::centres();
+$answers   = [];       // question index => chosen option, as posted
+$wrongQ    = [];       // question index => the explanation, for a wrong answer
+$ref       = '';       // the new application's reference, once saved
 $guardianAsked = false;   // their parent or guardian still has to confirm
 $guardianSent  = false;   // …and the email asking them went out just now
 /* Arriving from NGG's application ("18 and over — register for NGV"): what
@@ -91,15 +97,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $ip = function_exists('av_client_ip') ? av_client_ip() : ($_SERVER['REMOTE_ADDR'] ?? '0');
     $limited = function_exists('av_rate_ok') && !av_rate_ok('ngv_apply_' . $ip, 5, 900); // 5 / 15 min
 
-    foreach ($old as $k => $_) $old[$k] = (string) ($_POST[$k] ?? '');
+    foreach ($old as $k => $_) $old[$k] = is_string($_POST[$k] ?? null) ? (string) $_POST[$k] : '';
     $agreed     = !empty($_POST['consent']);
-    /* School leavers are often 16 or 17. A child's place needs their parent's
-       or guardian's agreement, and it has to come from that person: they are
-       emailed a link and confirm it themselves (NgvMember::askGuardian). */
+    foreach ((array) ($_POST['q'] ?? []) as $i => $v) if (is_scalar($v)) $answers[(int) $i] = (int) $v;
+    /* School leavers are often 16 or 17, and they may join as long as they can
+       keep the programme's commitment: their availability is asked, their
+       guarantor must be their parent or guardian, and that person is told. */
     $dob   = NgvMember::cleanDob($old['dob']);
     $ageN  = $dob !== '' ? (int) NgvMember::ageFromDob($dob) : 0;
     $minor = $dob !== '' && $ageN < 18;
-    $gEmail = mb_strtolower(trim($old['guardian_email']));
+    $understood = NgvRegistration::checkUnderstanding($answers);
+    $guar = NgvRegistration::cleanGuarantor($old, $minor, $old['email']);
 
     if ($hp !== '') {
         $done = true; // silently absorb bots — look successful, store nothing
@@ -111,17 +119,30 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $err = 'Please give your date of birth.';
     } elseif ($ageN < 13 || $ageN > 99) {
         $err = 'NextGen Vanguard is open from age 13. Please check your date of birth.';
-    } elseif ($minor && (trim($old['guardian_name']) === '' || trim($old['guardian_phone']) === '' || !filter_var($gEmail, FILTER_VALIDATE_EMAIL))) {
-        $err = 'You are under 18, so we need your parent or guardian: their name, phone number and email address. We will email them to confirm.';
-    } elseif ($minor && $gEmail === mb_strtolower(trim($old['email']))) {
-        $err = 'Your parent or guardian’s email has to be their own, not yours: they confirm your application from it.';
+    } elseif (!$understood['ok']) {
+        /* Not a refusal of the person: the right answers are shown beside the
+           questions, and they answer again. */
+        $wrongQ = $understood['wrong'];
+        $err = 'Some answers about the programme were not right. The right answer is now shown under each one — read it, then choose again.';
+    } elseif (empty($guar['ok'])) {
+        $err = (string) $guar['error'];
+    } elseif ($centres && !isset($centres[$old['centre']])) {
+        $err = 'Choose the CACENTRE where you will finish registering.';
+    } elseif (trim($old['availability']) === '') {
+        $err = 'Tell us when you can attend — the programme meets ' . trim((string) ($c['schedule']['days'] ?? '') . ' ' . (string) ($c['schedule']['time'] ?? '')) . '.';
     } elseif (!$agreed) {
         $err = 'Please confirm you have read how we use your details.';
     } else {
         $old['dob'] = $dob;
-        $id = NgvMember::submitApplication($old + ['source' => $fromNgg ? 'ngg' : 'register', 'consent' => true]);
+        $row = $old + $guar['g'];
+        /* A child's guarantor IS their parent or guardian: they are the one told
+           about the application before the visit. Their consent is given in
+           person, on the MoU, at the CACENTRE. */
+        if ($minor) $row += ['guardian_name' => $guar['g']['g_name'], 'guardian_phone' => $guar['g']['g_phone'], 'guardian_email' => $guar['g']['g_email']];
+        $id = NgvMember::submitApplication($row + ['source' => $fromNgg ? 'ngg' : 'register', 'consent' => true, 'understood' => true]);
         if ($id > 0) {
             $done = true;
+            $ref = NgvRegistration::ensureRef($id);
             if ($minor) {
                 /* Not on every resubmission: a repeat within ten minutes is a
                    correction, and a second email would only confuse the parent. */
@@ -215,6 +236,13 @@ textarea{min-height:110px;resize:vertical}
 .ok h2{margin:12px 0 6px}
 .ok p{color:var(--muted);max-width:52ch;margin:0 auto 8px}
 .ok .btn{margin-top:18px}
+.refbox{background:#fff7e6;border:1px solid #f3d9a4;border-radius:11px;padding:12px 14px;display:inline-block}
+.steps{text-align:left;max-width:52ch;margin:12px auto;padding-left:20px;color:var(--ink)}
+.steps li{margin:6px 0}
+.q{border:1px solid var(--line);border-radius:11px;padding:10px 14px;margin:10px 0}
+.q-wrong{border-color:#f6c9c6;background:#fffafa}
+.q-t{margin:2px 0 4px;font-weight:600}
+.q-why{margin:6px 0 2px;color:#7a2a24;font-size:.92rem}
 @media(max-width:560px){.hero h1{font-size:1.55rem}}
 </style>
 </head>
@@ -245,17 +273,23 @@ textarea{min-height:110px;resize:vertical}
     <?php if ($done): ?>
       <div class="ok" role="status">
         <div class="big">🎉</div>
-        <h2>Application received!</h2>
-        <p>Thank you<?= $old['name'] !== '' ? ', ' . $e(trim(explode(' ', trim($old['name']))[0])) : '' ?> — your application is in. Our team will review it and reach out<?= !empty($old['email']) ? ' at ' . $e($old['email']) : '' ?>.</p>
+        <h2>Application received</h2>
+        <p>Thank you<?= $old['name'] !== '' ? ', ' . $e(trim(explode(' ', trim($old['name']))[0])) : '' ?> — your application is in.</p>
+        <?php if ($ref !== ''): ?>
+          <p class="refbox">Your reference: <b><?= $e($ref) ?></b><br><span class="note">Keep it. You will be asked for it at the CACENTRE.</span></p>
+        <?php endif; ?>
+        <ol class="steps">
+          <li><b>We review your application</b> and email <?= $e($old['email']) ?> when it is decided.</li>
+          <li><b>If you are invited</b>, your application page lets you print the MoU and book a time at <?= $e($old['centre'] ?: 'a CACENTRE') ?>.</li>
+          <li><b>You come in to finish registering</b> with the MoU signed by you and your guarantor, your ID, and your guarantor in person.</li>
+        </ol>
         <?php if ($guardianAsked): ?>
-        <?php if ($guardianSent): ?>
-        <p><b>One more step, for your parent or guardian:</b> we have emailed <?= $e($old['guardian_email']) ?> a link to confirm your application. We cannot offer you a place until they do, so let them know to look out for it.</p>
-        <?php else: ?>
-        <p><b>One more step, for your parent or guardian:</b> they need to confirm your application before we can offer you a place. Our team will send them a link at <?= $e($old['guardian_email']) ?>, or contact them by phone.</p>
+          <p><?= $guardianSent ? 'We have emailed your parent or guardian at <b>' . $e($old['g_email']) . '</b> to tell them about your application.' : 'We will contact your parent or guardian about your application.' ?>
+             They come with you to the CACENTRE as your guarantor.</p>
         <?php endif; ?>
-        <?php endif; ?>
-        <p>If you are offered a place, we will set up your Afrovanguard account with this email and tell you how to sign in. You do not need to make one now.</p>
-        <p><a class="btn" href="/academy/ngv/">Back to the programme</a></p>
+        <p>You do not need to make an Afrovanguard account. One is made for you when you register.</p>
+        <p><?php if ($ref !== ''): ?><a class="btn" href="<?= $e(NgvRegistration::link($ref)) ?>">Open your application</a> <?php endif; ?>
+           <a href="/academy/ngv/">Back to the programme</a></p>
       </div>
     <?php else: ?>
       <?php /* A submission that comes back with an error lands the reader on the
@@ -265,6 +299,25 @@ textarea{min-height:110px;resize:vertical}
       <form method="post" action="/academy/ngv/register.php" id="form" novalidate>
         <div class="hp" aria-hidden="true"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
         <p class="reqnote"><span class="req">*</span> Required. Everything else helps us place you, but you can leave it blank.</p>
+
+        <?php if ($questions): ?>
+        <fieldset>
+          <legend>Before you apply</legend>
+          <p class="note">Applying online is the first step. To finish, you come to a CACENTRE with the MoU signed by you and your
+            guarantor, your ID, and your guarantor in person. These questions check the main points. A wrong answer is not held
+            against you — the right one is shown, and you choose again.</p>
+          <?php foreach ($questions as $qi => $q): ?>
+            <div class="q<?= isset($wrongQ[$qi]) ? ' q-wrong' : '' ?>" role="group" aria-labelledby="q<?= (int)$qi ?>-t">
+              <p class="q-t" id="q<?= (int)$qi ?>-t"><?= (int)$qi + 1 ?>. <?= $e($q['q']) ?> <span class="req" aria-hidden="true">*</span></p>
+              <?php foreach ($q['options'] as $oi => $opt): ?>
+                <label class="chk"><input type="radio" name="q[<?= (int)$qi ?>]" value="<?= (int)$oi + 1 ?>" required
+                  <?= ($answers[$qi] ?? 0) === $oi + 1 && !isset($wrongQ[$qi]) ? 'checked' : '' ?>> <?= $e($opt) ?></label>
+              <?php endforeach; ?>
+              <?php if (isset($wrongQ[$qi])): ?><p class="q-why" role="note"><b>Not quite.</b> <?= $e($wrongQ[$qi]) ?></p><?php endif; ?>
+            </div>
+          <?php endforeach; ?>
+        </fieldset>
+        <?php endif; ?>
 
         <fieldset>
           <legend>About you</legend>
@@ -303,14 +356,19 @@ textarea{min-height:110px;resize:vertical}
                 <?php endforeach; ?>
               </select>
             </div>
-            <div class="fld"><label for="f-plan">Plan</label>
-              <select id="f-plan" name="plan">
-                <option value="">— Not sure yet —</option>
-                <?php foreach ($plans as $pl): $pn = (string)($pl['name'] ?? ''); if ($pn==='') continue; ?>
-                <option value="<?= $e($pn) ?>" <?= $old['plan'] === $pn ? 'selected' : '' ?>><?= $e($pn) ?><?= !empty($pl['price']) ? ' — ' . $e((string)$pl['price']) : '' ?></option>
+            <div class="fld"><label for="f-centre">Where you will finish registering <span class="req" aria-hidden="true">*</span></label>
+              <select id="f-centre" name="centre" required>
+                <option value="">— Choose a CACENTRE —</option>
+                <?php foreach ($centres as $cn => $cc): ?>
+                <option value="<?= $e($cn) ?>" <?= $old['centre'] === $cn ? 'selected' : '' ?>><?= $e($cn) ?></option>
                 <?php endforeach; ?>
               </select>
             </div>
+          </div>
+          <div class="fld"><label for="f-avail">When can you attend? <span class="req" aria-hidden="true">*</span></label>
+            <p class="note">The programme meets <?= $e(trim((string)($c['schedule']['days'] ?? '') . ', ' . (string)($c['schedule']['time'] ?? ''), ', ')) ?>.
+              Say honestly what fits around school, work or other commitments — under-18s are welcome as long as they can keep to it.</p>
+            <textarea id="f-avail" name="availability" maxlength="300" required><?= $e($old['availability']) ?></textarea>
           </div>
         </fieldset>
 
@@ -322,16 +380,29 @@ textarea{min-height:110px;resize:vertical}
         </fieldset>
 
         <fieldset>
-          <legend>If you are under 18</legend>
-          <p class="note">If you are 17 or younger, a parent or guardian has to agree to your application. We will email them a link to confirm it themselves, so use their own email address, not yours.</p>
+          <legend>Your guarantor</legend>
+          <p class="note">An adult who knows you and will vouch for your character: a parent or guardian, an employer, a faith leader or
+            a community leader. <b>They come to the CACENTRE with you</b> and sign the MoU. They are not responsible for your fees.
+            If you are under 18, your guarantor must be your parent or guardian.</p>
           <div class="row2">
-            <div class="fld"><label for="f-gname">Parent or guardian's name</label>
-              <input id="f-gname" type="text" name="guardian_name" maxlength="120" autocomplete="off" value="<?= $e($old['guardian_name']) ?>"></div>
-            <div class="fld"><label for="f-gphone">Their phone</label>
-              <input id="f-gphone" type="tel" name="guardian_phone" maxlength="40" autocomplete="off" value="<?= $e($old['guardian_phone']) ?>"></div>
+            <div class="fld"><label for="f-gname">Their full name <span class="req" aria-hidden="true">*</span></label>
+              <input id="f-gname" type="text" name="g_name" maxlength="120" autocomplete="off" required value="<?= $e($old['g_name']) ?>"></div>
+            <div class="fld"><label for="f-grel">How they know you <span class="req" aria-hidden="true">*</span></label>
+              <select id="f-grel" name="g_relationship" required>
+                <option value="">— Choose —</option>
+                <?php foreach (NgvRegistration::RELATIONSHIPS as $rk => $rl): ?>
+                <option value="<?= $e($rk) ?>" <?= $old['g_relationship'] === $rk ? 'selected' : '' ?>><?= $e($rl) ?></option>
+                <?php endforeach; ?>
+              </select></div>
           </div>
-          <div class="fld"><label for="f-gemail">Their email</label>
-            <input id="f-gemail" type="email" name="guardian_email" maxlength="160" autocomplete="off" value="<?= $e($old['guardian_email']) ?>"></div>
+          <div class="fld"><label for="f-grelo">If "Other", what are they to you?</label>
+            <input id="f-grelo" type="text" name="g_relationship_other" maxlength="80" autocomplete="off" value="<?= $e($old['g_relationship_other']) ?>"></div>
+          <div class="row2">
+            <div class="fld"><label for="f-gphone">Their phone <span class="req" aria-hidden="true">*</span></label>
+              <input id="f-gphone" type="tel" name="g_phone" maxlength="40" autocomplete="off" required value="<?= $e($old['g_phone']) ?>"></div>
+            <div class="fld"><label for="f-gemail">Their email <span class="opt">(required if you are under 18)</span></label>
+              <input id="f-gemail" type="email" name="g_email" maxlength="160" autocomplete="off" value="<?= $e($old['g_email']) ?>"></div>
+          </div>
         </fieldset>
 
         <label class="chk"><input type="checkbox" name="consent" value="1" required <?= $agreed ? 'checked' : '' ?>>
