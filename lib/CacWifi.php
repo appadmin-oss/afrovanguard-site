@@ -72,20 +72,57 @@ final class CacWifi
         if (!CacSso::ready()) return ['ok' => false, 'error' => 'not-configured'];
         $people = self::roster();
         if (count($people) > self::ROSTER_MAX) return ['ok' => false, 'error' => 'too-many', 'sent' => 0];
-        $raw = self::send(CacTasks::site() . self::PATH, [
-            'action' => 'roster',
-            'token'  => CacSso::sign(['aud' => 'wifi', 'typ' => 'wifi.roster', 'full' => true, 'people' => $people]),
-        ], 60);
+        $raw = self::sendRoster($people, true);
         if ($raw === null) return ['ok' => false, 'error' => 'unreachable', 'sent' => count($people)];
         $d = json_decode($raw, true);
         if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'error' => is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreadable', 'sent' => count($people)];
         return ['ok' => true, 'sent' => count($people), 'applied' => (int) ($d['applied'] ?? 0), 'refused' => (int) ($d['refused'] ?? 0), 'gone' => (int) ($d['gone'] ?? 0)];
     }
 
-    /** One member's card: ['ok', 'card' => array|null, 'error']. */
+    /** Send people as a roster. `full` withdraws anybody not sent; a partial one withdraws nobody. */
+    private static function sendRoster(array $people, bool $full): ?string
+    {
+        return self::send(CacTasks::site() . self::PATH, [
+            'action' => 'roster',
+            'token'  => CacSso::sign(['aud' => 'wifi', 'typ' => 'wifi.roster', 'full' => $full, 'people' => $people]),
+        ], $full ? 60 : self::TIMEOUT);
+    }
+
+    /**
+     * One member's card: ['ok', 'card' => array|null, 'error'].
+     *
+     * Automatic, never "come back in a quarter of an hour": if CACENTRE has
+     * not been sent this member yet, they are sent now, alone, as a partial
+     * roster (which withdraws nobody, and which every CACENTRE that has the
+     * Wi-Fi door accepts), and the card is asked for again. A CACENTRE that
+     * also reads the member's own row from the card request adds them on the
+     * first ask; this covers one that does not.
+     */
     public static function card(int $memberId): array
     {
-        return self::ask($memberId, null);
+        $r = self::ask($memberId, null);
+        if (empty($r['ok']) || $r['card'] !== null) return $r;
+        $me = self::me($memberId);
+        if ($me === null) return $r;
+        $raw = self::sendRoster([$me], false);
+        $d = $raw !== null ? json_decode($raw, true) : null;
+        if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'card' => null, 'error' => $raw === null ? 'unreachable' : 'roster-refused', 'message' => ''];
+        $again = self::ask($memberId, null);
+        if (!empty($again['ok']) && $again['card'] === null) {
+            /* Sent and still not listed: CACENTRE refused the row, and says why. */
+            $why = (string) ($d['results'][0]['error'] ?? '');
+            return ['ok' => false, 'card' => null, 'error' => 'not-accepted', 'message' => $why === 'name_taken' ? 'Your sign-in name is already used by somebody else on the Wi-Fi.' : ''];
+        }
+        return $again;
+    }
+
+    /** This member's roster row, or null when they are not an org member. */
+    private static function me(int $memberId): ?array
+    {
+        $st = Database::pdo()->prepare('SELECT id, name, email, role, status FROM lms_users WHERE id = ?');
+        $st->execute([$memberId]);
+        $u = $st->fetch(PDO::FETCH_ASSOC);
+        return $u ? self::row($u) : null;
     }
 
     public static function setPassword(int $memberId, string $password): array
@@ -98,11 +135,7 @@ final class CacWifi
         if ($memberId <= 0) return ['ok' => false, 'card' => null, 'error' => 'no-member'];
         if (!CacSso::ready()) return ['ok' => false, 'card' => null, 'error' => 'not-configured'];
         $claims = ['aud' => 'wifi', 'uid' => $memberId];
-        if ($post === null) {
-            $st = Database::pdo()->prepare('SELECT id, name, email, role, status FROM lms_users WHERE id = ?');
-            $st->execute([$memberId]);
-            if (($u = $st->fetch(PDO::FETCH_ASSOC)) && ($me = self::row($u)) !== null) $claims['me'] = $me;
-        }
+        if ($post === null && ($me = self::me($memberId)) !== null) $claims['me'] = $me;
         $url = CacTasks::site() . self::PATH . '?t=' . rawurlencode(CacSso::sign($claims));
         $raw = self::send($url, $post, self::TIMEOUT);
         if ($raw === null) return ['ok' => false, 'card' => null, 'error' => 'unreachable'];
