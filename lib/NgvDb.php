@@ -406,10 +406,50 @@ final class NgvDb
           guardian_asked_at     TEXT NOT NULL DEFAULT '',
           guardian_confirmed_at TEXT NOT NULL DEFAULT '',
           guardian_method       TEXT NOT NULL DEFAULT '',
+          /* Registration (lib/NgvRegistration.php). The form is the first step,
+             and it is completed at a CACENTRE. `ref` is what the applicant quotes,
+             prints on the MoU and is found by at the desk. */
+          ref                   VARCHAR(16) NOT NULL DEFAULT '',
+          centre                TEXT NOT NULL DEFAULT '',
+          availability          TEXT NOT NULL DEFAULT '',
+          understood_at         TEXT NOT NULL DEFAULT '',
+          g_name                TEXT NOT NULL DEFAULT '',
+          g_relationship        VARCHAR(24) NOT NULL DEFAULT '',
+          g_relationship_other  TEXT NOT NULL DEFAULT '',
+          g_phone               TEXT NOT NULL DEFAULT '',
+          g_email               TEXT NOT NULL DEFAULT '',
+          invited_at            TEXT NOT NULL DEFAULT '',
+          no_shows              INTEGER NOT NULL DEFAULT 0,
+          /* At the desk. The checklist is a JSON list of what was ticked, by whom
+             and when, with each item's label as it read then — the list itself
+             is the office's to edit, and an edit must not rewrite a record. */
+          checklist_json        TEXT NOT NULL DEFAULT '',
+          g_present_at          TEXT NOT NULL DEFAULT '',
+          g_id_seen             TEXT NOT NULL DEFAULT '',
+          mou_version           VARCHAR(40) NOT NULL DEFAULT '',
+          mou_scan              TEXT NOT NULL DEFAULT '',
+          registered_at         TEXT NOT NULL DEFAULT '',
+          registered_by         INTEGER NOT NULL DEFAULT 0,
           created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_ngv_app_status ON ngv_applications (status);
         CREATE INDEX IF NOT EXISTS idx_ngv_app_email  ON ngv_applications (email);
+        CREATE INDEX IF NOT EXISTS idx_ngv_app_ref    ON ngv_applications (ref);
+
+        /* A visit booked to finish registering. Booking is advised, not
+           required: a walk-in is served the same way, just without a row here. */
+        CREATE TABLE IF NOT EXISTS ngv_bookings (
+          id             INTEGER PRIMARY KEY AUTOINCREMENT,
+          application_id INTEGER NOT NULL,
+          centre         VARCHAR(120) NOT NULL DEFAULT '',
+          slot_date      VARCHAR(10) NOT NULL DEFAULT '',
+          slot_time      VARCHAR(5) NOT NULL DEFAULT '',
+          status         VARCHAR(12) NOT NULL DEFAULT 'booked',
+          created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_ngv_book_slot ON ngv_bookings (centre, slot_date, slot_time);
+        CREATE INDEX IF NOT EXISTS idx_ngv_book_app  ON ngv_bookings (application_id);
 
         /* What a fine needs beyond the ledger row (lib/NgvFines.php): the day it
          * happened, which import it came from, and when the member was told. The

@@ -211,6 +211,59 @@ final class Ngv
             'j_project_past' => [],
             'j_chapter'      => ['name' => '', 'place' => ''],
             'j_roster'       => [],
+
+            /* ── Registration (lib/NgvRegistration.php) ─────────────────────
+               Applying online is the first step; registration is completed in
+               person at a CACENTRE, with a guarantor and the signed MoU. Every
+               part of that below is the office's to edit — nothing in it is
+               hard-coded. */
+
+            /* What the applicant must show they understand before applying.
+               Not a test anybody fails: a wrong answer shows the right one. */
+            'reg_understand' => [
+                ['q' => 'How long is NextGen Vanguard?', 'options' => ['Six months', 'One year: six months of training, then six of internship', 'As long as I like'],
+                 'answer' => '2', 'explain' => 'It is one year: six months of training, then a six-month guided internship.'],
+                ['q' => 'What happens to the programme fee while you stay on the programme?', 'options' => ['I pay it in monthly instalments', 'I work it off through my internship, and it is written off when I finish', 'Nothing — there is no fee'],
+                 'answer' => '2', 'explain' => 'You are given the place. You work the fee off through the internship, and it is written off when you finish. Only if you leave early does what is left become owed.'],
+                ['q' => 'Who is your guarantor?', 'options' => ['Anybody whose name I write down', 'An adult who knows me — a parent or guardian, employer, faith leader or community leader — who comes in with me and vouches for my character', 'Somebody who pays my fees'],
+                 'answer' => '2', 'explain' => 'Your guarantor vouches for your character. They come to the CACENTRE with you. They are not responsible for your fees.'],
+                ['q' => 'How do you finish registering?', 'options' => ['The online form is enough', 'I bring the signed MoU, my documents and my guarantor to the CACENTRE', 'I send a WhatsApp message'],
+                 'answer' => '2', 'explain' => 'The form is the first step. You finish in person at the CACENTRE with the signed MoU, your documents and your guarantor.'],
+            ],
+
+            /* What to bring, and what the desk checks. `applies`: all | minor | adult | ngg. */
+            'reg_checklist' => [
+                ['label' => 'The MoU, printed and signed by you and your guarantor', 'desc' => 'Print it from your application page. Sign it before you come.', 'required' => true, 'applies' => 'all'],
+                ['label' => 'Your ID', 'desc' => 'National ID (NIN slip), voter’s card, international passport, driver’s licence, or a school or NYSC ID.', 'required' => true, 'applies' => 'all'],
+                ['label' => 'Your guarantor, in person, with their ID', 'desc' => 'They come with you and sign in front of the desk.', 'required' => true, 'applies' => 'all'],
+                ['label' => 'Your parent or guardian as your guarantor', 'desc' => 'If you are under 18, your guarantor must be your parent or guardian.', 'required' => true, 'applies' => 'minor'],
+                ['label' => 'Two passport photographs', 'desc' => 'Recent, plain background.', 'required' => false, 'applies' => 'all'],
+                ['label' => 'Your NGG member card', 'desc' => 'If you are coming up from Next Generation Genius.', 'required' => false, 'applies' => 'ngg'],
+            ],
+
+            /* The MoU, as printed. `version` is recorded on every registration,
+               so a later edit changes what the next person signs only.
+               Placeholders: {name} {ref} {dob} {track} {centre} {fee} {basis}
+               {training_months} {internship_months} {membership} {commitment}
+               {guarantor} {relationship} {date}. */
+            'mou' => [
+                'version' => 'NGV-MoU-2026.10',
+                'title'   => 'Memorandum of Understanding — NextGen Vanguard',
+                'body'    => "This memorandum is between Afrovanguard Academy and {name} (reference {ref}), with {guarantor} as guarantor ({relationship}).\n\n"
+                           . "1. The programme. NextGen Vanguard runs for one year: {training_months} months of training, then {internship_months} months of a guided internship, at {centre}.\n\n"
+                           . "2. Attendance and conduct. I will attend as the programme schedule requires, keep the programme's code of conduct, and accept its policy on lateness, absence and fines.\n\n"
+                           . "3. The programme fee. The programme fee is {fee} {basis}. I am given my place: I will not be asked to pay this fee while I remain on the programme. I work it off through my internship, and it is written off when I complete the programme. If I withdraw, or am removed, before completing, the part I have not worked off becomes owed.\n\n"
+                           . "4. Other fees. The membership fee ({membership}) is paid on registration day, and the monthly commitment fee ({commitment}) while I am on the programme. No one is turned away for lack: I may ask my track lead for consideration.\n\n"
+                           . "5. My guarantor. My guarantor knows me and vouches for my character, and agrees to be contacted about my conduct. My guarantor is not responsible for my fees.\n\n"
+                           . "6. My details are used to run the programme and are not sold or shared for marketing.",
+            ],
+
+            /* When applicants can come in. Booking is advised; walking in also works. */
+            'reg_walkin' => 'You can also walk in, Monday to Friday, 10am to 3pm, with your reference number. Booking means somebody is ready for you.',
+            'reg_slots' => [
+                ['centre' => 'CACENTRE Egbeda', 'days' => 'Mon, Wed, Fri', 'times' => ['10:00', '12:00', '14:00'], 'capacity' => '6'],
+                ['centre' => 'CACENTRE Okun Alimosho', 'days' => 'Tue, Thu', 'times' => ['10:00', '13:00'], 'capacity' => '6'],
+            ],
         ];
     }
 

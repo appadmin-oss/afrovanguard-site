@@ -634,7 +634,11 @@ final class NgvMember
     }
 
     /* ── applications (public registration intake) ───────────────────── */
-    public const APP_STATUSES = ['new', 'reviewing', 'accepted', 'rejected', 'enrolled'];
+    /* `invited` → `booked` → `attended` (documents outstanding) → `enrolled`
+       is registration at a CACENTRE (lib/NgvRegistration.php). `accepted` is
+       kept for applications decided before it; `lapsed` is an invitation
+       nobody took up. */
+    public const APP_STATUSES = ['new', 'reviewing', 'invited', 'booked', 'attended', 'enrolled', 'accepted', 'rejected', 'withdrawn', 'lapsed'];
 
     /**
      * Store a public registration. Returns the new id, or 0 on invalid input
@@ -680,7 +684,9 @@ final class NgvMember
         if (!$cur) return;
         $set = []; $args = []; $differs = [];
         foreach (['name' => 120, 'phone' => 40, 'age' => 12, 'dob' => 10, 'gender' => 24, 'location' => 120,
-                  'education' => 120, 'guardian_name' => 120, 'guardian_phone' => 40, 'guardian_email' => 160] as $f => $max) {
+                  'education' => 120, 'guardian_name' => 120, 'guardian_phone' => 40, 'guardian_email' => 160,
+                  'centre' => 120, 'availability' => 300, 'g_name' => 120, 'g_relationship' => 24, 'g_relationship_other' => 80,
+                  'g_phone' => 40, 'g_email' => 160] as $f => $max) {
             if (!array_key_exists($f, $d)) continue;
             $v = mb_substr(trim((string) $d[$f]), 0, $max);
             if ($v === '') continue;                       // never blank a field by resubmitting a shorter form
@@ -720,9 +726,11 @@ final class NgvMember
         $now = NgvDb::nowExpr();
         $st = NgvDb::pdo()->prepare(
             "INSERT INTO ngv_applications (name,email,phone,age,gender,location,track,plan,education,message,status,source,
-                                           consent_at,guardian_name,guardian_phone,guardian_consent,dob,guardian_email,created_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?, 'new', ?, ?,?,?,?,?,?, {$now})"
+                                           consent_at,guardian_name,guardian_phone,guardian_consent,dob,guardian_email,
+                                           ref,centre,availability,understood_at,g_name,g_relationship,g_relationship_other,g_phone,g_email,created_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?, 'new', ?, ?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?, {$now})"
         );
+        $cut = static fn(string $k, int $n) => mb_substr(trim((string) ($d[$k] ?? '')), 0, $n);
         $dob = self::cleanDob((string) ($d['dob'] ?? ''));
         $ageN = $dob !== '' ? self::ageFromDob($dob) : null;
         $st->execute([
@@ -744,6 +752,12 @@ final class NgvMember
             0,
             $dob,
             mb_strtolower(mb_substr(trim((string) ($d['guardian_email'] ?? '')), 0, 160)),
+            class_exists('NgvRegistration') ? NgvRegistration::newRef() : '',
+            $cut('centre', 120), $cut('availability', 300),
+            !empty($d['understood']) ? self::today() . ' ' . date('H:i:s') : '',
+            $cut('g_name', 120),
+            isset(NgvRegistration::RELATIONSHIPS[(string) ($d['g_relationship'] ?? '')]) ? (string) $d['g_relationship'] : '',
+            $cut('g_relationship_other', 80), $cut('g_phone', 40), mb_strtolower($cut('g_email', 160)),
         ]);
         return (int) NgvDb::pdo()->lastInsertId();
     }

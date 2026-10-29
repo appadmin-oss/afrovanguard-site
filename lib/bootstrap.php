@@ -285,6 +285,7 @@ require_once __DIR__ . '/Ngv.php';
 require_once __DIR__ . '/NgvDb.php';       // separate NextGen Vanguard database (isolated connection)
 require_once __DIR__ . '/NgvLedger.php';   // NGV money: membership, commitment, training fee, fines
 require_once __DIR__ . '/NgvProgrammeFee.php'; // NGV programme fee: worked off through the internship (the MoU)
+require_once __DIR__ . '/NgvRegistration.php'; // NGV: apply online, finish registering at a CACENTRE
 require_once __DIR__ . '/NgvMember.php';   // NGV participant/certifications domain (money delegates to NgvLedger)
 require_once __DIR__ . '/NgvReading.php';  // the 24-book challenge: claims, checks, verification
 require_once __DIR__ . '/NgvJourney.php';  // NGV 2.0: levels, the 8-point score, engines, schools

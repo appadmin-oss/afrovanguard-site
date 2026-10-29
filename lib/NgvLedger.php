@@ -2682,6 +2682,12 @@ final class NgvLedger
            switched on — the end of a programme is not a money question. */
         try { $out['completed'] = NgvMember::completeElapsed(); }
         catch (Throwable $e) { error_log('[ngvledger] cron complete: ' . $e->getMessage()); }
+        /* Registration visits nobody came to, and invitations nobody took up —
+           not a money question either. */
+        if (class_exists('NgvRegistration')) {
+            try { $out['registration'] = NgvRegistration::sweep(); }
+            catch (Throwable $e) { error_log('[ngvledger] cron registration: ' . $e->getMessage()); }
+        }
         if (!self::enabled()) return $out + ['skipped' => 'disabled'];
         try { $out['accrued'] = self::accrueAll(self::ACCRUE_BATCH); }
         catch (Throwable $e) { error_log('[ngvledger] cron accrue: ' . $e->getMessage()); }

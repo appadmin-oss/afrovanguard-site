@@ -196,6 +196,26 @@ a{color:var(--red)}
     ]},
     /* ── The member portal's Programme view (lib/NgvJourney.php reads these).
        A block left empty is not shown to members. ─────────────────────── */
+    /* ── Registration: applying online, finishing at a CACENTRE ───────── */
+    {id:'reg_understand',title:'Registration · Do you understand?',addLabel:'question',list:'reg_understand',itemTitle:'q',item:[
+      {key:'q',label:'Question',full:1},{key:'options',label:'Choices (one per line)',type:'lines',full:1},
+      {key:'answer',label:'The right choice (1, 2, 3…)',half:1},{key:'explain',label:'Shown after they answer',type:'area',full:1},
+    ]},
+    {id:'reg_checklist',title:'Registration · What to bring',addLabel:'item',list:'reg_checklist',itemTitle:'label',newItem:{required:true,applies:'all'},item:[
+      {key:'label',label:'Item',full:1},{key:'desc',label:'Explanation',type:'area',full:1},
+      {key:'applies',label:'Who it applies to',type:'select',half:1,default:'all',options:[['all','Everyone'],['minor','Under 18 only'],['adult','18 and over only'],['ngg','Coming up from NGG']]},
+      {key:'required',label:'Required to complete registration',type:'bool',default:true},
+    ]},
+    {id:'mou',title:'Registration · The MoU',fields:[
+      {type:'text',path:'mou.version',label:'Version — change it whenever the wording changes',half:1},{type:'text',path:'mou.title',label:'Title',half:1},
+      {type:'area',path:'mou.body',label:'Text. Placeholders: {name} {ref} {dob} {track} {centre} {fee} {basis} {training_months} {internship_months} {membership} {commitment} {guarantor} {relationship} {date}'},
+    ]},
+    {id:'reg_slots',title:'Registration · When to come in',addLabel:'centre',fields:[
+      {type:'area',path:'reg_walkin',label:'Walk-in note'},
+    ],list:'reg_slots',itemTitle:'centre',item:[
+      {key:'centre',label:'CACENTRE',half:1},{key:'capacity',label:'People per time',half:1},
+      {key:'days',label:'Days (e.g. Mon, Wed, Fri)',full:1},{key:'times',label:'Times (one per line, 24-hour, e.g. 10:00)',type:'lines',full:1},
+    ]},
     {id:'j_levels',title:'Portal · Levels',linelist:'j_levels',hint:'One level per line, lowest first. The third is the one members work towards (Vanguard).'},
     {id:'j_schools',title:'Portal · Academy schools',addLabel:'school',list:'j_schools',itemTitle:'name',item:[
       {key:'name',label:'School',half:1},{key:'modules',label:'Modules (number)',half:1},{key:'desc',label:'What it covers',full:1},
@@ -235,6 +255,7 @@ a{color:var(--red)}
     if(fld.type==='bool')return `<div class="${fld.full?'full':''}">${sw('data-key="'+fld.key+'"',val,fld.label||fld.key)}</div>`;
     if(fld.type==='lines'){const t=Array.isArray(val)?val.join('\n'):(val||'');return `<div class="fld ${cls}"><label>${esc(fld.label||fld.key)}</label><textarea data-key="${fld.key}">${esc(t)}</textarea></div>`;}
     if(fld.type==='area')return `<div class="fld ${cls}"><label>${esc(fld.label||fld.key)}</label><textarea data-key="${fld.key}">${esc(val)}</textarea></div>`;
+    if(fld.type==='select')return `<div class="fld ${cls}"><label>${esc(fld.label||fld.key)}</label><select data-key="${fld.key}">${fld.options.map(([v,l])=>`<option value="${esc(v)}" ${String(val||fld.default||'')===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>`;
     return `<div class="fld ${cls}"><label>${esc(fld.label||fld.key)}</label><input type="text" data-key="${fld.key}" value="${esc(val)}"></div>`;
   }
   function repItem(sec,obj,i){
