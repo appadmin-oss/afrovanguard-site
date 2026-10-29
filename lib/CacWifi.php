@@ -24,6 +24,7 @@
  * reason. Nothing else.
  */
 declare(strict_types=1);
+require_once __DIR__ . '/IdCard.php';
 
 final class CacWifi
 {
@@ -53,13 +54,19 @@ final class CacWifi
     public static function row(array $u): ?array
     {
             if (!LmsAuth::isOrgMember($u)) return null;
+            /* Their Wi-Fi sign-in name is the number printed on their card,
+               without the level letter in front of it ("B-NGV-25-0005" signs
+               in as NGV-25-0005): the letter changes as they climb the ladder,
+               and a sign-in name must not. No card number yet, and CACENTRE
+               uses a stand-in until one arrives. */
+            [, $number] = IdCard::splitId(IdCard::printedId((int) $u['id']));
             $active = (string) ($u['status'] ?? 'active') === 'active';
             return [
                 'id'        => (string) (int) $u['id'],
                 'kind'      => LmsAuth::canManageMembers($u) ? 'staff' : 'member',
                 'name'      => mb_substr(trim((string) $u['name']), 0, 160),
                 'email'     => strtolower(trim((string) $u['email'])),
-                'printedId' => '',
+                'printedId' => mb_substr($number, 0, 64),
                 'homeSite'  => '',
                 'verdict'   => $active ? 'on' : 'off',
                 'why'       => $active ? '' : 'The Afrovanguard account is not active',
