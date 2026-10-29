@@ -628,3 +628,24 @@ a.avp-kpi--link:focus-visible { outline: 2px solid var(--avp-gold); outline-offs
 .avp-g-empty.avp-g-err { color: var(--avp-red-tx); font-size: 12.5px; line-height: 1.45; }
 .avp-g-ask { display: grid; gap: 8px; }
 .avp-g-ask small { color: var(--avp-text-2); font-size: 12px; line-height: 1.45; }
+
+/* The wallet (views/wallet.php): one statement of a member's money. */
+.avp-wallet-intro { margin: 0 0 16px; color: var(--avp-text-2); max-width: 62ch; }
+.avp-wallet-warn { margin: 0 0 16px; padding: 10px 14px; border-radius: 12px; background: var(--avp-red-bg); color: var(--avp-red-tx); font-size: 14px; }
+.avp-wallet-warn a { color: inherit; font-weight: 600; }
+.avp-wallet-count { font-size: 13px; color: var(--avp-muted); }
+.avp-wallet-list { list-style: none; margin: 0; padding: 0; }
+.avp-wallet-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--avp-line-2); }
+.avp-wallet-row:last-child { border-bottom: 0; }
+.avp-wallet-what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.avp-wallet-what b { color: var(--avp-ink); overflow-wrap: anywhere; }
+.avp-wallet-what span { color: var(--avp-muted); font-size: 13px; }
+.avp-wallet-amts { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.avp-wallet-amt { padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--avp-pill); color: var(--avp-ink); white-space: nowrap; }
+.avp-wallet-amt.is-gold { background: var(--avp-gold-bg); color: var(--avp-gold-tx); }
+.avp-wallet-amt.is-green { background: var(--avp-green-bg); color: var(--avp-green-tx); }
+.avp-wallet-amt.is-indigo { background: var(--avp-indigo-bg); color: var(--avp-indigo-tx); }
+.avp-wallet-run { font-size: 12.5px; color: var(--avp-muted); white-space: nowrap; }
+.avp-wallet-row.is-pending .avp-wallet-what b { font-weight: 500; }
+.avp-wallet-how { margin: 14px 0 0; color: var(--avp-text-2); font-size: 14px; }
+.avp-wallet-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

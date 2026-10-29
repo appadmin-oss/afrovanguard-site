@@ -319,6 +319,7 @@ require_once __DIR__ . '/MemberRequests.php';   /* a member asks from their own 
 require_once __DIR__ . '/MemberRoles.php';      /* the work roles members hold, kept as one list with descriptions */
 require_once __DIR__ . '/Membership.php';       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited once the receipt is verified */
+require_once __DIR__ . '/MemberStatement.php';  /* the wallet: every ledger's money on one statement, read only */
 require_once __DIR__ . '/NgvIntake.php';        /* NGG promotions to NGV become NGV accounts here */
 require_once __DIR__ . '/Backups.php';          /* daily encrypted copies of both databases (tasks/cron.php) */
 require_once __DIR__ . '/NgvFines.php';         /* NGV fines: catalogue, issue, list, import with smart assignment */

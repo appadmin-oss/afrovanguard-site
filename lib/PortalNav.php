@@ -63,6 +63,8 @@ final class PortalNav
         'volunteer'   => ['group' => 'Volunteering', 'label' => 'Volunteer dashboard', 'for' => ['vol'], 'view' => 'volunteer'],
 
         'diary'       => ['group' => 'Learn', 'label' => 'Diary', 'for' => ['all'], 'view' => 'diary'],
+        /* One statement of the member's money from every ledger (lib/MemberStatement.php). */
+        'wallet'      => ['group' => 'You', 'label' => 'Wallet', 'for' => ['all'], 'view' => 'wallet'],
         'membership'  => ['group' => 'You', 'label' => 'Membership', 'label_guest' => 'Account', 'for' => ['all'], 'view' => 'membership'],
         'requests'    => ['group' => 'You', 'label' => 'Finance requests', 'for' => ['all'], 'view' => 'requests'],
     ];

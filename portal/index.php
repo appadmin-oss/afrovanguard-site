@@ -181,6 +181,9 @@ $portalCtx = ['org' => $isOrg, 'ngv' => $isNgv, 'vol' => $isVol, 'gate' => $hasG
               'fines' => (bool) $myFines['fines']];
 /* Quest: the month's points against the level's ceiling, when it is on. */
 $questMonth = QuestPoints::earnedInMonth((int) $u['id'], gmdate('Y-m'));
+/* The wallet: the member's money from every ledger, read once (the badge and the view). */
+$myStatement = MemberStatement::for((int) $u['id']);
+$walletOwed = max(0, (int) $myStatement['balance_kobo']);
 /* The member's bills, read once: the badge, Today's list and the Bills view use them. */
 $myBills = Conduct::billsFor((int) $u['id']);
 $billsUnanswered = array_values(array_filter($myBills, static fn($c) => $c['status'] === 'proposed' && (string) $c['response'] === ''));
@@ -208,6 +211,7 @@ $navBadges = [
     'learning'    => ['gray', $courses ? (string) count($courses) : ''],
     'volunteer'   => [$volWaiting > 0 ? 'gold' : 'green', $volWaiting > 0 ? (string) $volWaiting : ''],
     'diary'       => ['gray', $myEntries ? (string) count($myEntries) : ''],
+    'wallet'      => [$walletOwed > 0 ? 'gold' : 'gray', $walletOwed > 0 ? MemberStatement::naira($walletOwed) : ''],
     'membership'  => [$mreqWaiting ? 'gold' : 'gray', $mreqWaiting ? (string) $mreqWaiting : ''],
 ];
 if ($isNgv) {
