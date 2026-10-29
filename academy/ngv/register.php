@@ -37,9 +37,9 @@ function ngv_notify_application(int $id, array $d): void
             [
                 "Hi {$first},",
                 'Thank you for applying to <b>NextGen Vanguard</b> — we\'ve received your application and our team will review it and be in touch.',
-                '<b>Next step:</b> if you don\'t already have an Afrovanguard account, create one with this same email so we can enrol you and open your dashboard.',
+                '<b>Next step:</b> nothing for now. If you are offered a place, we will set up your Afrovanguard account with this email and tell you how to sign in.',
             ],
-            $site !== '' ? ['text' => 'Create your account', 'url' => $site . '/login'] : null,
+            null,
             'We received your NextGen Vanguard application.',
             ['eyebrow' => 'NextGen Vanguard']
         );
@@ -49,7 +49,7 @@ function ngv_notify_application(int $id, array $d): void
     $admin = defined('ADMIN_EMAIL') && ADMIN_EMAIL ? (string) ADMIN_EMAIL : (defined('FROM_EMAIL') ? (string) FROM_EMAIL : '');
     if ($admin !== '') {
         $rows = '';
-        foreach (['name' => 'Name', 'email' => 'Email', 'phone' => 'Phone', 'age' => 'Age', 'location' => 'Location', 'education' => 'Status', 'track' => 'Track', 'plan' => 'Plan', 'message' => 'Message'] as $k => $lbl) {
+        foreach (['name' => 'Name', 'email' => 'Email', 'phone' => 'Phone', 'dob' => 'Date of birth', 'guardian_name' => 'Parent/guardian', 'guardian_email' => 'Guardian email', 'location' => 'Location', 'education' => 'Status', 'track' => 'Track', 'plan' => 'Plan', 'message' => 'Message'] as $k => $lbl) {
             $v = trim((string) ($d[$k] ?? '')); if ($v === '') continue;
             $rows .= '<tr><td style="padding:2px 12px 2px 0;color:#5f6874;vertical-align:top">' . $esc($lbl) . '</td><td>' . nl2br($esc($v)) . '</td></tr>';
         }
@@ -69,9 +69,21 @@ $enabled  = Ngv::isEnabled();
 
 $done = false;
 $err  = '';
-$old  = ['name' => '', 'email' => '', 'phone' => '', 'age' => '', 'gender' => '', 'location' => '', 'education' => '', 'track' => '', 'plan' => '', 'message' => '',
-         'guardian_name' => '', 'guardian_phone' => ''];
-$agreed = false; $guardianOk = false;
+$old  = ['name' => '', 'email' => '', 'phone' => '', 'dob' => '', 'gender' => '', 'location' => '', 'education' => '', 'track' => '', 'plan' => '', 'message' => '',
+         'guardian_name' => '', 'guardian_phone' => '', 'guardian_email' => ''];
+$agreed = false;
+$guardianAsked = false;   // their parent or guardian still has to confirm
+$guardianSent  = false;   // …and the email asking them went out just now
+/* Arriving from NGG's application ("18 and over — register for NGV"): what
+   they already typed there comes with them, so the hand-off does not start
+   from an empty form. Only a GET pre-fills; nothing is saved until they send. */
+$fromNgg = ($_GET['from'] ?? '') === 'ngg';
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+    foreach (['name' => 120, 'email' => 160, 'phone' => 40, 'dob' => 10] as $k => $max) {
+        if (isset($_GET[$k]) && is_string($_GET[$k])) $old[$k] = mb_substr(trim($_GET[$k]), 0, $max);
+    }
+    if ($old['dob'] !== '' && NgvMember::cleanDob($old['dob']) === '') $old['dob'] = '';
+}
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     require_same_origin();
@@ -81,12 +93,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
     foreach ($old as $k => $_) $old[$k] = (string) ($_POST[$k] ?? '');
     $agreed     = !empty($_POST['consent']);
-    $guardianOk = !empty($_POST['guardian_consent']);
-    /* School leavers are often 16 or 17. A child's details are taken with a
-       parent's or guardian's say-so, and everybody is told what the data is
-       for before giving it — neither was asked before. */
-    $ageN = preg_match('/^\s*(\d{1,2})\s*$/', $old['age'], $am) ? (int) $am[1] : 0;
-    $minor = $ageN > 0 && $ageN < 18;
+    /* School leavers are often 16 or 17. A child's place needs their parent's
+       or guardian's agreement, and it has to come from that person: they are
+       emailed a link and confirm it themselves (NgvMember::askGuardian). */
+    $dob   = NgvMember::cleanDob($old['dob']);
+    $ageN  = $dob !== '' ? (int) NgvMember::ageFromDob($dob) : 0;
+    $minor = $dob !== '' && $ageN < 18;
+    $gEmail = mb_strtolower(trim($old['guardian_email']));
 
     if ($hp !== '') {
         $done = true; // silently absorb bots — look successful, store nothing
@@ -94,16 +107,31 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $err = 'You have submitted a few times already. Please wait a little while and try again.';
     } elseif (trim($old['name']) === '' || !filter_var(trim($old['email']), FILTER_VALIDATE_EMAIL)) {
         $err = 'Please enter your full name and a valid email address.';
+    } elseif ($dob === '') {
+        $err = 'Please give your date of birth.';
     } elseif ($ageN < 13 || $ageN > 99) {
-        $err = 'Please give your age in years. NextGen Vanguard is open from 13.';
-    } elseif ($minor && (trim($old['guardian_name']) === '' || trim($old['guardian_phone']) === '' || !$guardianOk)) {
-        $err = 'You are under 18, so we need a parent or guardian: their name, their phone number, and their agreement below.';
+        $err = 'NextGen Vanguard is open from age 13. Please check your date of birth.';
+    } elseif ($minor && (trim($old['guardian_name']) === '' || trim($old['guardian_phone']) === '' || !filter_var($gEmail, FILTER_VALIDATE_EMAIL))) {
+        $err = 'You are under 18, so we need your parent or guardian: their name, phone number and email address. We will email them to confirm.';
+    } elseif ($minor && $gEmail === mb_strtolower(trim($old['email']))) {
+        $err = 'Your parent or guardian’s email has to be their own, not yours: they confirm your application from it.';
     } elseif (!$agreed) {
         $err = 'Please confirm you have read how we use your details.';
     } else {
-        $id = NgvMember::submitApplication($old + ['source' => 'register', 'consent' => true, 'guardian_consent' => $minor && $guardianOk]);
+        $old['dob'] = $dob;
+        $id = NgvMember::submitApplication($old + ['source' => $fromNgg ? 'ngg' : 'register', 'consent' => true]);
         if ($id > 0) {
             $done = true;
+            if ($minor) {
+                /* Not on every resubmission: a repeat within ten minutes is a
+                   correction, and a second email would only confuse the parent. */
+                $app = NgvMember::application($id);
+                $last = $app ? strtotime((string) $app['guardian_asked_at']) : false;
+                if ($app && !NgvMember::guardianConfirmed($app) && ($last === false || $last < time() - 600)) {
+                    try { $ask = NgvMember::askGuardian($id); $guardianSent = !empty($ask['sent']); } catch (Throwable $e2) {}
+                }
+                $guardianAsked = $app && !NgvMember::guardianConfirmed($app);
+            }
             try { NgvMember::autolinkApplication($id); } catch (Throwable $e2) {}   // pre-link if they already have an account
             try { ngv_notify_application($id, $old); } catch (Throwable $e2) {}      // acknowledge + alert staff (graceful)
             if (class_exists('Events')) { try { Events::emit('ngv.application', ['id' => $id]); } catch (Throwable $e2) {} }
@@ -120,6 +148,8 @@ header('Content-Type: text/html; charset=utf-8');
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<?php /* A hand-off from NGG carries their name and email in the address; it goes no further than this site. */ ?>
+<meta name="referrer" content="same-origin">
 <title>Register · NextGen Vanguard</title>
 <meta name="description" content="Apply to join NextGen Vanguard — Afrovanguard Academy's transformation programme. Learn future-ready skills, earn stipends and gain global certifications.">
 <link rel="canonical" href="<?= $e($canon) ?>">
@@ -205,6 +235,7 @@ textarea{min-height:110px;resize:vertical}
   <div class="wrap">
     <h1>Join NextGen Vanguard</h1>
     <p>Learn future-ready skills, earn stipends as you grow, and gain globally recognised certifications. Tell us about yourself and our team will be in touch.</p>
+    <?php if ($fromNgg && !$done): ?><p><b>From Next Generation Genius?</b> We have brought over what you typed there. Check it, then fill in the rest.</p><?php endif; ?>
   </div>
 </div>
 
@@ -216,7 +247,14 @@ textarea{min-height:110px;resize:vertical}
         <div class="big">🎉</div>
         <h2>Application received!</h2>
         <p>Thank you<?= $old['name'] !== '' ? ', ' . $e(trim(explode(' ', trim($old['name']))[0])) : '' ?> — your application is in. Our team will review it and reach out<?= !empty($old['email']) ? ' at ' . $e($old['email']) : '' ?>.</p>
-        <p>Next step: if you don't already have an Afrovanguard account, create one with the same email so we can enrol you and open your dashboard.</p>
+        <?php if ($guardianAsked): ?>
+        <?php if ($guardianSent): ?>
+        <p><b>One more step, for your parent or guardian:</b> we have emailed <?= $e($old['guardian_email']) ?> a link to confirm your application. We cannot offer you a place until they do, so let them know to look out for it.</p>
+        <?php else: ?>
+        <p><b>One more step, for your parent or guardian:</b> they need to confirm your application before we can offer you a place. Our team will send them a link at <?= $e($old['guardian_email']) ?>, or contact them by phone.</p>
+        <?php endif; ?>
+        <?php endif; ?>
+        <p>If you are offered a place, we will set up your Afrovanguard account with this email and tell you how to sign in. You do not need to make one now.</p>
         <p><a class="btn" href="/academy/ngv/">Back to the programme</a></p>
       </div>
     <?php else: ?>
@@ -239,8 +277,8 @@ textarea{min-height:110px;resize:vertical}
           <div class="row2">
             <div class="fld"><label for="f-phone">Phone / WhatsApp</label>
               <input id="f-phone" type="tel" name="phone" maxlength="40" autocomplete="tel" value="<?= $e($old['phone']) ?>"></div>
-            <div class="fld"><label for="f-age">Age <span class="req" aria-hidden="true">*</span></label>
-              <input id="f-age" type="number" name="age" min="13" max="99" required inputmode="numeric" value="<?= $e($old['age']) ?>"></div>
+            <div class="fld"><label for="f-dob">Date of birth <span class="req" aria-hidden="true">*</span></label>
+              <input id="f-dob" type="date" name="dob" required max="<?= $e(date('Y-m-d')) ?>" autocomplete="bday" value="<?= $e($old['dob']) ?>"></div>
           </div>
           <div class="row2">
             <div class="fld"><label for="f-location">Location</label>
@@ -285,15 +323,15 @@ textarea{min-height:110px;resize:vertical}
 
         <fieldset>
           <legend>If you are under 18</legend>
-          <p class="note">A parent or guardian needs to agree to your application. Fill this in if you are 17 or younger.</p>
+          <p class="note">If you are 17 or younger, a parent or guardian has to agree to your application. We will email them a link to confirm it themselves, so use their own email address, not yours.</p>
           <div class="row2">
             <div class="fld"><label for="f-gname">Parent or guardian's name</label>
               <input id="f-gname" type="text" name="guardian_name" maxlength="120" autocomplete="off" value="<?= $e($old['guardian_name']) ?>"></div>
             <div class="fld"><label for="f-gphone">Their phone</label>
               <input id="f-gphone" type="tel" name="guardian_phone" maxlength="40" autocomplete="off" value="<?= $e($old['guardian_phone']) ?>"></div>
           </div>
-          <label class="chk"><input type="checkbox" name="guardian_consent" value="1" <?= $guardianOk ? 'checked' : '' ?>>
-            My parent or guardian has agreed to this application and to Afrovanguard contacting them about it.</label>
+          <div class="fld"><label for="f-gemail">Their email</label>
+            <input id="f-gemail" type="email" name="guardian_email" maxlength="160" autocomplete="off" value="<?= $e($old['guardian_email']) ?>"></div>
         </fieldset>
 
         <label class="chk"><input type="checkbox" name="consent" value="1" required <?= $agreed ? 'checked' : '' ?>>

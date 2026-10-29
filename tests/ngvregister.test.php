@@ -58,8 +58,12 @@ ck('ngv register: a promotion onto a staff account is held, not enrolled', ($st[
 
 /* ── The form ───────────────────────────────────────────────────────────── */
 $form = (string) file_get_contents(dirname(__DIR__) . '/academy/ngv/register.php');
-ck('ngv register: an applicant under 18 needs a guardian, their phone and their agreement',
-   str_contains($form, "\$minor && (trim(\$old['guardian_name']) === '' || trim(\$old['guardian_phone']) === '' || !\$guardianOk)"));
+/* The guardian's agreement used to be a box the applicant ticked. It is the
+   guardian's own now (tests/ngvguardian.test.php holds the behaviour); the form
+   must take their email and must not read a self-ticked box as consent. */
+ck('ngv register: an applicant under 18 needs a guardian, their phone and their email — who is then asked',
+   str_contains($form, "\$minor && (trim(\$old['guardian_name']) === '' || trim(\$old['guardian_phone']) === '' || !filter_var(\$gEmail, FILTER_VALIDATE_EMAIL))")
+   && str_contains($form, 'NgvMember::askGuardian(') && !str_contains($form, "\$_POST['guardian_consent']"));
 ck('ngv register: everybody agrees to the privacy notice before anything is stored', strpos($form, "elseif (!\$agreed)") < strpos($form, 'NgvMember::submitApplication('));
 $js = (string) file_get_contents(dirname(__DIR__) . '/academy/ngv/reading.js');
 ck('ngv register: book claims post to the dashboard, which handles them, from wherever the page is shown',

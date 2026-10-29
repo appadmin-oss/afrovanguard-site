@@ -22,6 +22,9 @@ final class Ngv
     private const KEY = 'ngv_content';
     private const PREV_KEY = 'ngv_content_prev'; // one-step backup for undo/restore
     private const MAX_LIST = 60;                 // cap items per list (runaway/abuse guard)
+
+    /** Where somebody applies. The one address every "Apply" on the site means. */
+    public const APPLY_URL = '/academy/ngv/register.php';
     private static ?array $cache = null;
 
     /** Canonical defaults, sourced from the NextGen Vanguard brochure + flyer. */
@@ -231,7 +234,38 @@ final class Ngv
             $raw = Database::metaGet(self::KEY);
             if ($raw) { $d = json_decode($raw, true); if (is_array($d)) $stored = $d; }
         } catch (Throwable $e) { /* DB not ready → defaults */ }
-        return self::$cache = self::merge(self::defaults(), $stored);
+        return self::$cache = self::mendApplyLinks(self::merge(self::defaults(), $stored));
+    }
+
+    /**
+     * An "Apply" that does not reach the application form.
+     *
+     * Before the form existed, applying was `bit.ly/ngv`, which redirects to a
+     * WhatsApp group invite. The form shipped and the shipped defaults pointed at
+     * it, but the live page's stored copy still carried the old link — so every
+     * "Apply now" on the page put people in a chat: no record of who applied, no
+     * consent, no staff queue, and every member's phone number shown to every
+     * other. An apply link is the form; a chat is a chat (`cta_secondary_url` is
+     * the one for that, and is left alone). Mended on the way OUT, so it holds
+     * for a copy saved before this and for one an editor saves with the old link
+     * pasted back in.
+     */
+    public static function mendApplyUrl(string $url): string
+    {
+        return preg_match('~^\s*(https?://)?(www\.)?(bit\.ly/ngv(/|\?|#|\s*$)|chat\.whatsapp\.com/)~i', $url) ? self::APPLY_URL : $url;
+    }
+
+    private static function mendApplyLinks(array $doc): array
+    {
+        foreach ([['hero', 'cta_primary_url'], ['cta', 'button_url'], ['contact', 'apply_url']] as [$sec, $key]) {
+            if (isset($doc[$sec][$key]) && is_string($doc[$sec][$key])) $doc[$sec][$key] = self::mendApplyUrl($doc[$sec][$key]);
+        }
+        if (is_array($doc['plans'] ?? null)) {
+            foreach ($doc['plans'] as $i => $pl) {
+                if (is_array($pl) && isset($pl['cta_url']) && is_string($pl['cta_url'])) $doc['plans'][$i]['cta_url'] = self::mendApplyUrl($pl['cta_url']);
+            }
+        }
+        return $doc;
     }
 
     /** Validate a (partial or full) patch, persist the merged document, return it. */
@@ -241,7 +275,7 @@ final class Ngv
         $merged = self::capLists(self::merge($before, self::clean($patch)));
         try { Database::metaSet(self::PREV_KEY, json_encode($before, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)); } catch (Throwable $e) {}
         Database::metaSet(self::KEY, json_encode($merged, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-        self::$cache = $merged;
+        self::$cache = self::mendApplyLinks($merged);
         if (class_exists('Sitemap')) { try { Sitemap::rebuild(); } catch (Throwable $e) {} }
         if (class_exists('Events'))  { try { Events::emit('ngv.updated', ['by' => 'admin']); } catch (Throwable $e) {} }
         return $merged;

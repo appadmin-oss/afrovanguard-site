@@ -669,8 +669,8 @@ final class NgvMember
         $cur = self::application($id);
         if (!$cur) return;
         $set = []; $args = []; $differs = [];
-        foreach (['name' => 120, 'phone' => 40, 'age' => 12, 'gender' => 24, 'location' => 120,
-                  'education' => 120, 'guardian_name' => 120, 'guardian_phone' => 40] as $f => $max) {
+        foreach (['name' => 120, 'phone' => 40, 'age' => 12, 'dob' => 10, 'gender' => 24, 'location' => 120,
+                  'education' => 120, 'guardian_name' => 120, 'guardian_phone' => 40, 'guardian_email' => 160] as $f => $max) {
             if (!array_key_exists($f, $d)) continue;
             $v = mb_substr(trim((string) $d[$f]), 0, $max);
             if ($v === '') continue;                       // never blank a field by resubmitting a shorter form
@@ -710,13 +710,15 @@ final class NgvMember
         $now = NgvDb::nowExpr();
         $st = NgvDb::pdo()->prepare(
             "INSERT INTO ngv_applications (name,email,phone,age,gender,location,track,plan,education,message,status,source,
-                                           consent_at,guardian_name,guardian_phone,guardian_consent,created_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?, 'new', ?, ?,?,?,?, {$now})"
+                                           consent_at,guardian_name,guardian_phone,guardian_consent,dob,guardian_email,created_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?, 'new', ?, ?,?,?,?,?,?, {$now})"
         );
+        $dob = self::cleanDob((string) ($d['dob'] ?? ''));
+        $ageN = $dob !== '' ? self::ageFromDob($dob) : null;
         $st->execute([
             $name, $email,
             mb_substr(trim((string) ($d['phone'] ?? '')), 0, 40),
-            mb_substr(trim((string) ($d['age'] ?? '')), 0, 12),
+            $ageN !== null ? (string) $ageN : mb_substr(trim((string) ($d['age'] ?? '')), 0, 12),
             mb_substr(trim((string) ($d['gender'] ?? '')), 0, 24),
             mb_substr(trim((string) ($d['location'] ?? '')), 0, 120),
             self::validTrack((string) ($d['track'] ?? '')) ?? '',
@@ -727,7 +729,11 @@ final class NgvMember
             !empty($d['consent']) ? self::today() . ' ' . date('H:i:s') : '',
             mb_substr(trim((string) ($d['guardian_name'] ?? '')), 0, 120),
             mb_substr(trim((string) ($d['guardian_phone'] ?? '')), 0, 40),
-            !empty($d['guardian_consent']) ? 1 : 0,
+            /* Set only by the guardian's own confirmation (confirmGuardian) or a
+               consent the office records. A box the applicant ticks is not it. */
+            0,
+            $dob,
+            mb_strtolower(mb_substr(trim((string) ($d['guardian_email'] ?? '')), 0, 160)),
         ]);
         return (int) NgvDb::pdo()->lastInsertId();
     }
@@ -773,6 +779,134 @@ final class NgvMember
         return true;
     }
 
+    /* ── Age, and a parent's or guardian's consent ─────────────────────────
+     *
+     * An applicant under 18 is a child (NDPA 2023 s.31): their place needs a
+     * parent's or guardian's consent, and the consent has to come FROM that
+     * person. It used to be a box the applicant ticked beside a name and number
+     * they typed themselves. Now the form takes the guardian's email, the
+     * guardian is sent a link, and they agree on a page that says what they are
+     * agreeing to. Where the guardian answers some other way (a signed form, in
+     * person, a call), the office records it — with how, and by whom.
+     * Enrolment refuses a child until one or the other has happened. */
+
+    public const GUARDIAN_LINK_DAYS = 14;
+    public const GUARDIAN_METHODS = ['email_link', 'signed_form', 'in_person', 'phone'];
+
+    /** A real calendar date in YYYY-MM-DD, not in the future; '' otherwise. */
+    public static function cleanDob(string $dob): string
+    {
+        $dob = trim($dob);
+        if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $dob, $m) || !checkdate((int) $m[2], (int) $m[3], (int) $m[1])) return '';
+        return $dob <= self::today() ? $dob : '';
+    }
+
+    /** Whole years old today, on the programme's own date. */
+    public static function ageFromDob(string $dob): ?int
+    {
+        if (self::cleanDob($dob) === '') return null;
+        [$y, $m, $d] = array_map('intval', explode('-', $dob));
+        [$ty, $tm, $td] = array_map('intval', explode('-', self::today()));
+        return $ty - $y - (($tm < $m || ($tm === $m && $td < $d)) ? 1 : 0);
+    }
+
+    /** Under 18 — from the date of birth, or, on an application from before it was asked, the age typed. */
+    public static function applicantIsMinor(array $app): bool
+    {
+        $age = self::ageFromDob((string) ($app['dob'] ?? ''));
+        if ($age === null && preg_match('/^\s*(\d{1,3})\s*$/', (string) ($app['age'] ?? ''), $m)) $age = (int) $m[1];
+        return $age !== null && $age < 18;
+    }
+
+    public static function guardianConfirmed(array $app): bool
+    {
+        return trim((string) ($app['guardian_confirmed_at'] ?? '')) !== '';
+    }
+
+    /**
+     * Email the guardian a link to confirm. A new link replaces the last, so a
+     * forwarded old one stops working. Best effort on the mail; the link is
+     * stored either way, and the office can resend it.
+     *
+     * @return array{ok:bool, sent?:bool, error?:string}
+     */
+    public static function askGuardian(int $id): array
+    {
+        $app = self::application($id);
+        if (!$app) return ['ok' => false, 'error' => 'Application not found.'];
+        if (!self::applicantIsMinor($app)) return ['ok' => false, 'error' => 'The applicant is not under 18.'];
+        if (self::guardianConfirmed($app)) return ['ok' => false, 'error' => 'Their parent or guardian has already confirmed.'];
+        $to = mb_strtolower(trim((string) ($app['guardian_email'] ?? '')));
+        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'There is no email for their parent or guardian. Record their consent another way.'];
+        $token = bin2hex(random_bytes(20));
+        NgvDb::pdo()->prepare('UPDATE ngv_applications SET guardian_token = ?, guardian_asked_at = ? WHERE id = ?')
+            ->execute([hash('sha256', $token), self::today() . ' ' . date('H:i:s'), $id]);
+        $sent = false;
+        if (class_exists('Mailer')) {
+            try {
+                $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '';
+                $esc = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+                $child = trim((string) $app['name']) ?: 'Your child';
+                $guardian = trim((string) ($app['guardian_name'] ?? ''));
+                $html = Mailer::shell(
+                    'Please confirm ' . $child . '’s application',
+                    [
+                        'Hello' . ($guardian !== '' ? ' ' . $esc($guardian) : '') . ',',
+                        '<b>' . $esc($child) . '</b> has applied to <b>NextGen Vanguard</b>, Afrovanguard Academy’s skills and leadership programme, and named you as their parent or guardian.',
+                        'Because they are under 18, we need your agreement before we can offer them a place. The link shows what they applied for and what you are agreeing to. It works for ' . self::GUARDIAN_LINK_DAYS . ' days.',
+                        'If you do not know about this application, ignore this email and nothing will happen.',
+                    ],
+                    ['text' => 'Review and confirm', 'url' => $site . '/academy/ngv/guardian.php?a=' . $id . '&t=' . $token],
+                    $child . ' has applied to NextGen Vanguard and needs your agreement.',
+                    ['eyebrow' => 'NextGen Vanguard']
+                );
+                $sent = (bool) @Mailer::send($to, 'Please confirm ' . $child . '’s NextGen Vanguard application', $html);
+            } catch (Throwable $e) { error_log('[ngv] guardian email: ' . $e->getMessage()); }
+        }
+        /* `sent` is what the applicant is told: "we have emailed them" only when
+           we have. The link is stored either way, and the office can resend it. */
+        return ['ok' => true, 'sent' => $sent];
+    }
+
+    /** The application a guardian's link opens, or null when the link is wrong, used or expired. */
+    public static function guardianRequest(int $id, string $token): ?array
+    {
+        $app = self::application($id);
+        if (!$app || $token === '' || (string) $app['guardian_token'] === '') return null;
+        if (!hash_equals((string) $app['guardian_token'], hash('sha256', $token))) return null;
+        $asked = strtotime((string) $app['guardian_asked_at']);
+        if ($asked === false || $asked < time() - self::GUARDIAN_LINK_DAYS * 86400) return null;
+        return $app;
+    }
+
+    /** The guardian agrees, on the page their link opens. One use. */
+    public static function confirmGuardian(int $id, string $token): array
+    {
+        $app = self::guardianRequest($id, $token);
+        if (!$app) return ['ok' => false, 'error' => 'This link has expired or has already been used.'];
+        self::markGuardian($id, 'email_link');
+        return ['ok' => true, 'application' => self::application($id)];
+    }
+
+    /** The office has the guardian's consent another way. Never by email link — that is the guardian's own. */
+    public static function recordGuardianConsent(int $id, string $method, int $byUid): array
+    {
+        $app = self::application($id);
+        if (!$app) return ['ok' => false, 'error' => 'Application not found.'];
+        if (!in_array($method, ['signed_form', 'in_person', 'phone'], true)) return ['ok' => false, 'error' => 'Say how the parent or guardian consented.'];
+        if (trim((string) ($app['guardian_name'] ?? '')) === '') return ['ok' => false, 'error' => 'The application names no parent or guardian.'];
+        if (self::guardianConfirmed($app)) return ['ok' => true, 'already' => true];
+        self::markGuardian($id, $method);
+        NgvDb::pdo()->prepare('UPDATE ngv_applications SET reviewed_by = ? WHERE id = ?')->execute([max(0, $byUid), $id]);
+        return ['ok' => true];
+    }
+
+    private static function markGuardian(int $id, string $method): void
+    {
+        NgvDb::pdo()->prepare("UPDATE ngv_applications SET guardian_consent = 1, guardian_confirmed_at = ?, guardian_method = ?, guardian_token = '' WHERE id = ?")
+            ->execute([self::today() . ' ' . date('H:i:s'), $method, $id]);
+    }
+
     public static function setApplicationStatus(int $id, string $status, int $byUid): bool
     {
         if ($id <= 0 || !in_array($status, self::APP_STATUSES, true)) return false;
@@ -782,12 +916,17 @@ final class NgvMember
     }
 
     /**
-     * Turn an application into an enrolled participant. Requires the applicant to
-     * already have a member (lms_users) account with the same email — that's the
-     * only cross-database lookup, done against the MAIN db. If none exists yet we
-     * mark the application 'accepted' and report back so staff can ask them to
-     * create an account. On success the participant is created/activated in the
-     * NGV db and the application is linked + marked 'enrolled'.
+     * Turn an application into an enrolled participant.
+     *
+     * The account is found by email in the MAIN db, or MADE here. It used to be
+     * the applicant's job: apply, then create an account with exactly the same
+     * address, then wait — and an application whose account never appeared, or
+     * appeared under another address, sat at "accepted" for ever with nothing to
+     * chase it. The NGG promotion path (NgvIntake) has always made the account;
+     * this does the same, through the same MemberRoster::create. Sign-in needs no
+     * password first: the sign-in page emails a code or a reset link.
+     *
+     * A child is not enrolled until their parent or guardian has consented.
      */
     public static function enrollApplication(int $id, int $byUid): array
     {
@@ -802,15 +941,27 @@ final class NgvMember
                 $member = $st->fetch() ?: null;
             } catch (Throwable $e) { error_log('[ngv] enrollApplication lookup: ' . $e->getMessage()); }
         }
+        if (self::applicantIsMinor($app) && !self::guardianConfirmed($app)) {
+            return ['ok' => false, 'code' => 'needs_guardian',
+                    'error' => 'Under 18: their parent or guardian has not confirmed yet. Resend the email to them, or record their consent if you have it another way.'];
+        }
+        $made = false;
         if (!$member) {
-            self::setApplicationStatus($id, 'accepted', $byUid);
-            /* Told, not left to staff to remember: the next step is theirs. */
-            self::tellApplicant($app, 'Your NextGen Vanguard application is accepted',
-                ['Your application has been accepted.',
-                 'To take up your place, create your Afrovanguard account with this email address (' . $email . '). '
-                 . 'Once it exists, the team will finish your enrolment.'],
-                ['url' => '/login?next=' . rawurlencode('/portal/'), 'text' => 'Create your account']);
-            return ['ok' => false, 'error' => 'No member account for ' . $email . ' yet — accepted, and they have been emailed to create one with this address. Enrol once it exists.'];
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !class_exists('MemberRoster')) {
+                return ['ok' => false, 'error' => 'The application has no usable email address, so no account can be made for it.'];
+            }
+            $dob = self::cleanDob((string) ($app['dob'] ?? ''));
+            $r = MemberRoster::create(array_filter([
+                'name' => trim((string) $app['name']), 'email' => $email,
+                'phone' => trim((string) ($app['phone'] ?? '')), 'birthday' => $dob,
+                'notes' => 'Applied to NextGen Vanguard (application #' . $id . ').',
+            ], static fn($v) => $v !== ''), 'ngv:application', 'ngv');
+            /* Usually a phone typed in a shape the roster does not take. The
+               account matters more than the phone: try with the name and email. */
+            if (!$r['ok']) $r = MemberRoster::create(['name' => trim((string) $app['name']), 'email' => $email], 'ngv:application', 'ngv');
+            if (!$r['ok']) return ['ok' => false, 'error' => 'Could not make their account: ' . (string) ($r['error'] ?? 'unknown reason') . '.'];
+            $member = ['id' => (int) $r['id'], 'name' => trim((string) $app['name']), 'email' => $email];
+            $made = empty($r['linked']);
         }
         $mid = (int) $member['id'];
         self::ensureParticipant($mid, ['name' => (string) $member['name'], 'email' => $email]);
@@ -828,10 +979,12 @@ final class NgvMember
         NgvDb::pdo()->prepare('UPDATE ngv_applications SET status = ?, member_id = ?, reviewed_by = ? WHERE id = ?')
             ->execute(['enrolled', $mid, max(0, $byUid), $id]);
         self::tellApplicant($app, 'Welcome to NextGen Vanguard',
-            ['You are enrolled in NextGen Vanguard.',
-             'Your programme, fees and reading challenge are in your member portal.'],
-            ['url' => '/portal/#ngv', 'text' => 'Open your portal']);
-        return ['ok' => true, 'member_id' => $mid];
+            array_merge(['You are enrolled in NextGen Vanguard.',
+                         'Your programme, fees and reading challenge are in your member portal.'],
+                $made ? ['We have made your Afrovanguard account with this email address (' . $email . '). '
+                         . 'To sign in, enter it on the sign-in page and we will email you a code. You do not need to set a password first.'] : []),
+            ['url' => $made ? '/login?next=' . rawurlencode('/portal/#ngv') : '/portal/#ngv', 'text' => $made ? 'Sign in' : 'Open your portal']);
+        return ['ok' => true, 'member_id' => $mid, 'account_created' => $made];
     }
 
     /** One email to an applicant. Best effort: a mail failure never undoes the decision. */

@@ -165,7 +165,7 @@ a{color:var(--red)}
     ]},
     {id:'plans',title:'Plans',toggle:'plans_enabled',addLabel:'plan',fields:[
       {type:'text',path:'plans_title',label:'Heading'},{type:'area',path:'plans_intro',label:'Intro'},
-    ],list:'plans',itemTitle:'name',newItem:{name:'New plan',price:'Free',cta_label:'Apply now',cta_url:'https://bit.ly/ngv',enabled:true,featured:false},item:[
+    ],list:'plans',itemTitle:'name',newItem:{name:'New plan',price:'Free',cta_label:'Apply now',cta_url:'/academy/ngv/register.php',enabled:true,featured:false},item:[
       {key:'name',label:'Plan name',half:1},{key:'duration',label:'Duration (e.g. 6 months)',half:1},
       {key:'price',label:'Price',half:1},{key:'price_note',label:'Price note',half:1},
       {key:'desc',label:'Description',type:'area',full:1},
