@@ -677,3 +677,43 @@ the second real plan now use a fixture plan, the rule unchanged.
 
 Not yet wired: `freeze()` is called by nothing in production — the registration
 desk (next) is where it belongs, so until then nobody new carries the fee.
+
+---
+
+## 29 Oct 2026 — The CACENTRE registration desk; NGG promotions invite rather than enrol
+
+Asked (the concept agreed earlier): an applicant completes registration in
+person at a CACENTRE with the signed MoU, their ID and their guarantor; NGG
+promotions go through registration day too; the membership fee is taken that
+day; the MoU scan is kept.
+
+New: `academy/ngv/desk.php` (plain forms, CSRF field, 303 after success, every
+action on the audit trail as `ngv.desk.*`); the desk functions in
+`lib/NgvRegistration.php` (`deskState`, `arrive`, `tick`, `guarantorSeen`,
+`setMouVersion`, `attachScan`, `complete`); `NgvIntake::registered()`.
+
+Changed:
+- `NgvIntake::take` files an invited application instead of making an account.
+  It reuses an open application under the same email and name rather than
+  filing a second, and holds one under the same email but another name.
+  `revoke` withdraws an invitation not yet registered.
+- The console: Enrol → Invite to register / Open at the desk; `app_enroll`
+  refuses with a pointer to the desk; `app_status` sets only `reviewing` and
+  `rejected`. Recording a guardian's consent from the console is gone from the
+  screen — it is given in person at the desk now (the action still exists).
+- `data/ngv-mou/` is gitignored.
+
+Left as it was: "Enrol by member email" in the console (an existing account
+onto the roster without the desk) and the restore path for a vanguard NGG
+promotes again after a demotion — both are for people who already registered.
+
+Tests: `tests/ngvregistration.test.php` (desk: 15 checks, including a
+mutation run — removing the "still needed" refusal fails four of them),
+`tests/ngvintake.test.php` rewritten to the invited flow,
+`tests/accountsecurity.test.php`, `ngvregister`, `ngvguardian`, `ngvmanage`,
+`ngvconsole` updated; `tests/_ngvdesk.php` is the shared "register at the desk"
+helper. Verified live on `php -S` with a throwaway database: found by MoU
+reference, early completion refused naming five items, a bad CSRF token
+refused, each step 303s, scan stored and served only to an admin, completion
+made member #10 with a card and the fee frozen on NGV-MoU-2026.10.
+

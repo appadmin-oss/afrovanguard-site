@@ -126,6 +126,7 @@ ck('Celebrations: …and the answer is not cached publicly', str_contains($apiSr
 
 /* ── A child promoted from NGG waits for a guardian ─────────────────────── */
 NgvIntake::ensure();
+NgvDb::pdo()->exec("DELETE FROM ngv_applications WHERE email LIKE '%@acctsec.test'");
 $asPdo->exec("DELETE FROM ngv_intake WHERE ngg_member_id LIKE 'NGG-SEC-%'");
 $kidDob = gmdate('Y-m-d', strtotime('-15 years'));
 $r = NgvIntake::take(['nggMemberId' => 'NGG-SEC-1', 'name' => 'Young One', 'email' => 'young@acctsec.test', 'dob' => $kidDob], 'D-1');
@@ -136,14 +137,14 @@ $r = NgvIntake::take(['nggMemberId' => 'NGG-SEC-2', 'name' => 'Flagged One', 'em
 ck('Minor: NGG saying "minor" is enough, without a birthday', $r['status'] === 'needs_consent');
 $r = NgvIntake::take(['nggMemberId' => 'NGG-SEC-2', 'name' => 'Flagged One', 'email' => 'flagged@acctsec.test', 'minor' => true,
     'guardianConsent' => ['status' => 'granted', 'method' => 'signed_form', 'at' => '2026-10-01', 'by' => 'Mrs One']], 'D-3');
-ck('Minor: the consent NGG sends releases them', $r['ok'] && in_array($r['status'], ['created', 'linked'], true) && NgvMember::isVanguard((int) $r['member_id']));
+ck('Minor: the consent NGG sends releases them — to be invited to register, in person, with their parent', $r['ok'] && $r['status'] === 'invited' && (int) ($r['application_id'] ?? 0) > 0);
 ck('Minor: …and the consent is kept as the record of it', str_contains((string) $asPdo->query("SELECT consent FROM ngv_intake WHERE ngg_member_id = 'NGG-SEC-2'")->fetchColumn(), 'Mrs One'));
 ck('Minor: the office cannot record consent without saying who gave it', !NgvIntake::recordConsent('NGG-SEC-1', 'signed_form', '', 'tester')['ok']);
 $r = NgvIntake::recordConsent('NGG-SEC-1', 'in_person', 'Mr Young', 'tester');
-ck('Minor: …and with it, the held promotion completes', $r['ok'] && in_array($r['status'], ['created', 'linked'], true));
+ck('Minor: …and with it, the held promotion goes on to its invitation', $r['ok'] && $r['status'] === 'invited');
 ck('Minor: …audited', (int) $asPdo->query("SELECT COUNT(*) FROM lms_audit WHERE action = 'ngv.intake.consent'")->fetchColumn() >= 1);
 $r = NgvIntake::take(['nggMemberId' => 'NGG-SEC-3', 'name' => 'Grown One', 'email' => 'grown@acctsec.test', 'dob' => '1990-01-01'], 'D-4');
-ck('Minor: an adult is not held', $r['status'] === 'created');
+ck('Minor: an adult is not held', $r['status'] === 'invited');
 
 /* ── Backups ────────────────────────────────────────────────────────────── */
 $bkDir = sys_get_temp_dir() . '/av-bk-' . getmypid();

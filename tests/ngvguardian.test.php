@@ -115,8 +115,10 @@ ck('ngv guardian: opening the link agrees to nothing — only the form\'s POST d
    str_contains($page, "=== 'POST'") && substr_count($page, 'NgvMember::confirmGuardian(') === 1
    && strpos($page, 'NgvMember::confirmGuardian(') > strpos($page, "=== 'POST'") && str_contains($page, "empty(\$_POST['agree'])"));
 $console = (string) file_get_contents(dirname(__DIR__) . '/academy/ngv/members.php');
-ck('ngv guardian: the console shows a child waiting, with Enrol off and why, and the two ways forward',
-   str_contains($console, "\$minorA && !\$gOk ? ' disabled title=") && str_contains($console, 'data-act="app_guardian_resend"') && str_contains($console, 'data-act="app_guardian_record"'));
+ck('ngv guardian: the console no longer enrols anybody — a child, like everybody, is invited and registered at the desk, with their parent there',
+   !str_contains($console, 'data-act="app_enroll"') && str_contains($console, 'data-act="app_invite"') && str_contains($console, '/academy/ngv/desk.php?id=')
+   && str_contains($console, 'data-act="app_guardian_resend"')
+   && str_contains($console, 'Applicants are registered at the CACENTRE desk now'));
 
 Mailer::fakeRoads(null);
 putenv('AV_MAIL_DISABLED' . ($gMailWas === false ? '' : '=' . $gMailWas));

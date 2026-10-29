@@ -283,6 +283,9 @@ if ($method === 'POST') {
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
     if ($act === 'app_status') {
+        /* Only the review states by hand. `invited` goes through Invite (it
+           mails them and starts the clock), `enrolled` only through the desk. */
+        if (!in_array((string) ($in['status'] ?? ''), ['reviewing', 'rejected'], true)) json_out(['ok' => false, 'error' => 'That status is not set by hand.'], 400);
         $ok = NgvMember::setApplicationStatus((int) ($in['app_id'] ?? 0), (string) ($in['status'] ?? ''), $adminUid);
         if ($ok) ngv_console_audit('app_status', 'application#' . (int) ($in['app_id'] ?? 0), (string) ($in['status'] ?? ''));
         json_out(['ok' => $ok, 'error' => $ok ? '' : 'Bad application/status.']);
@@ -298,10 +301,16 @@ if ($method === 'POST') {
         if (!empty($r['ok'])) ngv_console_audit('app_guardian_record', 'application#' . (int) ($in['app_id'] ?? 0), 'guardian consent recorded (' . $method . ')');
         json_out($r + ['ok' => false], empty($r['ok']) ? 400 : 200);
     }
+    if ($act === 'app_invite') {
+        $r = NgvRegistration::invite((int) ($in['app_id'] ?? 0), $adminUid);
+        if (!empty($r['ok'])) ngv_console_audit('app_invite', 'application#' . (int) ($in['app_id'] ?? 0), 'invited to register (' . (string) $r['ref'] . ')');
+        json_out($r + ['ok' => false], empty($r['ok']) ? 400 : 200);
+    }
+    /* Enrolment from the inbox is retired (29 Oct 2026): a vanguard is
+       registered in person at a CACENTRE, with their guarantor and the signed
+       MoU, at the desk — which is where the account is made. */
     if ($act === 'app_enroll') {
-        $r = NgvMember::enrollApplication((int) ($in['app_id'] ?? 0), $adminUid);
-        ngv_console_audit('app_enroll', 'application#' . (int) ($in['app_id'] ?? 0), !empty($r['ok']) ? 'enrolled member #' . (int) ($r['member_id'] ?? 0) : (string) ($r['error'] ?? 'not enrolled'));
-        json_out($r + ['ok' => (bool) ($r['ok'] ?? false)]);
+        json_out(['ok' => false, 'error' => 'Applicants are registered at the CACENTRE desk now: invite them, then complete it at /academy/ngv/desk.php.'], 400);
     }
     json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
 }
@@ -1020,7 +1029,7 @@ details.sect>summary{margin-bottom:8px}
 
   <!-- Applications inbox -->
   <section class="card" id="applications" aria-labelledby="h-apps">
-    <header><h2 id="h-apps">Applications</h2> <span class="sp"></span><span class="sub"><?= count($apps) ?> shown · <a href="/academy/ngv/register.php" target="_blank" rel="noopener">registration page ↗</a></span></header>
+    <header><h2 id="h-apps">Applications</h2> <span class="sp"></span><span class="sub"><?= count($apps) ?> shown · <a href="/academy/ngv/desk.php">registration desk</a> · <a href="/academy/ngv/register.php" target="_blank" rel="noopener">registration page ↗</a></span></header>
     <div class="body">
       <?php if (!$apps): ?>
         <p class="sub">No applications yet. Share the <a href="/academy/ngv/register.php" target="_blank" rel="noopener">registration page</a> to start collecting them.</p>
@@ -1044,24 +1053,16 @@ details.sect>summary{margin-bottom:8px}
             <td class="sub"><?= $e(substr((string)$a['created_at'],0,10)) ?></td>
             <td>
               <?php if ($st !== 'enrolled'): ?>
-                <?php /* A child is not enrolled before their parent or guardian consents:
-                         the button is off and says why, rather than failing on press. */ ?>
-                <button class="btn sm primary" data-act="app_enroll" data-app="<?= (int)$a['id'] ?>"<?= $minorA && !$gOk ? ' disabled title="Waiting for a parent or guardian to consent"' : '' ?>>Enrol</button>
-                <?php if ($minorA && !$gOk && $st !== 'rejected'): ?>
+                <?php /* No Enrol here any more: an applicant is invited, comes to a
+                         CACENTRE with their guarantor and the signed MoU, and is
+                         registered at the desk. */ ?>
+                <?php if (in_array($st, ['new', 'reviewing', 'accepted', 'lapsed'], true)): ?><button class="btn sm primary" data-act="app_invite" data-app="<?= (int)$a['id'] ?>">Invite to register</button><?php endif; ?>
+                <?php if (in_array($st, NgvRegistration::DESK_STATUSES, true)): ?><a class="btn sm primary" href="/academy/ngv/desk.php?id=<?= (int)$a['id'] ?>">Open at the desk</a><?php endif; ?>
+                <?php if ($minorA && !$gOk && in_array($st, ['new', 'reviewing'], true)): ?>
                   <?php if (filter_var((string)$a['guardian_email'], FILTER_VALIDATE_EMAIL)): ?><button class="btn sm" data-act="app_guardian_resend" data-app="<?= (int)$a['id'] ?>">Email guardian again</button><?php endif; ?>
-                  <?php if (trim((string)$a['guardian_name']) !== ''): ?>
-                    <label class="sr-only" for="gm-<?= (int)$a['id'] ?>">How the guardian consented</label>
-                    <select id="gm-<?= (int)$a['id'] ?>" class="gm-sel"><option value="">Consent given by…</option><option value="signed_form">Signed form</option><option value="in_person">In person</option><option value="phone">Phone call</option></select>
-                    <button class="btn sm" data-act="app_guardian_record" data-app="<?= (int)$a['id'] ?>">Record consent</button>
-                  <?php endif; ?>
                 <?php endif; ?>
-                <?php /* `reviewing` and `accepted` were in the vocabulary with no way to
-                         reach them, so every application sat at `new` until somebody
-                         enrolled or rejected it — and a queue with one state cannot show
-                         who has already been looked at. */ ?>
                 <?php if ($st === 'new'): ?><button class="btn sm" data-act="app_status" data-app="<?= (int)$a['id'] ?>" data-status="reviewing">Reviewing</button><?php endif; ?>
-                <?php if ($st === 'new' || $st === 'reviewing'): ?><button class="btn sm" data-act="app_status" data-app="<?= (int)$a['id'] ?>" data-status="accepted">Accept</button><?php endif; ?>
-                <?php if ($st !== 'rejected'): ?><button class="btn sm" data-act="app_status" data-app="<?= (int)$a['id'] ?>" data-status="rejected">Reject</button><?php endif; ?>
+                <?php if (!in_array($st, ['rejected', 'withdrawn'], true)): ?><button class="btn sm" data-act="app_status" data-app="<?= (int)$a['id'] ?>" data-status="rejected">Reject</button><?php endif; ?>
               <?php else: ?>
                 <?php if ((int)$a['member_id'] > 0): ?><a class="btn sm" href="?m=<?= (int)$a['member_id'] ?>">Open</a><?php endif; ?>
               <?php endif; ?>
@@ -1894,7 +1895,7 @@ details.sect>summary{margin-bottom:8px}
                              var why = prompt('Void this entry — why? (it stays on the account with this reason)');
                              if(why===null || !why.trim()){ return; } body.reason = why; }
       else if(act==='app_status'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); body.status=btn.getAttribute('data-status')||''; if(body.status==='rejected' && !confirm('Reject this application?')) return; }
-      else if(act==='app_enroll'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); }
+      else if(act==='app_invite'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); if(!confirm('Invite them to register? They (and their guarantor) are emailed the MoU and what to bring.')) return; }
       else if(act==='app_guardian_resend'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); if(!confirm('Email their parent or guardian a new link? The old one stops working.')) return; }
       else if(act==='app_guardian_record'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10);
                                             var gm=document.getElementById('gm-'+body.app_id); body.method=gm?gm.value:'';

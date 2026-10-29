@@ -399,6 +399,181 @@ final class NgvRegistration
         return $out;
     }
 
+    /* ══ At the desk ════════════════════════════════════════════════════════ */
+
+    public const SCAN_BYTES_MAX = 10485760;
+    public const SCAN_TYPES = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'application/pdf' => 'pdf'];
+    /** The statuses somebody can be served at the desk in. */
+    public const DESK_STATUSES = ['invited', 'accepted', 'booked', 'attended'];
+
+    /**
+     * Everything the desk needs to know about one application, and what still
+     * stands between it and registration. `missing` is what the Complete
+     * button names when it is off — a control that cannot act says why.
+     */
+    public static function deskState(array $app): array
+    {
+        $items = self::checklistFor($app);
+        $ticks = (array) json_decode((string) ($app['checklist_json'] ?? ''), true);
+        $missing = [];
+        foreach ($items as $k => $it) if ($it['required'] && empty($ticks[$k]['ok'])) $missing[] = $it['label'];
+        if (trim((string) ($app['g_present_at'] ?? '')) === '') $missing[] = 'Guarantor seen in person, with their ID';
+        if (trim((string) ($app['mou_version'] ?? '')) === '') $missing[] = 'Which MoU version they signed';
+        return [
+            'items' => $items, 'ticks' => $ticks, 'missing' => $missing,
+            'minor' => NgvMember::applicantIsMinor($app), 'ngg' => self::isNgg($app),
+            'booking' => self::bookingFor((int) $app['id']),
+            'servable' => in_array((string) $app['status'], self::DESK_STATUSES, true),
+            'scan' => trim((string) ($app['mou_scan'] ?? '')) !== '',
+        ];
+    }
+
+    /** They are here: the application is `attended`, and today's booking is kept. */
+    public static function arrive(int $id): array
+    {
+        $app = NgvMember::application($id);
+        if (!$app || !in_array((string) $app['status'], self::DESK_STATUSES, true)) return ['ok' => false, 'error' => 'This application cannot be served at the desk.'];
+        NgvDb::pdo()->prepare("UPDATE ngv_applications SET status = 'attended' WHERE id = ?")->execute([$id]);
+        NgvDb::pdo()->prepare("UPDATE ngv_bookings SET status = 'attended', updated_at = " . NgvDb::nowExpr() . " WHERE application_id = ? AND status = 'booked'")->execute([$id]);
+        return ['ok' => true];
+    }
+
+    /** Tick (or untick) one item. The label is kept as it read when ticked. */
+    public static function tick(int $id, array $keys, int $byUid): array
+    {
+        $app = NgvMember::application($id);
+        if (!$app || !in_array((string) $app['status'], self::DESK_STATUSES, true)) return ['ok' => false, 'error' => 'This application cannot be served at the desk.'];
+        $items = self::checklistFor($app);
+        $ticks = (array) json_decode((string) ($app['checklist_json'] ?? ''), true);
+        $now = self::now();
+        foreach ($items as $k => $it) {
+            $on = in_array($k, $keys, true);
+            $was = !empty($ticks[$k]['ok']);
+            if ($on && !$was) $ticks[$k] = ['ok' => true, 'label' => $it['label'], 'by' => $byUid, 'at' => $now];
+            elseif (!$on && $was) $ticks[$k] = ['ok' => false, 'label' => $it['label'], 'by' => $byUid, 'at' => $now];
+        }
+        NgvDb::pdo()->prepare("UPDATE ngv_applications SET checklist_json = ? WHERE id = ?")->execute([json_encode($ticks, JSON_UNESCAPED_UNICODE), $id]);
+        if ((string) $app['status'] !== 'attended') self::arrive($id);
+        return ['ok' => true];
+    }
+
+    /**
+     * The guarantor is here, in person: who they are (corrected if the form
+     * had it wrong) and which ID was seen. A child's must be their parent or
+     * guardian, as on the form.
+     */
+    public static function guarantorSeen(int $id, array $g, string $idSeen, int $byUid): array
+    {
+        $app = NgvMember::application($id);
+        if (!$app || !in_array((string) $app['status'], self::DESK_STATUSES, true)) return ['ok' => false, 'error' => 'This application cannot be served at the desk.'];
+        $idSeen = mb_substr(trim($idSeen), 0, 120);
+        if ($idSeen === '') return ['ok' => false, 'error' => 'Say which ID of the guarantor’s you saw.'];
+        $minor = NgvMember::applicantIsMinor($app);
+        $c = self::cleanGuarantor($g + ['g_email' => (string) ($app['g_email'] ?? '')], $minor, (string) $app['email']);
+        if (empty($c['ok'])) return $c;
+        $set = $c['g'] + ['g_present_at' => self::now(), 'g_id_seen' => $idSeen];
+        if ($minor) $set += ['guardian_name' => $c['g']['g_name'], 'guardian_phone' => $c['g']['g_phone'], 'guardian_email' => $c['g']['g_email']];
+        $cols = implode(', ', array_map(static fn($k) => $k . ' = ?', array_keys($set)));
+        NgvDb::pdo()->prepare("UPDATE ngv_applications SET {$cols} WHERE id = ?")->execute([...array_values($set), $id]);
+        if ((string) $app['status'] !== 'attended') self::arrive($id);
+        return ['ok' => true];
+    }
+
+    /** The MoU version printed on the paper they signed. */
+    public static function setMouVersion(int $id, string $version): array
+    {
+        $version = mb_substr(trim($version), 0, 40);
+        if ($version === '') return ['ok' => false, 'error' => 'Enter the version printed at the top of their MoU.'];
+        $app = NgvMember::application($id);
+        if (!$app || !in_array((string) $app['status'], self::DESK_STATUSES, true)) return ['ok' => false, 'error' => 'This application cannot be served at the desk.'];
+        NgvDb::pdo()->prepare('UPDATE ngv_applications SET mou_version = ? WHERE id = ?')->execute([$version, $id]);
+        return ['ok' => true];
+    }
+
+    /**
+     * Keep a scan or photo of the signed MoU. Stored under data/ — closed to
+     * the web — because it carries a date of birth and two people's names and
+     * signatures; it is only ever served through the desk, to staff.
+     */
+    public static function attachScan(int $id, array $f): array
+    {
+        $app = NgvMember::application($id);
+        if (!$app) return ['ok' => false, 'error' => 'Application not found.'];
+        if ((int) ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) return ['ok' => false, 'error' => 'No file arrived. It may be too large for the server.'];
+        if ((int) ($f['size'] ?? 0) > self::SCAN_BYTES_MAX) return ['ok' => false, 'error' => 'That file is over 10MB.'];
+        $tmp = (string) ($f['tmp_name'] ?? '');
+        if (!is_uploaded_file($tmp) && PHP_SAPI !== 'cli') return ['ok' => false, 'error' => 'That file was not an upload.'];
+        $mime = class_exists('Storage') ? Storage::mime($tmp) : (string) (mime_content_type($tmp) ?: '');
+        if (!isset(self::SCAN_TYPES[$mime])) return ['ok' => false, 'error' => 'Attach a photo (JPEG or PNG) or a PDF of the signed MoU.'];
+        $dir = AV_ROOT . '/data/ngv-mou';
+        if (!is_dir($dir)) @mkdir($dir, 0770, true);
+        $name = preg_replace('/[^A-Z0-9-]/', '', self::ensureRef($id)) . '-' . bin2hex(random_bytes(6)) . '.' . self::SCAN_TYPES[$mime];
+        $ok = PHP_SAPI === 'cli' ? @copy($tmp, $dir . '/' . $name) : @move_uploaded_file($tmp, $dir . '/' . $name);
+        if (!$ok) return ['ok' => false, 'error' => 'The file could not be saved.'];
+        NgvDb::pdo()->prepare('UPDATE ngv_applications SET mou_scan = ? WHERE id = ?')->execute([$name, $id]);
+        return ['ok' => true, 'file' => $name];
+    }
+
+    /** The stored scan's path on disk, or null. Never a URL. */
+    public static function scanPath(array $app): ?string
+    {
+        $n = basename((string) ($app['mou_scan'] ?? ''));
+        if ($n === '' || !preg_match('/^NGV-[A-Z0-9]+-[a-f0-9]{12}\.(jpg|png|pdf)$/', $n)) return null;
+        $p = AV_ROOT . '/data/ngv-mou/' . $n;
+        return is_file($p) ? $p : null;
+    }
+
+    /**
+     * Complete registration. Refused while anything required is missing, and
+     * the refusal names it. Then, in this order:
+     *   1. a child's parent or guardian has consented — in person, here;
+     *   2. the account, the participant and the NGV card (enrollApplication);
+     *   3. the programme fee is frozen on them, as the MoU they signed states;
+     *   4. the membership fee is charged and recorded as paid, or waived.
+     *
+     * @param array{how?:string, amount?:mixed, method?:string, reference?:string, reason?:string} $fee
+     */
+    public static function complete(int $id, int $byUid, array $fee): array
+    {
+        $app = NgvMember::application($id);
+        if (!$app || !in_array((string) $app['status'], self::DESK_STATUSES, true)) return ['ok' => false, 'error' => 'This application cannot be completed at the desk.'];
+        $state = self::deskState($app);
+        if ($state['missing']) return ['ok' => false, 'error' => 'Still needed: ' . implode('; ', $state['missing']) . '.', 'missing' => $state['missing']];
+        $how = (string) ($fee['how'] ?? '');
+        $fees = NgvLedger::enabled();
+        if ($fees && !in_array($how, ['paid', 'waived'], true)) return ['ok' => false, 'error' => 'Record the membership fee as paid, or waived.'];
+        if ($fees && $how === 'paid' && NgvLedger::money($fee['amount'] ?? 0) <= 0) return ['ok' => false, 'error' => 'Enter the amount of the membership fee received.'];
+        if ($fees && $how === 'waived' && trim((string) ($fee['reason'] ?? '')) === '') return ['ok' => false, 'error' => 'A waiver needs a reason.'];
+
+        if ($state['minor'] && !NgvMember::guardianConfirmed($app)) {
+            $r = NgvMember::recordGuardianConsent($id, 'in_person', $byUid);
+            if (empty($r['ok'])) return $r;
+        }
+        $en = NgvMember::enrollApplication($id, $byUid);
+        if (empty($en['ok'])) return $en;
+        $mid = (int) $en['member_id'];
+        $p = NgvMember::participant($mid) ?? [];
+        if (class_exists('NgvProgrammeFee') && NgvProgrammeFee::snapshot($p) === null) {
+            $start = self::today();
+            NgvMember::setAdmin($mid, ['start_date' => $start]);
+            NgvProgrammeFee::freeze($mid, $start, (string) $app['mou_version']);
+        }
+        $money = null;
+        if ($fees) {
+            NgvLedger::accrueParticipant(NgvMember::participant($mid) ?? []);
+            $due = (int) (NgvLedger::balance($mid)['due']['membership'] ?? 0);
+            $money = $how === 'paid'
+                ? NgvLedger::payment($mid, 'membership', $fee['amount'], ['method' => (string) ($fee['method'] ?? 'cash'),
+                      'reference' => (string) ($fee['reference'] ?? ''), 'note' => 'Paid on registration day'], $byUid)
+                : ($due > 0 ? NgvLedger::waive($mid, 'membership', $due, (string) $fee['reason'], $byUid) : ['ok' => true]);
+        }
+        NgvDb::pdo()->prepare('UPDATE ngv_applications SET registered_at = ?, registered_by = ? WHERE id = ?')->execute([self::now(), max(0, $byUid), $id]);
+        if (self::isNgg($app) && class_exists('NgvIntake')) NgvIntake::registered((string) $app['email'], $mid);
+        return ['ok' => true, 'member_id' => $mid, 'account_created' => !empty($en['account_created']),
+                'membership' => $money === null ? 'ledger_off' : (!empty($money['ok']) ? $how : 'failed'),
+                'membership_error' => $money !== null && empty($money['ok']) ? (string) ($money['error'] ?? '') : ''];
+    }
+
     /* ══ The MoU ════════════════════════════════════════════════════════════ */
 
     /** The MoU for one application, with its details in. Plain text; the page escapes it. */

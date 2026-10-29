@@ -9,6 +9,7 @@
  * Run via tests/run.php (provides ck()).
  */
 declare(strict_types=1);
+require_once __DIR__ . '/_ngvdesk.php';
 
 $rgNgv = NgvDb::pdo();
 $rgNgv->exec("DELETE FROM ngv_bookings WHERE application_id IN (SELECT id FROM ngv_applications WHERE email LIKE '%@reg2.test')");
@@ -125,9 +126,75 @@ ck('ngv reg: the form checks understanding, the guarantor, the centre and availa
    ($f = $rgPage('register.php')) && strpos($f, 'checkUnderstanding') < strpos($f, 'NgvMember::submitApplication(')
    && strpos($f, 'cleanGuarantor') < strpos($f, 'NgvMember::submitApplication(') && str_contains($f, "trim(\$old['availability']) === ''"));
 
+/* ── The desk ───────────────────────────────────────────────────────────── */
+$rgPdoMain = Database::pdo();
+$rgPdoMain->exec("DELETE FROM lms_users WHERE email LIKE '%@reg2.test'");
+$dk = NgvMember::submitApplication(['name' => 'Desk Adult', 'email' => 'desk@reg2.test', 'dob' => $rgYears(22), 'centre' => 'Test Hall',
+    'g_name' => 'Mrs Faith', 'g_relationship' => 'faith_leader', 'g_phone' => '08032222222', 'understood' => true]);
+ck('ngv desk: nobody is served at the desk before they are invited', empty(NgvRegistration::arrive($dk)['ok']));
+NgvRegistration::invite($dk, 0);
+$dState = NgvRegistration::deskState(NgvMember::application($dk));
+ck('ngv desk: an invited applicant starts with the checklist, the guarantor and the MoU all outstanding',
+   $dState['servable'] && in_array('Guarantor seen in person, with their ID', $dState['missing'], true)
+   && in_array('Which MoU version they signed', $dState['missing'], true) && count($dState['missing']) >= 3);
+$dRef = NgvRegistration::complete($dk, 0, ['how' => 'waived', 'reason' => 'x']);
+ck('ngv desk: completing early is refused, naming what is missing — and makes no account',
+   empty($dRef['ok']) && !empty($dRef['missing'])
+   && (int) $rgPdoMain->query("SELECT COUNT(*) FROM lms_users WHERE email = 'desk@reg2.test'")->fetchColumn() === 0);
+ck('ngv desk: the guarantor is not recorded as seen without the ID that was shown',
+   empty(NgvRegistration::guarantorSeen($dk, ['g_name' => 'Mrs Faith', 'g_relationship' => 'faith_leader', 'g_phone' => '08032222222'], '', 0)['ok']));
+ck('ngv desk: …and with it they are, and the applicant is marked as here',
+   !empty(NgvRegistration::guarantorSeen($dk, ['g_name' => 'Mrs Faith', 'g_relationship' => 'faith_leader', 'g_phone' => '08032222222'], 'NIN slip', 0)['ok'])
+   && (string) NgvMember::application($dk)['status'] === 'attended' && (string) NgvMember::application($dk)['g_id_seen'] === 'NIN slip');
+$dItems = array_keys(NgvRegistration::checklistFor(NgvMember::application($dk)));
+NgvRegistration::tick($dk, $dItems, 0);
+$dTicks = (array) json_decode((string) NgvMember::application($dk)['checklist_json'], true);
+ck('ngv desk: each tick is kept with the label it had when it was ticked, and when',
+   $dItems && !empty($dTicks[$dItems[0]]['ok']) && ($dTicks[$dItems[0]]['label'] ?? '') !== '' && ($dTicks[$dItems[0]]['at'] ?? '') !== '');
+NgvRegistration::setMouVersion($dk, 'NGV-MoU-2026.10');
+$dPng = sys_get_temp_dir() . '/desk-' . getmypid() . '.png';
+file_put_contents($dPng, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
+$dScan = NgvRegistration::attachScan($dk, ['error' => UPLOAD_ERR_OK, 'size' => filesize($dPng), 'tmp_name' => $dPng]);
+$dPath = NgvRegistration::scanPath(NgvMember::application($dk));
+ck('ngv desk: a scan of the signed MoU is kept under data/, closed to the web, and found again only by its stored name',
+   !empty($dScan['ok']) && $dPath !== null && str_starts_with($dPath, AV_ROOT . '/data/ngv-mou/')
+   && NgvRegistration::scanPath(['mou_scan' => '../../lib/bootstrap.php']) === null);
+file_put_contents($dPng, 'not an image');
+ck('ngv desk: a file that is not a photo or a PDF is refused', empty(NgvRegistration::attachScan($dk, ['error' => UPLOAD_ERR_OK, 'size' => 12, 'tmp_name' => $dPng])['ok']));
+@unlink($dPng);
+$dDone = NgvRegistration::complete($dk, 0, ['how' => 'waived', 'reason' => 'test']);
+$dMid = (int) ($dDone['member_id'] ?? 0);
+$dSnap = NgvProgrammeFee::snapshot(NgvMember::participant($dMid) ?? []);
+ck('ngv desk: with everything done, completing makes the account and the vanguard', !empty($dDone['ok']) && $dMid > 0
+   && NgvMember::isVanguard($dMid) && (string) NgvMember::application($dk)['status'] === 'enrolled'
+   && trim((string) NgvMember::application($dk)['registered_at']) !== '');
+ck('ngv desk: …and their programme fee is frozen from today, on the MoU they signed',
+   $dSnap !== null && $dSnap['mouVersion'] === 'NGV-MoU-2026.10' && $dSnap['start'] === (function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d')));
+ck('ngv desk: a registered application cannot be completed, or changed, again',
+   empty(NgvRegistration::complete($dk, 0, ['how' => 'waived', 'reason' => 'x'])['ok']) && empty(NgvRegistration::setMouVersion($dk, 'X')['ok']));
+@unlink((string) $dPath);
+
+$dKid = NgvMember::submitApplication(['name' => 'Desk Child', 'email' => 'deskkid@reg2.test', 'dob' => $rgYears(15), 'centre' => 'Test Hall',
+    'g_name' => 'Mum Child', 'g_relationship' => 'parent', 'g_phone' => '08033333333', 'g_email' => 'mum@reg2.test', 'understood' => true]);
+NgvRegistration::invite($dKid, 0);
+ck('ngv desk: a child\'s guarantor at the desk must still be their parent or guardian',
+   empty(NgvRegistration::guarantorSeen($dKid, ['g_name' => 'Coach', 'g_relationship' => 'employer', 'g_phone' => '1', 'g_email' => 'c@reg2.test'], 'ID', 0)['ok']));
+$kd = ngv_test_register($dKid, ['g_name' => 'Mum Child', 'g_relationship' => 'parent', 'g_phone' => '08033333333', 'g_email' => 'mum@reg2.test']);
+$kApp = NgvMember::application($dKid);
+ck('ngv desk: registering a child records their parent\'s consent as given in person, here',
+   !empty($kd['ok']) && NgvMember::guardianConfirmed($kApp) && (string) $kApp['guardian_method'] === 'in_person' && (string) $kApp['guardian_name'] === 'Mum Child');
+
+$dPage = $rgPage('desk.php');
+ck('ngv desk: the page is for administrators, checks the CSRF field and the origin on every post, and redirects after a success',
+   str_contains($dPage, "\$isAdmin = in_array(\$role, ['admin', 'superadmin'], true);") && str_contains($dPage, "av_csrf_valid((string) (\$_POST['csrf'] ?? ''))")
+   && strpos($dPage, 'require_same_origin();') < strpos($dPage, "\$act = (string) (\$_POST['act']") && str_contains($dPage, ", true, 303);"));
+ck('ngv desk: the MoU scan is served only through the desk, by stored name, to administrators',
+   str_contains($dPage, "if (\$isAdmin && isset(\$_GET['scan']))") && str_contains($dPage, 'NgvRegistration::scanPath($app)'));
+
 Ngv::reset();
 $rgNgv->exec("DELETE FROM ngv_bookings WHERE application_id IN (SELECT id FROM ngv_applications WHERE email LIKE '%@reg2.test')");
 $rgNgv->exec("DELETE FROM ngv_applications WHERE email LIKE '%@reg2.test'");
+$rgPdoMain->exec("DELETE FROM lms_users WHERE email LIKE '%@reg2.test'");
 Mailer::fakeRoads(null);
 putenv('AV_MAIL_DISABLED' . ($rgMailWas === false ? '' : '=' . $rgMailWas));
 

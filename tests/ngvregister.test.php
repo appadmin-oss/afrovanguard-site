@@ -14,6 +14,7 @@
  * Run via tests/run.php (provides ck()).
  */
 declare(strict_types=1);
+require_once __DIR__ . '/_ngvdesk.php';
 
 $rgPdo = Database::pdo();
 $rgNgv = NgvDb::pdo();
@@ -46,12 +47,17 @@ ck('ngv register: …and they get an NGV ID card, as NGG promotions always did',
 /* ── NGG promotions: one email is not one person ────────────────────────── */
 NgvIntake::ensure();
 $rgPdo->exec("DELETE FROM ngv_intake WHERE email LIKE '%@reg.test'");
+$rgNgv->exec("DELETE FROM ngv_applications WHERE email IN ('parent@reg.test', 'demote@reg.test', 'notyet@reg.test')");
 $s1 = NgvIntake::take(['nggMemberId' => 'NGG-REG-1', 'name' => 'Tola Ade', 'email' => 'parent@reg.test']);
 $s2 = NgvIntake::take(['nggMemberId' => 'NGG-REG-2', 'name' => 'Femi Ade', 'email' => 'parent@reg.test']);
-ck('ngv register: the first sibling is promoted', !empty($s1['ok']) && (int) ($s1['member_id'] ?? 0) > 0);
+ck('ngv register: the first sibling is promoted — invited to register', !empty($s1['ok']) && ($s1['status'] ?? '') === 'invited');
 ck('ngv register: the second, on the same parent\'s email, is held for a person rather than merged into the first',
    ($s2['status'] ?? '') === 'needs_review' && in_array('NGG-REG-2', array_column(NgvIntake::waiting(), 'ngg_member_id'), true));
-ck('ngv register: …and the first vanguard keeps their own name', (string) NgvMember::participant((int) $s1['member_id'])['name'] === 'Tola Ade');
+ck('ngv register: …and the first one\'s application keeps their own name', (string) NgvMember::application((int) $s1['application_id'])['name'] === 'Tola Ade');
+$s1d = ngv_test_register((int) $s1['application_id']);
+$s2b = NgvIntake::take(['nggMemberId' => 'NGG-REG-2', 'name' => 'Femi Ade', 'email' => 'parent@reg.test']);
+ck('ngv register: …and once the first is registered, the second is still held, not given the first\'s account',
+   !empty($s1d['ok']) && ($s2b['status'] ?? '') === 'needs_review' && (string) NgvMember::participant((int) $s1d['member_id'])['name'] === 'Tola Ade');
 $rgPdo->prepare('INSERT INTO lms_users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)')->execute(['Coord', 'coord@reg.test', 'x', 'admin', 'active']);
 $st = NgvIntake::take(['nggMemberId' => 'NGG-REG-3', 'name' => 'Child Of Coord', 'email' => 'coord@reg.test']);
 ck('ngv register: a promotion onto a staff account is held, not enrolled', ($st['status'] ?? '') === 'needs_review');
@@ -74,12 +80,18 @@ ck('ngv register: book claims post to the dashboard, which handles them, from wh
 $rgPdo->exec("DELETE FROM ngv_intake WHERE ngg_member_id = 'NGG-REG-9'");
 $rgPdo->exec("DELETE FROM lms_users WHERE email = 'demote@reg.test'");
 $p9 = NgvIntake::take(['nggMemberId' => 'NGG-REG-9', 'name' => 'Demo Ted', 'email' => 'demote@reg.test']);
-$m9 = (int) ($p9['member_id'] ?? 0);
+$m9 = (int) (ngv_test_register((int) ($p9['application_id'] ?? 0))['member_id'] ?? 0);
 ck('ngv register: promoted from NGG, a vanguard with a card', NgvMember::isVanguard($m9) && GateAttendance::cardFor($m9) !== null);
 $rv = NgvIntake::revoke(['nggMemberId' => 'NGG-REG-9']);
 ck('ngv register: demoted on NGG, withdrawn here — no longer a vanguard or a member', ($rv['status'] ?? '') === 'revoked'
    && !NgvMember::isVanguard($m9) && (string) NgvMember::participant($m9)['status'] === 'withdrawn');
 ck('ngv register: …and their NGV card stops opening the gate', GateAttendance::cardFor($m9) === null);
+$rgPdo->exec("DELETE FROM ngv_intake WHERE ngg_member_id = 'NGG-REG-8'");
+$p8 = NgvIntake::take(['nggMemberId' => 'NGG-REG-8', 'name' => 'Not Yet', 'email' => 'notyet@reg.test']);
+$r8 = NgvIntake::revoke(['nggMemberId' => 'NGG-REG-8']);
+ck('ngv register: demoted while only invited — the invitation is withdrawn, so the desk cannot register them',
+   ($r8['status'] ?? '') === 'revoked' && (string) NgvMember::application((int) $p8['application_id'])['status'] === 'withdrawn'
+   && !NgvRegistration::complete((int) $p8['application_id'], 0, ['how' => 'waived', 'reason' => 'x'])['ok']);
 ck('ngv register: a demotion for somebody never linked is acknowledged, changing nothing', NgvIntake::revoke(['nggMemberId' => 'NGG-NOBODY'])['status'] === 'unknown');
 $back = NgvIntake::take(['nggMemberId' => 'NGG-REG-9', 'name' => 'Demo Ted', 'email' => 'demote@reg.test']);
 ck('ngv register: promoted again, the same account is back on the programme with a card',

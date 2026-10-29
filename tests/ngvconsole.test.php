@@ -28,16 +28,19 @@ $charged = (int) $csNgv->query("SELECT COUNT(DISTINCT member_id) FROM ngv_charge
 ck('ngv console: accrual reaches every active participant, not only the first batch', $charged === 5 && !empty($r['complete']) && (int) $r['accrued']['participants'] === 5);
 
 $root = dirname(__DIR__);
-foreach (['members', 'fines', 'attendance'] as $pg) {
+foreach (['members', 'fines', 'attendance', 'desk'] as $pg) {
     ck("ngv console: the $pg page is for administrators, not editors",
        str_contains((string) file_get_contents("$root/academy/ngv/$pg.php"), "\$isAdmin = in_array(\$role, ['admin', 'superadmin'], true);"));
 }
 $led = (string) file_get_contents("$root/lib/NgvLedger.php");
 ck('ngv console: the ledger\'s audit says who acted', str_contains($led, "if (\$actor === 'admin' && function_exists('av_admin_actor'))"));
 $mem = (string) file_get_contents("$root/academy/ngv/members.php");
-foreach (['enroll', 'cert', 'app_status', 'app_enroll'] as $a) {
+foreach (['enroll', 'cert', 'app_status', 'app_invite'] as $a) {
     ck("ngv console: $a is on the audit trail", str_contains($mem, "ngv_console_audit('$a'"));
 }
+$desk = (string) file_get_contents("$root/academy/ngv/desk.php");
+ck('ngv console: every desk action, and a refused completion, is on the audit trail',
+   str_contains($desk, 'ngv_desk_audit($act, $target') && str_contains($desk, "ngv_desk_audit('complete_refused'"));
 
 /* The origin check, in its own process: it ends the request when it refuses. */
 $probe = static function (string $host, string $origin) use ($root): string {

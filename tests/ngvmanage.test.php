@@ -151,16 +151,31 @@ ck('ngv manage: cohorts are read from the data, not from a list to maintain',
 
 /* `reviewing` and `accepted` existed in the vocabulary with no way to reach
    them, so every application sat at `new` until somebody enrolled or rejected
-   it — and a queue with one state cannot show who has already been looked at. */
+   it — and a queue with one state cannot show who has already been looked at.
+   Since registration moved to the CACENTRE (29 Oct 2026) most statuses are
+   reached by an ACT, not set by hand: each must have its route, and `accepted`
+   is retired (Invite replaced it) but still served at the desk. */
 $consoleSrc = (string) @file_get_contents(AV_ROOT . '/academy/ngv/members.php');
 $reachable = [];
 if (preg_match_all('/data-status="([a-z_]+)"/', $consoleSrc, $mm)) $reachable = array_unique($mm[1]);
-foreach (['reviewing', 'accepted', 'rejected'] as $st) {
-    ck('ngv manage: the application status "' . $st . '" is reachable from the console',
-       in_array($st, $reachable, true));
+foreach (['reviewing', 'rejected'] as $st) {
+    ck('ngv manage: the application status "' . $st . '" is set from the console', in_array($st, $reachable, true));
 }
-ck('ngv manage: every application status the domain accepts is one the console can set or reach',
-   array_values(array_diff(['new', 'reviewing', 'accepted', 'rejected', 'enrolled'],
-       array_merge($reachable, ['new', 'enrolled']))) === []);
+$regSrc = (string) @file_get_contents(AV_ROOT . '/lib/NgvRegistration.php');
+$routes = [
+    'new' => str_contains((string) @file_get_contents(AV_ROOT . '/academy/ngv/register.php'), 'NgvMember::submitApplication('),
+    'reviewing' => in_array('reviewing', $reachable, true), 'rejected' => in_array('rejected', $reachable, true),
+    'invited' => str_contains($consoleSrc, 'NgvRegistration::invite(') && str_contains($regSrc, "SET status = 'invited'"),
+    'booked' => str_contains($regSrc, "status = 'booked'"),
+    'attended' => str_contains($regSrc, "SET status = 'attended'"),
+    'enrolled' => str_contains($regSrc, 'NgvMember::enrollApplication('),
+    'lapsed' => str_contains($regSrc, "'lapsed'"),
+    'withdrawn' => str_contains((string) @file_get_contents(AV_ROOT . '/lib/NgvIntake.php'), "SET status = 'withdrawn'"),
+    'accepted' => in_array('accepted', NgvRegistration::DESK_STATUSES, true),
+];
+ck('ngv manage: every application status the domain accepts has a way in, or is served where it already stands',
+   array_values(array_filter(NgvMember::APP_STATUSES, static fn($st) => empty($routes[$st]))) === []);
+ck('ngv manage: the console refuses to set by hand a status that has its own act (invite, register)',
+   str_contains($consoleSrc, "in_array((string) (\$in['status'] ?? ''), ['reviewing', 'rejected'], true)"));
 
 $mgReset();

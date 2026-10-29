@@ -660,6 +660,38 @@ them `credit_kind = 'payment'`, which is what they are.
 | allocation | one netted account total | per fee line, with `paidAhead` reported |
 | rollout | greenfield | `accrueFrom` guard, because NGV has history |
 
+## Registration day: where the fee is frozen (from 29 Oct 2026)
+
+Nobody becomes a vanguard online. The applicant applies (`register.php`), is
+**invited** from the Vanguards console, books a visit or walks in, and comes to a
+CACENTRE with the MoU printed and signed by them and their guarantor, their ID,
+and the guarantor in person. The desk, `/academy/ngv/desk.php`
+(administrators only), completes it:
+
+1. **Documents seen** — the office's own checklist (`reg_checklist` on the page
+   content), ticked as each is seen; each tick keeps its label, who, and when.
+2. **Guarantor, in person** — name, relationship, phone, and the ID they showed.
+   A child's must be their parent or guardian, who consents there and then.
+3. **The signed MoU** — the version printed on the paper, and a scan kept under
+   `data/ngv-mou/` (closed to the web, gitignored, served only by the desk).
+4. **Complete** — refused while anything required is missing, and the refusal
+   names it. Then the account is made or linked, they are enrolled and given an
+   NGV card, the programme fee is **frozen from that day on the MoU version they
+   signed** (`NgvProgrammeFee::freeze`), and the membership fee is recorded as
+   paid or waived — on the day, as agreed.
+
+**NGG promotions go through the same desk.** A promotion used to make the
+account at once; it now files an application already filled in from NGG and
+invites them (`NgvIntake::take` → status `invited`). The NGV MoU applies to them
+like anybody else and overrides NGG's terms for the NGV year; their NGG fee is
+unaffected. When the desk completes, the promotion is marked linked
+(`NgvIntake::registered`). Demoted on NGG before registering withdraws the
+invitation. Siblings on one parent's email are held for a person, as before.
+
+The console's Enrol button is gone; an application has **Invite to register**
+and, once invited, **Open at the desk**. `reviewing` and `rejected` are still set
+by hand; nothing else is.
+
 ## What is not built yet
 
 - **No self-service payment.** Deliberate, and the first thing to argue about
