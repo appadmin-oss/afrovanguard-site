@@ -43,12 +43,14 @@ try {
         $pw = is_array($in) ? (string) ($in['password'] ?? '') : '';
         $r = CacWifi::setPassword($uid, $pw);
         /* CACENTRE's own sentence for a weak password says exactly what to change. */
-        if (!$r['ok']) json_out(['ok' => false, 'error' => $r['message'] !== '' ? $r['message'] : $sentence($r['error'])], $r['error'] === 'too_many' ? 429 : ($r['error'] === 'weak' ? 422 : 502));
+        if (!$r['ok']) json_out(['ok' => false, 'error' => $r['message'] !== '' ? $r['message'] : $sentence($r['error']), 'detail' => (string) ($r['detail'] ?? '')], $r['error'] === 'too_many' ? 429 : ($r['error'] === 'weak' ? 422 : 200));
         json_out(['ok' => true, 'card' => $r['card']]);
     }
     if (!av_rate_ok('cac_wifi', 60, 60)) json_out(['ok' => false, 'error' => 'Too many requests — give it a moment.'], 429);
     $r = CacWifi::card($uid);
-    if (!$r['ok']) json_out(['ok' => false, 'error' => ($r['message'] ?? '') !== '' ? (string) $r['message'] : $sentence($r['error'])], 502);
+    /* 200, not 502: Cloudflare replaces a 502 from this server with its own
+       page, and the reason below never reaches the member. `ok` says it failed. */
+    if (!$r['ok']) json_out(['ok' => false, 'error' => ($r['message'] ?? '') !== '' ? (string) $r['message'] : $sentence($r['error']), 'detail' => (string) ($r['detail'] ?? '')], 200);
     json_out(['ok' => true, 'card' => $r['card']]);
 } catch (Throwable $e) {
     error_log('[portal cac-wifi] ' . $e->getMessage());

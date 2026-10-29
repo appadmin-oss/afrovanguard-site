@@ -113,7 +113,8 @@ final class CacWifi
         if ($me === null) return $r;
         $raw = self::sendRoster([$me], false);
         $d = $raw !== null ? json_decode($raw, true) : null;
-        if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'card' => null, 'error' => $raw === null ? 'unreachable' : 'roster-refused', 'message' => ''];
+        if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'card' => null, 'error' => $raw === null ? 'unreachable' : 'roster-refused', 'message' => '',
+                                                      'detail' => self::failure($raw, is_array($d) ? $d : null)];
         $again = self::ask($memberId, null);
         if (!empty($again['ok']) && $again['card'] === null) {
             /* Sent and still not listed: CACENTRE refused the row, and says why. */
@@ -145,10 +146,11 @@ final class CacWifi
         if ($post === null && ($me = self::me($memberId)) !== null) $claims['me'] = $me;
         $url = CacTasks::site() . self::PATH . '?t=' . rawurlencode(CacSso::sign($claims));
         $raw = self::send($url, $post, self::TIMEOUT);
-        if ($raw === null) return ['ok' => false, 'card' => null, 'error' => 'unreachable'];
+        if ($raw === null) return ['ok' => false, 'card' => null, 'error' => 'unreachable', 'detail' => self::failure(null, null)];
         $d = json_decode($raw, true);
         if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'card' => null, 'error' => is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreadable',
-                                                      'message' => is_array($d) ? mb_substr((string) ($d['message'] ?? ''), 0, 200) : ''];
+                                                      'message' => is_array($d) ? mb_substr((string) ($d['message'] ?? ''), 0, 200) : '',
+                                                      'detail' => self::failure($raw, is_array($d) ? $d : null)];
         return ['ok' => true, 'card' => is_array($d['card'] ?? null) ? self::clean($d['card']) : null, 'error' => '', 'message' => ''];
     }
 
@@ -175,6 +177,29 @@ final class CacWifi
     }
 
     /** One request (a POST when $body is given), every transport failure turned into null. TLS verification stays on. */
+    /** The last call's HTTP status and transport error, so a failure can be said exactly. */
+    private static array $last = ['status' => 0, 'error' => ''];
+
+    /**
+     * CACENTRE's answer, in words a person can act on: what it said, or its
+     * HTTP status and what came back instead of an answer (a host or proxy
+     * error page, say).
+     */
+    private static function failure(?string $raw, ?array $d): string
+    {
+        $st = (int) self::$last['status'];
+        if ($raw === null) return 'CACENTRE could not be reached' . (self::$last['error'] !== '' ? ' (' . self::$last['error'] . ')' : '') . '.';
+        if (is_array($d)) {
+            $code = (string) ($d['error'] ?? 'refused');
+            $words = ['bad-signature' => 'the key shared by the two sites (AV_SSO_SECRET) is not the same on both',
+                      'not-configured' => 'AV_SSO_SECRET is not set on CACENTRE', 'expired' => 'the two servers’ clocks disagree',
+                      'wrong-door' => 'CACENTRE is older than this site expects', 'unavailable' => 'CACENTRE hit an error (see its error log)'];
+            return 'CACENTRE said no (' . $st . ' ' . $code . ')' . (isset($words[$code]) ? ': ' . $words[$code] . '.' : '.');
+        }
+        $text = trim(preg_replace('/\s+/', ' ', strip_tags($raw)) ?? '');
+        return 'CACENTRE answered ' . $st . ' with something that is not an answer' . ($text !== '' ? ': ' . mb_substr($text, 0, 120) : '') . '.';
+    }
+
     private static function send(string $url, ?array $body, int $timeout): ?string
     {
         if (!function_exists('curl_init')) return null;
@@ -191,6 +216,7 @@ final class CacWifi
         if ($body !== null) $opt += [CURLOPT_POST => true, CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_SLASHES), CURLOPT_HTTPHEADER => ['Content-Type: application/json']];
         curl_setopt_array($ch, $opt);
         $out = curl_exec($ch);
+        self::$last = ['status' => (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE), 'error' => curl_error($ch)];
         curl_close($ch);
         /* The body comes back on a refusal too: the far side says which one. */
         return $out === false ? null : (string) $out;

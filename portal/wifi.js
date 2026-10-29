@@ -71,7 +71,8 @@
         var d = null;
         try { d = JSON.parse(x.text); } catch (e) { d = null; }
         if (d && d.ok) { loaded = true; card = d.card; draw(); return; }
-        var said = d && (d.error || d.message) ? String(d.error || d.message)
+        if (d && d.error) { fail(String(d.error) + (d.detail ? ' (' + d.detail + ')' : '')); return; }
+        var said = d && d.message ? String(d.message)
           : String(x.text || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
         fail('Your Wi-Fi details couldn’t load (' + x.status + (said ? ': ' + said : '') + ').');
       })
