@@ -61,9 +61,20 @@
   function load() {
     if (busy) return;
     busy = true; say('Loading your Wi-Fi details…'); retry.hidden = true;
+    /* Read as text first, so a reply that is not what this page expects is
+       still said in words — its HTTP status and the start of what came back —
+       instead of a bare "couldn't load" nobody can act on. */
     fetch('/portal/cac-wifi.php', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-      .then(function (r) { return r.json(); })
-      .then(function (d) { busy = false; if (!d || !d.ok) { fail((d && d.error) || 'Your Wi-Fi details couldn’t load.'); return; } loaded = true; card = d.card; draw(); })
+      .then(function (r) { return r.text().then(function (t) { return { status: r.status, text: t }; }); })
+      .then(function (x) {
+        busy = false;
+        var d = null;
+        try { d = JSON.parse(x.text); } catch (e) { d = null; }
+        if (d && d.ok) { loaded = true; card = d.card; draw(); return; }
+        var said = d && (d.error || d.message) ? String(d.error || d.message)
+          : String(x.text || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+        fail('Your Wi-Fi details couldn’t load (' + x.status + (said ? ': ' + said : '') + ').');
+      })
       .catch(function () { busy = false; fail('Your Wi-Fi details couldn’t load. Check your connection.'); });
   }
 
