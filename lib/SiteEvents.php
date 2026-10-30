@@ -216,17 +216,24 @@ final class SiteEvents
         $n = self::nowLocal($now);
         /* Relative, so it works on whichever host serves it; ics() and the Google link make it absolute. */
         $page = '/events/' . $r['slug'] . '/';
-        $where = $r['venue'] === '' ? $r['location'] : ($r['location'] === '' || stripos($r['venue'], $r['location']) !== false ? $r['venue'] : $r['venue'] . ', ' . $r['location']);
+        $where = self::where($r);
         $excerpt = $r['summary'] !== '' ? $r['summary'] : mb_substr(trim((string) preg_replace('/\s+/', ' ', (string) $r['body'])), 0, 157);
         return [
             'source'    => 'av',
             'id'        => 'av-' . (int) $r['id'],
             'slug'      => $r['slug'],
             'title'     => $r['title'],
-            /* Members-only and team events have no public page: they open in the portal. */
-            'url'       => $r['audience'] === 'public' ? $page : '/portal/#overview',
+            /* Every event has its page. A members' or team event's page asks for the sign-in and
+               the right audience (events/view.php); it used to point at /portal/#overview — the
+               portal's own Today, where the card was — so pressing it did nothing at all. */
+            'url'       => $page,
             'rsvp'      => $r['rsvp_url'],
             'online'    => $r['online_url'],
+            /* The join link is a button from half an hour before until it ends: earlier than that
+               a "Join" that opens an empty call is the wrong answer to "what do I do now". */
+            'join_open' => $r['online_url'] !== '' && $r['status'] !== 'cancelled'
+                           && $start->modify('-30 minutes')->format('Y-m-d H:i:s') <= $n && self::endOf($r) >= $n,
+            'calendar'  => self::googleAddUrl($r),
             'when'      => $start->format($allDay ? 'D, j M' : 'D, j M · g:ia'),
             'day'       => $start->format('j'),
             'month'     => strtoupper($start->format('M')),
@@ -297,11 +304,17 @@ final class SiteEvents
     {
         [$ds, $de] = self::icsTimes($r);
         $a = substr($ds, strpos($ds, ':') + 1); $b = substr($de, strpos($de, ':') + 1);
-        $e = self::shape($r);
+        // Not through shape(): shape() carries this link, so asking it here would never return.
         return 'https://calendar.google.com/calendar/render?' . http_build_query([
             'action' => 'TEMPLATE', 'text' => $r['title'], 'dates' => $a . '/' . $b,
-            'details' => trim($r['summary'] . "\n\n" . self::abs($e['url'])), 'location' => $e['location'], 'ctz' => self::TZ,
+            'details' => trim($r['summary'] . "\n\n" . self::abs('/events/' . $r['slug'] . '/')), 'location' => self::where($r), 'ctz' => self::TZ,
         ]);
+    }
+
+    /** Where it is, in one line: the venue, and the place unless the venue already says it. */
+    private static function where(array $r): string
+    {
+        return $r['venue'] === '' ? $r['location'] : ($r['location'] === '' || stripos($r['venue'], $r['location']) !== false ? $r['venue'] : $r['venue'] . ', ' . $r['location']);
     }
 
     /* ── Helpers ───────────────────────────────────────────────────────── */
