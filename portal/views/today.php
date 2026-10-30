@@ -309,13 +309,54 @@ if ($isOrg && !$hasPlan):
                 <a class="avp-head-link" href="/events/">All events →</a>
               </div>
               <div class="avp-card-body">
-                <ul class="avp-g-list avp-ev-list">
-<?php foreach ($todayEvents as $ev):
-        $evExt = ($ev['source'] ?? '') === 'gates' || preg_match('~^https?://~', (string) $ev['url']) && !str_starts_with((string) $ev['url'], rtrim((string) (defined('SITE_URL') ? SITE_URL : ''), '/') . '/'); ?>
-                  <li class="avp-g-li avp-ev-li"><a href="<?= e((string) $ev['url']) ?>"<?= $evExt ? ' target="_blank" rel="noopener"' : '' ?>>
-                    <span class="avp-ev-date" aria-hidden="true"><b><?= e((string) $ev['day']) ?></b><?= e((string) $ev['month']) ?></span>
-                    <span class="avp-ev-txt"><b><?= e((string) $ev['title']) ?></b><span><?= e(implode(' · ', array_filter([!empty($ev['ongoing']) ? 'On now' : (string) $ev['when'], (string) ($ev['location'] ?? ''), ($ev['host'] ?? '') !== 'Afrovanguard' ? (string) ($ev['host'] ?? '') : (($ev['audience'] ?? 'public') !== 'public' ? 'Members only' : '')]))) ?></span></span>
-                  </a></li>
+                <ul class="avp-evc-list">
+<?php
+    /* Each event is a small poster: the flier (or the date when there is none), what and when,
+       and the buttons that do something — Join from half an hour before, Details, Add to
+       calendar, Reserve. It used to be one link to the page it was on, so a member could see an
+       event and do nothing with it, and the flier somebody had made for it was never shown. */
+    $evToday = (new DateTimeImmutable('now', new DateTimeZone('Africa/Lagos')))->format('Y-m-d');
+    $evTomorrow = (new DateTimeImmutable('tomorrow', new DateTimeZone('Africa/Lagos')))->format('Y-m-d');
+    foreach ($todayEvents as $evI => $ev):
+        $evUrl = (string) $ev['url'];
+        $evExt = ($ev['source'] ?? '') === 'gates' || preg_match('~^https?://~', $evUrl) && !str_starts_with($evUrl, rtrim((string) (defined('SITE_URL') ? SITE_URL : ''), '/') . '/');
+        $evTgt = $evExt ? ' target="_blank" rel="noopener"' : '';
+        $evOff = !empty($ev['cancelled']);
+        $evFlag = $evOff ? 'Cancelled' : (!empty($ev['ongoing']) ? 'On now' : ((string) ($ev['date'] ?? '') === $evToday ? 'Today' : ((string) ($ev['date'] ?? '') === $evTomorrow ? 'Tomorrow' : '')));
+        $evWho = ($ev['host'] ?? '') !== 'Afrovanguard' ? (string) ($ev['host'] ?? '') : (($ev['audience'] ?? 'public') === 'org' ? 'Team only' : (($ev['audience'] ?? 'public') === 'members' ? 'Members only' : ''));
+        $evImg = (string) ($ev['image'] ?? ''); ?>
+                  <li class="avp-evc<?= $evI === 0 ? ' is-next' : '' ?><?= $evOff ? ' is-off' : '' ?>">
+                    <a class="avp-evc-art" href="<?= e($evUrl) ?>"<?= $evTgt ?> tabindex="-1" aria-hidden="true">
+<?php if ($evImg !== ''): ?>
+                      <img src="<?= e($evImg) ?>" alt="" loading="lazy" decoding="async" />
+<?php else: ?>
+                      <span class="avp-evc-date"><b><?= e((string) $ev['day']) ?></b><?= e((string) $ev['month']) ?></span>
+<?php endif; ?>
+                    </a>
+                    <div class="avp-evc-body">
+<?php if ($evFlag !== '' || $evWho !== ''): ?>
+                      <p class="avp-evc-tags"><?php if ($evFlag !== ''): ?><span class="avp-evc-tag<?= $evFlag === 'On now' ? ' is-live' : ($evOff ? ' is-off' : ' is-soon') ?>"><?= e($evFlag) ?></span><?php endif; ?><?php if ($evWho !== ''): ?><span class="avp-evc-tag"><?= e($evWho) ?></span><?php endif; ?></p>
+<?php endif; ?>
+                      <h3 class="avp-evc-h"><a href="<?= e($evUrl) ?>"<?= $evTgt ?>><?= e((string) $ev['title']) ?></a></h3>
+                      <p class="avp-evc-meta"><time datetime="<?= e((string) ($ev['iso'] ?? '')) ?>"><?= e((string) $ev['when']) ?></time><?= ($ev['location'] ?? '') !== '' ? ' · ' . e((string) $ev['location']) : '' ?></p>
+<?php if (!$evOff): ?>
+                      <div class="avp-evc-acts">
+<?php if (!empty($ev['join_open'])): ?>
+                        <a class="avp-btn avp-btn--ink avp-btn--sq" href="<?= e((string) $ev['online']) ?>" target="_blank" rel="noopener">Join now<span class="avp-wallet-sr">: <?= e((string) $ev['title']) ?>, opens the call</span></a>
+<?php elseif (($ev['rsvp'] ?? '') !== ''): ?>
+                        <a class="avp-btn avp-btn--ink avp-btn--sq" href="<?= e((string) $ev['rsvp']) ?>" target="_blank" rel="noopener">Reserve a place<span class="avp-wallet-sr">: <?= e((string) $ev['title']) ?></span></a>
+<?php endif; ?>
+                        <a class="avp-btn avp-btn--sq" href="<?= e($evUrl) ?>"<?= $evTgt ?>>Details<span class="avp-wallet-sr">: <?= e((string) $ev['title']) ?></span></a>
+<?php if (($ev['calendar'] ?? '') !== ''): ?>
+                        <a class="avp-btn avp-btn--sq" href="<?= e((string) $ev['calendar']) ?>" target="_blank" rel="noopener">Add to calendar<span class="avp-wallet-sr">: <?= e((string) $ev['title']) ?></span></a>
+<?php endif; ?>
+                      </div>
+<?php if (empty($ev['join_open']) && ($ev['online'] ?? '') !== ''): ?>
+                      <p class="avp-evc-soon">Online. The join button appears here 30 minutes before.</p>
+<?php endif; ?>
+<?php endif; ?>
+                    </div>
+                  </li>
 <?php endforeach; ?>
                 </ul>
               </div>
