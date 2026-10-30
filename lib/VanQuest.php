@@ -106,8 +106,15 @@ final class VanQuest
      *
      * @return array{ok:bool, status:string, message:string, token?:string}
      */
-    public static function join(string $email, string $placement = '', int $xp = 0): array
+    public static function join(string $email, string $placement = '', int $xp = 0, bool $adult = false): array
     {
+        /* VanQuest is for adults only (the owner's decision, 27 October 2026; Nigeria's
+           Data Protection Act 2023 treats anyone under 18 as a child, whose data needs a
+           guardian's consent). Nobody is stored, and nothing is sent, without the
+           player confirming they are 18 or over. No date of birth is kept. */
+        if (!$adult) {
+            return ['ok' => false, 'status' => 'age', 'message' => 'VanQuest is for people aged 18 and over. Please confirm your age to join.'];
+        }
         self::ensure();
         $email = mb_strtolower(trim($email), 'UTF-8');
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 191) {
@@ -405,11 +412,62 @@ final class VanQuest
     private static function mail(string $to, string $template, array $vars): bool
     {
         if (defined('ENABLE_EMAIL_NOTIFICATIONS') && !ENABLE_EMAIL_NOTIFICATIONS) return true;
-        if (!Mailer::sendTemplate($to, $template, $vars, self::sender())) {
+        try { $r = self::render($template, $vars); }
+        catch (Throwable $e) { error_log('[vanquest] ' . $template . ': ' . $e->getMessage()); return false; }
+        if (!Mailer::send($to, $r['subject'], $r['html'], self::sender() + ['text' => $r['text']])) {
             error_log('[vanquest] ' . $template . ' to ' . $to . ': ' . Mailer::lastError());
             return false;
         }
         return true;
+    }
+
+    /**
+     * A VanQuest mail, always in VanQuest's own frame (lib/email/_frame_vq.php).
+     *
+     * It does not go through av_email_render()'s choice of frame on purpose: on
+     * 27 October 2026 the owner reported VanQuest mail arriving in Afrovanguard's
+     * design although the code chose the VanQuest frame, which is what happens
+     * when the server's shared lib/email/_layout.php is older than the templates.
+     * VanQuest's look must not depend on that one shared file being current.
+     * The helpers e(), av_t() and av_email_text() still come from _layout.php.
+     *
+     * @return array{subject:string, html:string, text:string}
+     */
+    public static function render(string $template, array $v): array
+    {
+        if (!preg_match('/^vanquest_[a-z_]+$/', $template) || !is_file(__DIR__ . "/email/templates/{$template}.php")) {
+            throw new InvalidArgumentException('Unknown VanQuest mail: ' . $template);
+        }
+        require_once __DIR__ . '/email/_layout.php';
+        $v += [
+            'base_url'        => 'https://afrovanguard.org.ng',
+            'postal_address'  => 'Alimosho, Lagos, Nigeria',
+            'preferences_url' => 'https://afrovanguard.org.ng/portal/#settings',
+        ];
+        $v['logo_url'] = $v['logo_url'] ?? $v['base_url'] . '/assets/site/email-seal.png';
+        $v['art_base'] = $v['art_base'] ?? $v['base_url'] . '/assets/site/email';
+        $subject = '';
+        $preheader = '';
+        $frame = 'vq';
+        ob_start();
+        require __DIR__ . "/email/templates/{$template}.php";
+        $body = ob_get_clean();
+        ob_start();
+        require __DIR__ . '/email/_frame_vq.php';
+        $html = "<!-- VanQuest mail, frame vq -->\n" . ob_get_clean();
+        // Signed VanQuest even where an older _layout.php signs every text part "Afrovanguard".
+        $text = preg_replace('/\n— Afrovanguard\n$/u', "\n— VanQuest\n", av_email_text($subject, $body, 'VanQuest'));
+        return ['subject' => $subject, 'html' => $html, 'text' => $text];
+    }
+
+    /** A sample of a VanQuest mail with made-up data, so the owner can see what this server sends. */
+    public static function preview(string $which): array
+    {
+        $sample = [
+            'seat_url' => self::SITE . '/seat/?t=preview', 'placement' => 'B', 'xp' => 120, 'seated' => false, 'first_name' => 'Ada',
+            'people' => [], 'players' => 0, 'community_url' => self::SITE . '/community/?t=preview', 'interview_url' => self::SITE . '/community/?t=preview#interview',
+        ];
+        return self::render($which === 'onboard' ? 'vanquest_onboard' : 'vanquest_welcome', $sample);
     }
 
     private static function sendRaw(string $to, string $subject, string $html): void
