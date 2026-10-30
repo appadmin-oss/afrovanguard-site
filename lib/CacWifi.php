@@ -86,6 +86,44 @@ final class CacWifi
         return ['ok' => true, 'sent' => count($people), 'applied' => (int) ($d['applied'] ?? 0), 'refused' => (int) ($d['refused'] ?? 0), 'gone' => (int) ($d['gone'] ?? 0)];
     }
 
+    /**
+     * Starting passwords CACENTRE could not email (its mail failing, or its
+     * own tick not running), sent by this site with its own mail and reported
+     * back, so nobody is sent one twice. Three failures in a row stop the run.
+     *
+     * @return array{ok:bool, sent?:int, failed?:int, marked?:int, error?:string}
+     */
+    public static function mailStartCodes(): array
+    {
+        if (!CacSso::ready()) return ['ok' => false, 'error' => 'not-configured'];
+        $raw = self::send(CacTasks::site() . self::PATH, ['action' => 'startPending', 'token' => CacSso::sign(['aud' => 'wifi', 'typ' => 'wifi.start'])], 20);
+        $d = $raw !== null ? json_decode($raw, true) : null;
+        if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'error' => is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreachable'];
+        $sent = []; $failed = 0; $failRun = 0;
+        $st = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?');
+        foreach ((array) ($d['people'] ?? []) as $x) {
+            if ($failRun >= 3) break;
+            $id = (int) ($x['id'] ?? 0); $user = (string) ($x['username'] ?? ''); $code = (string) ($x['code'] ?? '');
+            if ($id <= 0 || $user === '' || !preg_match('/^[a-z0-9]{4,16}$/', $code)) continue;
+            $st->execute([$id]);
+            $u = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$u || !filter_var((string) $u['email'], FILTER_VALIDATE_EMAIL)) continue;
+            $first = trim(explode(' ', trim((string) $u['name']))[0] ?? '');
+            $html = '<p>Hello' . ($first !== '' ? ' ' . e($first) : '') . ',</p>'
+                  . '<p>You are on the Wi-Fi at CACENTRE and the Afrovanguard centres. Keep this email: you need these to sign in, and you will not have the internet until you do.</p>'
+                  . '<p>Username: <b>' . e($user) . '</b><br>Starting password: <b>' . e($code) . '</b></p>'
+                  . '<p>Join the Wi-Fi, and when the sign-in page opens, type both exactly as they are here. You can keep this password, or choose your own in the portal under Wi-Fi. Never share it: anything done on the Wi-Fi with it counts as you.</p>';
+            if (Mailer::send((string) $u['email'], 'Your Wi-Fi sign-in', $html)) { $sent[] = ['id' => (string) $id, 'code' => $code]; $failRun = 0; }
+            else { $failed++; $failRun++; }
+        }
+        $marked = 0;
+        if ($sent) {
+            $raw = self::send(CacTasks::site() . self::PATH, ['action' => 'startSent', 'token' => CacSso::sign(['aud' => 'wifi', 'typ' => 'wifi.start', 'sent' => $sent])], 20);
+            $marked = (int) ((json_decode((string) $raw, true) ?: [])['marked'] ?? 0);
+        }
+        return ['ok' => true, 'sent' => count($sent), 'failed' => $failed, 'marked' => $marked];
+    }
+
     /** Send people as a roster. `full` withdraws anybody not sent; a partial one withdraws nobody. */
     private static function sendRoster(array $people, bool $full): ?string
     {
@@ -162,6 +200,8 @@ final class CacWifi
         return [
             'username'   => mb_substr((string) ($c['username'] ?? ''), 0, 64),
             'hasPassword' => !empty($c['hasPassword']),
+            /* The starting password CACENTRE made, until they choose their own (theirs is never sent). */
+            'startCode'  => preg_match('/^[a-z0-9]{4,16}$/', (string) ($c['startCode'] ?? '')) ? (string) $c['startCode'] : '',
             'pinSetAt'   => preg_match('/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/', (string) ($c['pinSetAt'] ?? '')) ? (string) $c['pinSetAt'] : '',
             'access'     => in_array($c['access'] ?? '', ['on', 'limited', 'off'], true) ? (string) $c['access'] : 'off',
             /* CACENTRE words a reason for its staff ("Afrovanguard has no Wi-Fi

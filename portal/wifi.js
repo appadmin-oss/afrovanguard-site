@@ -3,7 +3,8 @@
  * Loaded the first time the Wi-Fi pane opens, never before: the dashboard is
  * the first thing a member sees and must not wait on another site for a pane
  * most visits never open. The sign-in name is the member's ID; the password
- * is one they choose here, and is never shown back. This page opens on the
+ * is the starting password CACENTRE made and emailed them, shown here until
+ * they choose their own, which is never shown back. This page opens on the
  * centre's Wi-Fi before the member has signed in to it (CACENTRE's walled
  * garden), so it is where a first-time member sets theirs. Loading, an empty
  * card and an honest error with a retry are all said.
@@ -17,7 +18,7 @@
   var CSRF = pane.getAttribute('data-csrf') || '';
   var $ = function (id) { return document.getElementById(id); };
   var msg = $('wifiMsg'), dl = $('wifiDl'), form = $('wifiFoot'), retry = $('wifiRetry');
-  var userEl = $('wifiUser'), pwState = $('wifiPwState'), formH = $('wifiFormH');
+  var userEl = $('wifiUser'), pwState = $('wifiPwState'), pwLabel = $('wifiPwLabel'), formH = $('wifiFormH');
   var speedRow = $('wifiSpeedRow'), speedEl = $('wifiSpeed'), whereEl = $('wifiWhere');
   var todayEl = $('wifiToday'), monthEl = $('wifiMonth');
   var pw1 = $('wifiPw1'), pw2 = $('wifiPw2'), save = $('wifiSave'), leftEl = $('wifiLeft'), err = $('wifiPwErr');
@@ -38,19 +39,26 @@
     if (!card) { dl.hidden = form.hidden = true; say('You are not on the Wi-Fi list yet. Ask the team to check your membership is active.'); return; }
     if (card.access === 'off') { dl.hidden = form.hidden = true; say('You don’t have Wi-Fi access right now' + (card.why ? ': ' + card.why.replace(/\.$/, '') + '.' : '.') + ' Ask the team if you think this is wrong.', true); return; }
     var lim = card.access === 'limited' ? 'Limited for now' + (card.why ? ': ' + card.why.replace(/\.$/, '') : '') + '. ' : '';
-    if (!card.hasPassword) say(lim + 'Choose a Wi-Fi password below. Then join the CACENTRE Wi-Fi and, when the sign-in page opens, use your username and this password.');
+    /* No card number recorded yet: CACENTRE signs them in with a stand-in, and says so. */
+    var standIn = /^avg-\d+$/.test(card.username) ? ' Your card number isn’t recorded on Afrovanguard yet, so the Wi-Fi uses this name for now. Ask the office to record it: your username then becomes your card number.' : '';
+    if (card.startCode) say(lim + (card.hasRouter ? 'Join the CACENTRE Wi-Fi and, when the sign-in page opens, use your username and the starting password below. It is emailed to you too. You can keep it, or choose your own.' : 'The Wi-Fi isn’t set up where you sign in yet. These details will work as soon as it is.') + standIn);
+    else if (!card.hasPassword) say(lim + 'Choose a Wi-Fi password below. Then join the CACENTRE Wi-Fi and, when the sign-in page opens, use your username and this password.');
     else say(card.hasRouter ? lim + 'Join the CACENTRE Wi-Fi; when the sign-in page opens, use your username and the password you set.'
                             : 'The Wi-Fi isn’t set up where you sign in yet. Your details will work as soon as it is.');
+    if (!card.startCode && standIn) say(msg.textContent + standIn);
     userEl.textContent = card.username;
-    pwState.textContent = card.hasPassword ? 'Set' + (card.pinSetAt ? ' on ' + day(card.pinSetAt) : '') : 'Not set yet';
+    pwLabel.textContent = card.startCode ? 'Starting password' : 'Password';
+    pwState.classList.toggle('wifi-v', !!card.startCode);
+    pwState.textContent = card.startCode ? card.startCode : card.hasPassword ? 'Your own, set' + (card.pinSetAt ? ' on ' + day(card.pinSetAt) : '') : 'Not set yet';
     speedRow.hidden = !card.speed;
     if (card.speed) speedEl.textContent = 'Up to ' + card.speed.down + ' Mbit/s · ' + (card.speed.devices === 1 ? 'one device' : card.speed.devices + ' devices') + ' at a time' + (card.speed.hours ? ' · ' + card.speed.hours.replace('-', '–') : '');
     whereEl.textContent = card.where ? card.where.charAt(0).toUpperCase() + card.where.slice(1) : '';
     var u = card.usage || {};
     todayEl.textContent = bytes(u.today) + (u.dayMb ? ' of ' + bytes(u.dayMb * 1048576) : '');
     monthEl.textContent = bytes(u.month) + (u.monthMb ? ' of ' + bytes(u.monthMb * 1048576) : '');
-    formH.textContent = card.hasPassword ? 'Change your Wi-Fi password' : 'Set your Wi-Fi password';
-    save.textContent = card.hasPassword ? 'Change password' : 'Set password';
+    var own = card.hasPassword && !card.startCode;
+    formH.textContent = card.startCode ? 'Choose your own password (optional)' : own ? 'Change your Wi-Fi password' : 'Set your Wi-Fi password';
+    save.textContent = own ? 'Change password' : 'Set password';
     save.disabled = busy || card.resetsLeft < 1;
     leftEl.textContent = card.resetsLeft < 1 ? 'You’ve changed it three times today. Try again tomorrow.' : card.resetsLeft + (card.resetsLeft === 1 ? ' change' : ' changes') + ' left today';
     dl.hidden = form.hidden = false;

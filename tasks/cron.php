@@ -256,7 +256,7 @@ if (class_exists('QuestMoney')) {
 // each (lib/CacWifi.php), so a member who leaves loses Wi-Fi there. Every
 // quarter hour — the first tick in each 15-minute slot — not every tick.
 if (class_exists('CacWifi')) {
-    $result['wifi'] = AiOps::run('wifi', static fn() => (int) date('i') % 15 < 5 ? CacWifi::push() : ['skipped' => 'not this quarter hour']);
+    $result['wifi'] = AiOps::run('wifi', static fn() => (int) date('i') % 15 < 5 ? CacWifi::push() + ['startMail' => CacWifi::mailStartCodes()] : ['skipped' => 'not this quarter hour']);
 }
 
 // The leadership brief (report §21). Weekly and monthly, each self-limiting to
