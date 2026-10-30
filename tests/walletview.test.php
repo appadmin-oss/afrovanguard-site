@@ -86,3 +86,44 @@ $wvIdx = (string) file_get_contents(AV_ROOT . '/portal/index.php');
 ck('wallet view: the shell reads the statement once, and the badge is what is owed',
    substr_count($wvIdx, 'MemberStatement::for(') === 1 && str_contains($wvIdx, "'wallet'      => [\$walletOwed > 0"));
 ck('wallet view: no inline styles', !preg_match('~\bstyle\s*=~i', (string) file_get_contents(AV_ROOT . '/portal/views/wallet.php')));
+
+/* ── NGG volunteer pay, beside the statement (lib/NggPay.php) ────────────── */
+
+$wvKeep = getenv('NGG_WEBHOOK_SECRET');
+putenv('NGG_WEBHOOK_SECRET=' . str_repeat('n', 40));
+$wvSeen = null;
+NggPay::$transport = static function (string $url, string $body, array $headers) use (&$wvSeen): array {
+    $wvSeen = compact('url', 'body', 'headers');
+    return ['code' => 200, 'body' => json_encode(['ok' => true, 'wallet' => [
+        'owed' => 6000, 'earned' => 9000, 'paid' => 3000, 'daysEarned' => 3, 'rate' => 3000, 'frequency' => 'weekly', 'on' => true, 'active' => true, 'centre' => 'Egbeda',
+        'days' => [['day' => '2026-10-24', 'status' => 'earned', 'amount' => 3000, 'paid' => false, 'reasonText' => ''],
+                   ['day' => '2026-10-23', 'status' => 'excluded', 'amount' => 0, 'paid' => false, 'reasonText' => 'Present, but no activity recorded'],
+                   ['day' => '<script>', 'status' => 'earned', 'amount' => 1]],
+        'payouts' => [['period' => '12 Oct – 18 Oct 2026', 'amount' => 3000, 'days' => 1, 'methodText' => 'Bank transfer', 'paidAt' => '2026-10-20T10:00:00Z', 'reference' => 'TRF-1'],
+                      ['period' => 'void one', 'amount' => 500, 'void' => true]]]])];
+};
+$wvR = NggPay::forUser(['id' => 0, 'email' => ' Tobi@Example.org ']);
+$wvTs = ''; $wvSig = '';
+foreach ($wvSeen['headers'] ?? [] as $h) { if (str_starts_with($h, 'X-NGG-Timestamp: ')) $wvTs = substr($h, 17); if (str_starts_with($h, 'X-NGG-Signature: ')) $wvSig = substr($h, 17); }
+ck('wallet view: NGG is asked at its pay door, for this member’s email', str_ends_with((string) ($wvSeen['url'] ?? ''), '/api/hooks/afrovanguard-pay.php')
+   && (json_decode((string) $wvSeen['body'], true)['email'] ?? '') === 'tobi@example.org');
+ck('wallet view: …signed with the shared secret for this purpose only, so it fits no other NGG door',
+   $wvSig === 'sha256=' . hash_hmac('sha256', 'volunteer_pay.' . $wvTs . '.' . $wvSeen['body'], str_repeat('n', 40)));
+ck('wallet view: what NGG owes them comes back, with its days', ($wvR['wallet']['owed'] ?? 0) === 6000 && count($wvR['wallet']['days']) === 2);
+ck('wallet view: NGG’s answer is kept to what the page draws: no reference, no voided payout, no malformed day',
+   !str_contains(json_encode($wvR), 'TRF-1') && count($wvR['wallet']['payouts']) === 1 && !str_contains(json_encode($wvR), 'script'));
+ck('wallet view: a day not paid says why', ($wvR['wallet']['days'][1]['why'] ?? '') === 'Present, but no activity recorded' && $wvR['wallet']['days'][1]['earned'] === false);
+NggPay::$transport = static fn() => ['code' => 401, 'body' => '{"ok":false}'];
+ck('wallet view: NGG refusing is said, not shown as nothing owed', NggPay::forUser(['id' => 0, 'email' => 'tobi@example.org']) === ['ok' => false, 'error' => 'bad-signature']);
+NggPay::$transport = static fn() => ['code' => 200, 'body' => '{"ok":true,"wallet":null}'];
+ck('wallet view: somebody who is not an NGG volunteer has no NGG pay', NggPay::forUser(['id' => 0, 'email' => 'tobi@example.org']) === ['ok' => true, 'wallet' => null]);
+NggPay::$transport = null;
+putenv('NGG_WEBHOOK_SECRET');
+ck('wallet view: with no link to NGG set up, NGG is not asked', NggPay::forUser(['id' => 0, 'email' => 'tobi@example.org'])['error'] === 'not-configured');
+if ($wvKeep !== false) putenv('NGG_WEBHOOK_SECRET=' . $wvKeep);
+
+$wvNg = $wvRender(MemberStatement::for(0));
+ck('wallet view: the NGG pay card is on the page, hidden until NGG says they volunteer, and outside the statement’s balance',
+   (bool) preg_match('~<section class="avp-card avp-wallet-ngg" id="walletNgg"[^>]*hidden>~', $wvNg) && str_contains($wvNg, 'Not part of your Afrovanguard balance'));
+ck('wallet view: the page loads it only when the Wallet opens', str_contains((string) file_get_contents(AV_ROOT . '/portal/index.php'), "/portal/wallet.js")
+   && str_contains((string) file_get_contents(AV_ROOT . '/portal/wallet.js'), "view === 'wallet'") && !str_contains((string) file_get_contents(AV_ROOT . '/portal/wallet.js'), 'innerHTML'));

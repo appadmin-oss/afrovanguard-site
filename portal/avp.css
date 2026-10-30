@@ -649,3 +649,7 @@ a.avp-kpi--link:focus-visible { outline: 2px solid var(--avp-gold); outline-offs
 .avp-wallet-row.is-pending .avp-wallet-what b { font-weight: 500; }
 .avp-wallet-how { margin: 14px 0 0; color: var(--avp-text-2); font-size: 14px; }
 .avp-wallet-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* The wallet's NGG volunteer pay (portal/wallet.js): a second card, its own figures. */
+.avp-wallet-ngg { margin-top: 16px; }
+.avp-wallet-ngg .avp-wallet-intro.is-bad { color: var(--avp-red-tx); }
+.avp-wallet-ngg .avp-kpis { margin-bottom: 12px; }

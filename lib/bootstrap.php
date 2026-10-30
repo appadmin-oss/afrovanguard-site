@@ -430,6 +430,7 @@ require_once __DIR__ . '/MeetingMinutes.php';   /* answers, minutes draft→revi
 require_once __DIR__ . '/MeetingLive.php';
 require_once __DIR__ . '/CrmAudiencePush.php';  /* this site's people, pushed (signed) to CACENTRE's CRM */
 require_once __DIR__ . '/NggVolunteers.php';    /* NGG's volunteers, fetched (signed) from NGG */
+require_once __DIR__ . '/NggPay.php';           /* a member's NGG volunteer pay, read from NGG for their wallet */
 require_once __DIR__ . '/VolunteerSeeds.php';   /* NGG volunteers seeded from a file, linked as they sign in */
 require_once __DIR__ . '/TaskReport.php';       /* the day's tasks: done, undone, unclaimed */
 require_once __DIR__ . '/ProgrammeSessions.php';  /* the year's programme sessions: TONI, MEDI, SUMMER, DOMI */

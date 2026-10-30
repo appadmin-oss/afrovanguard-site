@@ -91,4 +91,22 @@ $wRows    = array_reverse($wS['entries']);   /* newest first: the line just paid
 <?php endif; ?>
           </div>
         </section>
+
+        <?php /* NGG volunteer pay: money NGG owes them, read from NGG when this
+                 view opens (portal/wallet.js → portal/ngg-pay.php → lib/NggPay.php).
+                 Shown beside the statement, never added to its balance. Hidden
+                 for anybody who is not an NGG volunteer. */ ?>
+        <section class="avp-card avp-wallet-ngg" id="walletNgg" aria-labelledby="avpWalletNggH" hidden>
+          <div class="avp-card-head"><h2 id="avpWalletNggH">NGG volunteer pay</h2><span class="avp-wallet-count" id="walletNggSub"></span></div>
+          <div class="avp-card-body">
+            <p class="avp-wallet-intro" id="walletNggMsg" role="status" aria-live="polite">Loading your NGG volunteer pay…</p>
+            <div class="avp-kpis" id="walletNggKpis" hidden>
+              <div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">Owed to you</span></div><div class="avp-kpi-v av-num" id="walletNggOwed"></div><div class="avp-kpi-s">By NGG, for days not yet paid. Not part of your Afrovanguard balance.</div></div>
+              <div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">Earned</span></div><div class="avp-kpi-v av-num" id="walletNggEarned"></div><div class="avp-kpi-s" id="walletNggDays"></div></div>
+              <div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">Paid to you</span></div><div class="avp-kpi-v av-num" id="walletNggPaid"></div><div class="avp-kpi-s" id="walletNggLast"></div></div>
+            </div>
+            <ul class="avp-wallet-list" id="walletNggList" aria-label="Your NGG volunteer days" hidden></ul>
+            <button type="button" class="avp-btn" id="walletNggRetry" hidden>Try again</button>
+          </div>
+        </section>
       </section>

@@ -390,6 +390,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   <script src="<?= e(av_asset('/portal/directory.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/inventory.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/wifi.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/portal/wallet.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/leads.js')) ?>" defer></script>
   <?php /* The palette reads the sidebar rather than being handed a second copy
            of it. Panes are hash links, and the portal already listens for
