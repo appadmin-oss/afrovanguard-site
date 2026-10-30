@@ -96,7 +96,7 @@ $wRows    = array_reverse($wS['entries']);   /* newest first: the line just paid
                  view opens (portal/wallet.js → portal/ngg-pay.php → lib/NggPay.php).
                  Shown beside the statement, never added to its balance. Hidden
                  for anybody who is not an NGG volunteer. */ ?>
-        <section class="avp-card avp-wallet-ngg" id="walletNgg" aria-labelledby="avpWalletNggH" hidden>
+        <section class="avp-card avp-wallet-ngg" id="walletNgg" aria-labelledby="avpWalletNggH" data-csrf="<?= e(av_csrf_token()) ?>" hidden>
           <div class="avp-card-head"><h2 id="avpWalletNggH">NGG volunteer pay</h2><span class="avp-wallet-count" id="walletNggSub"></span></div>
           <div class="avp-card-body">
             <p class="avp-wallet-intro" id="walletNggMsg" role="status" aria-live="polite">Loading your NGG volunteer pay…</p>
@@ -105,6 +105,26 @@ $wRows    = array_reverse($wS['entries']);   /* newest first: the line just paid
               <div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">Earned</span></div><div class="avp-kpi-v av-num" id="walletNggEarned"></div><div class="avp-kpi-s" id="walletNggDays"></div></div>
               <div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">Paid to you</span></div><div class="avp-kpi-v av-num" id="walletNggPaid"></div><div class="avp-kpi-s" id="walletNggLast"></div></div>
             </div>
+            <p class="avp-wallet-intro" id="walletNggFines" hidden></p>
+            <?php /* Where NGG pays them: shown as the bank and the last four digits.
+                     The number is typed here and sent to NGG, never shown back;
+                     NGG emails the volunteer about every change. */ ?>
+            <div class="avp-wallet-bank" id="walletNggBank" hidden>
+              <h3 class="avp-wallet-h3">Where NGG pays you</h3>
+              <p class="avp-wallet-intro" id="walletNggBankNow"></p>
+              <button type="button" class="avp-btn" id="walletNggBankOpen" aria-expanded="false" aria-controls="walletNggBankForm">Add bank details</button>
+              <form class="avp-form" id="walletNggBankForm" hidden novalidate>
+                <label class="avp-form-wide">Bank <input name="bankName" maxlength="80" required autocomplete="off"></label>
+                <label class="avp-form-wide">Account number <input name="accountNumber" inputmode="numeric" maxlength="13" required autocomplete="off"></label>
+                <label class="avp-form-wide">Name on the account <input name="accountName" maxlength="120" required autocomplete="name"></label>
+                <p class="avp-wallet-bad avp-form-wide" id="walletNggBankBad" role="alert" hidden></p>
+                <div class="avp-form-wide avp-wallet-acts"><button class="avp-btn avp-btn--ink" type="submit">Save</button> <button class="avp-btn" type="button" id="walletNggBankCancel">Cancel</button></div>
+              </form>
+              <p class="avp-wallet-intro" id="walletNggBankDone" role="status" aria-live="polite"></p>
+            </div>
+            <h3 class="avp-wallet-h3" id="walletNggPaysH" hidden>Payments</h3>
+            <ul class="avp-wallet-list" id="walletNggPays" aria-labelledby="walletNggPaysH" hidden></ul>
+            <h3 class="avp-wallet-h3" id="walletNggDaysH" hidden>Days</h3>
             <ul class="avp-wallet-list" id="walletNggList" aria-label="Your NGG volunteer days" hidden></ul>
             <button type="button" class="avp-btn" id="walletNggRetry" hidden>Try again</button>
           </div>

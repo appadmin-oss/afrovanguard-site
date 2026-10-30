@@ -210,8 +210,9 @@ final class MemberStatement
                 'at'          => (string) ($p['created_at'] ?? ''),
                 'source'      => 'ngv',
                 'kind'        => 'payment',
-                'label'       => 'Payment received'
-                               . (($p['method'] ?? '') !== '' ? ' — ' . (string) $p['method'] : ''),
+                /* A fine taken off their NGG volunteer pay says so, not a method code. */
+                'label'       => (string) ($p['method'] ?? '') === 'ngg_pay' ? 'Fine paid from your NGG volunteer pay'
+                               : 'Payment received' . (($p['method'] ?? '') !== '' ? ' — ' . (string) $p['method'] : ''),
                 'charge_kobo' => 0,
                 'credit_kobo' => ((int) ($p['amount'] ?? 0)) * 100,
                 'ref'         => (string) ($p['reference'] ?? ('ngvp:' . (int) ($p['id'] ?? 0))),

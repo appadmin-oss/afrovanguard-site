@@ -11,6 +11,7 @@
   if (!box) return;
   var $ = function (id) { return document.getElementById(id); };
   var msg = $('walletNggMsg'), kpis = $('walletNggKpis'), list = $('walletNggList'), retry = $('walletNggRetry'), sub = $('walletNggSub');
+  var pays = $('walletNggPays'), bank = $('walletNggBank'), form = $('walletNggBankForm'), opener = $('walletNggBankOpen'), bad = $('walletNggBankBad'), done = $('walletNggBankDone');
   var loaded = false, busy = false;
   var naira = function (n) { return '₦' + (Math.round(+n || 0)).toLocaleString('en-NG'); };
   var day = function (s) { var d = s ? new Date(s + 'T12:00:00') : null; return d && !isNaN(d) ? d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : s; };
@@ -30,6 +31,24 @@
     var last = (w.payouts || [])[0];
     $('walletNggLast').textContent = last ? 'Last: ' + naira(last.amount) + ' for ' + last.period + (last.how ? ', ' + last.how.toLowerCase() : '') + '.' : 'Nothing paid yet.';
     kpis.hidden = false;
+    var fines = $('walletNggFines');
+    fines.textContent = (w.finesDeducted ? 'Fines you owe, NGG’s or Afrovanguard’s, come off a payment first; what is left stays owed.' : '')
+      + (w.finesTaken > 0 ? ' ' + naira(w.finesTaken) + ' has been taken off for fines so far.' : '');
+    fines.hidden = fines.textContent === '';
+    drawBank(w.bank || {});
+    pays.textContent = '';
+    (w.payouts || []).slice(0, 12).forEach(function (p) {
+      var li = el('li', 'avp-wallet-row');
+      var what = el('div', 'avp-wallet-what');
+      what.appendChild(el('b', '', p.period));
+      what.appendChild(el('span', '', (p.fines > 0 ? naira(p.gross) + ' earned, ' + naira(p.fines) + ' taken off for fines' : p.days === 1 ? 'For 1 day' : 'For ' + p.days + ' days') + (p.how ? ' · ' + p.how.toLowerCase() : '')));
+      var amts = el('div', 'avp-wallet-amts');
+      amts.appendChild(el('span', 'avp-wallet-amt av-num is-green', naira(p.amount)));
+      li.appendChild(what); li.appendChild(amts);
+      pays.appendChild(li);
+    });
+    pays.hidden = $('walletNggPaysH').hidden = !(w.payouts || []).length;
+    $('walletNggDaysH').hidden = !(w.days || []).length;
     list.textContent = '';
     (w.days || []).slice(0, 30).forEach(function (d) {
       var li = el('li', 'avp-wallet-row' + (d.earned ? '' : ' is-pending'));
@@ -44,6 +63,35 @@
     list.hidden = !(w.days || []).length;
     if (!(w.days || []).length) say(msg.textContent + ' No days yet: a day is counted once it is over.');
   }
+
+  function drawBank(b) {
+    bank.hidden = false;
+    $('walletNggBankNow').textContent = b.set ? b.bankName + ' ••••' + b.last4 + ' · ' + b.accountName : 'No bank details yet. Add them so NGG can pay you by transfer.';
+    opener.textContent = b.set ? 'Change bank details' : 'Add bank details';
+  }
+  function openForm(on) {
+    form.hidden = !on; opener.hidden = on; opener.setAttribute('aria-expanded', on ? 'true' : 'false'); bad.hidden = true;
+    if (on) { done.textContent = ''; form.elements.bankName.focus(); } else { form.reset(); opener.focus(); }
+  }
+  opener.addEventListener('click', function () { openForm(true); });
+  $('walletNggBankCancel').addEventListener('click', function () { openForm(false); });
+  form.addEventListener('keydown', function (e) { if (e.key === 'Escape') openForm(false); });
+  form.addEventListener('submit', function (e) {
+    e.preventDefault(); bad.hidden = true;
+    var f = form.elements, num = f.accountNumber.value.replace(/[\s-]/g, '');
+    if (!/^\d{10}$/.test(num)) { bad.textContent = 'An account number is 10 digits.'; bad.hidden = false; f.accountNumber.focus(); return; }
+    var btn = form.querySelector('button[type="submit"]'); btn.disabled = true;
+    fetch('/portal/ngg-pay.php', { method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-Token': box.getAttribute('data-csrf') || '' },
+      body: JSON.stringify({ action: 'bank', bankName: f.bankName.value, accountNumber: num, accountName: f.accountName.value }) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        btn.disabled = false;
+        if (d && d.ok) { if (d.bank) drawBank(d.bank); openForm(false); done.textContent = 'Saved. NGG has emailed you to confirm the change.'; return; }
+        bad.textContent = (d && d.error) || 'That couldn’t be saved. Try again.'; bad.hidden = false;
+      })
+      .catch(function () { btn.disabled = false; bad.textContent = 'That couldn’t be saved. Check your connection.'; bad.hidden = false; });
+  });
 
   function load() {
     if (busy) return;

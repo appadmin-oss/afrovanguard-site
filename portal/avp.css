@@ -653,3 +653,8 @@ a.avp-kpi--link:focus-visible { outline: 2px solid var(--avp-gold); outline-offs
 .avp-wallet-ngg { margin-top: 16px; }
 .avp-wallet-ngg .avp-wallet-intro.is-bad { color: var(--avp-red-tx); }
 .avp-wallet-ngg .avp-kpis { margin-bottom: 12px; }
+.avp-wallet-h3 { margin: 16px 0 8px; font-size: 15px; color: var(--avp-ink); }
+.avp-wallet-bank { margin: 0 0 8px; }
+.avp-wallet-bank .avp-form { margin: 0 0 12px; }
+.avp-wallet-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.avp-wallet-bad { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--avp-red-bg); color: var(--avp-red-tx); font-size: 14px; }

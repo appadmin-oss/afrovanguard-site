@@ -2,7 +2,8 @@
 /**
  * portal/ngg-pay.php — the member's own NGG volunteer pay, for their Wallet.
  *
- *   GET → { ok, wallet: {owed, earned, paid, daysEarned, rate, frequency, on, active, days[], payouts[]} | null }
+ *   GET → { ok, wallet: {owed, earned, paid, daysEarned, rate, frequency, on, active, days[], payouts[], bank, finesTaken} | null }
+ *   POST {action: 'bank', bankName, accountNumber, accountName} → { ok, bank } | { ok: false, error }
  *
  * Their own only: the member comes from the session, and NGG finds the
  * volunteer by their email (lib/NggPay.php). Nothing is stored here.
@@ -16,6 +17,16 @@ header('X-Content-Type-Options: nosniff');
 
 $u = LmsAuth::user();
 if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    /* Where NGG pays them. Their own only, CSRF-checked and rate-limited;
+       NGG checks the details and emails the volunteer about every change. */
+    av_require_write((int) $u['id'], 'ngg_bank', 5, 3600);
+    $in = json_decode((string) file_get_contents('php://input'), true);
+    if (!is_array($in) || (string) ($in['action'] ?? '') !== 'bank') json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
+    try { $b = NggPay::bankSet($u, $in); }
+    catch (Throwable $e) { error_log('[ngg-pay] bank: ' . $e->getMessage()); $b = ['ok' => false, 'error' => 'NGG did not answer just now. Try again in a minute.']; }
+    json_out($b, 200);
+}
 try {
     $r = NggPay::forUser($u);
 } catch (Throwable $e) {
