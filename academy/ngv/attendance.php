@@ -124,7 +124,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
   <div class="gatebox">
     <h1>Admin sign-in required</h1>
     <p>This page shows NextGen Vanguard attendance at the CACENTRE gate. Sign in to the Academy Studio, then come back.</p>
-    <p><a href="/academy/studio/">Go to the Studio →</a></p>
+    <p><a href="/academy/studio/">Sign in at the Academy Studio →</a></p>
   </div>
 <?php else: $c = $reg['counts']; ?>
 <header class="top">
@@ -143,7 +143,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
   <form class="row" method="get" aria-label="Choose a day">
     <a class="btn" href="?day=<?= $e($prev) ?>" aria-label="Previous day">‹</a>
     <label>Day <input type="date" name="day" value="<?= $e($day) ?>"></label>
-    <button class="btn" type="submit">Show</button>
+    <button class="btn" type="submit">Show this day</button>
     <a class="btn" href="?day=<?= $e($next) ?>" aria-label="Next day">›</a>
     <?php if ($day !== $today): ?><a class="btn" href="?">Today</a><?php endif; ?>
     <span class="sub"><?= $e(date('l j F Y', strtotime($day . 'T12:00:00'))) ?><?= $reg['programme_day'] ? '' : ' · not a programme day' ?></span>
@@ -154,7 +154,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
     <div class="stat"><div class="k">Late</div><div class="v"><?= (int) $c['late'] ?></div></div>
     <div class="stat"><div class="k">Absent</div><div class="v"><?= (int) $c['absent'] ?></div></div>
     <div class="stat"><div class="k">Excused</div><div class="v"><?= (int) $c['excused'] ?></div></div>
-    <div class="stat"><div class="k">Not in<?= $day === $today ? ' yet' : '' ?></div><div class="v"><?= count($reg['not_in']) ?></div></div>
+    <div class="stat"><div class="k">Not in<?= $day === $today ? ' yet' : '' ?></div><div class="v"><?= count($reg['not_in']) ?></div><?php if ($reg['not_in']): ?><a href="#h-not">See who</a><?php endif; ?></div>
   </section>
 
   <?php if ($asks): ?>
@@ -165,7 +165,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
       <tbody>
       <?php foreach ($asks as $a): ?>
         <tr><td><?= $e((string) ($a['name'] ?? ('#' . $a['member_id']))) ?></td><td class="num"><?= $e((string) $a['from']) ?><?= (string) $a['to'] !== (string) $a['from'] ? ' – ' . $e((string) $a['to']) : '' ?></td><td class="num"><?= (int) $a['days'] ?></td><td><?= $e((string) $a['reason']) ?></td>
-            <td><button class="btn primary" data-decide="<?= (int) $a['id'] ?>" data-approve="1">Excuse</button> <button class="btn" data-decide="<?= (int) $a['id'] ?>" data-approve="0">Decline</button></td></tr>
+            <td><button class="btn primary" data-decide="<?= (int) $a['id'] ?>" data-approve="1">Excuse the days asked</button> <button class="btn" data-decide="<?= (int) $a['id'] ?>" data-approve="0">Decline request</button></td></tr>
       <?php endforeach; ?>
       </tbody></table></div>
   </section>
@@ -183,7 +183,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
             <td><span class="pill p-<?= $e($s) ?>"><?= $e($label[$s] ?? $s) ?><?= $s === 'late' ? ' · ' . (int) $r['late_minutes'] . ' min' : '' ?></span><?= (int) $r['fine_id'] > 0 ? ' <span class="sub">fined</span>' : '' ?><?= GateAttendance::expected((int) $r['member_id']) && GateAttendance::onProbation((int) $r['member_id'], $day) ? ' <span class="sub">probation</span>' : '' ?></td>
             <td class="num"><?= $e($hm((string) $r['in_at'])) ?></td><td class="num"><?= $e($hm((string) $r['out_at'])) ?></td>
             <td class="sub"><?= $e(trim((string) $r['centre'] . ((string) $r['method'] !== '' ? ' · ' . $r['method'] : ''), ' ·')) ?></td>
-            <td><?php if ($s === 'absent'): ?><button class="btn" data-excuse="<?= (int) $r['member_id'] ?>">Excuse</button><?php endif; ?></td></tr>
+            <td><?php if ($s === 'absent'): ?><button class="btn" data-excuse="<?= (int) $r['member_id'] ?>">Excuse this absence</button><?php endif; ?></td></tr>
       <?php endforeach; ?>
       </tbody></table>
     <?php endif; ?>
@@ -221,7 +221,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
         <label>Until (optional) <input id="p_until" type="date"></label>
         <label style="flex:1;min-width:14rem">Why <input id="p_reason" autocomplete="off"></label>
         <button class="btn primary" id="p_go" type="button">Put on probation</button>
-        <button class="btn" id="p_lift" type="button">Lift</button>
+        <button class="btn" id="p_lift" type="button">Lift probation</button>
       </div>
       <p class="sub" id="p_out" role="status"></p>
     </div>

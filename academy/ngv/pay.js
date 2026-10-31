@@ -9,6 +9,15 @@
 (function () {
   'use strict';
   var box = document.getElementById('noff'); if (!box) return;
+  /* A link to #noff ("Paid by transfer? Send the receipt") lands on a closed
+     <details>; open it, so the link arrives at the form rather than at a
+     summary line somebody has to find and press again. */
+  function openBox() { box.open = true; var f = box.querySelector('input[name="amount"]'); if (f) { try { f.focus({ preventScroll: true }); } catch (e) { f.focus(); } } }
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('[data-open="noff"]') : null;
+    if (a) { openBox(); }
+  });
+  if (location.hash === '#noff') openBox();
   var form = box.querySelector('form'), msg = box.querySelector('.noff-msg');
   function say(t) { msg.hidden = false; msg.textContent = t; }
   form.addEventListener('submit', function (e) {

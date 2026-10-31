@@ -97,18 +97,18 @@ a{color:var(--red)}
   <div class="gate">
     <h1>Admin sign-in required</h1>
     <p>This editor manages the public NextGen Vanguard page. Sign in to the Academy Studio, then come back here.</p>
-    <p style="margin-top:20px"><a class="btn btn-primary" href="/academy/studio/" style="color:#fff">Go to the Studio →</a></p>
-    <p style="margin-top:14px"><a href="/academy/ngv/">View the public page</a></p>
+    <p style="margin-top:20px"><a class="btn btn-primary" href="/academy/studio/" style="color:#fff">Sign in at the Academy Studio →</a></p>
+    <p style="margin-top:14px"><a href="/academy/ngv/">Open the public NGV page</a></p>
   </div>
 <?php else: ?>
   <div class="top">
     <span class="brand"><b>NextGen Vanguard</b> · editor</span>
     <span class="sp"></span>
     <span class="status" id="status"></span>
-    <a class="btn btn-ghost btn-sm" href="/academy/ngv/" target="_blank" rel="noopener">View ↗</a>
-    <a class="btn btn-ghost btn-sm" href="/academy/ngv/members.php">Vanguards</a>
+    <a class="btn btn-ghost btn-sm" href="/academy/ngv/" target="_blank" rel="noopener">Open public page ↗</a>
+    <a class="btn btn-ghost btn-sm" href="/academy/ngv/members.php">Staff console</a>
     <button class="btn btn-ghost btn-sm" id="restoreBtn" type="button"<?= $hasPrev ? '' : ' style="display:none"' ?>>Undo last save</button>
-    <button class="btn btn-ghost btn-sm" id="resetBtn" type="button">Reset</button>
+    <button class="btn btn-ghost btn-sm" id="resetBtn" type="button">Reset page to defaults</button>
     <button class="btn btn-primary" id="saveBtn" type="button">Save changes</button>
   </div>
   <div class="shell">

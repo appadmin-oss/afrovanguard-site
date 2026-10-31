@@ -56,7 +56,7 @@ function ngv_notify_application(int $id, array $d): void
         }
         $html = '<p>New NextGen Vanguard application (#' . (int) $id . ').</p>'
               . '<table style="border-collapse:collapse">' . $rows . '</table>'
-              . ($site ? '<p style="margin-top:14px"><a href="' . $esc($site . '/academy/ngv/members.php') . '">Review in the Vanguards console →</a></p>' : '');
+              . ($site ? '<p style="margin-top:14px"><a href="' . $esc($site . '/academy/ngv/members.php#applications') . '">Invite or reject this applicant in the Vanguards console →</a></p>' : '');
         try { Mailer::send($admin, 'New NGV application: ' . $name, $html); } catch (Throwable $e) {}
     }
 }

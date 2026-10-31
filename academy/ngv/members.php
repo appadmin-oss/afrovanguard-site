@@ -620,8 +620,8 @@ details.sect>summary{margin-bottom:8px}
   <div class="gate">
     <h1>Admin sign-in required</h1>
     <p>This console manages NextGen Vanguard participants, fees and certifications. Sign in to the Academy Studio, then come back.</p>
-    <p class="btns"><a class="btn primary" href="/academy/studio/">Go to the Studio →</a></p>
-    <p><a href="/academy/ngv/">View the public page</a></p>
+    <p class="btns"><a class="btn primary" href="/academy/studio/">Sign in at the Academy Studio →</a></p>
+    <p><a href="/academy/ngv/">Open the public NGV page</a></p>
   </div>
 <?php else: ?>
 <header class="top">
@@ -646,8 +646,8 @@ details.sect>summary{margin-bottom:8px}
       <?php if ((int)($money['waived'] ?? 0) > 0): ?><div class="sub">₦<?= number_format((int)$money['waived']) ?> waived</div><?php endif; ?></div>
     <div class="stat<?= $reqOpen > 0 ? ' stat--ask' : '' ?>"><div class="k">Outstanding</div><div class="v">₦<?= number_format((int)($money['outstanding'] ?? 0)) ?></div>
       <div class="sub">
-        <?php if ((int)($arrears['matched'] ?? 0) > 0): ?><?= (int)$arrears['matched'] ?> behind<?php endif; ?>
-        <?php if ($reqOpen > 0): ?><?= (int)($arrears['matched'] ?? 0) > 0 ? ' · ' : '' ?><b><?= $reqOpen ?> asked for help</b><?php endif; ?>
+        <?php if ((int)($arrears['matched'] ?? 0) > 0): ?><a href="#arrears">See the <?= (int)$arrears['matched'] ?> behind</a><?php endif; ?>
+        <?php if ($reqOpen > 0): ?><?= (int)($arrears['matched'] ?? 0) > 0 ? ' · ' : '' ?><b><a href="#requests">Answer <?= $reqOpen ?> who asked for help</a></b><?php endif; ?>
       </div></div>
   </section>
 
@@ -692,8 +692,8 @@ details.sect>summary{margin-bottom:8px}
             <blockquote><?= $e((string)$rq['message']) ?></blockquote>
             <input class="req-out" data-for="<?= (int)$rq['id'] ?>" placeholder="What you are telling them — they see this">
             <div>
-              <button class="btn sm primary" data-act="request" data-req="<?= (int)$rq['id'] ?>" data-status="resolved">Sorted</button>
-              <button class="btn sm" data-act="request" data-req="<?= (int)$rq['id'] ?>" data-status="declined">Answered, no change</button>
+              <button class="btn sm primary" data-act="request" data-req="<?= (int)$rq['id'] ?>" data-status="resolved">Mark sorted and tell them</button>
+              <button class="btn sm" data-act="request" data-req="<?= (int)$rq['id'] ?>" data-status="declined">Reply, no change to account</button>
               <a class="btn sm" href="?m=<?= (int)$rq['member_id'] ?>#waive">Open their account</a>
             </div>
           </div>
@@ -738,7 +738,7 @@ details.sect>summary{margin-bottom:8px}
         <?php else: ?>
         <div class="tbl">
         <table>
-          <thead><tr><th>Who</th><th>Outstanding</th><th>Made up of</th><th></th></tr></thead>
+          <thead><tr><th>Who</th><th>Outstanding</th><th>Made up of</th><th><span class="sr-only">Action</span></th></tr></thead>
           <tbody>
           <?php foreach ($arrears['rows'] as $r): ?>
             <tr>
@@ -750,7 +750,7 @@ details.sect>summary{margin-bottom:8px}
                   $bits = [];
                   foreach ($r['due'] as $k => $v) { if ((int)$v > 0) $bits[] = ($kindLabel[$k] ?? $k) . ' ₦' . number_format((int)$v); }
                   echo $e(implode(' · ', $bits)); ?></td>
-              <td><a class="btn sm" href="?m=<?= (int)$r['member_id'] ?>">Open</a></td>
+              <td><a class="btn sm" href="?m=<?= (int)$r['member_id'] ?>#pay">Record payment or waive</a></td>
             </tr>
           <?php endforeach; ?>
           </tbody>
@@ -763,7 +763,7 @@ details.sect>summary{margin-bottom:8px}
         <form method="get" class="enroll">
           <?php if ($mid > 0): ?><input type="hidden" name="m" value="<?= $mid ?>"><?php endif; ?>
           <input name="q" value="<?= $e((string)($_GET['q'] ?? '')) ?>" placeholder="Name or email…">
-          <button class="btn">Find</button>
+          <button class="btn">Find account</button>
         </form>
         <p class="sub">The arrears list only holds people who owe. This is how you answer “has Ada paid?” for somebody who has.</p>
         <?php if (!empty($look['rows'])): ?>
@@ -774,7 +774,8 @@ details.sect>summary{margin-bottom:8px}
               <tr><td><a href="?m=<?= (int)$r['member_id'] ?>"><?= $e((string)$r['name']) ?></a><br><span class="sub"><?= $e((string)$r['email']) ?></span></td>
                   <td class="sub"><?= $e((string)$r['status']) ?></td>
                   <td><?= (int)$r['payable'] > 0 ? '<b>₦' . number_format((int)$r['payable']) . '</b> due' : '<span class="sub">square</span>' ?>
-                      <br><span class="sub">₦<?= number_format((int)$r['charged']) ?> charged</span></td></tr>
+                      <br><span class="sub">₦<?= number_format((int)$r['charged']) ?> charged</span></td>
+                  <td><a class="btn sm" href="?m=<?= (int)$r['member_id'] ?>#pay"><?= (int)$r['payable'] > 0 ? 'Record payment' : 'Open account' ?></a></td></tr>
             <?php endforeach; ?>
             </tbody>
           </table>
@@ -805,7 +806,7 @@ details.sect>summary{margin-bottom:8px}
     </header>
     <div class="body">
       <?php if (!$TC['all']): ?>
-        <p class="sub">Nobody has a training fee agreed yet. Agree one from a participant's record, under <b>Training fee</b>.</p>
+        <p class="sub">Nobody has a training fee agreed yet. Agree one from a participant's record, under <b>Training fee</b> — <a href="#roster">pick somebody from the roster</a>.</p>
       <?php else: ?>
       <div class="amts" role="status">
         <div class="amt-box"><div class="k">Agreed</div><div class="v">₦<?= number_format((int)$TT['agreed']) ?></div></div>
@@ -829,7 +830,7 @@ details.sect>summary{margin-bottom:8px}
             <option value="<?= $e($k) ?>" <?= $train['sort'] === $k ? 'selected' : '' ?>><?= $e($lbl) ?></option>
           <?php endforeach; ?>
         </select>
-        <button class="btn">Show</button>
+        <button class="btn">Show training fees</button>
       </form>
       <?php if (!$train['rows']): ?>
         <p class="sub">Nobody matches that. <a href="<?= $e($trainQs(['tf' => 'all', 'tq' => ''])) ?>">Show everybody</a>.</p>
@@ -837,7 +838,7 @@ details.sect>summary{margin-bottom:8px}
       <div class="tbl">
       <table>
         <caption class="sr-only">Training fee by participant</caption>
-        <thead><tr><th scope="col">Who</th><th scope="col">Schedule</th><th scope="col">Received</th><th scope="col">Unpaid</th><th scope="col">Next</th><th scope="col"><span class="sr-only">Open</span></th></tr></thead>
+        <thead><tr><th scope="col">Who</th><th scope="col">Schedule</th><th scope="col">Received</th><th scope="col">Unpaid</th><th scope="col">Next</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
         <tbody>
         <?php foreach ($train['rows'] as $r): ?>
           <tr>
@@ -853,7 +854,7 @@ details.sect>summary{margin-bottom:8px}
                 <?php else: ?><span class="sub">up to date</span><?php endif; ?></td>
             <td><?php if ($r['next']): ?>₦<?= number_format((int)$r['next']['amount']) ?><br><span class="sub"><?= $e(date('M Y', (int) strtotime($r['next']['period'] . '-01'))) ?><?= $r['next']['overdue'] ? ' · not yet posted' : '' ?></span>
                 <?php else: ?><span class="sub">—</span><?php endif; ?></td>
-            <td><a class="btn sm" href="?m=<?= (int)$r['member_id'] ?>#record">Open</a></td>
+            <td><a class="btn sm" href="?m=<?= (int)$r['member_id'] ?>#<?= (int)$r['unpaid'] > 0 ? 'pay' : 'tfee' ?>"><?= (int)$r['unpaid'] > 0 ? 'Record payment' : 'Open training fee' ?></a></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
@@ -883,11 +884,11 @@ details.sect>summary{margin-bottom:8px}
         Record damage on somebody's own page below; every move emails them.
       </p>
       <?php if (!$dmgAll): ?>
-        <p class="sub">Nothing recorded.</p>
+        <p class="sub">Nothing recorded. To record damage, <a href="#roster">open the person's record</a> and use <b>Record damage</b>.</p>
       <?php else: ?>
       <div class="tbl">
       <table>
-        <thead><tr><th>What &amp; when</th><th>Who</th><th>Status</th><th>Cost / charged</th><th></th></tr></thead>
+        <thead><tr><th>What &amp; when</th><th>Who</th><th>Status</th><th>Cost / charged</th><th><span class="sr-only">Action</span></th></tr></thead>
         <tbody>
         <?php foreach ($dmgAll as $d): ?>
           <tr>
@@ -901,7 +902,7 @@ details.sect>summary{margin-bottom:8px}
                 <?php if (!$d['notify']): ?><br><span class="sub">emails off</span><?php endif; ?></td>
             <td class="sub"><?= (int)$d['assessed'] > 0 ? '₦' . number_format((int)$d['assessed']) : '—' ?>
                 <?= (int)$d['charged'] > 0 ? '<br><b>₦' . number_format((int)$d['charged']) . '</b> charged' : '' ?></td>
-            <td><a class="btn sm" href="?m=<?= (int)$d['member_id'] ?>#damage">Open</a></td>
+            <td><a class="btn sm" href="?m=<?= (int)$d['member_id'] ?>#damage"><?= $d['open'] ? 'Assess or charge' : 'Open damage record' ?></a></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
@@ -970,9 +971,9 @@ details.sect>summary{margin-bottom:8px}
             <div class="bkq-act">
               <input class="bkq-note" maxlength="1000"
                      placeholder="Why — required to send back or reject">
-              <button class="btn ok bkq-btn" data-verdict="verified">Verify</button>
-              <button class="btn bkq-btn" data-verdict="resubmit">Send back</button>
-              <button class="btn danger bkq-btn" data-verdict="rejected">Reject</button>
+              <button class="btn ok bkq-btn" data-verdict="verified">Verify book</button>
+              <button class="btn bkq-btn" data-verdict="resubmit">Send back to rewrite</button>
+              <button class="btn danger bkq-btn" data-verdict="rejected">Reject claim</button>
             </div>
           </article>
         <?php endforeach; ?>
@@ -1036,7 +1037,7 @@ details.sect>summary{margin-bottom:8px}
       <?php else: ?>
       <div class="tbl">
       <table>
-        <thead><tr><th>Applicant</th><th>Interest</th><th>Status</th><th>When</th><th>Action</th></tr></thead>
+        <thead><tr><th>Applicant</th><th>Interest</th><th>Status</th><th>When</th><th>Next step</th></tr></thead>
         <tbody>
         <?php foreach ($apps as $a): $st = (string)$a['status']; ?>
           <tr>
@@ -1046,7 +1047,7 @@ details.sect>summary{margin-bottom:8px}
                 <br><span class="sub">Under 18 · <?= $e((string)($a['guardian_name'] ?: 'no guardian named')) ?><?= !empty($a['guardian_phone']) ? ' · '.$e((string)$a['guardian_phone']) : '' ?>:
                 <?php if ($gOk): ?><b>consent confirmed</b> (<?= $e(str_replace('_', ' ', (string)$a['guardian_method'])) ?>, <?= $e(substr((string)$a['guardian_confirmed_at'],0,10)) ?>)
                 <?php elseif ((string)$a['guardian_asked_at'] !== ''): ?><b>waiting for them to confirm</b> (emailed <?= $e(substr((string)$a['guardian_asked_at'],0,10)) ?>)
-                <?php else: ?><b>no consent yet</b><?php endif; ?></span>
+                <?php else: ?><b>no consent yet</b> — <?= filter_var((string)$a['guardian_email'], FILTER_VALIDATE_EMAIL) ? 'email them again, or ' : '' ?>invite them: the parent or guardian consents in person at the desk<?php endif; ?></span>
               <?php endif; ?></td>
             <td class="sub"><?= $e(trim(((string)($a['track'] ?: '')).' '.((string)($a['plan'] ? '· '.$a['plan'] : '')), ' ·')) ?: '—' ?><?= !empty($a['location']) ? '<br>'.$e((string)$a['location']) : '' ?></td>
             <td><span class="badge b-<?= $st==='enrolled'?'active':($st==='rejected'?'withdrawn':($st==='accepted'?'completed':'applicant')) ?>"><?= $e($st) ?></span></td>
@@ -1061,10 +1062,11 @@ details.sect>summary{margin-bottom:8px}
                 <?php if ($minorA && !$gOk && in_array($st, ['new', 'reviewing'], true)): ?>
                   <?php if (filter_var((string)$a['guardian_email'], FILTER_VALIDATE_EMAIL)): ?><button class="btn sm" data-act="app_guardian_resend" data-app="<?= (int)$a['id'] ?>">Email guardian again</button><?php endif; ?>
                 <?php endif; ?>
-                <?php if ($st === 'new'): ?><button class="btn sm" data-act="app_status" data-app="<?= (int)$a['id'] ?>" data-status="reviewing">Reviewing</button><?php endif; ?>
-                <?php if (!in_array($st, ['rejected', 'withdrawn'], true)): ?><button class="btn sm" data-act="app_status" data-app="<?= (int)$a['id'] ?>" data-status="rejected">Reject</button><?php endif; ?>
+                <?php if ($st === 'new'): ?><button class="btn sm" data-act="app_status" data-app="<?= (int)$a['id'] ?>" data-status="reviewing">Mark as reviewing</button><?php endif; ?>
+                <?php if ($st === 'rejected'): ?><button class="btn sm" data-act="app_status" data-app="<?= (int)$a['id'] ?>" data-status="reviewing" data-reopen="1">Reopen for review</button><?php endif; ?>
+                <?php if (!in_array($st, ['rejected', 'withdrawn'], true)): ?><button class="btn sm" data-act="app_status" data-app="<?= (int)$a['id'] ?>" data-status="rejected">Reject application</button><?php endif; ?>
               <?php else: ?>
-                <?php if ((int)$a['member_id'] > 0): ?><a class="btn sm" href="?m=<?= (int)$a['member_id'] ?>">Open</a><?php endif; ?>
+                <?php if ((int)$a['member_id'] > 0): ?><a class="btn sm" href="?m=<?= (int)$a['member_id'] ?>#record">Open their record</a><?php endif; ?>
               <?php endif; ?>
             </td>
           </tr>
@@ -1088,7 +1090,7 @@ details.sect>summary{margin-bottom:8px}
       <div class="body">
         <div class="enroll">
           <input id="enrollEmail" type="email" placeholder="Enrol by member email…">
-          <button class="btn primary" id="enrollBtn">Enrol</button>
+          <button class="btn primary" id="enrollBtn">Enrol member</button>
         </div>
         <!-- Filters in the query string, so a filtered view is a URL a
              coordinator can send to another one. -->
@@ -1109,7 +1111,7 @@ details.sect>summary{margin-bottom:8px}
             <?php endforeach; ?>
           </select>
           <?php endif; ?>
-          <button class="btn">Filter</button>
+          <button class="btn">Filter roster</button>
         </form>
         <div class="tbl">
         <table>
@@ -1135,7 +1137,7 @@ details.sect>summary{margin-bottom:8px}
 
     <!-- Detail -->
     <section class="card" id="record" aria-labelledby="h-record">
-      <header><h2 id="h-record">Manage<?= $sel ? ' · ' . $e((string)($sel['name'] ?: ('#'.$sel['member_id']))) : '' ?></h2></header>
+      <header><h2 id="h-record">Participant record<?= $sel ? ' · ' . $e((string)($sel['name'] ?: ('#'.$sel['member_id']))) : '' ?></h2></header>
       <div class="body">
       <?php if (!$sel): ?>
         <p class="sub">Select a vanguard on the left to record fees, add certifications, or change their status.</p>
@@ -1218,6 +1220,9 @@ details.sect>summary{margin-bottom:8px}
             <?= (int)$A['payable'] > 0 ? '₦' . number_format((int)$A['payable']) : 'All clear' ?>
             <span class="sub"><?= (int)$A['payable'] > 0 ? 'outstanding' : 'nothing outstanding' ?></span>
           </div>
+          <?php if ((int)$A['payable'] > 0): ?>
+            <p class="btns"><a class="btn sm primary" href="#pay">Record a payment</a> <a class="btn sm" href="#waive">Waive or write off</a></p>
+          <?php endif; ?>
           <?php if ((int)$A['paidAhead'] > 0): ?>
             <p class="sub">₦<?= number_format((int)$A['paidAhead']) ?> paid ahead on a line that is already settled — it is
                reported rather than netted off, so it cannot hide arrears somewhere else.</p>
@@ -1258,7 +1263,7 @@ details.sect>summary{margin-bottom:8px}
         <!-- The training fee, as a commitment with a shape. ₦240,000 posted as
              one charge is a wall: the same fact shouted every fortnight, and a
              reminder quoting a figure nobody could pay this month. -->
-        <div class="sect"><h3>Training fee</h3>
+        <div class="sect" id="tfee"><h3>Training fee</h3>
           <?php $T = is_array($A['training'] ?? null) && !empty($A['training']) ? $A['training'] : null; ?>
           <?php if ($T): ?>
             <p class="sub"><b>₦<?= number_format((int)$T['total']) ?></b>
@@ -1300,7 +1305,7 @@ details.sect>summary{margin-bottom:8px}
           <?php endif; ?>
         </div>
 
-        <div class="sect"><h3>Record a payment</h3>
+        <div class="sect" id="pay"><h3>Record a payment</h3>
           <div class="grid2">
             <select id="p_kind">
               <?php foreach (NgvLedger::CREDIT_LINES as $k): ?><option value="<?= $e($k) ?>" <?= $k==='commitment'?'selected':'' ?>><?= $e($kindLabel[$k] ?? $k) ?></option><?php endforeach; ?>
@@ -1334,7 +1339,7 @@ details.sect>summary{margin-bottom:8px}
             <?php foreach (NgvLedger::FINE_REASONS as $k => $lbl): ?><option value="<?= $e($k) ?>"><?= $e($lbl) ?></option><?php endforeach; ?>
           </select>
           <input id="x_note" placeholder="What happened (required for “Other” and for adjustments)">
-          <div class="btns"><button class="btn sm" data-act="charge" data-m="<?= $m ?>">Post it</button></div>
+          <div class="btns"><button class="btn sm" data-act="charge" data-m="<?= $m ?>">Post fine or adjustment</button></div>
           <p class="sub">“Late four times in August” is answerable later. “Misconduct” is not.</p>
         </div>
 
@@ -1384,10 +1389,10 @@ details.sect>summary{margin-bottom:8px}
             <span class="sp"></span>
             <span class="sub"><?= $e(substr((string)$en['created_at'], 0, 10)) ?></span>
             <?php if (!$en['void'] && $en['side'] === 'credit' && $en['creditKind'] === 'payment'): ?>
-              <button class="btn sm" data-act="receipt" data-pid="<?= (int)$en['id'] ?>">Receipt</button>
+              <button class="btn sm" data-act="receipt" data-pid="<?= (int)$en['id'] ?>">Email receipt</button>
             <?php endif; ?>
             <?php if (!$en['void']): ?>
-              <button class="btn sm" data-act="void" data-side="<?= $e($en['side']) ?>" data-eid="<?= (int)$en['id'] ?>">Void</button>
+              <button class="btn sm" data-act="void" data-side="<?= $e($en['side']) ?>" data-eid="<?= (int)$en['id'] ?>">Void entry</button>
             <?php endif; ?>
           </div>
           <?php endforeach; ?>
@@ -1434,7 +1439,7 @@ details.sect>summary{margin-bottom:8px}
                 <?php if (count($d['photos']) < NgvDamage::PHOTOS_MAX): ?>
                   <label class="sub addshot">Add a photo
                     <input type="file" class="d-photo" data-for="<?= (int)$d['id'] ?>" accept="image/*" multiple></label>
-                  <button class="btn sm" data-act="damage_photos" data-dmg="<?= (int)$d['id'] ?>">Attach</button>
+                  <button class="btn sm" data-act="damage_photos" data-dmg="<?= (int)$d['id'] ?>">Attach photos</button>
                 <?php endif; ?>
                 <?php if ($d['outcome'] !== ''): ?><p class="sub"><b>Told them:</b> <?= $e((string)$d['outcome']) ?></p><?php endif; ?>
                 <?php if ($d['open']): ?>
@@ -1447,7 +1452,7 @@ details.sect>summary{margin-bottom:8px}
                   <input class="d-outcome" data-for="<?= (int)$d['id'] ?>"
                          placeholder="What you are telling them — they get this by email">
                   <div class="btns">
-                    <button class="btn sm" data-act="damage_advance" data-dmg="<?= (int)$d['id'] ?>" data-status="assessing">Being assessed</button>
+                    <button class="btn sm" data-act="damage_advance" data-dmg="<?= (int)$d['id'] ?>" data-status="assessing">Mark as being assessed</button>
                     <button class="btn sm" data-act="damage_advance" data-dmg="<?= (int)$d['id'] ?>" data-status="charged">Charge it</button>
                     <button class="btn sm" data-act="damage_advance" data-dmg="<?= (int)$d['id'] ?>" data-status="waived">Waive it</button>
                     <button class="btn sm" data-act="damage_advance" data-dmg="<?= (int)$d['id'] ?>" data-status="closed">Close, nothing owed</button>
@@ -1480,7 +1485,7 @@ details.sect>summary{margin-bottom:8px}
             </div>
             <textarea id="dm_desc" rows="2" placeholder="What happened (required)"></textarea>
             <input id="dm_est" type="number" min="0" step="500" placeholder="First guess at the cost, if you have one (₦)">
-            <div class="btns"><button class="btn sm" data-act="damage" data-m="<?= $m ?>">Record it</button></div>
+            <div class="btns"><button class="btn sm" data-act="damage" data-m="<?= $m ?>">Record damage</button></div>
             <p class="sub">This charges nothing. It emails them to say it has been recorded, that nothing is on their
                account, and that they will be told the cost before anything is.</p>
           </details>
@@ -1549,7 +1554,7 @@ details.sect>summary{margin-bottom:8px}
               <span class="sub"><?= $e((string)$cert['issued_by']) ?></span>
               <br><span class="sub">
                 <a href="/academy/ngv/certificate.php?id=<?= (int)$cert['id'] ?>&amp;c=<?= urlencode((string)$cert['code']) ?>"
-                   target="_blank" rel="noopener">verify link</a>
+                   target="_blank" rel="noopener">open verify link</a>
                 <?php if (!empty($cert['revoked'])): ?>
                   · revoked <?= $e(substr((string)$cert['revoked_at'], 0, 10)) ?>
                   <?= (string)$cert['revoke_reason'] !== '' ? '— ' . $e((string)$cert['revoke_reason']) : '' ?>
@@ -1559,7 +1564,7 @@ details.sect>summary{margin-bottom:8px}
             <span class="sp"></span>
             <span class="sub"><?= $e(substr((string)($cert['issued_on'] ?: $cert['created_at']),0,10)) ?></span>
             <?php if (empty($cert['revoked'])): ?>
-              <button class="btn sm" data-act="cert_revoke" data-cert="<?= (int)$cert['id'] ?>">Revoke</button>
+              <button class="btn sm" data-act="cert_revoke" data-cert="<?= (int)$cert['id'] ?>">Revoke certificate</button>
             <?php endif; ?>
           </div>
           <?php endforeach; ?>
@@ -1686,8 +1691,8 @@ details.sect>summary{margin-bottom:8px}
         </div>
         <div class="sect"><h3>Chase what is outstanding</h3>
           <p class="sub">Preview first: a message to sixty people cannot be recalled.</p>
-          <button class="btn" data-act="remind_preview">Preview</button>
-          <button class="btn" data-act="remind_run">Send them</button>
+          <button class="btn" data-act="remind_preview">Preview who would be reminded</button>
+          <button class="btn" data-act="remind_run">Send reminders</button>
           <div id="remindOut" class="sub out"></div>
         </div>
 
@@ -1716,9 +1721,9 @@ details.sect>summary{margin-bottom:8px}
              payment and a dozen commitments behind them; thirteen separate emails would read as something having gone
              wrong with their account, not as good record-keeping. Each digest says plainly that nothing has changed and
              nothing is being asked for.</p>
-          <button class="btn" data-act="backfill_preview">Preview</button>
+          <button class="btn" data-act="backfill_preview">Preview who would get receipts</button>
           <button class="btn" data-act="backfill_run">Send <?= (int)$bf['sendable'] > (int)NgvLedger::BACKFILL_BATCH
-              ? 'the first ' . (int)NgvLedger::BACKFILL_BATCH : 'them' ?></button>
+              ? 'the first ' . (int)NgvLedger::BACKFILL_BATCH . ' receipts' : 'receipts to ' . (int)$bf['sendable'] ?></button>
           <div id="bfOut" class="sub out"></div>
           <p class="sub">Safe to press again — the queue is “no receipt sent yet”, so a run that stops halfway picks up
              exactly where it left off.</p>
@@ -1759,8 +1764,8 @@ details.sect>summary{margin-bottom:8px}
         all.forEach(function(b){ b.disabled = true; });
         post({action:'book_review', claim_id: +card.getAttribute('data-claim'), verdict: verdict, note: why})
           .then(function(j){
-            if (j.ok) { toast(verdict === 'verified' ? 'Verified ✓' : 'Sent back'); card.remove(); }
-            else { toast(j.error || 'Failed', false); all.forEach(function(b){ b.disabled = false; }); }
+            if (j.ok) { toast(verdict === 'verified' ? 'Verified — it counts toward their 24 ✓' : verdict === 'rejected' ? 'Rejected — they have been told why' : 'Sent back — they have been told what to change'); card.remove(); }
+            else { toast(j.error || 'Nothing changed — the server gave no reason', false); all.forEach(function(b){ b.disabled = false; }); }
           });
       });
     });
@@ -1783,8 +1788,8 @@ details.sect>summary{margin-bottom:8px}
         all.forEach(function(b){ b.disabled = true; });
         post({action:'book_spot', spot_id: +card.getAttribute('data-spot'), outcome: outcome, note: why})
           .then(function(j){
-            if (j.ok) { toast(outcome === 'passed' ? 'Recorded ✓' : 'Sent back to them'); card.remove(); }
-            else { toast(j.error || 'Failed', false); all.forEach(function(b){ b.disabled = false; }); }
+            if (j.ok) { toast(outcome === 'passed' ? 'Recorded — they passed the check ✓' : 'Recorded — the book goes back to them to resubmit'); card.remove(); }
+            else { toast(j.error || 'Nothing changed — the server gave no reason', false); all.forEach(function(b){ b.disabled = false; }); }
           });
       });
     });
@@ -1793,7 +1798,7 @@ details.sect>summary{margin-bottom:8px}
   var eb = document.getElementById('enrollBtn');
   if(eb) eb.addEventListener('click', function(){
     var email = val('enrollEmail').trim(); if(!email){ toast('Enter an email', false); return; }
-    post({action:'enroll', email:email}).then(function(j){ if(j.ok){ toast('Enrolled ✓'); location.href='?m='+j.member_id; } else toast(j.error||'Failed', false); });
+    post({action:'enroll', email:email}).then(function(j){ if(j.ok){ toast('Enrolled ✓ — opening their record'); location.href='?m='+j.member_id+'#record'; } else toast(j.error||'Not enrolled — the server gave no reason', false); });
   });
 
   var chk = function(id){ var el=document.getElementById(id); return !!(el && el.checked); };
@@ -1858,6 +1863,21 @@ details.sect>summary{margin-bottom:8px}
       if(act==='damage_photos' || act==='payment_offline') return;   // handled above, as multipart
       // Actions that render their own result rather than reloading the page.
       var quiet = {remind_preview:1, remind_run:1, accrue:1, backfill_preview:1, backfill_run:1};
+      /* What actually happened, said in the toast rather than a generic "Saved":
+         the operator should not have to infer from a reload whether anybody
+         was emailed. Each line matches what the server action does. */
+      var done = {
+        admin:'Enrolment saved ✓', cert:'Certification added ✓', cert_revoke:'Certificate revoked — the link now says so',
+        charge:'Posted to their account ✓', waive:'Waived — kept on the record with your reason',
+        writeoff:'Written off — kept on the record with your reason', training:'Training fee agreed ✓',
+        training_stop:'Future instalments stopped — what was charged stays', journey_set:'Journey saved ✓',
+        void:'Entry voided — it stays on the account with your reason', fees_settings:'Fee settings saved ✓',
+        fees_reviewed:'Amounts marked as reviewed ✓', damage:'Damage recorded — they have been emailed; nothing charged',
+        damage_advance:'Updated — they are emailed unless emails are off for this record', damage_notify:'Email setting changed ✓',
+        request:'Answered — they can read your reply on their account', remind_off: btn.getAttribute('data-off')==='1' ? 'They will not be chased' : 'They will be chased again',
+        app_status: (btn.getAttribute('data-status')==='rejected' ? 'Application rejected — not emailed' : 'Marked as reviewing — invite them when ready'),
+        app_guardian_record:'Guardian consent recorded',
+      };
       if(act==='admin'){ body.status=val('f_status'); body.track=val('f_track'); body.cohort=val('f_cohort'); body.phase=val('f_phase'); body.plan=val('f_plan'); body.start_date=val('f_start'); body.end_date=val('f_end'); body.birthday=val('f_bday').trim(); }
       else if(act==='cert_revoke'){
         body.cert_id = parseInt(btn.getAttribute('data-cert')||'0',10);
@@ -1894,7 +1914,7 @@ details.sect>summary{margin-bottom:8px}
                              // server refuses it anyway — better to ask here than to fail there.
                              var why = prompt('Void this entry — why? (it stays on the account with this reason)');
                              if(why===null || !why.trim()){ return; } body.reason = why; }
-      else if(act==='app_status'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); body.status=btn.getAttribute('data-status')||''; if(body.status==='rejected' && !confirm('Reject this application?')) return; }
+      else if(act==='app_status'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); body.status=btn.getAttribute('data-status')||''; if(body.status==='reviewing' && btn.hasAttribute('data-reopen') && !confirm('Reopen this rejected application for review?\n\nIt goes back to “reviewing”, where it can be invited. They are not emailed.')) return; if(body.status==='rejected' && !confirm('Reject this application?\n\nIt leaves the invite queue. They are NOT emailed — if they should hear it from us, tell them yourself.')) return; }
       else if(act==='app_invite'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); if(!confirm('Invite them to register? They (and their guarantor) are emailed the MoU and what to bring.')) return; }
       else if(act==='app_guardian_resend'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); if(!confirm('Email their parent or guardian a new link? The old one stops working.')) return; }
       else if(act==='app_guardian_record'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10);
@@ -1950,7 +1970,7 @@ details.sect>summary{margin-bottom:8px}
       var release = function(){ btn.disabled = false; };
       post(body).then(function(j){
         release();
-        if(!j.ok){ toast(j.error||'Failed', false); return; }
+        if(!j.ok){ toast(j.error||'Nothing changed — the server gave no reason', false); return; }
         if(act==='accrue'){
           var a = j.accrued||{};
           out('accrueOut', ' Charged ' + (a.membership||0) + ' membership, ' + (a.commitment||0) + ' commitment and '
@@ -2003,6 +2023,8 @@ details.sect>summary{margin-bottom:8px}
               + (j.remaining ? ' ' + j.remaining + ' still to do — press again.' : ' Nothing left in the queue.'));
           toast('Sent ✓'); return;
         }
+        if(act==='app_invite'){ toast('Invited — reference ' + (j.ref||'') + ' and the MoU emailed to them (and their guarantor, if they gave an email)'); setTimeout(function(){location.reload();}, 1600); return; }
+        if(act==='app_guardian_resend'){ toast(j.sent ? 'A new consent link has gone to their parent or guardian ✓' : 'Link made, but the email did not go out — record consent at the desk instead', !!j.sent); setTimeout(function(){location.reload();}, 1600); return; }
         if(act==='statement'){ toast(j.delivered ? 'Statement sent ✓' : 'Recorded, but delivery failed', j.delivered); return; }
         if(act==='receipt'){ toast(j.delivered ? 'Receipt ' + j.no + ' sent ✓' : 'Receipt ' + j.no + ' issued, but delivery failed', j.delivered); return; }
         if(act==='payment' && j.receipt){ toast(j.receipt.delivered ? 'Recorded · receipt ' + j.receipt.no + ' sent ✓'
@@ -2011,7 +2033,7 @@ details.sect>summary{margin-bottom:8px}
         if(j.receiptCancelled){ toast('Voided — they have been emailed that the receipt is cancelled'); setTimeout(function(){location.reload();}, 1400); return; }
         if(j.clamped){ toast('Waived ' + money(j.waived) + ' — that is all that was outstanding'); }
         else if(j.overCap){ toast('Posted — this account is now over the ceiling'); }
-        else { toast('Saved ✓'); }
+        else { toast(done[act] || 'Saved ✓'); }
         if(!quiet[act]) setTimeout(function(){location.reload();}, j.clamped||j.overCap ? 1400 : 350);
       }).catch(function(){
         /* A dropped connection rejects the promise outright, so without this the

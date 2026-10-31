@@ -212,20 +212,20 @@ legend{font-weight:700;font-size:13.5px;padding:0 4px}
   <div class="gate">
     <h1>Admin sign-in required</h1>
     <p>The registration desk completes NextGen Vanguard registrations. Sign in to the Academy Studio, then come back.</p>
-    <p><a class="btn primary" href="/academy/studio/">Go to the Studio →</a></p>
+    <p><a class="btn primary" href="/academy/studio/">Sign in at the Academy Studio →</a></p>
   </div>
 <?php else: ?>
 <header class="top">
   <h1>NextGen Vanguard · registration desk</h1>
   <span class="sp"></span>
   <a href="/academy/ngv/desk.php">Desk home</a>
-  <a href="/academy/ngv/members.php#applications">Console</a>
+  <a href="/academy/ngv/members.php#applications">Applications in the staff console</a>
 </header>
 <main class="wrap">
   <form class="card search" role="search" method="get" action="/academy/ngv/desk.php">
     <label class="sr-only" for="q">Reference, name, email or phone</label>
     <input id="q" type="text" name="q" value="<?= $e($q) ?>" placeholder="Reference on their MoU (NGV-…), or a name, email or phone" autocomplete="off" autofocus>
-    <button class="btn primary" type="submit">Find</button>
+    <button class="btn primary" type="submit">Find applicant</button>
   </form>
 
   <?php if ($doneMsg !== ''): ?><div class="note ok" role="status"><?= $e($doneMsg) ?></div><?php endif; ?>
@@ -238,7 +238,7 @@ legend{font-weight:700;font-size:13.5px;padding:0 4px}
   <?php if ($q !== ''): ?>
     <section class="card" aria-labelledby="h-found">
       <h2 id="h-found">Results for “<?= $e($q) ?>”</h2>
-      <?php if (!$found): ?><p class="sub">Nobody invited or registered matches that. Check the reference on their MoU, or find them in the <a href="/academy/ngv/members.php#applications">console</a> — they may not have been invited yet.</p>
+      <?php if (!$found): ?><p class="sub">Nobody invited or registered matches that. Check the reference on their MoU, or <a href="/academy/ngv/members.php#applications">find and invite them in the console</a> — they may not have been invited yet.</p>
       <?php else: ?>
         <table><thead><tr><th scope="col">Applicant</th><th scope="col">Reference</th><th scope="col">Status</th></tr></thead><tbody>
         <?php foreach ($found as $f): ?><tr><td><a href="?id=<?= (int) $f['id'] ?>"><?= $e((string) $f['name']) ?></a><br><span class="sub"><?= $e((string) $f['email']) ?></span></td><td><?= $e((string) ($f['ref'] ?: '—')) ?></td><td><?= $e((string) $f['status']) ?></td></tr><?php endforeach; ?>
@@ -250,10 +250,10 @@ legend{font-weight:700;font-size:13.5px;padding:0 4px}
     <h2 id="h-today">Booked for today · <?= $e(NgvRegistration::longDate($today)) ?></h2>
     <?php if (!$todayList): ?><p class="sub">No bookings today. Walk-ins are found by the reference on their MoU.</p>
     <?php else: ?>
-      <table><thead><tr><th scope="col">Time</th><th scope="col">Applicant</th><th scope="col">Centre</th><th scope="col">Status</th></tr></thead><tbody>
+      <table><thead><tr><th scope="col">Time</th><th scope="col">Applicant</th><th scope="col">Centre</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead><tbody>
       <?php foreach ($todayList as $b): ?><tr><td><?= $e((string) $b['slot_time']) ?></td>
         <td><a href="?id=<?= (int) $b['id'] ?>"><?= $e((string) $b['name']) ?></a> <span class="sub"><?= $e((string) $b['ref']) ?></span><?= NgvRegistration::isNgg($b) ? ' <span class="chip">from NGG</span>' : '' ?></td>
-        <td><?= $e((string) $b['centre']) ?></td><td><?= $e((string) $b['status']) ?></td></tr><?php endforeach; ?>
+        <td><?= $e((string) $b['centre']) ?></td><td><?= $e((string) $b['status']) ?></td><td><a href="?id=<?= (int) $b['id'] ?>">Check them in</a></td></tr><?php endforeach; ?>
       </tbody></table>
     <?php endif; ?>
   </section>
@@ -261,9 +261,9 @@ legend{font-weight:700;font-size:13.5px;padding:0 4px}
     <h2 id="h-wait">Invited, not yet registered</h2>
     <?php if (!$waiting): ?><p class="sub">Nobody is waiting to register.</p>
     <?php else: ?>
-      <table><thead><tr><th scope="col">Applicant</th><th scope="col">Reference</th><th scope="col">Invited</th><th scope="col">Status</th></tr></thead><tbody>
+      <table><thead><tr><th scope="col">Applicant</th><th scope="col">Reference</th><th scope="col">Invited</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead><tbody>
       <?php foreach ($waiting as $w): ?><tr><td><a href="?id=<?= (int) $w['id'] ?>"><?= $e((string) $w['name']) ?></a><?= NgvRegistration::isNgg($w) ? ' <span class="chip">from NGG</span>' : '' ?></td>
-        <td><?= $e((string) ($w['ref'] ?: '—')) ?></td><td><?= $e(substr((string) $w['invited_at'], 0, 10)) ?></td><td><?= $e((string) $w['status']) ?></td></tr><?php endforeach; ?>
+        <td><?= $e((string) ($w['ref'] ?: '—')) ?></td><td><?= $e(substr((string) $w['invited_at'], 0, 10)) ?></td><td><?= $e((string) $w['status']) ?></td><td><a href="?id=<?= (int) $w['id'] ?>">Open at the desk</a></td></tr><?php endforeach; ?>
       </tbody></table>
     <?php endif; ?>
   </section>
@@ -286,7 +286,7 @@ legend{font-weight:700;font-size:13.5px;padding:0 4px}
       <p><span class="done">Registered<?= $app['registered_at'] ? ' on ' . $e(substr((string) $app['registered_at'], 0, 10)) : '' ?>.</span>
         <?php if ((int) $app['member_id'] > 0): ?><a class="btn" href="/academy/ngv/members.php?m=<?= (int) $app['member_id'] ?>">Open their account in the console</a><?php endif; ?></p>
     <?php elseif (!$state['servable']): ?>
-      <p class="sub">This application is <b><?= $e($st) ?></b>, so it cannot be registered here. Invite them from the <a href="/academy/ngv/members.php#applications">console</a> first.</p>
+      <p class="sub">This application is <b><?= $e($st) ?></b>, so it cannot be registered here.<?= in_array($st, ['new', 'reviewing', 'lapsed'], true) ? ' <a href="/academy/ngv/members.php#applications">Invite them to register from the console</a> first.' : ($st === 'rejected' ? ' It was rejected. A coordinator can <a href="/academy/ngv/members.php#applications">reopen it for review in the console</a>, then invite them.' : '') ?></p>
     <?php else: ?>
       <div class="row">
         <?php if ($st !== 'attended'): ?>
@@ -346,7 +346,7 @@ legend{font-weight:700;font-size:13.5px;padding:0 4px}
         <label class="f">Version on the paper<input type="text" name="mou_version" required maxlength="40" value="<?= $e((string) ($app['mou_version'] ?: $mouNow)) ?>"></label>
         <label class="f">Photo or scan (JPEG, PNG or PDF, up to 10MB)<input type="file" name="scan" accept="image/jpeg,image/png,application/pdf"></label>
       </div>
-      <button class="btn" type="submit">Save</button>
+      <button class="btn" type="submit">Save MoU version and scan</button>
     </form>
   </section>
 
@@ -372,7 +372,8 @@ legend{font-weight:700;font-size:13.5px;padding:0 4px}
         </fieldset>
       <?php endif; ?>
       <p class="sub">Completing makes their account (or links the one their email already has), enrols them, issues their NGV card<?= $state['minor'] ? ', records their parent or guardian’s consent as given in person' : '' ?>, and freezes their programme fee on the MoU they signed. It cannot be undone from here.</p>
-      <button class="btn primary" type="submit"<?= $state['missing'] ? ' disabled' : '' ?>>Complete registration</button>
+      <button class="btn primary" type="submit"<?= $state['missing'] ? ' disabled aria-describedby="h-done-missing"' : '' ?>>Complete registration</button>
+      <?php if ($state['missing']): ?><p class="sub" id="h-done-missing">Disabled until everything listed under “Still needed” above is done.</p><?php endif; ?>
     </form>
   </section>
   <?php endif; ?>

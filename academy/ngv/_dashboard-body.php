@@ -66,6 +66,11 @@ $ngvModal      = $ngvModal ?? ($ngvParts === null || in_array('reading', $ngvPar
             <div class="dash-lead-actions">
               <?php if ($payOn): ?>
                 <button type="button" class="pbtn pbtn-gold" data-pay="<?= (int) $owed ?>">Pay ₦<?= number_format($owed) ?> now</button>
+              <?php else: ?>
+                <?php /* No card payment here, but there is still a way to pay:
+                         a transfer, then the receipt. The lead must not show a
+                         balance with nowhere to go. pay.js opens the form. */ ?>
+                <a class="pbtn pbtn-gold" href="#noff" data-open="noff">Paid by transfer? Send the receipt</a>
               <?php endif; ?>
               <a class="pbtn pbtn-ghost" href="#account">See what it's made of</a>
             </div>
@@ -191,7 +196,7 @@ $ngvModal      = $ngvModal ?? ($ngvParts === null || in_array('reading', $ngvPar
                 </div>
               <?php elseif ($owed > 0): ?>
                 <div class="ngv-box">Card payment isn't switched on yet. Pay by transfer using the details below,
-                  then send the receipt here.</div>
+                  then <a href="#noff" data-open="noff">send the receipt here</a>.</div>
               <?php endif; ?>
               <?php if ($owed > 0): ?>
                 <?php /* Paid offline: credited once the receipt is checked (lib/OfflinePayments.php). */ ?>
@@ -302,7 +307,7 @@ $ngvModal      = $ngvModal ?? ($ngvParts === null || in_array('reading', $ngvPar
                     </div>
                     <span class="amt">₦<?= number_format((int)$rc['amount']) ?>
                       <a class="ngv-mini" href="/academy/ngv/receipt.php?id=<?= (int)$rc['id'] ?>&amp;c=<?= urlencode($rc['code']) ?>"
-                         target="_blank" rel="noopener">open</a></span>
+                         target="_blank" rel="noopener">Open receipt ↗</a></span>
                   </div>
                   <?php endforeach; ?>
                 </div>
@@ -387,7 +392,7 @@ $ngvModal      = $ngvModal ?? ($ngvParts === null || in_array('reading', $ngvPar
                 </select>
                 <textarea id="reqMsg" class="ngv-input" rows="3" maxlength="1200"
                   placeholder="A sentence or two is plenty."></textarea>
-                <button class="pbtn pbtn-gold" id="reqSend" type="button">Send it</button>
+                <button class="pbtn pbtn-gold" id="reqSend" type="button">Send to my track lead</button>
                 <span id="reqMsgOut" class="ngv-fine"></span>
               </details>
             <?php endif; ?>
@@ -484,6 +489,7 @@ $ngvModal      = $ngvModal ?? ($ngvParts === null || in_array('reading', $ngvPar
                   <span class="amt">
                     <?php if ($d['status'] === 'charged'): ?>
                       <span class="pchip pchip--red">₦<?= number_format((int)$d['charged']) ?></span>
+                      <a class="pcard-link" href="<?= $e($ngvAccountHref ?? '#account') ?>">Pay it from your account</a>
                     <?php elseif ($d['open']): ?>
                       <span class="pchip pchip--gold"><?= $e((string)$d['statusLabel']) ?></span>
                     <?php else: ?>
@@ -514,7 +520,7 @@ $ngvModal      = $ngvModal ?? ($ngvParts === null || in_array('reading', $ngvPar
               <textarea id="dmDesc" class="ngv-input" rows="3" maxlength="1200" placeholder="What happened?"></textarea>
               <label class="ngv-fine" style="display:block;margin-top:8px">A photo, if you have one (optional)
                 <input id="dmPhoto" class="ngv-input" type="file" accept="image/*" multiple style="margin-top:4px"></label>
-              <button class="pbtn pbtn-gold" id="dmSend" type="button">Report it</button>
+              <button class="pbtn pbtn-gold" id="dmSend" type="button">Report damage</button>
               <span id="dmOut" class="ngv-fine"></span>
             </details>
           </div>

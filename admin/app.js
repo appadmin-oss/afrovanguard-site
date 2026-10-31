@@ -3478,7 +3478,7 @@
       + seg('fined', 'Fined', (f.count || 0) + ' fine' + (f.count === 1 ? '' : 's') + ' in all')
       + seg('fines_owed', 'Owe a fine', naira(f.owing_ngn) + ' outstanding')
       + seg('fines_cleared', 'Fined, nothing owing', 'paid or waived')
-      + '</div><p class="mem-tiles-note">Fines imposed to date: <b>' + naira(f.imposed_ngn) + '</b>, of which <b>' + naira(f.owing_ngn) + '</b> is still owed. Voided fines are not counted. Fines are issued and settled on the NGV fines desk.</p>'
+      + '</div><p class="mem-tiles-note">Fines imposed to date: <b>' + naira(f.imposed_ngn) + '</b>, of which <b>' + naira(f.owing_ngn) + '</b> is still owed. Voided fines are not counted. Fines are issued and settled on the <a href="/academy/ngv/fines.php">NGV fines desk</a>.</p>'
       + '<h2 class="mem-tiles-h">Dues</h2><div class="ov-grid mem-tiles">'
       + dues('member', 'Paying dues', 'any account — a learner can pay') + dues('due_soon', 'Due within 30 days')
       + dues('lapsed', 'Lapsed') + dues('lifetime', 'Lifetime') + dues('cancelled', 'Ended by the office')

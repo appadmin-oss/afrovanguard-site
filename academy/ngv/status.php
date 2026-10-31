@@ -127,7 +127,13 @@ input,select{font:inherit;font-size:1rem;padding:11px 12px;border:1px solid #cfd
       <button class="btn" type="submit">Open my application</button>
     </form>
   </div>
-<?php else: ?>
+<?php else:
+  /* Where a status asks them to get in touch, it names how — "contact us" with
+     no address is a dead end for somebody whose invitation has just closed. */
+  $ctEmail = trim((string) ($c['contact']['email'] ?? ''));
+  $ctPhone = trim((string) ($c['contact']['phone'] ?? ''));
+  $reach = $ctEmail !== '' ? '<a href="mailto:' . $e($ctEmail) . '?subject=' . rawurlencode('NGV application ' . (string) $app['ref']) . '">Email ' . $e($ctEmail) . '</a>'
+         : ($ctPhone !== '' ? '<a href="tel:' . $e(preg_replace('/[^0-9+]/', '', $ctPhone)) . '">Call ' . $e($ctPhone) . '</a>' : ''); ?>
   <div class="card">
     <h2>Hello, <?= $e($first) ?></h2>
     <ol class="steps" aria-label="Your progress">
@@ -138,12 +144,12 @@ input,select{font:inherit;font-size:1rem;padding:11px 12px;border:1px solid #cfd
     <p style="margin-top:14px">
     <?php switch ($st):
       case 'new': case 'reviewing': ?>We are reviewing your application, and will email <?= $e((string) $app['email']) ?> when it is decided.<?php break;
-      case 'invited': case 'accepted': ?><b>You are invited to register.</b> Print the MoU, have it signed, and come to a CACENTRE with your guarantor. Booking a time is advised.<?php break;
+      case 'invited': case 'accepted': ?><b>You are invited to register.</b> Print the MoU, have it signed, and come to a CACENTRE with your guarantor. <?= $st === 'invited' ? '<a href="#book">Book a time below</a> — advised, though you can walk in.' : 'Booking a time is advised.' ?><?php break;
       case 'booked': ?><b>Your visit is booked.</b> Bring everything on the list below, and your guarantor.<?php break;
       case 'attended': ?><b>You came in, and some things are still needed</b> — see the list below. Bring them to the CACENTRE to finish.<?php break;
       case 'enrolled': ?><b>You are registered.</b> Sign in at <a href="/login">afrovanguard.org.ng/login</a> with <?= $e((string) $app['email']) ?> — we email you a code; there is no password to set first.<?php break;
-      case 'rejected': ?>We are not able to offer you a place this time. Thank you for applying.<?php break;
-      case 'lapsed': ?>Your invitation has closed because it was not taken up in time. If you still want to join, contact us and we can invite you again.<?php break;
+      case 'rejected': ?>We are not able to offer you a place this time. Thank you for applying.<?= $reach !== '' ? ' Questions about the decision? ' . $reach . ', quoting ' . $e((string) $app['ref']) . '.' : '' ?><?php break;
+      case 'lapsed': ?>Your invitation has closed because it was not taken up in time. If you still want to join, <?= $reach !== '' ? $reach . ' with your reference ' . $e((string) $app['ref']) . ' and we can invite you again' : 'contact the programme team with your reference ' . $e((string) $app['ref']) . ' and we can invite you again' ?>.<?php break;
       default: ?>Your application is <?= $e($st) ?>.<?php endswitch; ?>
     </p>
   </div>
@@ -165,7 +171,7 @@ input,select{font:inherit;font-size:1rem;padding:11px 12px;border:1px solid #cfd
   <?php endif; ?>
 
   <?php if (in_array($st, ['invited', 'booked'], true)): ?>
-  <div class="card">
+  <div class="card" id="book">
     <h2><?= $booking ? 'Your visit' : 'Book a time' ?></h2>
     <?php if ($booking): ?>
       <p><b><?= $e(NgvRegistration::longDate((string) $booking['slot_date'])) ?> at <?= $e((string) $booking['slot_time']) ?></b>, <?= $e((string) $booking['centre']) ?>.</p>
@@ -180,7 +186,7 @@ input,select{font:inherit;font-size:1rem;padding:11px 12px;border:1px solid #cfd
         <input type="hidden" name="ref" value="<?= $e((string) $app['ref']) ?>"><input type="hidden" name="k" value="<?= $e($key) ?>">
         <label for="b-centre" class="note">CACENTRE</label>
         <select id="b-centre" name="c" style="max-width:280px"><?php foreach ($centres as $cn => $_): ?><option value="<?= $e($cn) ?>" <?= $cn === $pick ? 'selected' : '' ?>><?= $e($cn) ?></option><?php endforeach; ?></select>
-        <button class="btn ghost" type="submit">Show times</button>
+        <button class="btn ghost" type="submit">Show times at this CACENTRE</button>
       </form>
       <?php if ($slots): ?>
         <form method="post" action="/academy/ngv/status.php">
