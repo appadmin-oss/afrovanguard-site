@@ -54,6 +54,9 @@ ck('setting a password is a checked write (same origin, CSRF, rate)', str_contai
 ck('the member sets their own password, typed twice, and it is never shown back', str_contains($js, "JSON.stringify({ password: pw1.value })") && str_contains($js, 'The two passwords are not the same') && !preg_match('/card\.pin\b/', $js));
 ck('the password travels in the body, never in a URL', str_contains($src, "['action' => 'password', 'password' => \$password]") && !preg_match('/[?&]password=/', $src . $js));
 ck('a member CACENTRE has not been sent yet is added at once: the card token carries their own roster row', str_contains($src, "\$claims['me'] = \$me"));
+ck('a member CACENTRE has not been sent is sent at once, alone, and asked for again — never told to wait for the roster',
+   str_contains($src, "self::sendRoster([\$me], false)") && str_contains($src, '$again = self::ask($memberId, null)'));
+ck('a partial roster never withdraws anybody', str_contains($src, "'full' => \$full") && str_contains($src, 'self::sendRoster($people, true)'));
 ck('the old PIN is gone from what the portal draws', !str_contains($src, "'pin'        =>") && str_contains($src, "'hasPassword' =>"));
 ck('loading, an empty card and an honest error with a retry are all said', str_contains($js, 'Loading your Wi-Fi details') && str_contains($js, 'not on the Wi-Fi list yet') && str_contains($js, 'retry.hidden = false'));
 ck('the roster goes from the cron, under the heartbeat', str_contains($cron, "AiOps::run('wifi'") && str_contains($cron, 'CacWifi::push()'));

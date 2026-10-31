@@ -620,11 +620,68 @@ a.avp-kpi--link:focus-visible { outline: 2px solid var(--avp-gold); outline-offs
 .avp-g-note { margin: 0 0 12px; color: var(--avp-text-2); max-width: 62ch; }
 @media (max-width: 760px) { .avp-g-cols, .avp-g-kpis { grid-template-columns: 1fr; } }
 
-/* Events on Today (#avpEventsCard): a date tile beside each title. */
-.avp-ev-li a { flex-direction: row; align-items: center; gap: 12px; }
-.avp-ev-li .avp-ev-date { flex: none; width: 46px; display: flex; flex-direction: column; align-items: center; padding: 5px 0; border-radius: 10px; background: var(--avp-gold-bg, #FBF4E0); color: var(--avp-gold-tx); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
-.avp-ev-li .avp-ev-date b { font-size: 18px; line-height: 1.1; color: inherit; }
-.avp-ev-li .avp-ev-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .avp-g-empty.avp-g-err { color: var(--avp-red-tx); font-size: 12.5px; line-height: 1.45; }
 .avp-g-ask { display: grid; gap: 8px; }
 .avp-g-ask small { color: var(--avp-text-2); font-size: 12px; line-height: 1.45; }
+
+/* The wallet (views/wallet.php): one statement of a member's money. */
+.avp-wallet-intro { margin: 0 0 16px; color: var(--avp-text-2); max-width: 62ch; }
+.avp-wallet-warn { margin: 0 0 16px; padding: 10px 14px; border-radius: 12px; background: var(--avp-red-bg); color: var(--avp-red-tx); font-size: 14px; }
+.avp-wallet-warn a { color: inherit; font-weight: 600; }
+.avp-wallet-count { font-size: 13px; color: var(--avp-muted); }
+.avp-wallet-list { list-style: none; margin: 0; padding: 0; }
+.avp-wallet-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--avp-line-2); }
+.avp-wallet-row:last-child { border-bottom: 0; }
+.avp-wallet-what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.avp-wallet-what b { color: var(--avp-ink); overflow-wrap: anywhere; }
+.avp-wallet-what span { color: var(--avp-muted); font-size: 13px; }
+.avp-wallet-amts { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.avp-wallet-amt { padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--avp-pill); color: var(--avp-ink); white-space: nowrap; }
+.avp-wallet-amt.is-gold { background: var(--avp-gold-bg); color: var(--avp-gold-tx); }
+.avp-wallet-amt.is-green { background: var(--avp-green-bg); color: var(--avp-green-tx); }
+.avp-wallet-amt.is-indigo { background: var(--avp-indigo-bg); color: var(--avp-indigo-tx); }
+.avp-wallet-run { font-size: 12.5px; color: var(--avp-muted); white-space: nowrap; }
+.avp-wallet-row.is-pending .avp-wallet-what b { font-weight: 500; }
+.avp-wallet-how { margin: 14px 0 0; color: var(--avp-text-2); font-size: 14px; }
+.avp-wallet-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* The wallet's NGG volunteer pay (portal/wallet.js): a second card, its own figures. */
+.avp-wallet-ngg { margin-top: 16px; }
+.avp-wallet-ngg .avp-wallet-intro.is-bad { color: var(--avp-red-tx); }
+.avp-wallet-ngg .avp-kpis { margin-bottom: 12px; }
+.avp-wallet-h3 { margin: 16px 0 8px; font-size: 15px; color: var(--avp-ink); }
+.avp-wallet-bank { margin: 0 0 8px; }
+.avp-wallet-bank .avp-form { margin: 0 0 12px; }
+.avp-wallet-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.avp-wallet-bad { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--avp-red-bg); color: var(--avp-red-tx); font-size: 14px; }
+
+/* Events on Today: each a small poster with the flier, the time and buttons that act
+   (portal/views/today.php). The flier is the art; with none, the date stands in its place. */
+.avp-evc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.avp-evc { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; align-items: start; padding: 12px; border: 1px solid var(--avp-line); border-radius: 14px; }
+.avp-evc.is-off { opacity: .7; }
+.avp-evc-art { display: block; aspect-ratio: 4 / 5; border-radius: 10px; overflow: hidden; background: var(--avp-gold-bg); }
+.avp-evc-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.avp-evc-date { display: flex; height: 100%; flex-direction: column; align-items: center; justify-content: center; color: var(--avp-gold-tx); font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+.avp-evc-date b { font-size: 30px; line-height: 1; }
+.avp-evc-body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.avp-evc-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.avp-evc-tag { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--avp-line-2); color: var(--avp-text-2); }
+.avp-evc-tag.is-soon { background: var(--avp-gold-bg); color: var(--avp-gold-tx); }
+.avp-evc-tag.is-live { background: var(--avp-green-bg); color: var(--avp-green-tx); }
+.avp-evc-tag.is-off { background: var(--avp-red-bg); color: var(--avp-red-tx); }
+.avp-evc-h { margin: 0; font-size: 17px; line-height: 1.3; font-weight: 700; }
+.avp-evc-h a { color: var(--avp-ink); text-decoration: none; }
+.avp-evc-h a:hover { text-decoration: underline; }
+.avp-evc-meta { margin: 0; font-size: 14px; color: var(--avp-text-2); }
+.avp-evc-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.avp-evc-soon { margin: 0; font-size: 13px; color: var(--avp-text-2); }
+@media (pointer: coarse) { .avp-evc-acts .avp-btn { min-height: 44px; } }
+@media (max-width: 420px) { .avp-evc { grid-template-columns: 76px minmax(0, 1fr); } }
+/* The soonest is the one that matters today: a bigger flier, and on a phone the flier on top. */
+.avp-evc.is-next { grid-template-columns: 168px minmax(0, 1fr); border-color: var(--avp-gold); }
+.avp-evc.is-next .avp-evc-h { font-size: 20px; }
+@media (max-width: 560px) {
+  .avp-evc.is-next { grid-template-columns: minmax(0, 1fr); }
+  .avp-evc.is-next .avp-evc-art { aspect-ratio: auto; max-height: 360px; }
+  .avp-evc.is-next .avp-evc-art img { height: auto; max-height: 360px; object-fit: contain; }
+}

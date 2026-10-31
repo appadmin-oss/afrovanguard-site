@@ -93,7 +93,8 @@ function send_security_headers(string $page = 'public'): void {
     $frame = implode(' ', array_map(fn($h) => 'https://' . $h, av_embed_hosts()));
     // Paystack (donations + dues): inline SDK, its API, and the checkout iframe.
     $paystack = 'https://js.paystack.co https://checkout.paystack.com https://api.paystack.co';
-    $script = "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://ajax.googleapis.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://platform.instagram.com https://js.paystack.co";
+    /* Cloudflare's Web Analytics beacon, which Cloudflare adds to pages it serves. */
+    $script = "'self' 'unsafe-inline' https://static.cloudflareinsights.com https://cdn.jsdelivr.net https://ajax.googleapis.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://platform.instagram.com https://js.paystack.co";
     $csp = [
         "default-src 'self'",
         "base-uri 'self'",
@@ -105,7 +106,7 @@ function send_security_headers(string $page = 'public'): void {
         "font-src 'self' https://fonts.gstatic.com data:",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
         "script-src $script",
-        "connect-src 'self' https://api.cloudinary.com https://res.cloudinary.com https://api.paystack.co",
+        "connect-src 'self' https://cloudflareinsights.com https://api.cloudinary.com https://res.cloudinary.com https://api.paystack.co",
         "frame-src 'self' https://checkout.paystack.com $frame",
     ];
     header('Content-Security-Policy: ' . implode('; ', $csp));

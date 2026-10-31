@@ -10,13 +10,13 @@
           <section class="pcard" aria-labelledby="wifiH">
             <div class="pcard-head"><div>
               <h2 id="wifiH">Your Wi-Fi sign-in</h2>
-              <span class="task-head-sub">CACENTRE runs the Wi-Fi at every site. Your sign-in name is your ID; the password is one you choose. This page opens on the Wi-Fi before you sign in.</span>
+              <span class="task-head-sub">CACENTRE runs the Wi-Fi at every site. Your sign-in name is your ID card number. You start with a password CACENTRE emails you, and can choose your own. This page opens on the Wi-Fi before you sign in.</span>
             </div></div>
             <div class="pcard-body">
               <p class="wifi-msg" id="wifiMsg" role="status" aria-live="polite">Loading your Wi-Fi details…</p>
               <dl class="wifi-dl" id="wifiDl" hidden>
                 <div><dt>Username</dt><dd class="wifi-v" id="wifiUser"></dd></div>
-                <div><dt>Password</dt><dd id="wifiPwState"></dd></div>
+                <div><dt id="wifiPwLabel">Password</dt><dd id="wifiPwState"></dd></div>
                 <div id="wifiSpeedRow"><dt>Speed</dt><dd id="wifiSpeed"></dd></div>
                 <div><dt>Where</dt><dd id="wifiWhere"></dd></div>
                 <div><dt>Used today</dt><dd id="wifiToday"></dd></div>
