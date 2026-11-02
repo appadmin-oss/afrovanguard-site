@@ -701,8 +701,81 @@ NgvDb::pdo()->exec("UPDATE ngv_participants SET start_date = '2026-01-01', statu
 $rvB = $rdBook('A Rendered Book', 'An Author', 2);
 NgvReading::save(970, ['slot' => 1, 'book_id' => $rvB, 'started_on' => '2026-03-01'], false);
 NgvReading::logSession(970, $rdSit(['slot' => 1, 'day' => '2026-03-02']));
+/* ── Who may read: not only a vanguard ───────────────────────────────── */
+/* It began as a NextGen Vanguard thing and the only door was gated on being
+   enrolled. A member or a volunteer who wants to read twenty-four books and
+   have somebody check them was turned away by an isVanguard() that had
+   nothing to do with reading. */
+$rvPdo = Database::pdo();
+MemberVerification::ensure();
+$rvPdo->exec("DELETE FROM member_verify_log WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@rdwho.test')");
+$rvPdo->exec("DELETE FROM member_profiles WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@rdwho.test')");
+$rvPdo->exec("DELETE FROM lms_users WHERE email LIKE '%@rdwho.test'");
+$rvMk = static function (string $n, string $role = 'learner') use ($rvPdo): int {
+    $rvPdo->prepare('INSERT INTO lms_users (name, email, password_hash, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        ->execute([$n, strtolower(str_replace(' ', '.', $n)) . '@rdwho.test', 'x', $role, 'active', gmdate('Y-m-d H:i:s')]);
+    return (int) $rvPdo->lastInsertId();
+};
+$rvNobody = $rvMk('Rd Nobody');
+ck('reading: a learner nobody has verified does not read — the challenge ends in a conversation',
+   NgvReading::mayRead($rvNobody) === false);
+ck('reading: …and the refused action says who it IS for, not just no',
+   (function () use ($rvNobody) {
+       $r = NgvReading::action($rvNobody, ['book_action' => 'get', 'slot' => 1]);
+       return is_array($r) && empty($r['ok']) && ($r['code'] ?? '') === 'not_reading'
+           && (int) ($r['status'] ?? 0) === 403 && str_contains((string) $r['error'], 'volunteers');
+   })());
+$rvMember = $rvMk('Rd Member');
+MemberVerification::verify($rvMember, 'Signed the form at the centre', 'test');
+ck('reading: a VERIFIED member reads, and is a member not a vanguard',
+   NgvReading::mayRead($rvMember) === true && NgvReading::readerKind($rvMember) === 'member');
+ck('reading: …and the handler answers them the same as anybody else',
+   (function () use ($rvMember) {
+       $r = NgvReading::action($rvMember, ['book_action' => 'get', 'slot' => 1]);
+       return is_array($r) && !empty($r['ok']) && isset($r['books']) && isset($r['minSit']);
+   })());
+$rvVol = $rvMk('Rd Volunteer');
+Volunteers::promote([$rvVol], 1, 'reading test');
+ck('reading: a volunteer reads, and the copy calls them one',
+   NgvReading::mayRead($rvVol) === true && NgvReading::readerKind($rvVol) === 'volunteer');
+ck('reading: a vanguard still reads, and is still a vanguard',
+   NgvReading::mayRead(970) === true && NgvReading::readerKind(970) === 'vanguard');
+/* The bitstring is a participant's column. Writing it for somebody with no
+   participant row must do nothing at all rather than throw. */
+NgvReading::save($rvMember, ['slot' => 2, 'book_id' => $rvB, 'started_on' => '2026-03-01'], false);
+ck('reading: syncing the shelf for a non-participant is a no-op, not a crash',
+   NgvReading::syncBitstring($rvMember) === str_repeat('0', NgvReading::TOTAL));
+$rvPdo->exec("DELETE FROM member_verify_log WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@rdwho.test')");
+$rvPdo->exec("DELETE FROM member_profiles WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@rdwho.test')");
+$rvPdo->exec("DELETE FROM lms_users WHERE email LIKE '%@rdwho.test'");
+MemberVerification::forget();
+
+/* The card is one shared partial now — the programme view and the Reading
+   page a member or volunteer opens both draw it, so there is one shelf and
+   not two that drift. */
+$rvCard = (string) @file_get_contents(AV_ROOT . '/portal/_reading-card.php');
 ck('reading: the member\'s own card shows each book\'s reading, not just its title',
-   str_contains((string) @file_get_contents(AV_ROOT . '/portal/views/ngv.php'), "no reading logged yet")
-   && str_contains((string) @file_get_contents(AV_ROOT . '/portal/views/ngv.php'), "session_minutes"));
+   str_contains($rvCard, "no reading logged yet") && str_contains($rvCard, "session_minutes"));
+/* The claim sheet is one sheet for all three readers, so its copy may not
+   assume a programme or a track lead — and it must not still mention the
+   seven values, which reading no longer records. Found by opening the page,
+   not by the suite: the sitting panel was still offering to show which value
+   a book was growing a week after that was taken out. */
+$rvJs = (string) @file_get_contents(AV_ROOT . '/academy/ngv/reading.js');
+$rvSheet = (string) @file_get_contents(AV_ROOT . '/academy/ngv/_book-modal.php');
+ck('reading: the claim sheet says nothing about the seven values any more',
+   !str_contains($rvJs, 'seven values') && !str_contains($rvSheet, 'seven values'));
+ck('reading: …and it does not send a member looking for a track lead they do not have',
+   !str_contains($rvSheet, 'track lead')
+   && str_contains($rvJs, "window.NGV_CHECKER || 'your track lead'"));
+ck('reading: the Reading page carries the sheet\'s script AND its token',
+   (function () {
+       $ix = (string) @file_get_contents(AV_ROOT . '/portal/index.php');
+       return str_contains($ix, 'academy/ngv/reading.js') && str_contains($ix, 'window.NGV_CSRF')
+           && str_contains($ix, 'window.NGV_CHECKER');
+   })());
+ck('reading: …and it is ONE card, drawn by the programme view and the Reading page alike',
+   str_contains((string) @file_get_contents(AV_ROOT . '/portal/views/ngv.php'), "_reading-card.php")
+   && str_contains((string) @file_get_contents(AV_ROOT . '/portal/views/reading.php'), "_reading-card.php"));
 $rvReset();
 NgvDb::pdo()->prepare('DELETE FROM ngv_book_claims WHERE member_id = 970')->execute();

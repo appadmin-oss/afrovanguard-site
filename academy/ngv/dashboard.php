@@ -37,9 +37,15 @@ if ($method === 'POST') {
     require_same_origin();
     $uid = (int) $u['id'];
     av_require_write($uid, 'ngv_dash', 60, 600);
-    /* Every action below is a vanguard's. Somebody not enrolled — or
-       withdrawn — is told so; nothing here enrols them as a side effect. */
-    if (!NgvMember::isVanguard($uid)) {
+    /* The general enrolment gate sits BELOW the reading block, not here: the
+       24-book challenge is no longer only a vanguard's (NgvReading::mayRead),
+       and a verified member or a volunteer reading on this route is not
+       enrolled and must not be told to apply.
+       The MULTIPART actions are handled above that point — they have to be,
+       because php://input is empty on a multipart request — so they are
+       gated here, by name. A reading action is never multipart: the claim
+       sheet posts JSON. */
+    if (in_array((string) ($_POST['action'] ?? ''), ['damage', 'damage_photos'], true) && !NgvMember::isVanguard($uid)) {
         json_out(['ok' => false, 'code' => 'not_enrolled',
                   'error' => 'You are not enrolled in NextGen Vanguard. Apply at /academy/ngv/register.php.'], 403);
     }
@@ -72,6 +78,19 @@ if ($method === 'POST') {
 
     $in = json_decode((string) file_get_contents('php://input'), true);
     if (!is_array($in)) $in = [];
+
+    /* Reading first, and through the ONE handler both doors use
+       (NgvReading::action), which gates on mayRead rather than enrolment. */
+    if (($rdR = NgvReading::action($uid, $in)) !== null) {
+        json_out($rdR, empty($rdR['ok']) ? (int) ($rdR['status'] ?? 400) : 200);
+    }
+
+    /* Everything from here is a vanguard's. Somebody not enrolled — or
+       withdrawn — is told so; nothing here enrols them as a side effect. */
+    if (!NgvMember::isVanguard($uid)) {
+        json_out(['ok' => false, 'code' => 'not_enrolled',
+                  'error' => 'You are not enrolled in NextGen Vanguard. Apply at /academy/ngv/register.php.'], 403);
+    }
 
     // Map the client payload onto the participant's self-editable fields and
     // persist to the SEPARATE NGV database (validation lives in NgvMember).

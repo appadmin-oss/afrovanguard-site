@@ -58,6 +58,12 @@ final class PortalNav
         'ngv'         => ['group' => 'NextGen Vanguard', 'label' => 'Programme', 'for' => ['ngv'], 'view' => 'ngv'],
         'ngv-account' => ['group' => 'NextGen Vanguard', 'label' => 'Fees & account', 'for' => ['ngv'], 'view' => 'ngv'],
 
+        /* The 24-book challenge, for a member or a volunteer. A vanguard's
+           copy of the same card sits inside their Programme view, so they do
+           NOT get this section as well — one shelf, in one place per person
+           (NgvReading::mayRead decides the flag; portal/_reading-card.php is
+           the card both draw). */
+        'reading'     => ['group' => 'Learn', 'label' => 'Reading', 'for' => ['reading'], 'view' => 'reading'],
         'learning'    => ['group' => 'Learn', 'label' => 'Learning', 'for' => ['all'], 'view' => 'learning'],
 
         'volunteer'   => ['group' => 'Volunteering', 'label' => 'Volunteer dashboard', 'for' => ['vol'], 'view' => 'volunteer'],

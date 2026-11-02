@@ -61,7 +61,7 @@
 
   var slot = 0, MIN = 320, MIN_TAKE = 60, MIN_CHAPTER = 80, opener = null;
   /* The sittings on this claim, the one being edited (0 = a new one), the
-     seven values with their mottos, and today as the server reckons it. */
+     moods, and today as the server reckons it. */
   var sits = [], sitId = 0, MOODS = {}, TODAY = '';
   var typedMs = 0, pastes = 0, lastKey = 0;
   /* The book list, the claim being edited, and — for a claim made before
@@ -161,13 +161,18 @@
 
   el.book.addEventListener('change', drawChapters);
 
+  /* Who checks this reader's books, in words they can act on. A vanguard has
+     a track lead; a member or a volunteer does not, and sending them to one
+     sends them looking for a person who does not exist. The page says which;
+     the default keeps the vanguard wording for every page that does not. */
+  var CHECKER = window.NGV_CHECKER || 'your track lead';
   function setStatus(c) {
     if (!c || !c.status || c.status === 'draft') { el.status.hidden = true; el.status.className = 'bk-status'; return; }
     var m = {
-      submitted: ['With your track lead. You cannot change it while they have it.', ''],
+      submitted: ['With ' + CHECKER + '. You cannot change it while they have it.', ''],
       verified: ['Verified and counted. Thank you.', 'is-ok'],
       resubmit: ['Sent back: ' + (c.review_note || '') + ' Put that right and send it again.', 'is-back'],
-      rejected: ['Not accepted: ' + (c.review_note || '') + ' Speak to your track lead if you think that is wrong.', 'is-back']
+      rejected: ['Not accepted: ' + (c.review_note || '') + ' Speak to ' + CHECKER + ' if you think that is wrong.', 'is-back']
     }[c.status];
     if (!m) { el.status.hidden = true; return; }
     el.status.textContent = m[0];
@@ -183,9 +188,8 @@
 
   /* ── The sittings ───────────────────────────────────────────────────
      A book is read over days. Each sitting records when, how far, how long,
-     where, what it covered, where they stand on it, what they will do — and
-     which of the seven values it grew, which is the thing the challenge is
-     actually for and the one thing a shelf of finished titles cannot show. */
+     where, what it covered, where they stand on it and what they will do —
+     which is the thing a shelf of finished titles cannot show. */
   function esc(x) {
     return String(x == null ? '' : x).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -194,7 +198,7 @@
   function drawSits(locked) {
     if (!sits.length) {
       el.sitList.innerHTML = '<p class="bk-sits-none">Nothing logged yet. Log each time you sit down with this book — '
-        + 'it is how the programme sees your reading, and how you see which of the seven values it is growing.</p>';
+        + 'it is the record of your reading, and what the checker reads before the book counts.</p>';
       return;
     }
     el.sitList.innerHTML = sits.map(function (x) {

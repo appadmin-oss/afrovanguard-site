@@ -203,6 +203,52 @@ on the review desk, in four queries rather than one per participant:
   they have not begun, and the table says which: a different conversation.
 - **What has waited longest** — the oldest claim still unchecked, in days.
 
+## Who may READ: not only a vanguard
+
+The challenge began as a NextGen Vanguard thing and the code said so — the
+only door was the NGV dashboard, gated on being enrolled. But reading is not
+something the programme does TO vanguards; it is what the organisation asks
+of the people in it, and a member or a volunteer who wanted to read
+twenty-four books and have somebody check them was turned away by an
+`isVanguard()` that had nothing to do with reading.
+
+`NgvReading::mayRead()` answers for three people:
+
+| | Why |
+|---|---|
+| a **NextGen Vanguard** | their programme includes it |
+| a **verified member** | somebody established they are a member (`MemberVerification`) |
+| a **volunteer** | explicitly one (`Volunteers::isVolunteer`) |
+
+A learner nobody has verified is **not** included. The reading ends in a
+conversation with somebody at the organisation, and there has to BE a
+relationship for that conversation to happen.
+
+### One handler, one card
+
+`NgvReading::action($uid, $in)` is every reading action in one place, so the
+NGV dashboard and the portal's Reading page cannot drift into doing them
+differently. It returns `null` when `book_action` is not one of ours, so a
+route calls it first and carries on with its own. The member id is the
+caller's; it is never read from the body.
+
+On the NGV dashboard it runs **above** the enrolment gate — a member or a
+volunteer reading on that route is not enrolled and must not be told to
+apply. The multipart actions (damage reports) are gated by name further up,
+because `php://input` is empty on a multipart request and they have to be
+handled before it is read.
+
+`portal/_reading-card.php` is the card, drawn by the Programme view for a
+vanguard and by `portal/views/reading.php` for everybody else. A vanguard
+does not get the Reading section as well: one shelf, in one place per person
+(`portal/index.php` computes `$mayRead` as *may read AND is not a vanguard*).
+
+What varies between them is the **words**, not the machinery. A vanguard's
+books are checked by their track lead; nobody else has one, and saying "your
+track lead" to somebody with no track sends them looking for a person who
+does not exist. The page names the checker (`window.NGV_CHECKER`), and the
+default keeps the vanguard wording for any page that does not.
+
 ## Who may check the reading
 
 Every member-facing string says the **track lead** checks the book. For a

@@ -48,6 +48,13 @@ ck('journey: the term\'s project and roster start empty', ($c['j_project']['titl
 
 /* The view: classes only, data-driven, the sheet once. */
 $pv = (string) file_get_contents("$root/portal/views/ngv.php");
+/* The reading card is a shared partial now (portal/_reading-card.php), drawn
+   here and on the Reading page a member or volunteer opens. Inline it so the
+   assertions below still read what the programme view RENDERS rather than
+   what happens to be typed in one file — a test that stops seeing the slots
+   because they moved behind an include is pinning the file, not the page. */
+$pv = str_replace("require AV_ROOT . '/portal/_reading-card.php';",
+                  '?>' . (string) file_get_contents("$root/portal/_reading-card.php") . '<?php', $pv);
 $at = strpos($pv, 'id="view-ngv"'); $end = strpos($pv, 'id="view-ngv-account"');
 $prog = substr($pv, $at, $end - $at);
 ck('programme view: no inline styles', !preg_match('/\sstyle\s*=/', $prog) && stripos($prog, '<style') === false);

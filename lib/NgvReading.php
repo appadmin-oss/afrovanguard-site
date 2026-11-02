@@ -915,6 +915,100 @@ SQL;
         return $r;
     }
 
+    /* ── who may read, and the one handler both doors use ─────────────────── */
+
+    /**
+     * Who the 24-book challenge is for.
+     *
+     * It began as a NextGen Vanguard thing and the code said so: the only
+     * door was the NGV dashboard, gated on being enrolled. But reading is not
+     * a thing the programme does TO vanguards — it is what the organisation
+     * asks of the people in it, and a member or a volunteer who wants to read
+     * twenty-four books and have somebody check them was turned away by an
+     * `isVanguard()` that had nothing to do with reading.
+     *
+     *   a NextGen Vanguard      their programme includes it
+     *   a VERIFIED member       somebody established they are a member
+     *   a volunteer             explicitly one (Volunteers::isVolunteer)
+     *
+     * A learner nobody has verified is not included: the reading ends in a
+     * conversation with somebody at the organisation, and there has to BE a
+     * relationship for that conversation to happen.
+     */
+    public static function mayRead(int $memberId): bool
+    {
+        if ($memberId <= 0) return false;
+        try { if (class_exists('NgvMember') && NgvMember::isVanguard($memberId)) return true; } catch (Throwable $e) {}
+        try { if (class_exists('MemberVerification') && MemberVerification::isVerified($memberId)) return true; } catch (Throwable $e) {}
+        try {
+            if (class_exists('Volunteers') && Volunteers::isVolunteer(['id' => $memberId])) return true;
+        } catch (Throwable $e) {}
+        return false;
+    }
+
+    /** Which of the three somebody is, for the copy on their own screen. */
+    public static function readerKind(int $memberId): string
+    {
+        try { if (class_exists('NgvMember') && NgvMember::isVanguard($memberId)) return 'vanguard'; } catch (Throwable $e) {}
+        try { if (class_exists('Volunteers') && Volunteers::isVolunteer(['id' => $memberId])) return 'volunteer'; } catch (Throwable $e) {}
+        return 'member';
+    }
+
+    /**
+     * Every reading action, in ONE place, so the NGV dashboard and the
+     * portal's Reading page cannot drift into doing them differently.
+     *
+     * Returns null when `book_action` is not one of ours, so a route can call
+     * it first and carry on with its own actions. The member id is the
+     * caller's — it is never read from the body, because a claim belongs to
+     * whoever is signed in.
+     *
+     * @return array|null The response to print, or null for "not mine".
+     */
+    public static function action(int $uid, array $in): ?array
+    {
+        $act = (string) ($in['book_action'] ?? '');
+        if ($act === '') return null;
+        if (!self::mayRead($uid)) {
+            return ['ok' => false, 'code' => 'not_reading', 'status' => 403,
+                    'error' => 'The 24-book challenge is for NextGen Vanguards, members and volunteers. Ask the office if this looks wrong.'];
+        }
+        if ($act === 'save' || $act === 'submit') {
+            $r = self::save($uid, is_array($in['book'] ?? null) ? $in['book'] : [], $act === 'submit');
+            if (!empty($r['ok'])) $r['progress'] = self::progress($uid);
+            return $r;
+        }
+        if ($act === 'session') {
+            $r = self::logSession($uid, is_array($in['session'] ?? null) ? $in['session'] : []);
+            if (!empty($r['ok'])) $r['progress'] = self::progress($uid);
+            return $r;
+        }
+        if ($act === 'session_drop') {
+            return self::dropSession($uid, (int) ($in['id'] ?? 0));
+        }
+        if ($act === 'get') {
+            $slot = (int) ($in['slot'] ?? 0);
+            $c = self::claim($uid, $slot);
+            /* The books they may choose: the list, plus the one this claim
+               already names if it has since been retired. */
+            $books = array_map(static fn($b) => ['id' => $b['id'], 'title' => $b['title'], 'author' => $b['author'],
+                                                 'chapters' => $b['chapters'], 'note' => $b['note'],
+                                                 'values' => $b['value_labels']], self::books());
+            if ($c && (int) $c['book_id'] > 0 && !in_array((int) $c['book_id'], array_column($books, 'id'), true)
+                && ($old = self::book((int) $c['book_id']))) {
+                $books[] = ['id' => $old['id'], 'title' => $old['title'], 'author' => $old['author'],
+                            'chapters' => $old['chapters'], 'note' => $old['note']];
+            }
+            return ['ok' => true, 'claim' => $c, 'books' => $books, 'min' => self::MIN_REFLECTION,
+                    'minTake' => self::MIN_TAKEAWAY, 'minChapter' => self::MIN_CHAPTER,
+                    'sessions' => $c ? $c['sessions'] : [],
+                    'moods' => self::MOODS, 'today' => function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d'),
+                    'minSit' => ['notes' => self::MIN_SESSION_NOTES, 'stance' => self::MIN_SESSION_STANCE,
+                                 'application' => self::MIN_SESSION_APPLICATION, 'minutes' => self::MAX_SESSION_MINUTES]];
+        }
+        return null;
+    }
+
     /* ── the automatic checks ────────────────────────────────────────────── */
 
     /**

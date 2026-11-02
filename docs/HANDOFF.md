@@ -896,3 +896,38 @@ One thing to remember if a cache is ever added to a state like this:
 `MemberVerification` memoises per request, and a test that put the rows back
 with raw SQL left the memo stale, so the next test file in the process read a
 state that was no longer in the database. `forget()` exists for that.
+
+## Members and volunteers read books too (Nov 2026)
+
+The 24-book challenge was a NextGen Vanguard thing in the code as well as in
+the copy: the only door was the NGV dashboard, gated on enrolment. Reading is
+not something the programme does to vanguards, though — it is what the
+organisation asks of the people in it, and a member or a volunteer who wanted
+to read and be checked hit an `isVanguard()` that had nothing to do with
+reading.
+
+`NgvReading::mayRead()` now answers for a vanguard, a **verified** member or a
+volunteer. A learner nobody has verified is not included: the reading ends in
+a conversation, and there has to be a relationship for that conversation to
+happen.
+
+Two structures keep it from forking:
+
+- **`NgvReading::action()`** — every reading action in one place, returning
+  null for "not mine" so a route calls it first and carries on. On the NGV
+  dashboard it runs ABOVE the enrolment gate; the multipart damage actions
+  are gated by name further up, because `php://input` is empty on a multipart
+  request and they must be handled before it is read. Getting that order
+  wrong ungates them, which it briefly did.
+- **`portal/_reading-card.php`** — one card, drawn by the Programme view and
+  by the new Reading page. A vanguard does not get the section as well:
+  `$mayRead` is "may read AND is not a vanguard".
+
+Screenshots earned their keep again, three defects deep. The Reading page
+drew the claim sheet with no script and no CSRF token behind it — both come
+from `academy/ngv/_dashboard-body.php`, which only a vanguard's view includes
+— so every save came back **"Bad token."** The sheet also still said "from
+the programme's book list" and "your track lead may ask you about this" to
+people with neither. And the sitting panel was still offering to show **which
+of the seven values** a book was growing, a week after the values were taken
+out of reading entirely. None of the three was visible to 7,000 assertions.

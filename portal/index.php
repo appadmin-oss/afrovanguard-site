@@ -177,7 +177,11 @@ $mreqWaiting = class_exists('MemberRequests') ? count(array_filter(MemberRequest
 /* Fines for a member outside NGV (a vanguard's are under NextGen Vanguard):
    shown once they have had one. */
 $myFines = !$isNgv && class_exists('NgvFines') ? NgvFines::forMember((int) $u['id']) : ['fines' => [], 'owing' => 0, 'open' => 0];
-$portalCtx = ['org' => $isOrg, 'ngv' => $isNgv, 'vol' => $isVol, 'gate' => $hasGate, 'inventory' => $isOrg && CacSso::ready(),
+/* Reading is open beyond the programme: a verified member or a volunteer
+   reads on the same record (NgvReading::mayRead). A vanguard's card is
+   already inside their Programme view, so they do not get a second section. */
+$mayRead = !$isNgv && class_exists('NgvReading') && NgvReading::mayRead((int) $u['id']);
+$portalCtx = ['org' => $isOrg, 'ngv' => $isNgv, 'vol' => $isVol, 'gate' => $hasGate, 'reading' => $mayRead, 'inventory' => $isOrg && CacSso::ready(),
               'fines' => (bool) $myFines['fines']];
 /* Quest: the month's points against the level's ceiling, when it is on. */
 $questMonth = QuestPoints::earnedInMonth((int) $u['id'], gmdate('Y-m'));
@@ -415,6 +419,16 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   <script src="<?= e(av_asset('/community/community.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/avdy.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/commitments.js')) ?>" defer></script>
+<?php if ($mayRead): ?>
+  <?php /* The claim sheet's script AND its token. A vanguard gets both from
+           academy/ngv/_dashboard-body.php, which their Programme view
+           includes; a member or a volunteer has no dashboard body, so the
+           Reading page drew the sheet with nothing driving it and every save
+           came back "Bad token." One emitter per page — never both. */ ?>
+  <script>window.NGV_CSRF = <?= json_encode(av_csrf_token()) ?>;
+          window.NGV_CHECKER = <?= json_encode('the reading checker') ?>;</script>
+  <script src="<?= e(av_asset('/academy/ngv/reading.js')) ?>" defer></script>
+<?php endif; ?>
 <?php if ($isVol): ?>  <script src="<?= e(av_asset('/portal/volunteer.js')) ?>" defer></script>
 <?php endif; ?>
   <script src="<?= e(av_asset('/assets/site/avc-photo.js')) ?>" defer></script>

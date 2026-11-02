@@ -44,12 +44,16 @@ ck('portal nav: every section and tab names a view that exists', (function () us
 ck('portal nav: the shell draws its sidebar, views and tabs from the registry, and keeps no list of its own',
    str_contains($idx, 'PortalNav::groups($portalCtx)') && str_contains($idx, 'PortalNav::views($portalCtx)') && str_contains($idx, 'PortalNav::tabs($portalCtx)')
    && !preg_match("~require __DIR__ \. '/views/(?!meet-modal)[a-z-]+\.php'~", $idx) && !str_contains($idx, "\$nav['You'] = ["));
-$guest = ['org' => false, 'ngv' => false, 'vol' => false, 'gate' => false, 'inventory' => false, 'fines' => false];
-$all   = ['org' => true, 'ngv' => true, 'vol' => true, 'gate' => true, 'inventory' => true, 'fines' => true];
+$guest = ['org' => false, 'ngv' => false, 'vol' => false, 'gate' => false, 'inventory' => false, 'fines' => false, 'reading' => false];
+/* Every flag on at once. In the real shell `reading` and `ngv` never are —
+   a vanguard's reading card is inside their Programme view, so portal/index
+   computes $mayRead as "may read AND is not a vanguard" — but this context
+   is for the counting assertion below, which wants every section drawn. */
+$all   = ['org' => true, 'ngv' => true, 'vol' => true, 'gate' => true, 'inventory' => true, 'fines' => true, 'reading' => true];
 $ids = static fn(array $ctx): array => array_merge(...array_map(static fn($g) => array_column($g, 0), array_values(PortalNav::groups($ctx))));
 ck('portal nav: a learner sees the Quest, mentorship, learning and their account — not Work, the programme or the gate',
    array_values(array_intersect(['quest', 'bills', 'mentorship', 'learning', 'membership'], $ids($guest))) === ['quest', 'bills', 'mentorship', 'learning', 'membership']
-   && !array_intersect(['tasks', 'meetings', 'chat', 'ngv', 'ngv-fines', 'fines', 'attendance', 'volunteer', 'inventory'], $ids($guest))
+   && !array_intersect(['tasks', 'meetings', 'chat', 'ngv', 'ngv-fines', 'fines', 'attendance', 'volunteer', 'inventory', 'reading'], $ids($guest))
    && PortalNav::label('membership', $guest) === 'Account');
 ck('portal nav: everything the account opens is listed exactly once', count($ids($all)) === count(PortalNav::SECTIONS) && count(array_unique($ids($all))) === count($ids($all)));
 ck('portal nav: the Vanguard Quest groups the Quest with what feeds it — bills, mentorship, attendance, fines',

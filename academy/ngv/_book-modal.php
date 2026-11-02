@@ -11,7 +11,7 @@
             <div class="bkmodal-body">
               <p class="bk-status" id="bkStatus" hidden></p>
               <div class="bk-grid">
-                <label class="bk-f bk-f--wide" id="bkPick"><span>Book <em>from the programme's book list</em></span>
+                <label class="bk-f bk-f--wide" id="bkPick"><span>Book <em>from the book list</em></span>
                   <select id="bkBook"><option value="">Choose a book…</option></select></label>
                 <p class="bk-f bk-f--wide bk-legacy" id="bkLegacy" hidden></p>
                 <p class="bk-f bk-f--wide bk-none" id="bkNone" hidden>The book list is empty for now. The NGV office adds the books — check back soon.</p>
@@ -76,7 +76,7 @@
                 <textarea id="bkReflection" rows="8" maxlength="6000"></textarea>
                 <span class="bk-count" id="bkReflCount">0</span></label>
               <label class="bk-f bk-f--wide"><span>One thing you have done, or will do, because of it
-                <em>your track lead may ask you about this</em></span>
+                <em>you may be asked about this</em></span>
                 <textarea id="bkTakeaway" rows="3" maxlength="600"></textarea>
                 <span class="bk-count" id="bkTakeCount">0</span></label>
               <p class="bk-err" id="bkErr" hidden role="alert"></p>

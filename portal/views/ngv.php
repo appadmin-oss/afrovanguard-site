@@ -30,14 +30,10 @@
         $nPunct = $natt && $natt['punctuality'] !== null ? (int) round((float) $natt['punctuality']) : null;
         $nOwed = (int) ($nv['account']['payable'] ?? 0);
         $nTrack = (string) $nv['myTrack'];
-        $stTone = ['verified' => 'green', 'submitted' => 'indigo', 'resubmit' => 'red', 'rejected' => 'red', 'draft' => 'gold'];
-        $stWord = ['verified' => 'Verified', 'submitted' => 'With your track lead', 'resubmit' => 'Needs another look', 'rejected' => 'Not accepted', 'draft' => 'Draft — not sent yet'];
         $nProj = (array) ($nc['j_project'] ?? []); $nPast = (array) ($nc['j_project_past'] ?? []);
         $nChap = (array) ($nc['j_chapter'] ?? []); $nRoster = array_values(array_filter((array) ($nc['j_roster'] ?? []), static fn($r) => is_array($r) && trim((string) ($r['name'] ?? '')) !== ''));
         $nSched = (array) ($nv['sched'] ?? []);
         $nCerts = (array) ($nv['myCerts'] ?? []);
-        $nRecorded = array_values(array_filter($nshelf, static fn($b) => ($b['status'] ?? 'empty') !== 'empty'));
-        $nFirstEmpty = 0; foreach ($nshelf as $slot => $b) { if (($b['status'] ?? 'empty') === 'empty') { $nFirstEmpty = (int) $slot; break; } }
         $ini = static fn(string $n): string => mb_strtoupper(implode('', array_map(static fn($w) => mb_substr($w, 0, 1), array_slice(preg_split('/\s+/u', trim($n)) ?: [], 0, 2))));
 ?>
           <div class="view-head">
@@ -72,36 +68,13 @@
                 </section>
 <?php endif; ?>
 
-                <section class="avng-card" aria-labelledby="avng-bk-h" id="ngv-books">
-                  <div class="avng-card-h"><h2 id="avng-bk-h">NGV 24/12 · 24 books in 12 months</h2><span class="av-num"><?= (int) $nrp['verified'] ?> / <?= (int) $nrp['total'] ?></span></div>
-                  <div class="avng-books" id="books">
-                    <div class="avng-slots" role="group" aria-label="Your 24 book slots">
-<?php foreach ($nshelf as $slot => $bc): $st = (string) ($bc['status'] ?? 'empty'); ?>
-                      <button type="button" class="avng-slot is-<?= e($st) ?>" data-slot="<?= (int) $slot ?>" aria-label="Book <?= (int) $slot ?>, <?= e($stWord[$st] ?? 'not started') ?><?= ($bc['title'] ?? '') !== '' ? ': ' . e((string) $bc['title']) : '' ?>"></button>
-<?php endforeach; ?>
-                    </div>
-                    <p class="avng-pace"><?= (int) $nrp['verified'] ?> verified<?= $nrp['waiting'] > 0 ? ' · ' . (int) $nrp['waiting'] . ' with your track lead' : '' ?><?= $nrp['needs_work'] > 0 ? ' · ' . (int) $nrp['needs_work'] . ' to put right' : '' ?>. Only verified books count. Two a month keeps you on pace.</p>
-<?php if (!empty($nrp['spot_pending'])): ?>
-                    <p class="avng-callout"><b>Your track lead will ask you about one of your books.</b> It happens every six books and the book is picked at random, so it could be any of them. Nothing to prepare — if you read them, you can talk about them.</p>
-<?php endif; ?>
-<?php if ($nFirstEmpty): ?>
-                    <button type="button" class="avng-record" data-slot="<?= $nFirstEmpty ?>">Record a book — choose from the programme’s book list…</button>
-<?php endif; ?>
-<?php if ($nRecorded): ?>
-                    <ul class="avng-shelf">
-<?php foreach ($nRecorded as $bc): $st = (string) $bc['status']; $ed = in_array($st, ['draft', 'resubmit'], true); $chN = (int) ($bc['chapters'] ?? 0); $chW = count(array_filter((array) ($bc['chapter_notes_list'] ?? []), static fn($x) => trim((string) $x) !== '')); ?>
-                      <li>
-<?php $nSits = (array) ($bc['sessions'] ?? []); $nMin = (int) ($bc['session_minutes'] ?? 0); ?>
-                        <span class="avng-shelf-t"><span><?= e((string) $bc['title']) ?></span><span><?= e((string) ($bc['author'] ?? '')) ?><?= $chN ? ' · ' . $chW . ' of ' . $chN . ' chapters' : '' ?><?= $nSits ? ' · ' . count($nSits) . ' sitting' . (count($nSits) === 1 ? '' : 's') . ', ' . $nMin . ' min' : ' · no reading logged yet' ?></span></span>
-                        <span class="avng-chip" data-tone="<?= e($stTone[$st] ?? 'gray') ?>"><?= e($stWord[$st] ?? $st) ?></span>
-                        <button type="button" class="avng-btn" data-slot="<?= (int) $bc['slot'] ?>"><?= $ed ? 'Continue' : 'View' ?></button>
-                      </li>
-<?php endforeach; ?>
-                    </ul>
-<?php endif; ?>
-                  </div>
-<?php require AV_ROOT . '/academy/ngv/_book-modal.php'; ?>
-                </section>
+<?php
+/* The reading card is ONE partial, drawn here and on the Reading page a
+   member or a volunteer opens. Two copies of the shelf would drift within a
+   season, and what drifts is what somebody is told their reading is worth. */
+$rdKind = 'vanguard'; $rdProgress = $nrp; $rdShelf = $nshelf;
+require AV_ROOT . '/portal/_reading-card.php';
+?>
 
 <?php if ($nj['scored']): ?>
                 <section class="avng-card" aria-labelledby="avng-sc-h">
