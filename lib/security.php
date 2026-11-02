@@ -179,8 +179,8 @@ define('AV_ADMIN_COOKIE', 'av_admin');
  *         removed from the admin team ends Studio access at once instead of
  *         up to 12 hours later.
  */
-function av_admin_cookie_value(int $exp, string $nonce, string $role, string $src, string $secret): string {
-    $payload = $exp . '.' . $nonce . '.' . $role . '.' . $src;
+function av_admin_cookie_value(int $exp, string $nonce, string $role, string $src, string $secret, bool $mfa = false): string {
+    $payload = $exp . '.' . $nonce . '.' . $role . '.' . $src . '.' . ($mfa ? '1' : '0');
     return $payload . '.' . av_mac('admin-cookie', $payload . '|' . av_admin_cookie_binding($src), $secret);
 }
 /**
@@ -199,13 +199,19 @@ function av_admin_cookie_binding(string $src): string {
 function av_admin_roles(): array {
     return class_exists('AdminRoles') ? array_keys(AdminRoles::RANK) : ['editor', 'admin', 'superadmin'];
 }
-function av_admin_cookie_issue(int $ttl = 43200, string $role = 'superadmin', string $src = 't'): void {
+/**
+ * $mfa says the second factor has been passed on this session (lib/AdminMfa).
+ * It is INSIDE the signed payload, so it cannot be set by whoever holds the
+ * cookie, and it is false by default: a caller that has not thought about the
+ * second factor does not accidentally grant it.
+ */
+function av_admin_cookie_issue(int $ttl = 43200, string $role = 'superadmin', string $src = 't', bool $mfa = false): void {
     $secret = av_secret(); if ($secret === '') return;
     $role = preg_replace('/[^a-z]/', '', strtolower($role)) ?: 'superadmin';
     if (!in_array($role, av_admin_roles(), true)) return;
     $src  = $src === 'm' ? 'm' : 't';
     $exp = time() + $ttl; $nonce = bin2hex(random_bytes(10));
-    $val = av_admin_cookie_value($exp, $nonce, $role, $src, $secret);   // role travels inside the signed cookie
+    $val = av_admin_cookie_value($exp, $nonce, $role, $src, $secret, $mfa);   // role and factor travel inside the signed cookie
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
     if (!headers_sent()) setcookie(AV_ADMIN_COOKIE, $val, [
@@ -221,25 +227,28 @@ function av_admin_cookie_role(): string {
     return (string) (av_admin_cookie_parse()['role'] ?? '');
 }
 /**
- * ['role' => string, 'src' => 't'|'m'] for a valid cookie, else null.
+ * ['role' => string, 'src' => 't'|'m', 'mfa' => bool] for a valid cookie, else null.
  *
- * Only the current five-part shape is read. The three-part "legacy" cookie and
- * the four-part one are gone: they were MACed over the bare payload, so a CSRF
- * token (exp.nonce.sig) was a valid legacy superadmin cookie and a Google sign-in
- * state (exp.nonce.next.sig) a valid four-part one. A Studio session from before
- * this change signs in again; a bridged member's is re-issued on its next request.
+ * Only the current SIX-part shape is read. The five-part one (before the
+ * second factor) joins the three- and four-part ones it replaced: they were
+ * MACed over the bare payload, so a CSRF token (exp.nonce.sig) was a valid
+ * legacy superadmin cookie and a Google sign-in state a valid four-part one.
+ * A token Studio session from before this change signs in again; a bridged
+ * member's is re-issued on its next request (AdminRoles::current), so the only
+ * cost of the new shape is one round of signing in.
  */
 function av_admin_cookie_parse(): ?array {
     $secret = av_secret(); if ($secret === '') return null;
     $v = $_COOKIE[AV_ADMIN_COOKIE] ?? ''; if (!is_string($v) || $v === '') return null;
     $p = explode('.', $v);
-    if (count($p) !== 5) return null;
-    [$exp, $nonce, $role, $src, $sig] = $p;
+    if (count($p) !== 6) return null;
+    [$exp, $nonce, $role, $src, $mfa, $sig] = $p;
     if (!ctype_digit($exp) || (int) $exp < time() || ($src !== 't' && $src !== 'm')) return null;
+    if ($mfa !== '0' && $mfa !== '1') return null;
     if (!in_array($role, av_admin_roles(), true)) return null;
     if ($src === 't' && av_admin_cookie_binding('t') === '') return null;   // no ADMIN_TOKEN, no token session
-    $want = av_mac('admin-cookie', $exp . '.' . $nonce . '.' . $role . '.' . $src . '|' . av_admin_cookie_binding($src), $secret);
-    return hash_equals($want, $sig) ? ['role' => $role, 'src' => $src] : null;
+    $want = av_mac('admin-cookie', $exp . '.' . $nonce . '.' . $role . '.' . $src . '.' . $mfa . '|' . av_admin_cookie_binding($src), $secret);
+    return hash_equals($want, $sig) ? ['role' => $role, 'src' => $src, 'mfa' => $mfa === '1'] : null;
 }
 function av_admin_cookie_clear(): void {
     if (!headers_sent()) setcookie(AV_ADMIN_COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);

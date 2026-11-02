@@ -69,6 +69,14 @@ body.studio-authed .studio-side { display: block; }
 .login-foot { display: flex; align-items: center; gap: 7px; margin: 18px 0 0; padding-top: 16px; border-top: 1px solid var(--divider); color: var(--muted); font-size: 12px; }
 .login-foot svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .85; }
 
+/* The second factor (lib/AdminMfa), on the same login card. */
+.mfa-qr { width: 196px; margin: 0 auto 16px; background: #fff; padding: 10px; border: 1px solid var(--divider); border-radius: var(--radius-sm); }
+.mfa-qr svg { display: block; width: 100%; height: auto; }
+.mfa-secret { display: block; font-family: var(--font-mono, ui-monospace, monospace); font-size: 14px; letter-spacing: .12em; word-break: break-all; background: var(--bg); border: 1px solid var(--divider); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 18px; }
+.mfa-codes { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin: 0 0 14px; padding: 0; font-family: var(--font-mono, ui-monospace, monospace); font-size: 14px; letter-spacing: .06em; }
+.mfa-codes li { background: var(--bg); border: 1px solid var(--divider); border-radius: var(--radius-sm); padding: 6px 10px; text-align: center; }
+#mfaView .login-card p { margin-bottom: 14px; }
+
 .studio-main { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
 @media (min-width: 921px) { body.studio-authed .studio-main { margin-left: 248px; } }
 .studio-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }

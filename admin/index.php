@@ -104,6 +104,46 @@
     </div>
   </section>
 
+  <!-- THE SECOND FACTOR (lib/AdminMfa). Shown to somebody who holds a Studio
+       role but has not finished signing in: they either set one up (once) or
+       enter a code. Neither is a way past the other. -->
+  <section class="studio-login" id="mfaView" hidden>
+    <div class="login-card">
+      <div class="login-brand"><span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span> <span class="studio-tag">Studio</span></div>
+
+      <div id="mfaEnrol" hidden>
+        <h1>Set up your second step</h1>
+        <p>The Studio reaches every member record, so it asks for a code from your phone as well as your password. Scan this with Google Authenticator, 1Password, or any authenticator app.</p>
+        <div class="mfa-qr" id="mfaQr" role="img" aria-label="Your authenticator setup code, as a QR code"></div>
+        <p class="login-label">Or type this key in by hand</p>
+        <p><code id="mfaSecret" class="mfa-secret"></code></p>
+        <div id="mfaCodes" hidden>
+          <p class="login-label">Your backup codes — <b>save these now</b></p>
+          <p class="muted">Each works once, if you ever lose your phone. This is the only time they are shown. Without them, another Super Admin has to reset your second step for you.</p>
+          <ul class="mfa-codes" id="mfaCodeList"></ul>
+          <button class="btn btn-outline btn-sm" type="button" id="mfaCopyCodes">Copy the codes</button>
+        </div>
+        <button class="btn btn-primary login-submit" type="button" id="mfaEnrolBtn">Set it up</button>
+        <button class="btn btn-primary login-submit" type="button" id="mfaEnrolDone" hidden>I have saved them — enter a code</button>
+      </div>
+
+      <div id="mfaCode" hidden>
+        <h1>Enter your code</h1>
+        <p>The six digits from your authenticator app. A backup code works here too.</p>
+        <form id="mfaForm" novalidate>
+          <label class="login-field">
+            <span class="login-label">Code</span>
+            <input type="text" id="mfaInput" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9A-Za-z-]{6,9}" placeholder="123456" autofocus required>
+          </label>
+          <button class="btn btn-primary login-submit" type="submit" id="mfaVerifyBtn">Continue</button>
+        </form>
+      </div>
+
+      <p class="login-msg" id="mfaMsg" role="alert"></p>
+      <p class="login-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Wrong codes are counted and paused; every attempt is logged.</p>
+    </div>
+  </section>
+
   <!-- DIARY LIST -->
   <!-- OVERVIEW (landing dashboard) -->
   <main class="studio-main" id="overviewView" hidden>

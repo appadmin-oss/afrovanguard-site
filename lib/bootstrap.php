@@ -374,6 +374,7 @@ require_once __DIR__ . '/Prefs.php';
 require_once __DIR__ . '/Notifications.php';
 require_once __DIR__ . '/AdminAudit.php';
 require_once __DIR__ . '/AdminRoles.php';
+require_once __DIR__ . '/AdminMfa.php';   /* a second factor on the Studio, ported from NGG */
 require_once __DIR__ . '/SuperAdmin.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Sitemap.php';

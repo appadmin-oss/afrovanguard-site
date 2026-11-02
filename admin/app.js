@@ -42,7 +42,7 @@
 
   var $ = function (s) { return document.querySelector(s); };
   var views = {
-    login: $('#loginView'), overview: $('#overviewView'), entries: $('#entriesView'), editor: $('#editorView'),
+    login: $('#loginView'), mfa: $('#mfaView'), overview: $('#overviewView'), entries: $('#entriesView'), editor: $('#editorView'),
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
@@ -1821,6 +1821,17 @@
           : '<button class="btn btn-outline btn-sm" data-admin-remove="' + escapeHtml(a.email) + '">Revoke</button>';
         /* Only organisation addresses are admins. An off-domain row grants nothing; it is shown so it can be revoked. */
         if (a.valid === false) tag += ' <span class="badge draft" title="Only @afrovanguard.org.ng addresses can be admins">not an organisation address — grants nothing</span>';
+        /* The second factor (lib/AdminMfa). Resetting one is how a lost phone
+           is recovered, and never your own: another Super Admin does it. */
+        var mine = (d.me_email || '').toLowerCase() === (a.email || '').toLowerCase();
+        tag += a.mfa
+          ? ' <span class="badge published" title="They sign in with a code as well as a password">2-step on</span>'
+          : ' <span class="badge draft" title="They set one up the next time they open the Studio">2-step not set up</span>';
+        if (a.mfa) {
+          act += mine
+            ? ' <span class="muted tiny" title="Resetting your own would make the second step optional">another Super Admin resets yours</span>'
+            : ' <button class="btn btn-outline btn-sm" data-mfa-reset="' + escapeHtml(a.email) + '">Reset 2-step</button>';
+        }
         return '<div class="mt-row"><div class="mt-row-main"><div class="mt-pair"><b>' + escapeHtml(a.email) + '</b> <span class="badge ' + (a.valid === false ? 'draft' : 'published') + '" style="text-transform:capitalize">' + escapeHtml(a.role) + '</span>' + tag + '</div>'
           + '<div class="mt-meta">added ' + escapeHtml(a.created_at || '') + (a.added_by ? ' · by ' + escapeHtml(a.added_by) : '') + '</div></div>'
           + '<div class="mt-acts">' + act + '</div></div>';
@@ -1868,11 +1879,22 @@
       }).finally(function () { btn.disabled = false; });
     });
     $('#adList').addEventListener('click', function (e) {
-      var b = e.target.closest('[data-admin-remove]'); if (!b) return;
-      var em = b.getAttribute('data-admin-remove');
-      if (!confirm('Revoke Studio access for ' + em + '?')) return;
-      b.disabled = true;
-      post('admin_remove', { email: em }).then(function (r) { if (r.data && r.data.ok) { toast('Access revoked.'); loadAdmins(); } else { toast((r.data && r.data.error) || 'Could not revoke.'); b.disabled = false; } });
+      var b = e.target.closest('[data-admin-remove]');
+      if (b) {
+        var em = b.getAttribute('data-admin-remove');
+        if (!confirm('Revoke Studio access for ' + em + '?')) return;
+        b.disabled = true;
+        post('admin_remove', { email: em }).then(function (r) { if (r.data && r.data.ok) { toast('Access revoked.'); loadAdmins(); } else { toast((r.data && r.data.error) || 'Could not revoke.'); b.disabled = false; } });
+        return;
+      }
+      var m = e.target.closest('[data-mfa-reset]'); if (!m) return;
+      var who = m.getAttribute('data-mfa-reset');
+      if (!confirm('Clear the second step for ' + who + '?\n\nThey will set up a new one — and new backup codes — the next time they open the Studio. Do this only when you know it is them asking.')) return;
+      m.disabled = true;
+      post('mfa_reset', { email: who }).then(function (r) {
+        if (r.data && r.data.ok) { toast('Cleared. They set up a new second step at their next sign-in.'); loadAdmins(); }
+        else { toast((r.data && r.data.error) || 'Could not reset it.'); m.disabled = false; }
+      });
     });
   })();
 
@@ -4628,5 +4650,72 @@
     activateTab(saved);
     refreshModBadge();
   }
-  api('session').then(function (r) { if (r.data && r.data.ok) { csrf = r.data.csrf; cloudinary = !!r.data.cloudinary; currentRole = r.data.role || 'superadmin'; boot(); } else show('login'); }).catch(function () { show('login'); });
+  /* ── The second factor (lib/AdminMfa) ──
+     Somebody who HOLDS a Studio role but has not passed it sees this instead
+     of the token form: they are signed in, they are on the team, and there is
+     one step left. Showing them the token sign-in instead would be a lie, and
+     the only way through it would be the break-glass credential. */
+  function mfaGate(d) {
+    var m = (d && d.mfa) || {};
+    show('mfa');
+    $('#mfaEnrol').hidden = m.need !== 'enrol';
+    $('#mfaCode').hidden = m.need !== 'code';
+    $('#mfaMsg').textContent = '';
+    if (m.need === 'code') { var i = $('#mfaInput'); if (i) { i.value = ''; i.focus(); } }
+  }
+  function mfaSay(t) { $('#mfaMsg').textContent = t || ''; }
+  function mfaPost(action, payload) {
+    return fetch(API + '?action=' + action, { method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify(payload || {}) })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Unreadable reply.' }; }); })
+      .catch(function () { return { ok: false, error: 'No connection.' }; });
+  }
+  $('#mfaEnrolBtn') && $('#mfaEnrolBtn').addEventListener('click', function () {
+    var b = this; b.disabled = true; mfaSay('Setting it up…');
+    mfaPost('mfa_setup', {}).then(function (d) {
+      b.disabled = false;
+      if (!d.ok) { mfaSay(d.error || 'Could not set it up.'); return; }
+      mfaSay('');
+      $('#mfaSecret').textContent = d.secret || '';
+      /* The QR is drawn on OUR server (lib/AdminMfa::qr) and arrives as SVG.
+         Fetching it from a chart service would send the shared secret to
+         somebody else's logs in a URL. */
+      var qr = $('#mfaQr');
+      if (qr) { qr.innerHTML = d.qr_svg || ''; qr.hidden = !d.qr_svg; }
+      var list = $('#mfaCodeList'); list.innerHTML = '';
+      (d.backup_codes || []).forEach(function (c) { var li = document.createElement('li'); li.textContent = c; list.appendChild(li); });
+      $('#mfaCodes').hidden = false;
+      b.hidden = true;
+      $('#mfaEnrolDone').hidden = false;
+      window.__mfaCodes = (d.backup_codes || []).join('\n');
+      window.__mfaOtpauth = d.otpauth || '';
+    });
+  });
+  $('#mfaCopyCodes') && $('#mfaCopyCodes').addEventListener('click', function () {
+    try { navigator.clipboard.writeText(window.__mfaCodes || ''); mfaSay('Copied. Keep them somewhere only you can reach.'); }
+    catch (e) { mfaSay('Select and copy them by hand — clipboard access was refused.'); }
+  });
+  $('#mfaEnrolDone') && $('#mfaEnrolDone').addEventListener('click', function () {
+    $('#mfaEnrol').hidden = true; $('#mfaCode').hidden = false; mfaSay(''); $('#mfaInput').focus();
+  });
+  $('#mfaForm') && $('#mfaForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('#mfaVerifyBtn'); btn.disabled = true; mfaSay('Checking…');
+    mfaPost('mfa_verify', { code: $('#mfaInput').value }).then(function (d) {
+      btn.disabled = false;
+      if (!d.ok) { mfaSay(d.error || 'That code is not right.'); $('#mfaInput').select(); return; }
+      if (d.csrf) csrf = d.csrf;
+      currentRole = d.role || currentRole;
+      mfaSay(d.backup_used ? 'In. That was a backup code — ' + d.backup_remaining + ' left.' : '');
+      show('overview'); boot();
+    });
+  });
+
+  api('session').then(function (r) {
+    var d = r.data || {};
+    if (d.ok) { csrf = d.csrf; cloudinary = !!d.cloudinary; currentRole = d.role || 'superadmin'; boot(); return; }
+    if (d.held) { csrf = d.csrf; cloudinary = !!d.cloudinary; mfaGate(d); return; }
+    show('login');
+  }).catch(function () { show('login'); });
 })();

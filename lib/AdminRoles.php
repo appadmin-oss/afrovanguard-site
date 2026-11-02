@@ -24,6 +24,8 @@ final class AdminRoles
     const RANK = ['editor' => 1, 'admin' => 2, 'superadmin' => 3];
 
     private static bool $ready = false;
+    /** Carried between current() and a re-issue within one request. */
+    private static bool $mfa = false;
 
     public static function ensure(): void
     {
@@ -57,6 +59,7 @@ final class AdminRoles
     {
         if (function_exists('av_admin_bearer_ok') && av_admin_bearer_ok()) return 'superadmin';
         $c = function_exists('av_admin_cookie_parse') ? av_admin_cookie_parse() : null;
+        self::$mfa = $c !== null && !empty($c['mfa']);
         /* A token sign-in: av_admin_cookie_parse() has already checked the role
            against RANK and the MAC against the ADMIN_TOKEN it was issued under,
            so rotating the token ends it. */
@@ -72,9 +75,55 @@ final class AdminRoles
             if ($c !== null && function_exists('av_admin_cookie_clear')) av_admin_cookie_clear();
             return '';
         }
-        if (($c === null || $c['role'] !== $live) && function_exists('av_admin_cookie_issue')) av_admin_cookie_issue(43200, $live, 'm');
+        /* Re-issuing keeps whatever the factor said: a bridge refreshed because
+           the role changed must not quietly drop a second factor already
+           passed, and must not invent one that was not. */
+        if (($c === null || $c['role'] !== $live) && function_exists('av_admin_cookie_issue')) av_admin_cookie_issue(43200, $live, 'm', self::$mfa);
         return $live;
     }
+
+    /**
+     * Has this session passed its second factor (lib/AdminMfa)?
+     *
+     * The break-glass ADMIN_TOKEN stands on its own credential and is exempt
+     * — see the note in AdminMfa — so a bearer or token session answers true.
+     */
+    public static function mfaPassed(): bool
+    {
+        if (function_exists('av_admin_bearer_ok') && av_admin_bearer_ok()) return true;
+        $c = function_exists('av_admin_cookie_parse') ? av_admin_cookie_parse() : null;
+        if ($c === null) return false;
+        if (($c['src'] ?? '') === 't') return true;
+        return !empty($c['mfa']);
+    }
+
+    /** Who the Studio is for, as an address — '' for a token session. */
+    public static function email(): string
+    {
+        if (!class_exists('LmsAuth')) return '';
+        try { $u = LmsAuth::user(); return $u && !empty($u['email']) ? strtolower((string) $u['email']) : ''; }
+        catch (Throwable $e) { return ''; }
+    }
+
+    /**
+     * Mark this session as having passed the factor. Re-issues the bridged
+     * cookie with the flag inside the signature, so nothing the browser holds
+     * can set it.
+     */
+    public static function markMfaPassed(): void
+    {
+        $role = self::current();
+        if ($role === '' || !function_exists('av_admin_cookie_issue')) return;
+        self::$mfa = true;
+        av_admin_cookie_issue(43200, $role, 'm', true);
+    }
+
+    /**
+     * The one question every guarded surface asks: is this request allowed to
+     * act at $min? A Studio role that has not passed its second factor is NOT
+     * — the gate is here rather than at a hundred call sites, which is the
+     * same reason the role check is.
+     */
 
     public static function orgEmail(string $email): bool
     {
@@ -88,8 +137,26 @@ final class AdminRoles
 
     public static function can(string $min): bool
     {
-        $cur = self::current();
+        $cur = self::effective();
         return $cur !== '' && (self::RANK[$cur] ?? 0) >= (self::RANK[$min] ?? 99);
+    }
+
+    /**
+     * The role this request may ACT with: the role it holds, or '' when a
+     * second factor is required and has not been passed.
+     *
+     * This, not current(), is what av_admin_role() answers — so require_admin()
+     * and the forty pages and API actions that ask for a role are gated by
+     * the same sentence, with no edit each. current() stays the raw answer,
+     * for the two endpoints that must run BEFORE the factor is passed (setting
+     * one up, and entering a code) and for the Studio page, which has to tell
+     * "not an admin" from "an admin who needs to finish signing in".
+     */
+    public static function effective(): string
+    {
+        $role = self::current();
+        if ($role === '') return '';
+        return (AdminMfa::required($role) && !self::mfaPassed()) ? '' : $role;
     }
 
     public static function list(): array
@@ -126,7 +193,7 @@ final class AdminRoles
 }
 
 /** Global helper used by require_admin() and the API. */
-function av_admin_role(): string { return AdminRoles::current(); }
+function av_admin_role(): string { return AdminRoles::effective(); }
 
 /**
  * Who is acting, for provenance on records that outlive the session — "who set

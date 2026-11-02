@@ -230,6 +230,12 @@ $today = av_today_tz();
 $vp->prepare("INSERT INTO gate_attendance (member_id, day, status, in_at) VALUES (9303, ?, 'present', ?)")->execute([$today, gmdate('c')]);
 Volunteers::logHours(9303, date('Y-m-d', strtotime($today . ' -7 days')), 2, 'Outreach');
 Volunteers::logHours(9303, date('Y-m-d', strtotime($today . ' -14 days')), 2, 'Outreach');
+/* And one TODAY. The streak counts weeks, so -7 and -14 are what it needs;
+   the leaderboard counts THIS CALENDAR MONTH, so on the 2nd of a month those
+   two both fall in the last one and the board is empty. The test used to pass
+   only from the 15th onwards — it was telling the truth about the code and
+   the wrong thing about the calendar. */
+Volunteers::logHours(9303, $today, 1, 'Outreach');
 Birthdays::ensure();
 $vp->prepare('UPDATE lms_users SET birthday = ? WHERE id = 9305')->execute([date('m-d', strtotime($today . ' +2 days'))]);
 $en = Volunteers::engagement($sec);

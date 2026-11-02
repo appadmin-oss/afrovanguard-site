@@ -602,3 +602,58 @@ alongside `total` (how many are on the wall) so the page's "N gifts so far"
 does not shrink because people stopped consenting to be named.
 
 Tests: `tests/donorwall.test.php`, including the endpoint over HTTP.
+
+## A second factor on the Studio (Oct 2026)
+
+Audit B16. A Studio sign-in stood on one secret, while the admin roles reach
+every member record, every export, the gate passes and the money screens —
+and the sister site has required a second factor on exactly those roles for a
+year. `lib/AdminMfa.php` is NGG's scheme in this site's shapes, and each part
+of it was a fix there:
+
+- **Enrolment is once.** Writing a fresh secret over an existing one, from a
+  session that has not yet passed the factor (a first-time enroller has none
+  to pass), makes the factor optional: sign in with the password, enrol
+  again, satisfy the gate with the secret you chose a moment ago. A lost
+  authenticator goes through `reset()`, which another Super Admin runs — and
+  never your own, which would be the same hole wearing a different hat.
+- **Eight backup codes**, shown once, stored hashed, consumed on use. A
+  scheme whose recovery hurts gets turned off.
+- **Attempts are counted against the ADMIN**, not the address: a per-IP
+  ceiling buys another handful of guesses at a six-digit space. Eight wrong
+  codes, fifteen minutes, on the same `lms_login_throttle` table as the
+  password lockout.
+- **The QR is drawn here** (`AdminMfa::qr`, the chillerlan encoder already in
+  the tree). Fetching it from a chart service would put the shared secret in
+  somebody else's logs.
+
+The gate is **one sentence**: `av_admin_role()` now answers
+`AdminRoles::effective()`, which is the role held or `''` when the factor is
+required and unpassed — so `require_admin()`, every NGV page and every API
+action is gated with no edit each. `AdminRoles::current()` stays the raw
+answer, for the two endpoints that must run before the factor (setting one up,
+entering a code) and for the Studio page, which has to tell "not an admin"
+from "an admin who has not finished signing in".
+
+The flag rides **inside the signed admin cookie** (a sixth part), so nothing
+the browser holds can set it. The five-part cookie is no longer read, as the
+three- and four-part ones before it were not: a bridged member's is re-issued
+on the next request, and a token session signs in again.
+
+**The break-glass `ADMIN_TOKEN` is exempt**, deliberately: it is a credential
+held outside any account, for when the normal road is broken, and requiring
+an enrolled authenticator to use the door that exists to route around a broken
+door would make it no door at all. It is already bound to the token's
+fingerprint, so rotating `ADMIN_TOKEN` ends every such session.
+
+Required for **every** Studio role, not a list of some: an editor reaches
+learner records and exports, so a list would drift out of step with what each
+role can actually see. Nobody is locked out by the deploy — an admin with no
+enrolment is shown the set-up panel at their next visit.
+
+Also fixed here: `tests/volunteers.test.php` logged its leaderboard hours at
+today − 7 and today − 14 days and then asserted a rank for THIS CALENDAR
+MONTH, so it failed on the 1st to the 14th of every month. Found when the
+date rolled into November; it is the test that was wrong, not the code.
+
+Tests: `tests/adminmfa.test.php`, including RFC 6238's own vectors.

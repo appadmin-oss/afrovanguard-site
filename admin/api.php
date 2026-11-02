@@ -53,9 +53,40 @@ try {
         av_admin_cookie_clear(); json_out(['ok' => true]);
     }
     if ($action === 'session') {
-        $role = av_admin_role();           // '' | editor | admin | superadmin (bridges member-admins)
-        $authed = $role !== '';
-        json_out(['ok' => $authed, 'csrf' => $authed ? av_csrf_token() : '', 'cloudinary' => Cloudinary::configured(), 'role' => $role]);
+        /* `current` is the role they HOLD; `role` is the role they may ACT
+           with, which is '' until the second factor is passed. The Studio
+           needs both: one says "you are not an admin", the other says "you
+           are, and you have not finished signing in". */
+        $held = AdminRoles::current();     // '' | editor | admin | superadmin (bridges member-admins)
+        $role = av_admin_role();
+        $mfa = AdminMfa::status(AdminRoles::email(), $held, AdminRoles::mfaPassed());
+        json_out(['ok' => $role !== '', 'csrf' => $held !== '' ? av_csrf_token() : '',
+                  'cloudinary' => Cloudinary::configured(), 'role' => $role, 'held' => $held, 'mfa' => $mfa]);
+    }
+
+    /* ── The second factor (lib/AdminMfa) ──
+       These two run BEFORE require_admin, because the session they run on is
+       exactly the one that has the role and not the factor. They stand on the
+       role itself (AdminRoles::current), same-origin and CSRF, and they are
+       the only actions that do. */
+    if ($action === 'mfa_setup' || $action === 'mfa_verify') {
+        if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+        $held = AdminRoles::current();
+        if ($held === '') json_out(['ok' => false, 'error' => 'Unauthorized.'], 401);
+        $who = AdminRoles::email();
+        if ($who === '') json_out(['ok' => false, 'error' => 'A second factor belongs to an account. Sign in to the site first.'], 400);
+        if (!av_admin_bearer_ok()) av_csrf_require();
+        if ($action === 'mfa_setup') {
+            /* The enrolment itself is rate-limited: it is the one call that
+               mints a credential, and it refuses a second one anyway. */
+            if (!av_rate_ok('admin_mfa_setup', 5, 900)) json_out(['ok' => false, 'error' => 'Too many attempts. Try again later.'], 429);
+            $r = AdminMfa::enrol($who, $held);
+            json_out($r, !empty($r['ok']) ? 200 : 409);
+        }
+        $r = AdminMfa::verify($who, (string) ($body['code'] ?? ''));
+        if (!empty($r['ok'])) AdminRoles::markMfaPassed();
+        json_out($r + ['role' => av_admin_role(), 'csrf' => av_csrf_token()],
+                 !empty($r['ok']) ? 200 : (($r['code'] ?? '') === 'too_many_attempts' ? 429 : 401));
     }
 
     // ---- Everything else requires admin ----
@@ -100,7 +131,9 @@ try {
         // A card format decides what opens the front door.
         'card_format_save',
         // What every member is charged in dues, and from when.
-        'dues_settings_save'];
+        'dues_settings_save',
+        // Clearing somebody's second factor so they can enrol afresh.
+        'mfa_reset'];
     $managementOnly = [ // not available to editors
         'mem_list', 'mem_save', 'mem_create',
         // The member desk names every member, their phone and their birthday.
@@ -908,7 +941,9 @@ try {
 
         /* ════ Admin team & roles (Super Admin only — gated above) ════ */
         case 'admins_list':
-            json_out(['ok' => true, 'admins' => AdminRoles::list(), 'me' => $role, 'roles' => array_keys(AdminRoles::RANK),
+            json_out(['ok' => true,
+                'admins' => array_map(static fn($a) => $a + ['mfa' => AdminMfa::isEnrolled((string) $a['email'])], AdminRoles::list()),
+                'me' => $role, 'me_email' => AdminRoles::email(), 'roles' => array_keys(AdminRoles::RANK),
                 'default_superadmin'   => class_exists('SuperAdmin') ? SuperAdmin::defaultEmail() : '',
                 'has_initial_password' => class_exists('SuperAdmin') && SuperAdmin::pendingPassword() !== '']);
         case 'superadmin_reveal': {
@@ -930,6 +965,14 @@ try {
             $res = AdminRoles::remove((string) ($body['email'] ?? ''));
             if (!empty($res['ok'])) AdminAudit::log('admins', 'admin_removed', (string) ($body['email'] ?? ''), 'Revoked admin access');
             json_out($res, !empty($res['ok']) ? 200 : 422);
+        }
+        /* A lost authenticator. Super Admin only, and never your own: resetting
+           your own factor from a session that has already passed it is the
+           enrolment hole wearing a different hat (lib/AdminMfa). */
+        case 'mfa_reset': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $res = AdminMfa::reset((string) ($body['email'] ?? ''), av_admin_actor());
+            json_out($res, !empty($res['ok']) ? 200 : (($res['code'] ?? '') === 'own_account' ? 403 : 422));
         }
 
         // ---- Database: status + browser-based migration (superadmin) ----
