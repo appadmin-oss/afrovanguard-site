@@ -1403,6 +1403,7 @@
       cursor:pointer; min-height:40px; transition: all var(--t-fast);
     }
     .event-filter-btn:hover { color: var(--color-text-primary); border-color: var(--color-divider); }
+    .event-filter-btn[hidden] { display:none; }
     .event-filter-btn[aria-selected="true"] {
       color: var(--color-text-primary); border-color: var(--color-gold);
       background:rgba(243,180,22,0.08);
@@ -4092,6 +4093,7 @@
           <button class="event-filter-btn" role="tab" aria-selected="false" data-filter="programs">Projects</button>
           <button class="event-filter-btn" role="tab" aria-selected="false" data-filter="workshops">Workshops</button>
           <button class="event-filter-btn" role="tab" aria-selected="false" data-filter="community">Community</button>
+          <button class="event-filter-btn" role="tab" aria-selected="false" data-filter="africa-gates" hidden>Africa GATES</button>
         </div>
 
         <div class="events-scroll" role="region" aria-label="Events scroll area — use left and right arrow keys to navigate">
@@ -5273,23 +5275,110 @@
     // EVENTS FILTER
     // ================================================================
     const filterBtns = document.querySelectorAll('.event-filter-btn');
-    const eventCards = document.querySelectorAll('.event-card');
+    // Read the cards on every click, not once at load: the Africa GATES feed adds cards later.
+    const applyEventFilter = filter => {
+      document.querySelectorAll('.event-card').forEach(card => {
+        card.style.display = (filter === 'all' || card.dataset.category === filter) ? '' : 'none';
+      });
+    };
 
     filterBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         filterBtns.forEach(b => { b.setAttribute('aria-selected', 'false'); });
         btn.setAttribute('aria-selected', 'true');
-
-        const filter = btn.dataset.filter;
-        eventCards.forEach(card => {
-          if (filter === 'all' || card.dataset.category === filter) {
-            card.style.display = '';
-          } else {
-            card.style.display = 'none';
-          }
-        });
+        applyEventFilter(btn.dataset.filter);
       });
     });
+
+    // ================================================================
+    // AFRICA GATES EVENTS — read live from the Africa GATES calendar
+    // ================================================================
+    // https://afg.afrovanguard.org.ng/api/events: published, upcoming events, soonest first,
+    // the same list as the /events page there. They go at the FRONT of the row, badged
+    // "Africa GATES", beside the events written here. If the feed is slow or down, the row is
+    // simply the events written here, as it always was. Every value is set as text or as a
+    // checked https link, never as HTML: this is another site's data.
+    (function loadAfricaGatesEvents() {
+      const FEED = 'https://afg.afrovanguard.org.ng/api/events?scope=upcoming&limit=6';
+      const row = document.querySelector('.events-scroll');
+      const tab = document.querySelector('.event-filter-btn[data-filter="africa-gates"]');
+      if (!row || !window.fetch) return;
+
+      const httpsUrl = v => {
+        try { const u = new URL(String(v || '')); return u.protocol === 'https:' ? u.href : ''; } catch (e) { return ''; }
+      };
+      const el = (tag, cls, text) => {
+        const n = document.createElement(tag);
+        if (cls) n.className = cls;
+        if (text) n.textContent = text;
+        return n;
+      };
+      const ICON_DATE = 'M3 4h18v18H3zM16 2v4M8 2v4M3 10h18';
+      const ICON_PLACE = 'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0zM12 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6z';
+      const metaRow = (d, text) => {
+        const r = el('div', 'event-meta-row');
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        ['width', 'height'].forEach(a => svg.setAttribute(a, '14'));
+        svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '2');
+        svg.setAttribute('aria-hidden', 'true');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', d);
+        svg.appendChild(path);
+        r.appendChild(svg);
+        r.appendChild(document.createTextNode(text));
+        return r;
+      };
+      const card = ev => {
+        const link = httpsUrl(ev.url);
+        if (!link || !ev.title) return null;
+        const c = el('div', 'event-card');
+        c.setAttribute('role', 'article');
+        c.dataset.category = 'africa-gates';
+        const img = httpsUrl(ev.cover_image);
+        if (img) {
+          const w = el('div', 'event-card-img-wrap');
+          const i = el('img', 'event-card-img');
+          i.src = img; i.alt = ''; i.loading = 'lazy';
+          w.appendChild(i);
+          c.appendChild(w);
+        } else {
+          c.appendChild(el('div', 'event-card-img-ph'));
+        }
+        const b = el('div', 'event-card-body');
+        b.appendChild(el('span', 'event-badge', 'Africa GATES'));
+        b.appendChild(el('h3', '', String(ev.title)));
+        const m = el('div', 'event-meta');
+        if (ev.when) m.appendChild(metaRow(ICON_DATE, String(ev.when)));
+        const place = [ev.venue, ev.location].filter(Boolean).join(', ');
+        if (place) m.appendChild(metaRow(ICON_PLACE, place));
+        b.appendChild(m);
+        const blurb = String(ev.tagline || ev.description || '');
+        if (blurb) b.appendChild(el('p', '', blurb));
+        const a = el('a', 'event-card-cta', ev.price ? 'Get tickets' : 'Find out more');
+        a.href = link;
+        a.setAttribute('aria-label', (ev.price ? 'Get tickets: ' : 'Find out more: ') + String(ev.title));
+        b.appendChild(a);
+        c.appendChild(b);
+        return c;
+      };
+
+      const ctl = window.AbortController ? new AbortController() : null;
+      const timer = ctl ? setTimeout(() => ctl.abort(), 8000) : 0;
+      fetch(FEED, { credentials: 'omit', signal: ctl ? ctl.signal : undefined })
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          const cards = (d && Array.isArray(d.events) ? d.events : []).map(card).filter(Boolean);
+          if (!cards.length) return;
+          const first = row.firstElementChild;
+          cards.forEach(c => row.insertBefore(c, first));
+          if (tab) tab.hidden = false;
+          const on = document.querySelector('.event-filter-btn[aria-selected="true"]');
+          applyEventFilter(on ? on.dataset.filter : 'all');
+        })
+        .catch(() => { /* the events written here are still there */ })
+        .finally(() => { if (timer) clearTimeout(timer); });
+    })();
 
     // ================================================================
     // TESTIMONIALS CAROUSEL
