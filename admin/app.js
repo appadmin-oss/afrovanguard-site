@@ -3465,8 +3465,9 @@
     document.querySelectorAll('.subtab[data-mv]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-mv') === which); });
     document.querySelectorAll('.mem-pane').forEach(function (p) { p.hidden = p.getAttribute('data-pane') !== which; });
     if (which === 'dash') loadMemDash();
-    if (which === 'roster') loadMemRoster();
+    if (which === 'roster') { mclsGet().catch(function () {}); loadMemRoster(); }
     if (which === 'roles') loadMemRoles();
+    if (which === 'classes') loadMemClasses();
     if (which === 'centres') loadMemCentres();
     if (which === 'approvals') loadApprovals();
     if (which === 'import') loadMemFormats();
@@ -3569,7 +3570,7 @@
   function loadMemRoster() {
     var box = $('#memList'); if (!box) return;
     var qs = ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
-              'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'work_role=' + encodeURIComponent($('#memWorkRole').value), 'centre=' + encodeURIComponent($('#memCentre').value), 'level=' + encodeURIComponent($('#memLevel').value), 'sort=' + $('#memSort').value,
+              'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'work_role=' + encodeURIComponent($('#memWorkRole').value), 'member_class=' + encodeURIComponent($('#memClass').value), 'centre=' + encodeURIComponent($('#memCentre').value), 'level=' + encodeURIComponent($('#memLevel').value), 'sort=' + $('#memSort').value,
               'dir=' + ($('#memSort').value === 'name' ? 'asc' : 'desc'), 'page=' + memPage].join('&');
     box.innerHTML = '<p class="muted">Loading…</p>';
     api('roster_list&' + qs).then(function (r) {
@@ -3587,7 +3588,7 @@
     }).catch(function () { box.innerHTML = '<p class="muted">Could not load the roster. <button class="btn btn-outline btn-sm" id="memRetry">Retry</button></p>'; });
   }
   /* The filters in force, each a chip that removes itself — as NGG's roster has them. */
-  var MEM_FILTERS = [['#memQ', 'Search'], ['#memRole', 'Access'], ['#memStatus', 'Status'], ['#memKind', 'Accounts'], ['#memWorkRole', 'Role'], ['#memCentre', 'Centre'], ['#memLevel', 'Level'],
+  var MEM_FILTERS = [['#memQ', 'Search'], ['#memRole', 'Access'], ['#memStatus', 'Status'], ['#memKind', 'Accounts'], ['#memWorkRole', 'Role'], ['#memClass', 'Class'], ['#memCentre', 'Centre'], ['#memLevel', 'Level'],
                      ['#memVolunteer', 'Volunteers'], ['#memMissing', 'Missing'], ['#memSegment', 'List'], ['#memMembership', 'Dues']];
   function memChipsDraw() {
     var box = $('#memChips'); if (!box) return;
@@ -3729,7 +3730,7 @@
 
   function memFilterQs() {
     return ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
-            'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'work_role=' + encodeURIComponent($('#memWorkRole').value), 'centre=' + encodeURIComponent($('#memCentre').value), 'level=' + encodeURIComponent($('#memLevel').value)].join('&');
+            'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'work_role=' + encodeURIComponent($('#memWorkRole').value), 'member_class=' + encodeURIComponent($('#memClass').value), 'centre=' + encodeURIComponent($('#memCentre').value), 'level=' + encodeURIComponent($('#memLevel').value)].join('&');
   }
 
   /* ── Many members at once ──
@@ -3870,6 +3871,7 @@
       var d = r.data || {}; if (!d.ok) { $('#mdMembership').innerHTML = '<p class="muted">Could not load the membership.</p>'; return; }
       var ms = d.membership;
       $('#mdMembership').innerHTML = msHTML(ms);
+      mdClassDraw(d.class || {}, d.class_history || [], d.classes || []);
       $('#msLifetime').hidden = ms.state === 'lifetime';
       $('#msEnd').hidden = !ms.member;
       $('#msReinstate').hidden = ms.state !== 'cancelled';
@@ -3897,6 +3899,33 @@
       if (!d.ok) { toast(d.error || 'Refused.'); return; }
       toast(d.unchanged ? 'Nothing to change.' : 'Dues updated.'); if (done) done(); loadMemMembership(); loadMemRoster();
     }).catch(function () { toast('Network error.'); });
+  }
+
+  /* ── One member's class: what kind of member, and so what they pay ── */
+  function mdClassDraw(now, history, classes) {
+    var sel = $('#mdClass'); if (!sel) return;
+    sel.innerHTML = '<option value="">— no class —</option>'
+      + (classes || []).map(function (c) { return '<option value="' + escapeHtml(c.class_key) + '">' + escapeHtml(c.name) + '</option>'; }).join('');
+    /* An archived class is not offered, but a member already in one must still
+       see where they are — so it is added back, named as archived. */
+    if (now.class && !sel.querySelector('option[value="' + CSS.escape(now.class) + '"]')) {
+      sel.insertAdjacentHTML('beforeend', '<option value="' + escapeHtml(now.class) + '">' + escapeHtml(now.label || now.class) + ' (archived)</option>');
+    }
+    sel.value = now.class || '';
+    $('#mdClassFrom').value = ''; $('#mdClassFrom').max = new Date().toISOString().slice(0, 10);
+    $('#mdClassNote').value = '';
+    $('#mdClassNow').innerHTML = now.class
+      ? '<p class="muted tiny"><b>' + escapeHtml(now.label || now.class) + '</b> — '
+        + (now.owes ? mclsNgn(now.monthly) + ' a month' + (now.source === 'dues' ? ' (the standard price: this class has none of its own)' : '') : 'owes no dues')
+        + '.</p>'
+      : '<p class="muted tiny">In no class, so on the standard dues price (' + mclsNgn(now.monthly) + ' a month).</p>';
+    $('#mdClassHistory').innerHTML = (history || []).length
+      ? (history || []).map(function (h) {
+          return '<div class="mem-ev">from ' + escapeHtml(h.from_day) + ' · <b>' + escapeHtml(h.label || h.class_key || 'no class') + '</b>'
+            + (h.set_by ? ' · by ' + escapeHtml(h.set_by) : '')
+            + (h.note ? '<div class="muted tiny">' + escapeHtml(h.note) + '</div>' : '') + '</div>';
+        }).join('')
+      : '';
   }
 
   /* ── Dues: the rules, and who is behind ── */
@@ -4032,6 +4061,61 @@
           + '<button type="button" class="btn btn-outline btn-sm" data-role-del="' + r.id + '" data-n="' + r.members + '" data-name="' + escapeHtml(r.name) + '">Remove</button></div></form>';
       }).join('') + '</div>' : '<p class="muted">No work roles yet. Add the first above — Media, Events, Instructor…</p>';
     }).catch(function () { box.innerHTML = '<p class="muted">Could not load the roles.</p>'; });
+  }
+
+  /* Member classes: what kind of member, and what that kind pays. The PRICES
+     are the Super Admin's (the API refuses member_class_save otherwise), so
+     an admin sees them and cannot change them — a field that silently throws
+     away what you typed is worse than one that says it is not yours. */
+  var MCLS = [], mclsAt = 0;
+  function mclsSaid(t, bad) { var m = $('#mclsMsg'); if (m) { m.textContent = t || ''; m.classList.toggle('is-bad', !!bad); } }
+  function mclsNgn(n) { return '₦' + (+n || 0).toLocaleString('en-NG'); }
+  /* One fetch, shared by the Classes pane, the roster filter and the member
+     drawer: three screens asking the same question three times is how two of
+     them end up offering a class the third does not have. */
+  function mclsGet(fresh) {
+    if (!fresh && mclsAt && Date.now() - mclsAt < 60000) return Promise.resolve(MCLS);
+    return api('member_classes').then(function (r) {
+      var d = (r && r.data) || {};
+      MCLS = d.classes || []; mclsAt = Date.now(); MCLS._counts = d.counts || {}; MCLS._dues = d.dues || {}; MCLS._canPrice = !!d.can_price;
+      mclsFillFilter();
+      return MCLS;
+    });
+  }
+  function mclsFillFilter() {
+    var sel = $('#memClass'); if (!sel) return;
+    var had = sel.value;
+    sel.innerHTML = '<option value="">Any class</option><option value="none">In no class</option>'
+      + MCLS.map(function (c) { return '<option value="' + escapeHtml(c.class_key) + '">' + escapeHtml(c.name) + '</option>'; }).join('');
+    sel.value = had;
+  }
+  function loadMemClasses() {
+    var box = $('#memClassList'); if (!box) return;
+    mclsGet(true).then(function (list) {
+      var d = { counts: MCLS._counts, dues: MCLS._dues, can_price: MCLS._canPrice }, counts = d.counts || {}, canPrice = !!d.can_price;
+      var std = d.dues || {};
+      var unclassed = counts[''] || 0;
+      var head = '<p class="muted tiny">The standard dues price is ' + mclsNgn(std.monthly_ngn) + ' a month, ' + mclsNgn(std.annual_ngn) + ' a year'
+        + (unclassed ? ' — and ' + unclassed + ' member' + (unclassed === 1 ? ' is' : 's are') + ' on it, in no class yet.' : '.') + '</p>'
+        + (canPrice ? '' : '<p class="muted tiny">Prices are the Super Admin\'s. You can see them and read who is in each class.</p>');
+      box.innerHTML = head + (list.length ? '<div class="mem-roles">' + list.map(function (c) {
+        var n = counts[c.class_key] || 0;
+        return '<form class="mem-role-row mem-class-row" data-id="' + c.id + '" data-key="' + escapeHtml(c.class_key) + '">'
+          + '<label class="fld"><span>Class</span><input name="name" maxlength="40" value="' + escapeHtml(c.name) + '" required /></label>'
+          + '<label class="fld mem-role-desc"><span>What it covers</span><input name="description" maxlength="500" value="' + escapeHtml(c.description) + '" placeholder="Who belongs in this class" /></label>'
+          + '<label class="fld mem-class-ngn"><span>Monthly ₦</span><input name="monthly_ngn" type="number" min="0" step="1" value="' + (+c.monthly_ngn || 0) + '"' + (canPrice ? '' : ' disabled') + ' /></label>'
+          + '<label class="fld mem-class-ngn"><span>Yearly ₦</span><input name="annual_ngn" type="number" min="0" step="1" value="' + (+c.annual_ngn || 0) + '" placeholder="12 × monthly"' + (canPrice ? '' : ' disabled') + ' /></label>'
+          + '<label class="fld mem-class-owes"><span>Owes dues</span><input name="owes" type="checkbox"' + (c.owes ? ' checked' : '') + (canPrice ? '' : ' disabled') + ' /></label>'
+          + '<label class="fld mem-class-owes"><span>Archived</span><input name="archived" type="checkbox"' + (c.archived ? ' checked' : '') + ' /></label>'
+          + '<div class="mem-role-ops"><button type="button" class="btn btn-outline btn-sm" data-class-members="' + escapeHtml(c.class_key) + '">' + n + ' member' + (n === 1 ? '' : 's') + '</button>'
+          + '<button type="submit" class="btn btn-primary btn-sm">Save</button></div>'
+          + '<p class="muted tiny mem-class-note">' + (c.owes
+              ? (c.own_price ? 'Charged ' + mclsNgn(c.monthly_ngn) + ' a month, ' + mclsNgn(c.annual_ngn || c.monthly_ngn * 12) + ' a year.'
+                             : 'No price of its own — on the standard dues price.')
+              : 'Owes no dues.')
+          + (c.archived ? ' Archived: nobody new goes in it, and the members in it keep it.' : '') + '</p></form>';
+      }).join('') + '</div>' : '<p class="muted">No classes yet. Add the first above.</p>');
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the classes.</p>'; });
   }
 
   function openMember(id) {
@@ -4178,6 +4262,19 @@
       var pj = +$('#mdVolProject').value; if (!pj) { toast('Choose the project.'); return; }
       memVolSet('volunteer_add', { project_id: pj, type: $('#mdVolType').value });
     };
+    $('#mdClassSave').onclick = function () {
+      if (!memOpen) return;
+      var b = $('#mdClassSave'); b.disabled = true;
+      post('member_class_assign', { id: memOpen, class: $('#mdClass').value,
+        from_day: $('#mdClassFrom').value, note: $('#mdClassNote').value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { toast(d.error || 'Refused.'); return; }
+        toast(d.said || 'Class set.');
+        /* The arrears below are priced off the class, so the money panel and
+           the roster row are both redrawn rather than left disagreeing. */
+        loadMemMembership(); loadMemRoster(); mclsGet(true).catch(function () {});
+      }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
+    };
   }
   function memVolRefresh() {
     var id = memOpen;
@@ -4245,13 +4342,13 @@
     document.querySelectorAll('.subtab[data-mv]').forEach(function (b) { b.addEventListener('click', function () { memTab(b.getAttribute('data-mv')); }); });
     $('#memQ').addEventListener('input', function () { clearTimeout(memT); memT = setTimeout(function () { memPage = 1; loadMemRoster(); }, 280); });
     $('#memSegment').innerHTML = '<option value="">Any record</option>' + Object.keys(MEM_SEGMENTS).map(function (k) { return '<option value="' + k + '">' + escapeHtml(MEM_SEGMENTS[k]) + '</option>'; }).join('');
-    ['#memRole', '#memStatus', '#memKind', '#memWorkRole', '#memCentre', '#memLevel', '#memVolunteer', '#memMissing', '#memMembership', '#memSegment', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
+    ['#memRole', '#memStatus', '#memKind', '#memWorkRole', '#memClass', '#memCentre', '#memLevel', '#memVolunteer', '#memMissing', '#memMembership', '#memSegment', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
     /* A tile opens its list: the roster with exactly that filter and no other. */
     $('#memTiles').addEventListener('click', function (e) {
       if (e.target.closest('#memDashRetry')) { loadMemDash(); return; }
       if (e.target.closest('[data-offline]')) { e.preventDefault(); $('#offStatus').value = 'held'; memTab('offline'); return; }
       var a = e.target.closest('[data-ms],[data-kind],[data-seg],[data-all]'); if (!a) return; e.preventDefault();
-      ['#memRole', '#memStatus', '#memMissing', '#memMembership', '#memSegment', '#memWorkRole', '#memCentre', '#memLevel', '#memVolunteer'].forEach(function (x) { $(x).value = ''; });
+      ['#memRole', '#memStatus', '#memMissing', '#memMembership', '#memSegment', '#memWorkRole', '#memClass', '#memCentre', '#memLevel', '#memVolunteer'].forEach(function (x) { $(x).value = ''; });
       $('#memQ').value = ''; $('#memKind').value = '';
       if (a.getAttribute('data-kind')) $('#memKind').value = a.getAttribute('data-kind');
       /* Owing dues is a MEMBER's obligation, so those two lists stay on members;
@@ -4265,7 +4362,7 @@
       if (e.target.closest('#duesRetry')) { loadDues(); return; }
       var o = e.target.closest('.dues-open'); if (o) { openMember(+o.getAttribute('data-id')); return; }
       if (e.target.closest('#duesOpenRoster')) {
-        ['#memRole', '#memStatus', '#memMissing', '#memSegment', '#memWorkRole', '#memCentre', '#memLevel', '#memVolunteer', '#memKind'].forEach(function (x) { $(x).value = ''; });
+        ['#memRole', '#memStatus', '#memMissing', '#memSegment', '#memWorkRole', '#memClass', '#memCentre', '#memLevel', '#memVolunteer', '#memKind'].forEach(function (x) { $(x).value = ''; });
         $('#memQ').value = ''; $('#memMembership').value = 'owing'; memPage = 1; memSel = {}; memTab('roster');
       }
     });
@@ -4475,6 +4572,31 @@
         /* Who holds it: the roster, filtered to the role. */
         rolesGet().then(function () { $('#memWorkRole').value = see.getAttribute('data-role-members'); memPage = 1; memSel = {}; memTab('roster'); });
       }
+    });
+    $('#mclsNew').addEventListener('submit', function (e) {
+      e.preventDefault();
+      post('member_class_save', { id: 0, name: $('#mclsNewName').value.trim(), description: $('#mclsNewDesc').value.trim(),
+        monthly_ngn: +$('#mclsNewMonthly').value || 0, annual_ngn: +$('#mclsNewAnnual').value || 0, owes: $('#mclsNewOwes').checked ? 1 : 0 }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { mclsSaid(d.error || 'Could not add it.', true); return; }
+        mclsSaid('Added.'); $('#mclsNewName').value = ''; $('#mclsNewDesc').value = ''; $('#mclsNewMonthly').value = '0'; $('#mclsNewAnnual').value = '0';
+        loadMemClasses();
+      });
+    });
+    $('#memClassList').addEventListener('submit', function (e) {
+      var f = e.target.closest('.mem-class-row'); if (!f) return;
+      e.preventDefault();
+      post('member_class_save', { id: +f.getAttribute('data-id'), name: f.elements.name.value.trim(), description: f.elements.description.value.trim(),
+        monthly_ngn: +f.elements.monthly_ngn.value || 0, annual_ngn: +f.elements.annual_ngn.value || 0,
+        owes: f.elements.owes.checked ? 1 : 0, archived: f.elements.archived.checked ? 1 : 0 }).then(function (r) {
+        var d = r.data || {};
+        mclsSaid(d.ok ? 'Saved.' : (d.error || 'Could not save it.'), !d.ok);
+        if (d.ok) loadMemClasses();
+      });
+    });
+    $('#memClassList').addEventListener('click', function (e) {
+      var see = e.target.closest('[data-class-members]'); if (!see) return;
+      $('#memClass').value = see.getAttribute('data-class-members'); memPage = 1; memSel = {}; memTab('roster');
     });
     rolesGet().catch(function () {});
 

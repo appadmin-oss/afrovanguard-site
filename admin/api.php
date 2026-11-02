@@ -132,6 +132,9 @@ try {
         'card_format_save',
         // What every member is charged in dues, and from when.
         'dues_settings_save',
+        // A class IS a price — the same trust as the dues settings. Putting a
+        // PERSON in one is management's (member_class_assign, below).
+        'member_class_save',
         // Clearing somebody's second factor so they can enrol afresh.
         'mfa_reset'];
     $managementOnly = [ // not available to editors
@@ -140,6 +143,7 @@ try {
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
         'roster_membership', 'roster_membership_change', 'dues_settings', 'dues_owing', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
         'roles_list', 'role_save', 'role_delete',
+        'member_classes', 'member_class_assign',
         'centres_list', 'centre_save', 'centre_status', 'centre_delete',
         'approvals_list', 'approval_decide', 'approval_withdraw', 'member_requests_list', 'member_request_decide',
         // Programme sessions (kept on CACENTRE): who served in each.
@@ -1389,7 +1393,7 @@ try {
             json_out(['ok' => true] + MemberRoster::overview());
         case 'roster_list':
             json_out(['ok' => true, 'roles' => array_keys(LmsAuth::ROLE_RANK), 'levels' => class_exists('Levels') ? Levels::order() : ['O']]
-                + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'work_role', 'sort', 'dir', 'page', 'page_size']))));
+                + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment', 'work_role', 'member_class', 'sort', 'dir', 'page', 'page_size']))));
         /* ── The day-to-day desk, as NGG's admin has it (lib/MemberDesk.php) ── */
         case 'roster_centres':
             /* The office's list: open centres to put people in, every centre to filter by. */
@@ -1459,6 +1463,23 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = MemberRoles::delete((int) ($body['id'] ?? 0), av_admin_actor());
             json_out($r, $r['ok'] ? 200 : 404);
+        /* ── Member classes: what kind of member, and what that kind pays
+              (lib/MemberClasses.php). Reading and assigning are management's;
+              the PRICES are the Super Admin's, like the dues settings. ── */
+        case 'member_classes':
+            json_out(['ok' => true, 'classes' => array_values(MemberClasses::all()), 'counts' => MemberClasses::counts(),
+                      'dues' => ['monthly_ngn' => Membership::monthly(), 'annual_ngn' => Membership::annual()],
+                      'can_price' => $role === 'superadmin']);
+        case 'member_class_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberClasses::save(array_intersect_key($body, array_flip(['id', 'class_key', 'name', 'description', 'monthly_ngn', 'annual_ngn', 'owes', 'archived'])), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'member_class_assign':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $mid = (int) ($body['id'] ?? 0);
+            if (!$lms->memberById($mid)) json_out(['ok' => false, 'error' => 'No such member.'], 404);
+            $r = MemberClasses::assign($mid, (string) ($body['class'] ?? ''), (string) ($body['from_day'] ?? ''), av_admin_actor(), (string) ($body['note'] ?? ''));
+            json_out($r, $r['ok'] ? 200 : 422);
         /* ── Approvals: an admin's sensitive acts, kept for a second person (lib/Approvals.php) ── */
         case 'approvals_list':
             json_out(Approvals::list((string) ($_GET['status'] ?? 'pending'), av_admin_actor()));
@@ -1520,7 +1541,9 @@ try {
         case 'roster_membership':
             $mid = (int) ($_GET['id'] ?? 0);
             if (!$lms->memberById($mid)) json_out(['ok' => false, 'error' => 'No such member.'], 404);
-            json_out(['ok' => true, 'membership' => Membership::summary($mid), 'methods' => Membership::METHODS] + Membership::history($mid));
+            json_out(['ok' => true, 'membership' => Membership::summary($mid), 'methods' => Membership::METHODS,
+                      'class' => Membership::classOf($mid), 'class_history' => MemberClasses::historyFor($mid),
+                      'classes' => array_values(MemberClasses::active())] + Membership::history($mid));
         case 'roster_membership_change':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $mid = (int) ($body['id'] ?? 0);

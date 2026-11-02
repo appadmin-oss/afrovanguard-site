@@ -89,7 +89,12 @@ final class MemberRoster
         )");
         /* What work a member does — several roles, and a line in their own words
            — so tasks go to the right person (lib/TaskMatch.php). */
-        foreach (['work_roles' => "VARCHAR(300) NOT NULL DEFAULT ''", 'about' => "VARCHAR(600) NOT NULL DEFAULT ''"] as $col => $decl) {
+        /* `member_class` is lib/MemberClasses.php's, but member_profiles is
+           this file's table and the roster selects the column — so it is made
+           here, where the table is, rather than depending on which screen the
+           office happened to open first. */
+        foreach (['work_roles' => "VARCHAR(300) NOT NULL DEFAULT ''", 'about' => "VARCHAR(600) NOT NULL DEFAULT ''",
+                  'member_class' => "VARCHAR(32) NOT NULL DEFAULT ''"] as $col => $decl) {
             try { if (!Database::columnExists('member_profiles', $col)) $pdo->exec("ALTER TABLE member_profiles ADD COLUMN $col $decl"); } catch (Throwable $e) {}
         }
         Database::execSchema($pdo, "CREATE TABLE IF NOT EXISTS member_import_runs (
@@ -599,6 +604,13 @@ final class MemberRoster
             $hold = MemberRoles::holders($wr);
             $w[] = $hold ? 'u.id IN (' . implode(',', array_map('intval', $hold)) . ')' : '1 = 0';
         }
+        /* In a membership class, or in none (lib/MemberClasses.php). The
+           filter is the answer to "who is on the student rate", which is the
+           question an office asks the moment it has more than one price. */
+        if (($mc = trim((string) ($f['member_class'] ?? ''))) !== '') {
+            if ($mc === 'none') { $w[] = "COALESCE(p.member_class, '') = ''"; }
+            else { $w[] = 'p.member_class = ?'; $a[] = $mc; }
+        }
         /* Volunteers, or members who are not (lib/Volunteers decides). */
         $vol = (string) ($f['volunteer'] ?? '');
         $volIds = class_exists('Volunteers') ? Volunteers::volunteerIds() : [];
@@ -622,7 +634,7 @@ final class MemberRoster
         $dir = strtolower((string) ($f['dir'] ?? '')) === 'asc' ? 'ASC' : 'DESC';
         $size = max(10, min(200, (int) ($f['page_size'] ?? 50)));
         $page = max(1, (int) ($f['page'] ?? 1));
-        $st = $pdo->prepare('SELECT u.id, u.name, u.email, u.role, u.status, u.created_at, u.last_login, u.level, u.birthday, u.birth_year, p.phone, p.centre, p.joined_on, p.work_roles, p.about,
+        $st = $pdo->prepare('SELECT u.id, u.name, u.email, u.role, u.status, u.created_at, u.last_login, u.level, u.birthday, u.birth_year, p.phone, p.centre, p.joined_on, p.work_roles, p.about, p.member_class,
                 (SELECT c.code FROM av_member_cards c WHERE c.member_id = u.id AND c.kind = \'secure\' AND c.status = \'active\' ORDER BY c.id DESC LIMIT 1) AS card,
                 (SELECT MAX(CASE WHEN m.expires_at IS NULL THEN \'9999-12-31 00:00:00\' ELSE m.expires_at END) FROM memberships m WHERE m.user_id = u.id AND m.status = \'active\') AS paid_through'
             . $from . " ORDER BY $sort $dir, u.id DESC LIMIT $size OFFSET " . (($page - 1) * $size));
@@ -638,6 +650,7 @@ final class MemberRoster
             if ($r['membership'] === 'lifetime') $r['paid_through'] = null;
             $o = $owed[(int) $r['id']] ?? null;
             return $r + ['ngv' => isset($ngv[(int) $r['id']]), 'volunteer' => isset($volIds[(int) $r['id']]),
+                         'member_class_label' => class_exists('MemberClasses') ? MemberClasses::label((string) ($r['member_class'] ?? '')) : '',
                          'owes' => $o ? ['months' => $o['months'], 'amount_ngn' => $o['amount_ngn'], 'since' => $o['since'], 'next_due' => $o['next_due']] : null];
         }, $page);
         return ['members' => $rows, 'total' => $total, 'page' => $page, 'page_size' => $size, 'sort' => $sortKey, 'dir' => strtolower($dir)];

@@ -200,10 +200,46 @@ final class Membership
     public static function monthly(): int { return (int) self::settings()['monthly_ngn']; }
     public static function annual(): int { return (int) self::settings()['annual_ngn']; }
 
-    /** What N months of dues cost: whole years at the yearly price, the rest by the month. */
-    public static function price(int $months): int
+    /**
+     * The STANDARD prices, for a page that quotes the organisation rather
+     * than a person (how-it-works, the AI's knowledge of the rules).
+     * What a given member pays is monthlyFor() / annualFor(): their class may
+     * price them differently, and a figure on their own screen that is not the
+     * figure they will be charged is the defect this pair exists to prevent.
+     */
+    public static function monthlyFor(int $userId): int
+    {
+        if ($userId <= 0 || !class_exists('MemberClasses')) return self::monthly();
+        return MemberClasses::priceOf(MemberClasses::of($userId))['monthly'];
+    }
+
+    public static function annualFor(int $userId): int
+    {
+        if ($userId <= 0 || !class_exists('MemberClasses')) return self::annual();
+        return MemberClasses::priceOf(MemberClasses::of($userId))['annual'];
+    }
+
+    /** The member's class now, with its prices and where they came from. */
+    public static function classOf(int $userId): array
+    {
+        $key = class_exists('MemberClasses') ? MemberClasses::of($userId) : '';
+        $p = class_exists('MemberClasses')
+            ? MemberClasses::priceOf($key)
+            : ['monthly' => self::monthly(), 'annual' => self::annual(), 'owes' => true, 'source' => 'dues'];
+        return ['class' => $key, 'label' => class_exists('MemberClasses') ? MemberClasses::label($key) : ''] + $p;
+    }
+
+    /**
+     * What N months of dues cost: whole years at the yearly price, the rest by
+     * the month. With a member named, at THEIR class's prices — so the amount
+     * quoted on their screen is the amount the desk will ask them for.
+     */
+    public static function price(int $months, int $userId = 0): int
     {
         $months = max(0, $months);
+        if ($userId > 0 && class_exists('MemberClasses')) {
+            return MemberClasses::priceMonths($months, MemberClasses::of($userId));
+        }
         return intdiv($months, 12) * self::annual() + ($months % 12) * self::monthly();
     }
 
@@ -230,6 +266,13 @@ final class Membership
         $w[] = 'LOWER(u.email) <> ' . Database::pdo()->quote(class_exists('Community') ? strtolower(Community::BOT_EMAIL) : 'community-bot@afrovanguard.org.ng');
         $ngv = class_exists('MemberRoster') ? array_keys(MemberRoster::vanguardIds()) : [];
         if ($ngv) $w[] = 'u.id NOT IN (' . implode(',', array_map('intval', $ngv)) . ')';
+        /* A class that owes nothing — Patron, Honorary — owes nothing. The
+           office says so once on the class rather than waiving every month. */
+        if (class_exists('MemberClasses')) {
+            MemberClasses::ensure();
+            $w[] = "NOT EXISTS (SELECT 1 FROM member_profiles mp JOIN member_classes mc ON mc.class_key = mp.member_class
+                                 WHERE mp.user_id = u.id AND mc.owes = 0)";
+        }
         return ['(' . implode(' AND ', $w) . ')', array_merge([$base], $levels)];
     }
 
@@ -263,7 +306,14 @@ final class Membership
         $st = Database::pdo()->prepare('SELECT status FROM memberships WHERE user_id = ? ORDER BY id DESC LIMIT 1'); $st->execute([$userId]);
         if ((string) $st->fetchColumn() === 'cancelled') return $no('cancelled', 'Dues ended by the office.');
         if ($s['start'] > gmdate('Y-m-d')) return $no('not_yet', 'Dues begin on ' . $s['start'] . '.');
-        return ['owes' => true, 'code' => 'member', 'why' => 'Level ' . $lvl . ' member: dues are owed every month.'];
+        $cls = self::classOf($userId);
+        if ($cls['class'] !== '' && !$cls['owes']) {
+            return $no('class', $cls['label'] . ': that class owes no dues.');
+        }
+        return ['owes' => true, 'code' => 'member', 'class' => $cls['class'], 'label' => $cls['label'],
+                'monthly_ngn' => $cls['monthly'], 'price_from' => $cls['source'],
+                'why' => ($cls['label'] !== '' ? $cls['label'] . ' member' : 'Level ' . $lvl . ' member')
+                       . ': dues are owed every month, at ₦' . number_format($cls['monthly']) . ' a month.'];
     }
 
     /**
@@ -300,7 +350,7 @@ final class Membership
     {
         $ob = self::obligation($userId);
         $a = self::arrearsFor([$userId], $now)[$userId] ?? null;
-        $zero = ['months' => 0, 'amount_ngn' => 0, 'since' => '', 'next_due' => '', 'paid_through' => null, 'from' => ''];
+        $zero = ['months' => 0, 'amount_ngn' => 0, 'since' => '', 'next_due' => '', 'paid_through' => null, 'from' => '', 'classes' => []];
         return ($a ?? $zero) + ['owes' => $ob['owes'], 'code' => $ob['code'], 'why' => $ob['why']];
     }
 
@@ -321,9 +371,45 @@ final class Membership
         }
         $next = (int) strtotime('+' . $months . ' months', $anchor);
         $pt = (string) ($r['paid_through'] ?? '');
-        return ['months' => $months, 'amount_ngn' => self::price($months),
+        [$amount, $classes] = self::pricedMonths((int) ($r['id'] ?? 0), $anchor, $months);
+        return ['months' => $months, 'amount_ngn' => $amount,
                 'since' => $months > 0 ? gmdate('Y-m-d', $anchor) : '', 'next_due' => gmdate('Y-m-d', $next),
-                'paid_through' => $pt !== '' ? $pt : null, 'from' => gmdate('Y-m-d H:i:s', $anchor)];
+                'paid_through' => $pt !== '' ? $pt : null, 'from' => gmdate('Y-m-d H:i:s', $anchor),
+                'classes' => $classes];
+    }
+
+    /**
+     * What the months owed come to, priced MONTH BY MONTH at the class the
+     * member was in on the day each one fell due (lib/MemberClasses.php).
+     *
+     * Consecutive months in one class are priced together, so a year owed in
+     * one class still costs the yearly price rather than twelve monthly ones —
+     * the discount is for the span, not for when it is paid.
+     *
+     * A member with no class history is one run of '' months, which prices at
+     * the single dues figure: identical to what this did before classes
+     * existed, to the naira. That is asserted in tests/memberclasses.test.php.
+     *
+     * @return array{0:int, 1:array<int, array{class:string, months:int, amount_ngn:int}>}
+     */
+    private static function pricedMonths(int $userId, int $anchor, int $months): array
+    {
+        if ($months <= 0) return [0, []];
+        if (!class_exists('MemberClasses') || $userId <= 0) return [self::price($months), []];
+        $runs = [];
+        for ($i = 0; $i < $months; $i++) {
+            $day = gmdate('Y-m-d', (int) strtotime('+' . $i . ' months', $anchor));
+            $k = MemberClasses::onDay($userId, $day);
+            if ($runs && end($runs)['class'] === $k) $runs[count($runs) - 1]['months']++;
+            else $runs[] = ['class' => $k, 'months' => 1];
+        }
+        $total = 0;
+        foreach ($runs as $i => $run) {
+            $n = MemberClasses::priceMonths($run['months'], $run['class']);
+            $runs[$i]['amount_ngn'] = $n;
+            $total += $n;
+        }
+        return [$total, $runs];
     }
 
     private static function anchorOf(array $r): int

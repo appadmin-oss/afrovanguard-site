@@ -812,3 +812,42 @@ The flow changed shape, so the tests did: a claim is drafted, read in
 sittings, then sent. `tests/readingflow.test.php` drives it over HTTP as a
 signed-in vanguard, because if the dashboard's endpoint, the claim sheet and
 the diary disagree about that, the member is the one who finds out.
+
+## Membership classes: dues priced by what kind of member somebody is (Nov 2026)
+
+Dues were one price for everybody, so a student and a working professional
+owed the same figure and the only lever was a hand-typed waiver every month. A
+**class** now carries the price: Student, Working, Volunteer, Associate,
+Patron, Honorary as seeded, all office-editable.
+
+**A class is not the role and not the Level.** The role says what somebody may
+do in the software, the Level says how far they have come, the class says what
+they pay. Tying the price to either of the other two means a promotion changes
+somebody's bill.
+
+**Nothing changes until the office uses it.** No class, or a class with no
+price of its own, reads the single dues price exactly as before — a class with
+blank prices is *on the standard price*, not free. The first assertion in
+`tests/memberclasses.test.php` pins that, deliberately ahead of everything
+else: a money change nobody asked for is the worst kind.
+
+**The past keeps the price it was charged at.** `member_class_log` is one row
+per change with the day it takes effect, and arrears price **each month at the
+class in force on the day it fell due**, grouping consecutive months so a year
+owed in one class still gets that class's yearly rate. Pricing arrears at
+today's class would mean one correction trebled somebody's arrears with
+nothing on screen saying why. Backdating is allowed and is how a record is
+corrected; a future day is refused.
+
+**Prices are the Super Admin's** (`member_class_save`, beside the dues
+settings); reading the list and putting a person in a class are management's.
+An admin who cannot price sees the fields disabled and is told why.
+
+Found by screenshot, not by the suite: the new roster filter was never bound
+to the reload handler, so picking a class redrew the chip and left the list
+alone — the same class of defect as the fatal the reading screenshots caught.
+Its sibling, the drawer's class row clipping its own button, was a media query
+measuring the window while sitting inside a 555px panel; it is a container
+query now.
+
+See `docs/member-classes.md`.

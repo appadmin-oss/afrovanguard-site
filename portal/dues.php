@@ -52,7 +52,7 @@ if ($action === 'pay_init') {
         if ((int) $owed['months'] < 1) json_out(['ok' => false, 'error' => 'You are not behind on dues.'], 400);
         $months = min(Membership::MAX_MONTHS, (int) $owed['months']);
     }
-    $amountNgn = Membership::price($months);
+    $amountNgn = Membership::price($months, (int) $u['id']);
     if ($amountNgn <= 0) json_out(['ok' => false, 'error' => 'Dues are not payable online right now.'], 400);
 
     $reference = Payments::reference('membership');

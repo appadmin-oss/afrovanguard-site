@@ -250,7 +250,7 @@ final class PaymentWebhook
         }
 
         Membership::ensure();
-        $priceKobo = Membership::price(1) * 100;
+        $priceKobo = Membership::price(1, $uid) * 100;
         $paidKobo  = (int) round((float) ($tx['amount'] ?? 0));
 
         /* Insert-or-ignore on the gateway's reference. UNIQUE(reference) is
