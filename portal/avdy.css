@@ -129,6 +129,10 @@
 .avnb-back { display: none; font-size: 20px; line-height: 1; margin-left: -6px; color: var(--dy-tx2); }
 .avnb-nbbtn { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; margin-left: -8px; border: 0; border-radius: 7px; background: transparent; font-size: 13px; font-weight: 500; color: var(--dy-tx3); min-width: 0; cursor: pointer; }
 .avnb-nbbtn:hover, .avnb-nbbtn[aria-expanded="true"] { background: var(--dy-bg3); color: var(--dy-tx); }
+/* Read-only: it says where the entry lives and cannot move it, so it is a
+   label — no pointer, no hover state promising a menu. */
+.avnb-nbbtn.is-static { cursor: default; }
+.avnb-nbbtn.is-static:hover { background: transparent; color: var(--dy-tx3); }
 .avnb-nbbtn svg { width: 12px; height: 12px; stroke-width: 2; color: var(--dy-tx4); }
 .avnb-nbbtn-t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .avnb-saved { font-size: 12px; color: var(--dy-tx4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }

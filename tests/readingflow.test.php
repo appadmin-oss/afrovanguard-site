@@ -120,6 +120,19 @@ if (!$rfUp) {
        && (string) $j10['entries'][0]['title'] === 'The Flow Book');
     ck('flow: …read-only, because the book owns it',
        ($j10['entries'][0]['mine'] ?? true) === false && !empty($j10['entries'][0]['reading']));
+    /* The book is where the sitting LIVES and the reach is what it IS. They
+       are separate fields so the diary can put the book in the chip that used
+       to read "No notebook" and the reach in the heading, without printing
+       either twice. */
+    ck('flow: …the book and the sitting are separate fields',
+       (string) ($j10['entries'][0]['book'] ?? '') === 'The Flow Book'
+       && (string) ($j10['entries'][0]['sitting'] ?? '') === 'Chapter 1'
+       && (string) ($j10['entries'][0]['book_author'] ?? '') === 'A Writer');
+    ck('flow: …and the heading is not repeated in the body',
+       !str_contains((string) $j10['entries'][0]['body'], 'Chapter 1')
+       && str_contains((string) $j10['entries'][0]['body'], '50 minutes'));
+    ck('flow: …the excerpt leads with the reach, so two sittings do not read alike',
+       str_starts_with((string) ($j10['entries'][0]['excerpt'] ?? ''), 'Chapter 1 · '));
     ck('flow: …and the whole sitting is in it, not just the notes',
        str_contains((string) $j10['entries'][0]['body'], 'Where I stand')
        && str_contains((string) $j10['entries'][0]['body'], 'What I will do'));

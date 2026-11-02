@@ -245,7 +245,9 @@
     if (showSt) meta += '<span class="avnb-m-st" data-tone="' + st[1] + '"><span class="avnb-dot"></span>' + (e.kind === 'event' && e.status === 'approved' ? 'Event' : st[0]) + '</span>';
     if (showNb) meta += '<span class="avnb-m-nb"><span class="avnb-spine avnb-spine--xs" data-c="' + esc(nb.colour) + '"></span><span>' + esc(nb.name) + '</span></span>';
     if ((e.tab_count || 1) > 1) meta += '<span>' + e.tab_count + ' tabs</span>';
-    if (e.author) meta += '<span>' + esc(first(e.author)) + '</span>';
+    /* The author names who ELSE wrote it. A reading sitting is always your
+       own, so printing your name on every row of your own diary said nothing. */
+    if (e.author && !e.reading) meta += '<span>' + esc(first(e.author)) + '</span>';
     var on = S.entry && S.entry.id === e.id;
     return '<li><button type="button" class="avnb-item" data-dy-pick="' + e.id + '"' + (on ? ' aria-current="true"' : '') + '>'
       + '<span class="avnb-item-top"><span class="avnb-item-t">' + esc(e.title || 'Untitled') + '</span><span class="avnb-item-d">' + esc(fmtShort(e.entry_date)) + '</span></span>'
@@ -287,7 +289,7 @@
       S.entry = row; S.ti = 0; S.menu = null; S.delArm = false; S.saveErr = ''; S.people = null; S.shareUrl = '';
       S.readOnly = row.mine === false || !!row.direct;
       var nb = nbOf(row.notebook_id);
-      S.roNote = row.reading ? 'From your 24-book challenge. It is kept with the book it belongs to — open that book on your Programme page to change it.'
+      S.roNote = row.reading ? 'A sitting from your 24-book challenge, kept with ' + (row.book ? '“' + row.book + '”' : 'the book it belongs to') + '. Open that book on your Programme page to change it.'
         : row.direct ? 'Shared with you by ' + row.author + '. You can read it; only ' + first(row.author) + ' can edit it.'
         : S.readOnly && nb ? 'Written by ' + row.author + ' in “' + nb.name + '”. ' + (nb.role === 'contributor' ? 'You can add your own entries here, but only ' + first(row.author) + ' can edit this one.' : 'You can read everything in this notebook, including entries added later.') : '';
       S.tabs = [{ id: 0, title: row.first_tab_title || 'Entry', body: row.body || '' }];
@@ -419,6 +421,19 @@
     return '<div class="avnb-review" data-dy-review><span class="avnb-review-t">' + (E.kind === 'event' ? 'Events are reviewed before they join the Diary’s Events stream' : 'Public entries are reviewed before they join the Diary') + '</span>'
       + '<ol class="avnb-steps">' + steps.map(function (t, i) { return '<li' + (i <= idx ? ' class="is-on' + (idx === 3 ? ' is-done' : '') + '"' : '') + '>' + t + '</li>'; }).join('') + '</ol></div>';
   }
+  /* The chip says where the entry lives. A reading sitting lives in its BOOK,
+     not in a notebook, so it names the book — "No notebook" on somebody's
+     reading was an answer to a question nobody asked. Read-only: a span, not
+     a button that cannot act. */
+  function nbBtnHtml(E, nb, ed) {
+    var name = E.reading ? (E.book || 'A book') : nb ? nb.name : 'No notebook';
+    var spine = '<span class="avnb-spine avnb-spine--s" data-c="' + esc(E.reading ? 'gold' : nb ? nb.colour : 'none') + '"></span>';
+    var label = '<span class="avnb-nbbtn-t">' + esc(name) + '</span>';
+    if (!ed) {
+      return '<span class="avnb-nbbtn is-static"' + (E.reading ? ' title="' + esc(E.book_author ? E.book + ' · ' + E.book_author : name) + '"' : '') + '>' + spine + label + '</span>';
+    }
+    return '<button type="button" class="avnb-nbbtn" data-dy-menu="move" aria-haspopup="true" aria-expanded="' + (S.menu === 'move') + '" title="Move to a notebook">' + spine + label + svg(IC.chev) + '</button>';
+  }
   function renderEditor() {
     var doc = q('[data-dy-doc]'), pick = q('[data-dy-placeholder]'), E = S.entry;
     root.classList.toggle('is-editing', !!E && S.mobileEdit);
@@ -427,7 +442,7 @@
     var nb = nbOf(E.notebook_id), ed = !S.readOnly, tab = S.tabs[S.ti] || S.tabs[0], st = stInfo(E), sb = statusBtn(E), font = E.font || 'default';
     var h = '<div class="avnb-bar">'
       + '<button type="button" class="avnb-ico avnb-back" data-dy-back aria-label="All entries">‹</button>'
-      + '<button type="button" class="avnb-nbbtn" data-dy-menu="move"' + (ed ? ' aria-haspopup="true" aria-expanded="' + (S.menu === 'move') + '"' : '') + ' title="' + (ed ? 'Move to a notebook' : '') + '"><span class="avnb-spine avnb-spine--s" data-c="' + esc(nb ? nb.colour : 'none') + '"></span><span class="avnb-nbbtn-t">' + esc(nb ? nb.name : 'No notebook') + '</span>' + (ed ? svg(IC.chev) : '') + '</button>'
+      + nbBtnHtml(E, nb, ed)
       + '<span class="avnb-saved" data-dy-saved aria-live="polite">' + esc(savedText()) + '</span>'
       + '<span class="avnb-bar-r">'
       + '<span class="avnb-st" data-dy-st data-tone="' + st[1] + '"' + (E.kind === 'private' ? ' hidden' : '') + '><span class="avnb-dot"></span><span data-dy-stl>' + st[0] + '</span></span>'
@@ -448,7 +463,7 @@
     h += '<div class="avnb-page"><div class="avnb-paper">';
     if (S.readOnly && S.roNote) h += '<p class="avnb-ronote">' + esc(S.roNote) + '</p>';
     if (ed && E.kind !== 'private' && E.status === 'rejected' && E.review_note) h += '<div class="avnb-rejected" role="note"><strong>Not approved</strong><span>' + esc(E.review_note) + '</span></div>';
-    h += '<input class="avnb-title" data-dy-title value="' + esc(E.title) + '" placeholder="Untitled" aria-label="Entry title" maxlength="160"' + (ed ? '' : ' readonly') + '>';
+    h += '<input class="avnb-title" data-dy-title value="' + esc(E.reading ? (E.sitting || 'A sitting') : E.title) + '" placeholder="Untitled" aria-label="' + (E.reading ? 'What this sitting covered' : 'Entry title') + '" maxlength="160"' + (ed ? '' : ' readonly') + '>';
     h += '<div class="avnb-meta">'
       + '<label class="avnb-date" title="' + (E.kind === 'event' ? 'When it happened — events can be backdated' : 'Entry date') + '"><span>' + esc(fmtLong(E.entry_date)) + '</span>' + (ed ? '<input type="date" data-dy-date value="' + esc(String(E.entry_date).slice(0, 10)) + '" max="' + TODAY + '" aria-label="Entry date">' : '') + '</label>'
       + '<span class="avnb-vishost"><button type="button" class="avnb-vis" data-dy-menu="vis"' + (ed ? ' aria-haspopup="true" aria-expanded="' + (S.menu === 'vis') + '"' : ' disabled') + '>' + svg(KIND[E.kind][1]) + KIND[E.kind][0] + (ed ? svg(IC.chev) : '') + '</button><span data-dy-vismenu></span></span>'

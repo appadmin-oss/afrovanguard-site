@@ -83,18 +83,26 @@ try {
             if (!class_exists('NgvReading')) json_out(['ok' => true, 'entries' => []]);
             $out = [];
             foreach (NgvReading::sessionsFor($uid) as $x) {
-                $where = trim((string) $x['covered'] . ' · ' . (int) $x['minutes'] . ' minutes · ' . (string) $x['place'], ' ·');
-                $body  = '<p><em>' . htmlspecialchars($where, ENT_QUOTES, 'UTF-8')
-                       . ((string) $x['mood_label'] !== '' ? ' · ' . htmlspecialchars((string) $x['mood_label'], ENT_QUOTES, 'UTF-8') : '')
-                       . '</em></p>'
+                /* The book is the notebook and the sitting is the entry, so
+                   neither name is written twice: `book` goes in the notebook
+                   chip, `sitting` is the heading, and the facts line below it
+                   drops the reach it would otherwise repeat. */
+                $book    = (string) ($x['title'] ?? 'A book');
+                $sitting = (string) $x['covered'] !== '' ? (string) $x['covered'] : 'A sitting';
+                $facts   = trim((int) $x['minutes'] . ' minutes · ' . (string) $x['place'], ' ·');
+                if ((string) $x['mood_label'] !== '') $facts .= ' · ' . (string) $x['mood_label'];
+                $body  = '<p><em>' . htmlspecialchars($facts, ENT_QUOTES, 'UTF-8') . '</em></p>'
                        . '<p>' . nl2br(htmlspecialchars((string) $x['notes'], ENT_QUOTES, 'UTF-8')) . '</p>'
                        . '<p><strong>Where I stand:</strong> ' . nl2br(htmlspecialchars((string) $x['stance'], ENT_QUOTES, 'UTF-8')) . '</p>'
                        . '<p><strong>What I will do:</strong> ' . nl2br(htmlspecialchars((string) $x['application'], ENT_QUOTES, 'UTF-8')) . '</p>';
                 $out[] = [
                     'id'              => 'r' . (int) $x['id'],      // never collides with a diary entry id
                     'kind'            => 'private',
-                    'title'           => (string) ($x['title'] ?? 'A book'),
-                    'excerpt'         => mb_substr(trim((string) $x['notes']), 0, 160),
+                    'title'           => $book,                     // the list pane scans by book
+                    'book'            => $book,
+                    'book_author'     => (string) ($x['author'] ?? ''),
+                    'sitting'         => $sitting,
+                    'excerpt'         => trim($sitting . ' · ' . mb_substr(trim((string) $x['notes']), 0, 140), ' ·'),
                     'entry_date'      => (string) $x['day'],
                     'status'          => 'approved',
                     'tags'            => [],
@@ -104,7 +112,7 @@ try {
                     'reading'         => true,
                     'author'          => (string) ($u['name'] ?? ''),
                     'body'            => $body,
-                    'first_tab_title' => (string) ($x['title'] ?? 'A book'),
+                    'first_tab_title' => $sitting,
                 ];
             }
             json_out(['ok' => true, 'entries' => $out]);
