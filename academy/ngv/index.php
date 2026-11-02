@@ -77,7 +77,17 @@ $hero = $c['hero'] ?? [];
     <span>✏️ <b>Admin</b> — every part of this page is editable.</span>
     <a href="/academy/ngv/edit.php">Edit page →</a>
     <a href="/academy/ngv/members.php">Vanguards &amp; applications →</a>
-<?php if (in_array(av_admin_role(), ['admin', 'superadmin'], true)): ?>    <a href="/academy/ngv/fines.php">Record fines →</a>
+<?php if (in_array(av_admin_role(), ['admin', 'superadmin'], true)):
+      /* The counts, where the work is. Both figures existed and were called
+         from nowhere, so a claim was seen when somebody happened to open the
+         console and a spoken check was remembered when somebody happened to
+         scroll past it — and a participant waiting on a verification could
+         not tell "nobody has looked" from "nobody is going to". */
+      $ngvToCheck = class_exists('NgvReading') ? NgvReading::queueCount() : 0;
+      $ngvToAsk   = class_exists('NgvReading') ? NgvReading::spotCount() : 0; ?>
+    <a href="/academy/ngv/fines.php">Record fines →</a>
+    <a href="/academy/ngv/members.php#bookclaims">Books to check<?= $ngvToCheck ? ' <b class="ngv-count">' . (int) $ngvToCheck . '</b>' : '' ?> →</a>
+    <a href="/academy/ngv/members.php#spotchecks">Reading conversations<?= $ngvToAsk ? ' <b class="ngv-count">' . (int) $ngvToAsk . '</b>' : '' ?> →</a>
     <a href="/academy/ngv/books.php">Book list →</a>
 <?php endif; ?>
     <a href="/academy/ngv/dashboard.php?preview=1">Member dashboard →</a>

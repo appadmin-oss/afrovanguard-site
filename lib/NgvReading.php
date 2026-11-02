@@ -58,8 +58,10 @@ final class NgvReading
      *  costs more than skimming the book would have. */
     public const MIN_REFLECTION = 320;
 
-    /** And a ceiling, so nobody pastes a chapter to clear the floor. */
-    private const MAX_REFLECTION = 6000;
+    /** And a ceiling, so nobody pastes a chapter to clear the floor. Over it
+     *  is a refusal with the number in it, never a silent truncation. */
+    public const MAX_REFLECTION = 6000;
+    public const MAX_TAKEAWAY = 600;
 
     /** The specific thing they did with it. Short, but it must exist — this is
      *  the field a reviewer can ask about out loud. */
@@ -171,6 +173,11 @@ CREATE TABLE IF NOT EXISTS ngv_book_spot_checks (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_spot_stone ON ngv_book_spot_checks (member_id, milestone);
 CREATE INDEX IF NOT EXISTS idx_spot_open ON ngv_book_spot_checks (outcome, id);
+CREATE TABLE IF NOT EXISTS ngv_reading_reviewers (
+  member_id   INTEGER PRIMARY KEY,
+  added_by    INTEGER NOT NULL DEFAULT 0,
+  created_at  VARCHAR(32) NOT NULL DEFAULT ''
+);
 SQL;
     }
 
@@ -208,6 +215,96 @@ SQL;
     private static function substance(string $s): int
     {
         return mb_strlen(trim((string) preg_replace('/\s+/u', ' ', $s)));
+    }
+
+    /* ── who may review ────────────────────────────────────────────────────
+     *
+     * Every member-facing string in this programme says the TRACK LEAD checks
+     * the book — the dashboard, the portal, the verdict emails. There was no
+     * track lead in the code. The only door to review() was the NGV console,
+     * which is gated on `admin`/`superadmin`, so either a track lead was given
+     * full NGV admin — the roster, the fines desk, the ledger, the offline
+     * payments queue — or the reading work funnelled to the two or three
+     * people who had it. The second is what happened, and it is why nobody
+     * noticed that three spoken checks in four were never opening.
+     *
+     * So: a grant that is exactly this and nothing else. A named member may
+     * review reading claims and hold the spoken conversations. They get
+     * academy/ngv/reading-review.php and no other NGV screen.
+     */
+
+    /** Members granted the reading review, newest first. */
+    public static function reviewers(): array
+    {
+        self::ensure();
+        try {
+            $st = NgvDb::pdo()->query(
+                'SELECT r.*, p.name, p.email FROM ngv_reading_reviewers r
+                   LEFT JOIN ngv_participants p ON p.member_id = r.member_id
+                  ORDER BY r.created_at DESC, r.member_id');
+            return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { error_log('[ngvreading] reviewers: ' . $e->getMessage()); return []; }
+    }
+
+    public static function isReviewer(int $memberId): bool
+    {
+        if ($memberId <= 0) return false;
+        self::ensure();
+        try {
+            $st = NgvDb::pdo()->prepare('SELECT 1 FROM ngv_reading_reviewers WHERE member_id = ?');
+            $st->execute([$memberId]);
+            return (bool) $st->fetchColumn();
+        } catch (Throwable $e) { return false; }
+    }
+
+    /**
+     * May this request review reading? An NGV admin always may; so does a
+     * member who has been granted it. Both doors, one sentence, so a surface
+     * cannot accidentally open to one and not the other.
+     */
+    public static function canReview(int $memberId): bool
+    {
+        $role = function_exists('av_admin_role') ? av_admin_role() : '';
+        if (in_array($role, ['admin', 'superadmin'], true)) return true;
+        return self::isReviewer($memberId);
+    }
+
+    public static function setReviewer(int $memberId, bool $on, int $by): array
+    {
+        self::ensure();
+        if ($memberId <= 0) return ['ok' => false, 'error' => 'Which member?'];
+        if ($on && !NgvMember::participant($memberId) && !self::memberExists($memberId)) {
+            return ['ok' => false, 'error' => 'No such member.'];
+        }
+        try {
+            $pdo = NgvDb::pdo();
+            if ($on) {
+                $st = $pdo->prepare('SELECT 1 FROM ngv_reading_reviewers WHERE member_id = ?');
+                $st->execute([$memberId]);
+                if (!$st->fetchColumn()) {
+                    $pdo->prepare('INSERT INTO ngv_reading_reviewers (member_id, added_by, created_at) VALUES (?,?,?)')
+                        ->execute([$memberId, max(0, $by), self::now()]);
+                }
+            } else {
+                $pdo->prepare('DELETE FROM ngv_reading_reviewers WHERE member_id = ?')->execute([$memberId]);
+            }
+        } catch (Throwable $e) {
+            error_log('[ngvreading] setReviewer: ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'Could not save that.'];
+        }
+        self::audit($on ? 'ngv_reading_reviewer_add' : 'ngv_reading_reviewer_remove', $memberId,
+            ($on ? 'May now check reading claims and hold the spoken conversations'
+                 : 'No longer checks reading claims'));
+        return ['ok' => true];
+    }
+
+    private static function memberExists(int $memberId): bool
+    {
+        try {
+            $st = Database::pdo()->prepare('SELECT 1 FROM lms_users WHERE id = ?');
+            $st->execute([$memberId]);
+            return (bool) $st->fetchColumn();
+        } catch (Throwable $e) { return false; }
     }
 
     /* ── the book list ─────────────────────────────────────────────────────
@@ -306,13 +403,25 @@ SQL;
         return ['ok' => true];
     }
 
-    /** The chapter summaries as sent: one string per chapter, trimmed and cut to length. */
+    /** The chapter summaries as sent: one string per chapter, trimmed. */
     private static function chapterNotes($raw, int $chapters): array
     {
         $raw = is_array($raw) ? array_values($raw) : [];
         $out = [];
-        for ($i = 0; $i < $chapters; $i++) $out[] = mb_substr(trim((string) (is_scalar($raw[$i] ?? null) ? $raw[$i] : '')), 0, self::MAX_CHAPTER);
+        for ($i = 0; $i < $chapters; $i++) $out[] = trim((string) (is_scalar($raw[$i] ?? null) ? $raw[$i] : ''));
         return $out;
+    }
+
+    /** The first chapter summary that is over the ceiling, as a sentence, or ''. */
+    private static function chapterTooLong(array $notes): string
+    {
+        foreach (array_values($notes) as $i => $n) {
+            if (mb_strlen((string) $n) > self::MAX_CHAPTER) {
+                return 'Your summary of chapter ' . ($i + 1) . ' is ' . mb_strlen((string) $n)
+                     . ' characters and the most we can keep is ' . self::MAX_CHAPTER . '. Nothing has been saved.';
+            }
+        }
+        return '';
     }
 
     /* ── making a claim ──────────────────────────────────────────────────── */
@@ -332,11 +441,24 @@ SQL;
         $slot = (int) ($in['slot'] ?? 0);
         if ($slot < 1 || $slot > self::TOTAL) return ['ok' => false, 'error' => 'That is not one of the twenty-four.'];
 
+        /* WHAT THE MEMBER MAY TOUCH. A draft is theirs; one sent back is
+           theirs again. A submitted one is not — a claim a reviewer is
+           reading must not change underneath them. A verified one never is.
+           And a REJECTED one is not either: "send back to rewrite" and
+           "reject" are offered as two different decisions and used to do the
+           same thing, because a rejected claim was fully editable and could
+           be resubmitted — so the only difference between them was the word
+           in the email. A rejection closes the claim. A reviewer who got it
+           wrong, or a member who makes their case, has a door: a reviewer can
+           reopen it ('resubmit'), and that is recorded like any verdict. */
         $have = self::claim($memberId, $slot);
-        if ($have && in_array((string) $have['status'], ['submitted', 'verified'], true)) {
-            return ['ok' => false, 'error' => (string) $have['status'] === 'verified'
-                ? 'This one is already verified. It cannot be changed.'
-                : 'This one is with your track lead. You will be able to edit it if they send it back.'];
+        if ($have && in_array((string) $have['status'], ['submitted', 'verified', 'rejected'], true)) {
+            $msg = [
+                'verified'  => 'This one is already verified. It cannot be changed.',
+                'submitted' => 'This one is with your track lead. You will be able to edit it if they send it back.',
+                'rejected'  => 'This claim was not accepted, so it is closed. Speak to your track lead — they can reopen it if you have more to say.',
+            ];
+            return ['ok' => false, 'code' => 'closed', 'error' => $msg[(string) $have['status']]];
         }
 
         /* The book comes from the list. A claim made before there was a list
@@ -362,10 +484,25 @@ SQL;
             $chapters = $same && (int) $have['chapters'] > 0 ? (int) $have['chapters'] : (int) $book['chapters'];
         }
         $notes    = self::chapterNotes($in['chapter_notes'] ?? [], $chapters);
+        if ($why = self::chapterTooLong($notes)) return ['ok' => false, 'code' => 'too_long', 'error' => $why];
         $started  = self::date((string) ($in['started_on'] ?? ''));
         $finished = self::date((string) ($in['finished_on'] ?? ''));
-        $refl     = mb_substr(trim((string) ($in['reflection'] ?? '')), 0, self::MAX_REFLECTION);
-        $take     = mb_substr(trim((string) ($in['takeaway'] ?? '')), 0, 600);
+        /* NOT silently cut. The floor is reported in careful words ("your
+           reflection is 212 characters, we need 320"); the ceiling used to be
+           an mb_substr and nothing — so somebody who wrote at length lost the
+           end of it without being told, and could then be asked in a spoken
+           check about a part the record no longer held. */
+        $refl = trim((string) ($in['reflection'] ?? ''));
+        $take = trim((string) ($in['takeaway'] ?? ''));
+        if (mb_strlen($refl) > self::MAX_REFLECTION) {
+            return ['ok' => false, 'code' => 'too_long', 'error' => 'Your reflection is ' . mb_strlen($refl)
+                . ' characters and the most we can keep is ' . self::MAX_REFLECTION
+                . '. Shorten it before you lose the end of it — nothing has been saved.'];
+        }
+        if (mb_strlen($take) > self::MAX_TAKEAWAY) {
+            return ['ok' => false, 'code' => 'too_long', 'error' => 'What you did with it is ' . mb_strlen($take)
+                . ' characters and the most we can keep is ' . self::MAX_TAKEAWAY . '. Nothing has been saved.'];
+        }
 
         if ($submit) {
             $why = self::whyNotReady($title, $author, $started, $finished, $refl, $take, $notes);
@@ -563,6 +700,26 @@ SQL;
     /* ── the human decision ──────────────────────────────────────────────── */
 
     /**
+     * Nobody signs off their own reading.
+     *
+     * The whole design is "a human OTHER THAN the claimant decides", and this
+     * was the one place it was not enforced: review() took the reviewer's id
+     * and never compared it with the claim's. Leads come up through the
+     * programme, so a lead with twenty-four slots of their own is the likely
+     * case rather than the exotic one.
+     *
+     * A $byUid of 0 is the system — the nightly job, a migration — and is not
+     * caught, exactly as on the ledger (NgvLedger::selfDealing, which this
+     * mirrors deliberately: one sentence, two places money and merit are
+     * signed off).
+     */
+    public static function selfDealing(int $memberId, int $byUid, string $what): string
+    {
+        if ($byUid <= 0 || $byUid !== $memberId) return '';
+        return 'This is your own reading. Another member of staff ' . $what . '.';
+    }
+
+    /**
      * A reviewer's verdict. This is the ONLY thing that makes a book count.
      *
      * `verified` is final and deliberately one-way from the member's side: they
@@ -580,10 +737,15 @@ SQL;
         if (!in_array($verdict, ['verified', 'rejected', 'resubmit'], true)) {
             return ['ok' => false, 'error' => 'Unknown verdict.'];
         }
+        /* `resubmit` on a REJECTED claim is the reopen: the one way back from
+           a rejection, through a person, with a reason, on the record. */
         $c = self::claimById($claimId);
         if (!$c) return ['ok' => false, 'error' => 'No such claim.'];
         if ((string) $c['status'] === 'draft') {
             return ['ok' => false, 'error' => 'That one has not been submitted yet.'];
+        }
+        if ($no = self::selfDealing((int) $c['member_id'], $byUid, 'checks it')) {
+            return ['ok' => false, 'code' => 'own_account', 'error' => $no];
         }
         $note = mb_substr(trim($note), 0, 1000);
         if ($verdict !== 'verified' && $note === '') {
@@ -717,11 +879,39 @@ SQL;
         $limit = max(1, min(200, $limit));
         try {
             $st = NgvDb::pdo()->prepare(
-                "SELECT * FROM ngv_book_claims WHERE status = 'submitted'
-                  ORDER BY (CASE WHEN flags <> '' THEN 0 ELSE 1 END), submitted_at ASC, id ASC LIMIT " . $limit);
+                /* The participant's name comes with the row. The console used
+                   to call NgvMember::participant() per claim — forty queries
+                   to put forty names on a page — while the spot queue below
+                   had always joined for it. */
+                "SELECT c.*, p.name AS member_name, p.email AS member_email
+                   FROM ngv_book_claims c
+                   LEFT JOIN ngv_participants p ON p.member_id = c.member_id
+                  WHERE c.status = 'submitted'
+                  ORDER BY (CASE WHEN c.flags <> '' THEN 0 ELSE 1 END), c.submitted_at ASC, c.id ASC LIMIT " . $limit);
             $st->execute();
             return array_map([self::class, 'shape'], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
         } catch (Throwable $e) { error_log('[ngvreading] queue: ' . $e->getMessage()); return []; }
+    }
+
+    /**
+     * Claims that were not accepted, newest first. A rejection closes the
+     * claim to the member, so this is the door back: a reviewer who got it
+     * wrong, or a member who has made their case, is answered with a
+     * `resubmit` from here, recorded like any other verdict.
+     */
+    public static function rejected(int $limit = 25): array
+    {
+        self::ensure();
+        $limit = max(1, min(200, $limit));
+        try {
+            $st = NgvDb::pdo()->prepare(
+                "SELECT c.*, p.name AS member_name
+                   FROM ngv_book_claims c
+                   LEFT JOIN ngv_participants p ON p.member_id = c.member_id
+                  WHERE c.status = 'rejected' ORDER BY c.reviewed_at DESC, c.id DESC LIMIT " . $limit);
+            $st->execute();
+            return array_map([self::class, 'shape'], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+        } catch (Throwable $e) { error_log('[ngvreading] rejected: ' . $e->getMessage()); return []; }
     }
 
     public static function queueCount(): int
@@ -780,23 +970,45 @@ SQL;
     }
 
     /**
-     * Open a check if the participant has just crossed a multiple of six and
-     * does not already have one waiting. Called after a verification — never
-     * from anything the participant can trigger.
+     * Open a check if the participant has reached a milestone nobody has asked
+     * about yet and does not already have one waiting. Called after a
+     * verification, and again after a check is RECORDED — never from anything
+     * the participant can trigger.
+     *
+     * THE MILESTONE IS THE LOWEST ONE STILL UNSERVED, not the one the current
+     * count sits on. This used to be `intdiv($n, 6) * 6`, which combined with
+     * the one-at-a-time rule below meant a participant who finished all
+     * twenty-four books got ONE conversation instead of four: a lead who
+     * verifies faster than they talk — which is how the work actually goes —
+     * left milestone 6 open while the count went past 12 and 18, and nothing
+     * ever came back for them. The checks are the only part of this that
+     * reaches somebody who read a summary and wrote well about it, so three
+     * of the four quietly not happening was the whole scheme's hole.
+     *
+     * Taking the lowest unserved one keeps the queue draining in order, and
+     * spotRecord() calling this again is what makes the queue drain at all.
      */
     private static function spotMaybeOpen(int $memberId): void
     {
         $n = self::verifiedCount($memberId);
         if ($n < self::SPOT_EVERY) return;
-        $milestone = intdiv($n, self::SPOT_EVERY) * self::SPOT_EVERY;
 
         try {
             $pdo = NgvDb::pdo();
-            /* One check per milestone, and never two open at once — a track
-               lead facing a backlog of them does none of them. */
-            $st = $pdo->prepare('SELECT COUNT(*) FROM ngv_book_spot_checks WHERE member_id = ? AND (milestone = ? OR outcome = ?)');
-            $st->execute([$memberId, $milestone, 'open']);
+            /* Never two open at once — a track lead facing a backlog of them
+               does none of them. */
+            $st = $pdo->prepare("SELECT COUNT(*) FROM ngv_book_spot_checks WHERE member_id = ? AND outcome = 'open'");
+            $st->execute([$memberId]);
             if ((int) $st->fetchColumn() > 0) return;
+
+            $st = $pdo->prepare('SELECT milestone FROM ngv_book_spot_checks WHERE member_id = ?');
+            $st->execute([$memberId]);
+            $served = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN) ?: []);
+            $milestone = 0;
+            for ($m = self::SPOT_EVERY; $m <= $n; $m += self::SPOT_EVERY) {
+                if (!in_array($m, $served, true)) { $milestone = $m; break; }
+            }
+            if ($milestone === 0) return;            // every milestone reached has been asked about
 
             /* Prefer a book nobody has asked about yet, so a long-running
                participant is not asked about the same one twice. */
@@ -850,6 +1062,9 @@ SQL;
             $s = $st->fetch(PDO::FETCH_ASSOC);
             if (!$s) return ['ok' => false, 'error' => 'No such check.'];
             if ((string) $s['outcome'] !== 'open') return ['ok' => false, 'error' => 'That check is already recorded.'];
+            if ($no = self::selfDealing((int) $s['member_id'], $byUid, 'has the conversation and records it')) {
+                return ['ok' => false, 'code' => 'own_account', 'error' => $no];
+            }
 
             NgvDb::pdo()->prepare('UPDATE ngv_book_spot_checks SET outcome = ?, asked_by = ?, asked_at = ?, note = ? WHERE id = ?')
                 ->execute([$outcome, max(0, $byUid), self::now(), $note, $id]);
@@ -860,6 +1075,10 @@ SQL;
             }
             self::audit('ngv_spot_check_' . $outcome, (int) $s['member_id'],
                 'Spoken check at ' . (int) $s['milestone'] . ' books' . ($note !== '' ? ' — ' . mb_substr($note, 0, 120) : ''));
+            /* The queue drains. A milestone passed while this one was open is
+               due now — without this, one slow conversation excused every
+               check that came after it. */
+            self::spotMaybeOpen((int) $s['member_id']);
             return ['ok' => true, 'outcome' => $outcome];
         } catch (Throwable $e) {
             error_log('[ngvreading] spot record: ' . $e->getMessage());

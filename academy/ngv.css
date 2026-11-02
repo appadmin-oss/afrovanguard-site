@@ -220,6 +220,9 @@ body.ngv{background:var(--ngv-bg);color:var(--ngv-text)}
 .ngv-adminbar b{color:var(--ngv-gold)}
 .ngv-adminbar a{color:#fff;font-weight:700;text-decoration:underline}
 .ngv-adminbar .tag{margin-left:auto;background:rgba(255,255,255,.16);padding:4px 12px;border-radius:999px;font-size:.8rem;font-weight:700}
+/* How many claims are waiting and how many conversations are due — the two
+   figures the reading challenge runs on, where somebody will see them. */
+.ngv-adminbar .ngv-count{display:inline-block;min-width:1.35em;padding:1px 6px;border-radius:999px;background:var(--ngv-gold);color:var(--ngv-ink);font-size:.78rem;line-height:1.5;text-align:center}
 
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media(max-width:900px){

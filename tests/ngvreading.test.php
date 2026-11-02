@@ -408,4 +408,113 @@ $bkBody = (string) @file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-body.ph
 ck('book list: the vanguard chooses the book, and has nowhere to type a title',
    str_contains($bkBody, 'id="bkBook"') && !str_contains($bkBody, 'id="bkBookTitle"') && str_contains($bkBody, 'id="bkChapters"'));
 
+/* ══ The audit's findings, 2 Nov 2026 (docs/audits/2026-11-02-reading) ═══ */
+
+/* R1. A participant who finishes the challenge gets a conversation for every
+   SIX books, not one for the whole twenty-four. The one-at-a-time rule stays
+   — a lead facing a backlog of them does none — but the queue must drain.
+   This used to leave milestones 12, 18 and 24 unopened for ever. */
+$rdReset();
+NgvMember::ensureParticipant(950, ['name' => 'Full Shelf', 'email' => 'full@reading.test']);
+NgvDb::pdo()->exec("UPDATE ngv_participants SET start_date = '2026-01-01', status = 'active' WHERE member_id = 950");
+for ($i = 1; $i <= 24; $i++) {
+    $r = NgvReading::save(950, ['slot' => $i, 'book_id' => $rdBook('Shelf book ' . $i, 'A'),
+        'chapter_notes' => [$rdChap('Shelf book ' . $i . '.')],
+        'started_on' => '2026-02-01', 'finished_on' => '2026-02-02',
+        'reflection' => $rdText('Shelf book ' . $i . ', in their own words.'),
+        'takeaway' => $rdTake . ' For shelf book ' . $i . '.'], true);
+    NgvReading::review((int) $r['id'], 'verified', 77);
+}
+$rdStones = static fn(): array => array_map('intval', NgvDb::pdo()->query(
+    'SELECT milestone FROM ngv_book_spot_checks WHERE member_id = 950 ORDER BY milestone')->fetchAll(PDO::FETCH_COLUMN) ?: []);
+ck('spot check: verifying a whole shelf in one sitting still opens only one at a time',
+   NgvReading::verifiedCount(950) === 24 && $rdStones() === [6] && NgvReading::spotCount() >= 1);
+for ($i = 0; $i < 6; $i++) {
+    $sp = NgvReading::spotOpen(950);
+    if (!$sp) break;
+    NgvReading::spotRecord((int) $sp['id'], 'passed', 77, 'Spoke well about it.');
+}
+ck('spot check: …and recording each one brings on the milestone it was holding up',
+   $rdStones() === [6, 12, 18, 24]);
+ck('spot check: …which is where it stops — twenty-four books, four conversations',
+   NgvReading::spotOpen(950) === null);
+
+/* R3. Nobody signs off their own reading. */
+$rdMine = NgvReading::save(950, ['slot' => 1], false);   // closed: verified
+$rdOwn = (int) NgvReading::claim(950, 2)['id'];
+ck('reading: a reviewer cannot verify their own claim',
+   (NgvReading::review($rdOwn, 'resubmit', 950, 'I will redo it')['code'] ?? '') === 'own_account');
+ck('reading: …and the system itself (uid 0) still can, as the ledger allows',
+   NgvReading::selfDealing(950, 0, 'x') === '' && NgvReading::selfDealing(950, 77, 'x') === '');
+$rdR = NgvReading::save(951, ['slot' => 1], false);      // a claim belonging to somebody else
+NgvMember::ensureParticipant(951, ['name' => 'Other One', 'email' => 'other@reading.test']);
+$rdSpot950 = NgvDb::pdo()->query("SELECT id, member_id FROM ngv_book_spot_checks WHERE member_id = 950 LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+NgvDb::pdo()->prepare("UPDATE ngv_book_spot_checks SET outcome = 'open' WHERE id = ?")->execute([(int) $rdSpot950['id']]);
+ck('reading: nor hold their own spoken check',
+   (NgvReading::spotRecord((int) $rdSpot950['id'], 'passed', 950)['code'] ?? '') === 'own_account');
+NgvDb::pdo()->prepare("UPDATE ngv_book_spot_checks SET outcome = 'passed' WHERE id = ?")->execute([(int) $rdSpot950['id']]);
+
+/* R4. A rejection closes the claim — that is what makes it a different
+   decision from "send back to rewrite", which it used to be identical to. */
+$rdReset();
+NgvMember::ensureParticipant(952, ['name' => 'Told No', 'email' => 'no@reading.test']);
+NgvDb::pdo()->exec("UPDATE ngv_participants SET start_date = '2026-01-01', status = 'active' WHERE member_id = 952");
+$rdNoBook = $rdBook('A Rejected Read', 'A');
+$rdNoClaim = ['slot' => 1, 'book_id' => $rdNoBook, 'chapter_notes' => [$rdChap('Rejected.')],
+              'started_on' => '2026-02-01', 'finished_on' => '2026-02-08',
+              'reflection' => $rdText('Written out in full for the rejection test.'), 'takeaway' => $rdTake];
+$rdNo = NgvReading::save(952, $rdNoClaim, true);
+NgvReading::review((int) $rdNo['id'], 'rejected', 77, 'This is a summary of the blurb.');
+ck('reading: a rejected claim is closed to the member',
+   (NgvReading::save(952, $rdNoClaim, true)['code'] ?? '') === 'closed'
+   && (string) NgvReading::claim(952, 1)['status'] === 'rejected');
+ck('reading: …and it is listed where it can be reopened',
+   in_array((int) $rdNo['id'], array_map('intval', array_column(NgvReading::rejected(), 'id')), true));
+ck('reading: a reviewer reopens it, with a reason, on the record',
+   !empty(NgvReading::review((int) $rdNo['id'], 'resubmit', 77, 'You made your case — rewrite chapter two.')['ok'])
+   && (string) NgvReading::claim(952, 1)['status'] === 'resubmit');
+ck('reading: …and then the member can write it again',
+   !empty(NgvReading::save(952, $rdNoClaim, true)['ok']));
+
+/* R8. Over the ceiling is a refusal with the number in it, never a silent cut. */
+$rdBig = trim(str_repeat('x y ', 4000));
+$rdLong = NgvReading::save(952, ['slot' => 2, 'book_id' => $rdBook('A Long One', 'A'),
+    'reflection' => $rdBig], false);
+ck('reading: a reflection over the ceiling is refused, saying how long it is',
+   ($rdLong['code'] ?? '') === 'too_long' && str_contains((string) $rdLong['error'], (string) mb_strlen($rdBig))
+   && str_contains((string) $rdLong['error'], (string) NgvReading::MAX_REFLECTION)
+   && NgvReading::claim(952, 2) === null);
+$rdLong2 = NgvReading::save(952, ['slot' => 2, 'book_id' => $rdBook('A Long Two', 'A'),
+    'takeaway' => str_repeat('z ', 700)], false);
+ck('reading: …and so is a takeaway, with nothing saved either way',
+   ($rdLong2['code'] ?? '') === 'too_long' && NgvReading::claim(952, 2) === null);
+
+/* R9. The reviewer's name comes with the row, not a query per row. */
+NgvReading::save(952, $rdNoClaim, true);
+$rdNamed = NgvReading::queue(10);
+ck('reading: the review queue carries the participant\'s name',
+   $rdNamed !== [] && (string) ($rdNamed[0]['member_name'] ?? '') === 'Told No');
+
+/* R5. Who may check the reading: an NGV admin, and anybody granted it. */
+ck('reading: a member who has not been granted it cannot review', !NgvReading::isReviewer(952));
+ck('reading: an NGV admin may, granted or not', NgvReading::canReview(0) === (function_exists('av_admin_role')
+   && in_array(av_admin_role(), ['admin', 'superadmin'], true)));
+ck('reading: granting it names them, and it is a grant of exactly this',
+   !empty(NgvReading::setReviewer(952, true, 77)['ok']) && NgvReading::isReviewer(952) && NgvReading::canReview(952));
+ck('reading: …and it is listed so it can be taken away',
+   in_array(952, array_map('intval', array_column(NgvReading::reviewers(), 'member_id')), true));
+ck('reading: taking it away takes it away',
+   !empty(NgvReading::setReviewer(952, false, 77)['ok']) && !NgvReading::isReviewer(952));
+
+/* R2 and R5's surfaces. */
+$rdDesk = (string) @file_get_contents(AV_ROOT . '/academy/ngv/reading-review.php');
+ck('reading: the review desk is gated on who may review, not on being an admin',
+   str_contains($rdDesk, 'NgvReading::canReview(') && !str_contains($rdDesk, "if (!\$isAdmin) json_out"));
+ck('reading: …and it is the same desk the console shows, not a second one',
+   str_contains($rdDesk, "_reading-review.php")
+   && str_contains((string) @file_get_contents(AV_ROOT . '/academy/ngv/members.php'), "_reading-review.php"));
+$rdHome = (string) @file_get_contents(AV_ROOT . '/academy/ngv/index.php');
+ck('reading: the console says how many claims and conversations are waiting',
+   str_contains($rdHome, 'NgvReading::queueCount()') && str_contains($rdHome, 'NgvReading::spotCount()'));
+
 $rdReset();
