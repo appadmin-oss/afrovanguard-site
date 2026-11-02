@@ -14,6 +14,11 @@ declare(strict_types=1);
 :root{--red:#e4162b;--orange:#ff6a1a;--gold:#ffb703;--ink:#15120e;--line:#e7e9ee;--muted:#5f6874;--bg:#f5f6f8;--card:#fff;
   --green:#137a3a;--green-bg:#e6f7ec;--amber:#9a5b00;--amber-bg:#fffaf0;--danger:#c0322b;--danger-bg:#fdecec;--blue:#1d4ed8;--blue-bg:#eef4ff;--r:14px}
 *{box-sizing:border-box}
+/* `hidden` beats a class's display. .btn sets display:inline-block, which
+   outranks the browser's [hidden]{display:none}, so every button the page
+   hides by setting .hidden was still on screen — "Cancel editing" with
+   nothing being edited. */
+[hidden]{display:none!important}
 body{margin:0;font-family:'Source Sans 3',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
 a{color:var(--red)}
 h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.01em}

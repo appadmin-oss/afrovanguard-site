@@ -320,12 +320,15 @@ All nine are closed. Commits `ec9c89b`, `5145d00`, `30976cb`.
 | R4 | A rejection closes the claim. The way back is a reviewer reopening it from a "Not accepted" list, with a reason. | closed, listed, reopened, rewritten |
 | R5 | A grant that is exactly the reading (`ngv_reading_reviewers`), and `academy/ngv/reading-review.php` — the desk without the roster, the fines desk or the ledger. One partial, shared with the console. | granted, used, taken away |
 | R6 | The reading is in the diary's **Reading** section and in "download my diary", read from `NgvReading::sessionsFor()` rather than copied. | the endpoint, the export, and the flow over HTTP |
-| R7 | `NgvReading::cohort()` on the desk: who stalled, who has not begun, what has waited longest, how wide each person's reading is across the seven. | stalled told apart from not-begun |
+| R7 | `NgvReading::cohort()` on the desk: who stalled, who has not begun, and what has waited longest. | stalled told apart from not-begun |
 | R8 | Over the ceiling is a refusal with the number in it — reflection, takeaway and chapter summary. | refused, with nothing saved |
 | R9 | `queue()` joins for the name, as `spotQueue()` always did. | the name rides on the row |
 
 Beyond the audit, because the programme asked for it: **a book is read a
-sitting at a time now**, and every sitting names the **value** it grew. See
+sitting at a time now** — the day, the minutes, how far, where, what it
+covered, where the reader stands on it and what they will do differently. A
+sitting was briefly asked which of the seven values it grew; that was taken
+back out, and the values stay on the book list as curation. See
 `docs/ngv-reading.md`.
 
 ## Suggested order

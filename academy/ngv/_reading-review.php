@@ -36,14 +36,14 @@ declare(strict_types=1);
         · <?= number_format(((int) $rvCo['minutes']) / 60, 1) ?> hours logged</span></header>
     <div class="body">
       <p class="sub" style="margin-top:0">
-        <?php if ((int) $rvCo['stalled']): ?><strong><?= (int) $rvCo['stalled'] ?></strong> started and have not logged a sitting in four weeks.<?php endif; ?>
-        <?php if ($rvNever): ?> <strong><?= count($rvNever) ?></strong> have not begun at all — a different conversation.<?php endif; ?>
+        <?php if ((int) $rvCo['stalled']): ?><strong><?= (int) $rvCo['stalled'] ?></strong> started and <?= (int) $rvCo['stalled'] === 1 ? 'has' : 'have' ?> not logged a sitting in four weeks.<?php endif; ?>
+        <?php if ($rvNever): ?> <strong><?= count($rvNever) ?></strong> <?= count($rvNever) === 1 ? 'has' : 'have' ?> not begun at all — a different conversation.<?php endif; ?>
         <?php if ((int) $rvCo['oldest_days'] > 7): ?> The claim that has waited longest has been waiting <strong><?= (int) $rvCo['oldest_days'] ?> days</strong>.<?php endif; ?>
         <?php if (!(int) $rvCo['stalled'] && !$rvNever): ?>Everybody who has started is still reading.<?php endif; ?>
       </p>
       <div class="scroll">
         <table>
-          <thead><tr><th>Vanguard</th><th>Track</th><th class="num">Verified</th><th class="num">Waiting</th><th class="num">To put right</th><th class="num">Sittings</th><th class="num">Hours</th><th class="num">Values</th><th>Last read</th></tr></thead>
+          <thead><tr><th>Vanguard</th><th>Track</th><th class="num">Verified</th><th class="num">Waiting</th><th class="num">To put right</th><th class="num">Sittings</th><th class="num">Hours</th><th>Last read</th></tr></thead>
           <tbody>
           <?php foreach (array_slice($rvPeople, 0, 60) as $p): ?>
             <tr<?= $p['stalled'] ? ' class="bkq--flagged"' : '' ?>>
@@ -54,7 +54,6 @@ declare(strict_types=1);
               <td class="num"><?= (int) $p['needs_work'] ?: '—' ?></td>
               <td class="num"><?= (int) $p['sessions'] ?: '—' ?></td>
               <td class="num"><?= $p['minutes'] ? number_format($p['minutes'] / 60, 1) : '—' ?></td>
-              <td class="num"><?= (int) $p['values'] ?> / <?= count(NgvReading::values()) ?></td>
               <td class="sub"><?= $p['last_read'] === '' ? 'never' : $e((string) $p['last_read']) . ($p['stalled'] ? ' · ' . (int) $p['stalled_days'] . ' days ago' : '') ?></td>
             </tr>
           <?php endforeach; ?>
@@ -62,8 +61,8 @@ declare(strict_types=1);
         </table>
         <?php if (count($rvPeople) > 60): ?><p class="sub">Showing 60 of <?= count($rvPeople) ?>, stalled first.</p><?php endif; ?>
       </div>
-      <p class="sub" style="margin-bottom:0"><b>Values</b> is how many of the seven their reading has touched. Somebody at 24 books
-        and two values has read widely in one direction; that is worth a conversation of its own.</p>
+      <p class="sub" style="margin-bottom:0">A vanguard with claims waiting has done their part; the delay is this desk's.
+        <b>Last read</b> is the day of their most recent sitting, which is the earliest sign somebody has drifted.</p>
     </div>
   </section>
 
@@ -112,8 +111,7 @@ declare(strict_types=1);
                      dated sittings is a different thing from one backed by
                      none, and the dates, the minutes and the values they
                      named are the part a reviewer can weigh fastest. */
-              $bcSits = (array) ($bc['sessions'] ?? []);
-              $bcVals = array_values(array_unique(array_filter(array_map(static fn($x) => (string) $x['value_label'], $bcSits)))); ?>
+              $bcSits = (array) ($bc['sessions'] ?? []); ?>
             <div class="bkq-sits">
               <?php if (!$bcSits): ?>
                 <span class="bkq-sits-none">No reading logged against this book.</span>
@@ -121,7 +119,6 @@ declare(strict_types=1);
                 <strong><?= count($bcSits) ?> sitting<?= count($bcSits) === 1 ? '' : 's' ?></strong>
                 · <?= (int) ($bc['session_minutes'] ?? 0) ?> minutes
                 · <?= $e((string) $bcSits[0]['day']) ?> → <?= $e((string) $bcSits[count($bcSits) - 1]['day']) ?>
-                <?php foreach ($bcVals as $bv): ?><span class="bkq-val"><?= $e($bv) ?></span><?php endforeach; ?>
               <?php endif; ?>
             </div>
             <?php if ($bcSits): ?>
@@ -131,8 +128,7 @@ declare(strict_types=1);
                 <?php foreach ($bcSits as $bs): ?>
                   <li>
                     <strong><?= $e((string) $bs['day']) ?></strong>
-                    <span class="sub"><?= $e(trim((string) $bs['covered'] . ' · ' . (int) $bs['minutes'] . ' min · ' . (string) $bs['place'], ' ·')) ?><?= (string) $bs['mood_label'] !== '' ? ' · ' . $e((string) $bs['mood_label']) : '' ?>
-                      <?= (string) $bs['value_label'] !== '' ? '· <b>' . $e((string) $bs['value_label']) . '</b>' : '' ?></span>
+                    <span class="sub"><?= $e(trim((string) $bs['covered'] . ' · ' . (int) $bs['minutes'] . ' min · ' . (string) $bs['place'], ' ·')) ?><?= (string) $bs['mood_label'] !== '' ? ' · ' . $e((string) $bs['mood_label']) : '' ?></span>
                     <div class="bkq-text"><?= nl2br($e((string) $bs['notes'])) ?></div>
                     <p class="bkq-take"><strong>Where they stand:</strong> <?= nl2br($e((string) $bs['stance'])) ?></p>
                     <p class="bkq-take"><strong>What they will do:</strong> <?= nl2br($e((string) $bs['application'])) ?></p>

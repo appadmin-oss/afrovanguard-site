@@ -773,30 +773,32 @@ date rolled into November; it is the test that was wrong, not the code.
 
 Tests: `tests/adminmfa.test.php`, including RFC 6238's own vectors.
 
-## Reading: a sitting at a time, and the seven values (Nov 2026)
+## Reading: a sitting at a time (Nov 2026)
 
 The 24-book challenge kept one record per book, written at the end. So the
 programme could see that somebody had finished twenty-four and nothing about
 the reading — not when it happened, not how long it took, not what they made
-of it as they went — and nothing at all about whether it had grown the seven
-values the challenge exists for.
+of it as they went.
 
 **Every sitting is logged now** (`ngv_reading_sessions`), and a book cannot be
 sent with none behind it. A sitting records the day, the minutes, how far
 (chapters or pages), where, what it covered, **what they agree with or argue
-against and why**, **the life application**, and **which of the seven values
-it grew**. The mood is the only optional field. Once the book is sent its
+against and why**, and **the life application**. The mood is the only
+optional field. Once the book is sent its
 sittings freeze with it: the evidence under a claim a reviewer is reading must
 not move any more than the claim does.
 
-**The value is the point.** The seven come from `MentorPortal::VALUES`, the
-one place they are declared — reading keeps no second list, and a test says
-so. A member sees which of the seven their reading has fed and which it has
-not touched; the programme sees the same across the cohort, beside how many
-books the list carries for each value. A value with no books is one the
-challenge cannot grow; a value with books and no sittings is one nobody has
-chosen to read for. Both are on the book list page, and a book now names the
-values it is on the list for.
+**The seven values are on the book list, not on the sitting.** A sitting was
+asked which value it grew, briefly, and that was taken back out: what a book
+grew in a person is a judgement for a conversation, and the spoken check is
+where that conversation already happens. A dropdown at the end of every
+sitting would have recorded a guess and then reported on it. What stays is
+curation — a book names the values it is **on the list for**
+(`ngv_books.value_keys`, from `MentorPortal::VALUES`, no second list, and a
+test says so), and the book list page shows what each value is taught as
+against how many books speak to it, so a gap is visible before a cohort reads
+its way into it. The page says in its own words that this is for choosing
+what to add next and is not a measure of anybody's reading.
 
 **The diary has a Reading section.** It reads `NgvReading::sessionsFor()` — it
 does not keep a copy, so the record a track lead checks and the page the

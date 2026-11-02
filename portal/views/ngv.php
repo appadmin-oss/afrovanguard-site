@@ -91,7 +91,8 @@
                     <ul class="avng-shelf">
 <?php foreach ($nRecorded as $bc): $st = (string) $bc['status']; $ed = in_array($st, ['draft', 'resubmit'], true); $chN = (int) ($bc['chapters'] ?? 0); $chW = count(array_filter((array) ($bc['chapter_notes_list'] ?? []), static fn($x) => trim((string) $x) !== '')); ?>
                       <li>
-                        <span class="avng-shelf-t"><span><?= e((string) $bc['title']) ?></span><span><?= e((string) ($bc['author'] ?? '')) ?><?= $chN ? ' · ' . $chW . ' of ' . $chN . ' chapters' : '' ?></span></span>
+<?php $nSits = (array) ($bc['sessions'] ?? []); $nMin = (int) ($bc['session_minutes'] ?? 0); ?>
+                        <span class="avng-shelf-t"><span><?= e((string) $bc['title']) ?></span><span><?= e((string) ($bc['author'] ?? '')) ?><?= $chN ? ' · ' . $chW . ' of ' . $chN . ' chapters' : '' ?><?= $nSits ? ' · ' . count($nSits) . ' sitting' . (count($nSits) === 1 ? '' : 's') . ', ' . $nMin . ' min' : ' · no reading logged yet' ?></span></span>
                         <span class="avng-chip" data-tone="<?= e($stTone[$st] ?? 'gray') ?>"><?= e($stWord[$st] ?? $st) ?></span>
                         <button type="button" class="avng-btn" data-slot="<?= (int) $bc['slot'] ?>"><?= $ed ? 'Continue' : 'View' ?></button>
                       </li>

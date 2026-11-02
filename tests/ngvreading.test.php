@@ -47,13 +47,14 @@ $rdChap = static fn(string $tag = ''): string => 'This chapter sets out how inst
  * walks somebody through.
  */
 $rdSit = static fn(array $o = []): array => $o + [
-    'minutes' => 45, 'pages' => '1-20', 'place' => 'At the centre', 'value_key' => 'diligence',
+    'minutes' => 45, 'pages' => '1-20', 'place' => 'At the centre',
     'notes' => 'This sitting covered the opening argument about institutions and the incentives of the people inside them, '
              . 'and the example the author uses to carry it.',
     'stance' => 'I agree with the claim that rules follow incentives, though I think it underrates what one stubborn person can hold in place.',
     'application' => 'I am going to write down the incentive behind each of our own rules at the next meeting.',
 ];
 $rdSend = static function (int $member, array $claim) use ($rdSit) {
+    /* The value is asked once, on the book, now that it has been read. */
     $d = NgvReading::save($member, $claim, false);
     if (empty($d['ok'])) return $d;
     $today = function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d');
@@ -574,8 +575,6 @@ foreach ([
     ['a chapter this book does not have', ['pages' => '', 'chapter_from' => 1, 'chapter_to' => 9]],
     ['chapters the wrong way round', ['pages' => '', 'chapter_from' => 3, 'chapter_to' => 2]],
     ['nowhere',             ['place' => '']],
-    ['no value named',      ['value_key' => '']],
-    ['a value that is not one of the seven', ['value_key' => 'punctuality']],
     ['nothing on what it covered', ['notes' => 'Read a bit.']],
     ['no stance on it',     ['stance' => 'It was fine.']],
     ['no life application', ['application' => 'Nothing.']],
@@ -586,9 +585,8 @@ foreach ([
 $sitOk = NgvReading::logSession(960, $rdSit(['slot' => 1, 'day' => '2026-03-02', 'chapter_from' => 1, 'chapter_to' => 2, 'pages' => '']));
 ck('sitting: a complete one is logged', !empty($sitOk['ok']) && count($sitOk['sessions']) === 1);
 $sitRow = NgvReading::sessions((int) NgvReading::claim(960, 1)['id'])[0];
-ck('sitting: …with how far, how long, where and which value',
-   $sitRow['covered'] === 'Chapters 1–2' && $sitRow['minutes'] === 45
-   && $sitRow['place'] === 'At the centre' && $sitRow['value_label'] === 'Diligence');
+ck('sitting: …with how far, how long and where',
+   $sitRow['covered'] === 'Chapters 1–2' && $sitRow['minutes'] === 45 && $sitRow['place'] === 'At the centre');
 ck('sitting: the mood is the only optional part', $sitRow['mood'] === ''
    && !empty(NgvReading::logSession(960, $rdSit(['id' => $sitRow['id'], 'slot' => 1, 'day' => '2026-03-02', 'mood' => 'absorbed']))['ok'])
    && NgvReading::session((int) $sitRow['id'])['mood_label'] !== '');
@@ -625,28 +623,24 @@ ck('sitting: nobody edits somebody else\'s, even with a book of their own open',
    && empty(NgvReading::dropSession(961, (int) $sitNow[0]['id'])['ok'])
    && NgvReading::session((int) $sitNow[0]['id'])['member_id'] === 960);
 
-/* ══ The reading grows the seven values ══════════════════════════════════ */
+/* ══ The seven values, on the LIST and nowhere else ══════════════════════
+   The book list tags each book so a programme can see what it is putting in
+   front of people. Nothing is asked of a reader and nothing is measured from
+   it: what a book grew in a particular person is a judgement for the spoken
+   check, which is a conversation, not a dropdown. */
 
 ck('values: the seven come from the one place they are declared, never a copy',
    NgvReading::values() === MentorPortal::VALUES && NgvReading::valueLabel('communal') === 'Communal Spirit'
    && NgvReading::valueMotto('diligence') === 'Talent is cheap. Discipline is rare.');
-$grew = NgvReading::valueGrowth(960);
-ck('values: a member sees every one of the seven, including the ones at zero',
-   array_keys($grew) === array_keys(MentorPortal::VALUES) && count($grew) === 7);
-ck('values: …with what their reading has actually fed',
-   (int) $grew['diligence']['sessions'] === 1 && (int) $grew['diligence']['minutes'] === 45
-   && (int) $grew['faith']['sessions'] === 0);
-$all = NgvReading::valueGrowthAll();
-ck('values: and the programme sees the same across everybody',
-   (int) $all['diligence']['readers'] === 1 && (int) $all['communal']['sessions'] === 0);
-
-/* A book on the list says which values it is there for, so a gap in the
-   list is visible before a cohort reads its way into it. */
 $vb = NgvReading::saveBook(['title' => 'On Our People', 'author' => 'A Writer', 'chapters' => 2,
                             'value_keys' => ['faith', 'culture', 'not-a-value']], 1);
 ck('values: a book names the values it is on the list for, and only real ones',
    !empty($vb['ok']) && $vb['book']['value_list'] === ['faith', 'culture']
    && $vb['book']['value_labels'] === ['Faith', 'Cultural Appreciation']);
+ck('values: and a reader is never asked for one — not on a sitting, not on a book',
+   !method_exists('NgvReading', 'valueGrowth')
+   && !str_contains((string) @file_get_contents(AV_ROOT . '/academy/ngv/_book-modal.php'), 'bkSitValue')
+   && !str_contains((string) @file_get_contents(AV_ROOT . '/academy/ngv/_book-modal.php'), 'bkValue'));
 
 /* ══ The diary keeps the reading ═════════════════════════════════════════ */
 
@@ -673,7 +667,7 @@ $co = NgvReading::cohort();
 $coOne = array_values(array_filter($co['people'], static fn($p) => (int) $p['member_id'] === 960))[0] ?? [];
 ck('cohort: every active vanguard is in it, with where they stand',
    $coOne !== [] && (int) $coOne['sessions'] === 1 && (int) $coOne['waiting'] === 1
-   && (int) $coOne['values'] === 1 && (string) $coOne['last_read'] === '2026-03-02');
+   && (int) $coOne['minutes'] === 45 && (string) $coOne['last_read'] === '2026-03-02');
 ck('cohort: …and somebody who has not begun is told apart from somebody who stalled',
    ($coTwo = array_values(array_filter($co['people'], static fn($p) => (int) $p['member_id'] === 961))[0] ?? [])
    && (int) $coTwo['sessions'] === 0 && $coTwo['stalled_days'] === null && $coTwo['stalled'] === false);
@@ -692,3 +686,23 @@ ck('cohort: and the desk shows it where the people who run it look',
 
 $rdReset();
 NgvDb::pdo()->exec('DELETE FROM ngv_reading_sessions');
+
+/* ══ The member's own pages actually RENDER ═════════════════════════════
+   The reading card a vanguard opens is portal/views/ngv.php's, not the
+   standalone dashboard's — that one redirects them away. Anything written
+   for members has to land on the first, and a partial that borrowed the
+   dashboard's $e escaper was a FATAL on the portal, which took out the whole
+   page for any member with a sitting logged. Nothing rendered that view with
+   such a member, so nothing caught it until a screenshot did. */
+$rvReset = static function () { NgvDb::pdo()->exec('DELETE FROM ngv_reading_sessions'); };
+$rvReset();
+NgvMember::ensureParticipant(970, ['name' => 'Renders Fine', 'email' => 'renders@reading.test']);
+NgvDb::pdo()->exec("UPDATE ngv_participants SET start_date = '2026-01-01', status = 'active' WHERE member_id = 970");
+$rvB = $rdBook('A Rendered Book', 'An Author', 2);
+NgvReading::save(970, ['slot' => 1, 'book_id' => $rvB, 'started_on' => '2026-03-01'], false);
+NgvReading::logSession(970, $rdSit(['slot' => 1, 'day' => '2026-03-02']));
+ck('reading: the member\'s own card shows each book\'s reading, not just its title',
+   str_contains((string) @file_get_contents(AV_ROOT . '/portal/views/ngv.php'), "no reading logged yet")
+   && str_contains((string) @file_get_contents(AV_ROOT . '/portal/views/ngv.php'), "session_minutes"));
+$rvReset();
+NgvDb::pdo()->prepare('DELETE FROM ngv_book_claims WHERE member_id = 970')->execute();

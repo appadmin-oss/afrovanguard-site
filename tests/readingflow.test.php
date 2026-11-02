@@ -44,7 +44,7 @@ $rfDb->prepare('INSERT INTO lms_sessions (token_hash, user_id, ip, ua, expires_a
 NgvMember::ensureParticipant($rfUid, ['name' => 'Rita Flow', 'email' => 'rita@rflow.test']);
 NgvDb::pdo()->prepare("UPDATE ngv_participants SET start_date = '2026-01-01', status = 'active' WHERE member_id = ?")->execute([$rfUid]);
 $rfBook = (int) (NgvReading::saveBook(['title' => 'The Flow Book', 'author' => 'A Writer', 'chapters' => 2,
-                                       'value_keys' => ['diligence']], 1)['book']['id'] ?? 0);
+                                       'value_keys' => ['diligence']], 1)['book']['id'] ?? 0);   // a list tag, for curation
 
 $rfCall = static function (string $path, ?array $body, string $csrf = '') use ($rfPort, $rfTok): array {
     $h = "Cookie: av_lms=" . $rfTok . "\r\nAccept: application/json\r\n";
@@ -72,9 +72,10 @@ if (!$rfUp) {
     $post = static fn(array $b) => $rfCall('/academy/ngv/dashboard.php', $b, $rfCsrf);
 
     [$c1, $j1] = $post(['book_action' => 'get', 'slot' => 1]);
-    ck('flow: the claim sheet is told the books, the seven values and the moods',
-       $c1 === 200 && !empty($j1['ok']) && count($j1['values']) === 7
-       && !empty($j1['moods']) && ($j1['minSit']['notes'] ?? 0) === NgvReading::MIN_SESSION_NOTES);
+    ck('flow: the claim sheet is told the books, the moods and what each field needs',
+       $c1 === 200 && !empty($j1['ok']) && !empty($j1['moods'])
+       && ($j1['minSit']['notes'] ?? 0) === NgvReading::MIN_SESSION_NOTES
+       && !isset($j1['values']));   // a reader is never asked for one
 
     $rfClaim = ['slot' => 1, 'book_id' => $rfBook, 'started_on' => '2026-03-01', 'finished_on' => '2026-03-09',
                 'chapter_notes' => [str_repeat('What the first chapter set out, at some length. ', 3),
@@ -89,7 +90,7 @@ if (!$rfUp) {
     ck('flow: it saves as a draft', $c3 === 200 && !empty($j3['ok']));
 
     $rfSit = ['slot' => 1, 'day' => '2026-03-02', 'minutes' => 50, 'chapter_from' => 1, 'chapter_to' => 1,
-              'place' => 'At the centre', 'value_key' => 'diligence', 'mood' => 'absorbed',
+              'place' => 'At the centre', 'mood' => 'absorbed',
               'notes' => 'The first chapter lays out the case that what you repeat is what you become, and carries it with the example of the morning routine and the man who kept it for a decade.',
               'stance' => 'I agree with most of it, though I think it underrates how much a bad week can be recovered from.',
               'application' => 'I am going to keep the same start time for study every day this week.'];
@@ -97,9 +98,9 @@ if (!$rfUp) {
     ck('flow: a sitting is logged against it', $c4 === 200 && !empty($j4['ok']) && count($j4['sessions']) === 1);
     [$c5, $j5] = $post(['book_action' => 'session', 'session' => ['slot' => 1, 'day' => '2026-03-05'] + $rfSit]);
     ck('flow: and another', $c5 === 200 && count($j5['sessions']) === 2);
-    [$c6, $j6] = $post(['book_action' => 'session', 'session' => ['slot' => 1, 'day' => '2026-03-06', 'value_key' => ''] + $rfSit]);
-    ck('flow: one with no value named is refused, in the member\'s own words',
-       $c6 === 400 && str_contains((string) $j6['error'], 'seven values'));
+    [$c6, $j6] = $post(['book_action' => 'session', 'session' => ['slot' => 1, 'day' => '2026-03-06', 'place' => ''] + $rfSit]);
+    ck('flow: one with a field missing is refused, in the member\'s own words',
+       $c6 === 400 && str_contains((string) $j6['error'], 'Where did you read'));
 
     [$c7, $j7] = $post(['book_action' => 'session_drop', 'id' => (int) $j5['sessions'][1]['id']]);
     ck('flow: a sitting can be taken back out while the book is still theirs',
@@ -119,7 +120,6 @@ if (!$rfUp) {
        && (string) $j10['entries'][0]['title'] === 'The Flow Book');
     ck('flow: …read-only, because the book owns it',
        ($j10['entries'][0]['mine'] ?? true) === false && !empty($j10['entries'][0]['reading']));
-    ck('flow: …tagged with the value it grew', ($j10['entries'][0]['tags'] ?? []) === ['Diligence']);
     ck('flow: …and the whole sitting is in it, not just the notes',
        str_contains((string) $j10['entries'][0]['body'], 'Where I stand')
        && str_contains((string) $j10['entries'][0]['body'], 'What I will do'));

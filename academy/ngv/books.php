@@ -132,34 +132,31 @@ $csrf  = av_csrf_token();
     </div>
   </section>
 
-  <?php /* WHAT THE LIST IS FOR. The challenge exists to grow the seven
-           values, so the list is curated against them: eleven books on
-           Diligence and none on Communal Spirit is a thing to see here,
-           before a cohort reads its way into the same gap. Beside it, what
-           the reading has actually fed — which is the measure, and is not
-           the same number. */
-  $cov = []; foreach ($books as $b) foreach ($b['value_list'] as $vk) $cov[$vk] = ($cov[$vk] ?? 0) + ($b['active'] ? 1 : 0);
-  $grew = NgvReading::valueGrowthAll(); ?>
+  <?php /* WHAT THE LIST IS FOR. The value tags are curation: a programme can
+           see it has four books on Diligence and none on Communal Spirit
+           before it hands the list to a cohort. They are not asked of a
+           reader and nothing is measured from them — what a book grew in a
+           particular person is a judgement for the spoken check, not a
+           dropdown. */
+  $cov = []; foreach ($books as $b) foreach ($b['value_list'] as $vk) $cov[$vk] = ($cov[$vk] ?? 0) + ($b['active'] ? 1 : 0); ?>
   <section class="card" aria-labelledby="h-cov" id="values">
-    <header><h2 id="h-cov">The seven values, and what the reading is feeding</h2></header>
+    <header><h2 id="h-cov">What the list covers</h2><span class="sp"></span>
+      <span class="sub"><?= count(array_filter($cov)) ?> of <?= count(NgvReading::values()) ?> values have a book</span></header>
     <div class="body scroll">
       <table>
-        <thead><tr><th>Value</th><th>What it is taught as</th><th class="num">Books on the list</th><th class="num">Sittings</th><th class="num">Hours read</th><th class="num">Vanguards</th></tr></thead>
+        <thead><tr><th>Value</th><th>What it is taught as</th><th class="num">Books on the list</th></tr></thead>
         <tbody>
-        <?php foreach (NgvReading::values() as $vk => $vl): $g = $grew[$vk] ?? []; $n = (int) ($cov[$vk] ?? 0); ?>
+        <?php foreach (NgvReading::values() as $vk => $vl): $n = (int) ($cov[$vk] ?? 0); ?>
           <tr<?= $n === 0 ? ' class="off"' : '' ?>>
             <td><strong><?= $e($vl) ?></strong></td>
             <td class="sub"><?= $e(NgvReading::valueMotto($vk)) ?></td>
             <td class="num"><?= $n ?: '<span class="pill s-off">none</span>' ?></td>
-            <td class="num"><?= (int) ($g['sessions'] ?? 0) ?></td>
-            <td class="num"><?= number_format(((int) ($g['minutes'] ?? 0)) / 60, 1) ?></td>
-            <td class="num"><?= (int) ($g['readers'] ?? 0) ?></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
       </table>
-      <p class="sub" style="margin-bottom:0">A value with no books is one the challenge cannot grow. A value with books
-        but no sittings is one nobody has chosen to read for — worth asking about before adding more titles to it.</p>
+      <p class="sub" style="margin-bottom:0">A value with no books is one the list cannot speak to. This is for choosing
+        what to add next; it is not a measure of anybody's reading.</p>
     </div>
   </section>
 

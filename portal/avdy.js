@@ -148,7 +148,7 @@
     var my = ++listSeq, sc = S.scope, p;
     S.loading = true; S.error = ''; renderList();
     if (sc === 'reading') {
-      p = nbGet('reading').then(function (d) { if (d && d.ok) S.values = d.values || {}; return d; });
+      p = nbGet('reading');
     } else if (sc === 'shared') {
       p = Promise.resolve({ ok: true, entries: S.shared.map(function (e) {
         return { id: e.id, kind: e.kind, title: e.title, excerpt: e.excerpt, entry_date: e.entry_date, status: 'approved', tags: [], tab_count: 1, mine: false, author: e.author, direct: true };

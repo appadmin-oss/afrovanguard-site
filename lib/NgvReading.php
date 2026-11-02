@@ -113,13 +113,12 @@ final class NgvReading
      *   what it covered        the sitting in their own words
      *   where they stand       what they AGREE with or are AGAINST, and why
      *   what they will do      the life application of this reading
-     *   which value it grew    one of the seven (MentorPortal::VALUES)
      *
-     * The value is the point. The challenge exists to grow the seven values
-     * in the people who read, and a list of finished titles cannot show that
-     * it has. A sitting that names its value can: a member sees which of the
-     * seven their reading has fed and which it has not touched, and so does
-     * the programme, across the cohort.
+     * The seven values are NOT asked for on a sitting. The book list carries
+     * them (`ngv_books.value_keys`) so the programme can curate what it puts
+     * in front of people; what a given book grew in a given person is a
+     * judgement for a conversation, not a dropdown, and the spoken check is
+     * where that conversation already happens.
      */
 
     /** The floor for a sitting. Smaller than the book's, because it is one sitting. */
@@ -252,13 +251,11 @@ CREATE TABLE IF NOT EXISTS ngv_reading_sessions (
   notes        TEXT NOT NULL DEFAULT '',
   stance       TEXT NOT NULL DEFAULT '',
   application  TEXT NOT NULL DEFAULT '',
-  value_key    VARCHAR(24) NOT NULL DEFAULT '',
   created_at   VARCHAR(32) NOT NULL DEFAULT '',
   updated_at   VARCHAR(32) NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_rsession_claim ON ngv_reading_sessions (claim_id, day);
 CREATE INDEX IF NOT EXISTS idx_rsession_member ON ngv_reading_sessions (member_id, day);
-CREATE INDEX IF NOT EXISTS idx_rsession_value ON ngv_reading_sessions (value_key);
 CREATE TABLE IF NOT EXISTS ngv_reading_reviewers (
   member_id   INTEGER PRIMARY KEY,
   added_by    INTEGER NOT NULL DEFAULT 0,
@@ -716,20 +713,19 @@ SQL;
             foreach ($rows as $r) {
                 $by[(int) $r['member_id']] = ['member_id' => (int) $r['member_id'], 'name' => (string) $r['name'],
                     'track' => (string) ($r['track'] ?? ''), 'verified' => 0, 'waiting' => 0, 'needs_work' => 0,
-                    'sessions' => 0, 'minutes' => 0, 'last_read' => '', 'values' => 0];
+                    'sessions' => 0, 'minutes' => 0, 'last_read' => ''];
             }
             foreach ($pdo->query("SELECT member_id, status, COUNT(*) n FROM ngv_book_claims GROUP BY member_id, status")->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
                 $m = (int) $r['member_id']; if (!isset($by[$m])) continue;
                 $k = ['verified' => 'verified', 'submitted' => 'waiting', 'resubmit' => 'needs_work', 'rejected' => 'needs_work'][(string) $r['status']] ?? '';
                 if ($k !== '') $by[$m][$k] += (int) $r['n'];
             }
-            foreach ($pdo->query("SELECT member_id, COUNT(*) n, COALESCE(SUM(minutes),0) m, MAX(day) d, COUNT(DISTINCT value_key) v
+            foreach ($pdo->query("SELECT member_id, COUNT(*) n, COALESCE(SUM(minutes),0) m, MAX(day) d
                                     FROM ngv_reading_sessions GROUP BY member_id")->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
                 $m = (int) $r['member_id']; if (!isset($by[$m])) continue;
                 $by[$m]['sessions'] = (int) $r['n'];
                 $by[$m]['minutes']  = (int) $r['m'];
                 $by[$m]['last_read'] = (string) $r['d'];
-                $by[$m]['values']   = (int) $r['v'];
             }
             $today = strtotime(self::today());
             foreach ($by as &$p) {
@@ -790,7 +786,6 @@ SQL;
             'notes'        => trim((string) ($in['notes'] ?? '')),
             'stance'       => trim((string) ($in['stance'] ?? '')),
             'application'  => trim((string) ($in['application'] ?? '')),
-            'value_key'    => isset(self::values()[(string) ($in['value_key'] ?? '')]) ? (string) $in['value_key'] : '',
         ];
         if ($why = self::whySessionNotReady($row, $claim)) return ['ok' => false, 'error' => $why];
 
@@ -842,7 +837,6 @@ SQL;
             return 'How far did you get? Give the chapters, or the pages.';
         }
         if ((string) $r['place'] === '') return 'Where did you read? A word is enough — at the centre, at home, on the bus.';
-        if ((string) $r['value_key'] === '') return 'Which of our seven values did this reading grow in you? That is what the challenge is for.';
         foreach ([
             ['notes', self::MIN_SESSION_NOTES, 'What did this sitting cover? In your own words — at least %d characters.'],
             ['stance', self::MIN_SESSION_STANCE, 'What do you agree with here, or argue against, and why? At least %d characters.'],
@@ -914,68 +908,11 @@ SQL;
         foreach (['id', 'member_id', 'claim_id', 'book_id', 'slot', 'minutes', 'chapter_from', 'chapter_to'] as $k) {
             $r[$k] = (int) ($r[$k] ?? 0);
         }
-        $r['value_label'] = self::valueLabel((string) ($r['value_key'] ?? ''));
         $r['mood_label']  = (string) (self::MOODS[(string) ($r['mood'] ?? '')] ?? '');
         $r['covered']     = $r['chapter_from'] > 0
             ? ($r['chapter_from'] === $r['chapter_to'] ? 'Chapter ' . $r['chapter_from'] : 'Chapters ' . $r['chapter_from'] . '–' . $r['chapter_to'])
             : ((string) ($r['pages'] ?? '') !== '' ? 'Pages ' . $r['pages'] : '');
         return $r;
-    }
-
-    /* ── what the reading grew ─────────────────────────────────────────────
-     *
-     * The challenge exists to grow the seven values, and a count of finished
-     * titles cannot show that it has. This can: every sitting names the value
-     * it fed, so a member can see which of the seven their reading has
-     * touched and which it has not, and the programme can see the same across
-     * a cohort. It is the measure the challenge was always for.
-     */
-
-    /** Minutes and sittings per value for one member — every value, zeros and all. */
-    public static function valueGrowth(int $memberId): array
-    {
-        self::ensure();
-        $out = [];
-        foreach (self::values() as $k => $label) {
-            $out[$k] = ['key' => $k, 'label' => $label, 'motto' => self::valueMotto($k), 'sessions' => 0, 'minutes' => 0, 'books' => 0];
-        }
-        try {
-            $st = NgvDb::pdo()->prepare(
-                'SELECT value_key, COUNT(*) n, COALESCE(SUM(minutes),0) m, COUNT(DISTINCT claim_id) b
-                   FROM ngv_reading_sessions WHERE member_id = ? AND value_key <> \'\' GROUP BY value_key');
-            $st->execute([$memberId]);
-            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
-                $k = (string) $r['value_key'];
-                if (!isset($out[$k])) continue;
-                $out[$k]['sessions'] = (int) $r['n'];
-                $out[$k]['minutes']  = (int) $r['m'];
-                $out[$k]['books']    = (int) $r['b'];
-            }
-        } catch (Throwable $e) { error_log('[ngvreading] valueGrowth: ' . $e->getMessage()); }
-        return $out;
-    }
-
-    /** The same across everybody — what the cohort's reading is feeding. */
-    public static function valueGrowthAll(): array
-    {
-        self::ensure();
-        $out = [];
-        foreach (self::values() as $k => $label) {
-            $out[$k] = ['key' => $k, 'label' => $label, 'motto' => self::valueMotto($k), 'sessions' => 0, 'minutes' => 0, 'readers' => 0];
-        }
-        try {
-            $st = NgvDb::pdo()->query(
-                'SELECT value_key, COUNT(*) n, COALESCE(SUM(minutes),0) m, COUNT(DISTINCT member_id) r
-                   FROM ngv_reading_sessions WHERE value_key <> \'\' GROUP BY value_key');
-            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
-                $k = (string) $r['value_key'];
-                if (!isset($out[$k])) continue;
-                $out[$k]['sessions'] = (int) $r['n'];
-                $out[$k]['minutes']  = (int) $r['m'];
-                $out[$k]['readers']  = (int) $r['r'];
-            }
-        } catch (Throwable $e) { error_log('[ngvreading] valueGrowthAll: ' . $e->getMessage()); }
-        return $out;
     }
 
     /* ── the automatic checks ────────────────────────────────────────────── */

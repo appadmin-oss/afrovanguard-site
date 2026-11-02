@@ -587,30 +587,6 @@ $ngvModal      = $ngvModal ?? ($ngvParts === null || in_array('reading', $ngvPar
               summarise each chapter, then say what the whole book argued and one thing you have done because
               of it. Your track lead checks it before it counts.
             </div>
-            <?php /* WHAT THE READING HAS GROWN. The challenge exists to grow
-                     the seven values; a count of finished titles cannot show
-                     that it has, and this can. Shown to the member because
-                     the gap is the useful part — "you have read nine
-                     sittings for Diligence and none for Communal Spirit" is
-                     a thing somebody can act on. */
-              $rvals = NgvReading::valueGrowth($uid);
-              $rany = array_sum(array_map(static fn($v) => (int) $v['sessions'], $rvals)); ?>
-            <?php if ($rany > 0): ?>
-              <div class="ngv-vals">
-                <p class="ngv-vals-h">What your reading is growing</p>
-                <ul class="ngv-vals-list">
-                  <?php foreach ($rvals as $v): $pc = $rany > 0 ? (int) round($v['sessions'] / $rany * 100) : 0; ?>
-                    <li class="<?= $v['sessions'] === 0 ? 'is-none' : '' ?>">
-                      <span class="ngv-vals-k"><?= $e((string) $v['label']) ?></span>
-                      <span class="ngv-vals-bar"><i style="width:<?= $pc ?>%"></i></span>
-                      <span class="ngv-vals-n"><?= $v['sessions'] === 0 ? 'not yet' : (int) $v['sessions'] . ' sitting' . ((int) $v['sessions'] === 1 ? '' : 's') ?></span>
-                    </li>
-                  <?php endforeach; ?>
-                </ul>
-                <p class="ngv-vals-f">Every sitting you log names the value it grew. A value with nothing against it
-                  is one your reading has not reached yet — the book list says which books are on it.</p>
-              </div>
-            <?php endif; ?>
             <?php if (!empty($rp['spot_pending'])): ?>
               <?php /* Says that a conversation is due. Deliberately does NOT
                        say which book — the whole value of the check is that it

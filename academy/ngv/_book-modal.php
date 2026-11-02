@@ -35,28 +35,33 @@
                   <em>log each sitting — at least one before you can send it</em></p>
                 <div id="bkSitList"></div>
                 <div class="bk-sit-form" id="bkSitForm" hidden>
-                  <div class="bk-grid">
-                    <label class="bk-f"><span>The day you read</span><input id="bkSitDay" type="date"></label>
-                    <label class="bk-f"><span>For how long <em>minutes</em></span><input id="bkSitMins" type="number" min="1" max="<?= (int) NgvReading::MAX_SESSION_MINUTES ?>" inputmode="numeric"></label>
-                    <label class="bk-f"><span>From chapter</span><input id="bkSitFrom" type="number" min="1" inputmode="numeric"></label>
-                    <label class="bk-f"><span>To chapter</span><input id="bkSitTo" type="number" min="1" inputmode="numeric"></label>
-                    <label class="bk-f"><span>Or the pages <em>if the book has no chapters</em></span><input id="bkSitPages" maxlength="40" placeholder="e.g. 40–72"></label>
-                    <label class="bk-f"><span>Where you read</span><input id="bkSitPlace" maxlength="80" placeholder="At the centre, at home, on the bus"></label>
-                    <label class="bk-f bk-f--wide"><span>Which of our seven values did this grow in you?</span>
-                      <select id="bkSitValue"><option value="">Choose one…</option></select>
-                      <span class="bk-motto" id="bkSitMotto"></span></label>
-                    <label class="bk-f bk-f--wide"><span>How was it? <em>optional</em></span>
-                      <select id="bkSitMood"><option value="">Rather not say</option></select></label>
-                  </div>
-                  <label class="bk-f bk-f--wide"><span>What did this sitting cover?
-                    <em>at least <?= (int) NgvReading::MIN_SESSION_NOTES ?> characters, in your words</em></span>
-                    <textarea id="bkSitNotes" rows="3" maxlength="4000"></textarea></label>
-                  <label class="bk-f bk-f--wide"><span>What do you agree with here, or argue against — and why?
-                    <em>at least <?= (int) NgvReading::MIN_SESSION_STANCE ?> characters</em></span>
-                    <textarea id="bkSitStance" rows="3" maxlength="4000"></textarea></label>
-                  <label class="bk-f bk-f--wide"><span>What will you do differently because of it?
-                    <em>at least <?= (int) NgvReading::MIN_SESSION_APPLICATION ?> characters — the life application</em></span>
-                    <textarea id="bkSitApply" rows="2" maxlength="4000"></textarea></label>
+                  <fieldset class="bk-fs">
+                    <legend>The sitting</legend>
+                    <div class="bk-sit-grid">
+                      <label class="bk-f"><span>Day</span><input id="bkSitDay" type="date"></label>
+                      <label class="bk-f"><span>Minutes</span><input id="bkSitMins" type="number" min="1" max="<?= (int) NgvReading::MAX_SESSION_MINUTES ?>" inputmode="numeric"></label>
+                      <label class="bk-f"><span>Chapters <em>from</em></span><input id="bkSitFrom" type="number" min="1" inputmode="numeric"></label>
+                      <label class="bk-f"><span><em>to</em></span><input id="bkSitTo" type="number" min="1" inputmode="numeric"></label>
+                    </div>
+                    <div class="bk-grid">
+                      <label class="bk-f" id="bkSitPagesF"><span>Pages <em>if it has no chapters</em></span><input id="bkSitPages" maxlength="40" placeholder="40–72"></label>
+                      <label class="bk-f"><span>Where</span><input id="bkSitPlace" maxlength="80" placeholder="At the centre"></label>
+                      <label class="bk-f bk-f--wide"><span>How it went <em>optional</em></span>
+                        <select id="bkSitMood"><option value="">Rather not say</option></select></label>
+                    </div>
+                  </fieldset>
+                  <fieldset class="bk-fs">
+                    <legend>What you made of it</legend>
+                    <label class="bk-f bk-f--wide"><span>What this sitting covered</span>
+                      <textarea id="bkSitNotes" rows="3" maxlength="4000" data-min="<?= (int) NgvReading::MIN_SESSION_NOTES ?>"></textarea>
+                      <span class="bk-count" data-for="bkSitNotes">0</span></label>
+                    <label class="bk-f bk-f--wide"><span>What you agree with, or argue against — and why</span>
+                      <textarea id="bkSitStance" rows="3" maxlength="4000" data-min="<?= (int) NgvReading::MIN_SESSION_STANCE ?>"></textarea>
+                      <span class="bk-count" data-for="bkSitStance">0</span></label>
+                    <label class="bk-f bk-f--wide"><span>What you will do differently <em>the life application</em></span>
+                      <textarea id="bkSitApply" rows="2" maxlength="4000" data-min="<?= (int) NgvReading::MIN_SESSION_APPLICATION ?>"></textarea>
+                      <span class="bk-count" data-for="bkSitApply">0</span></label>
+                  </fieldset>
                   <p class="bk-err" id="bkSitErr" hidden role="alert"></p>
                   <div class="bk-sit-acts">
                     <button type="button" class="pbtn pbtn-gold" id="bkSitSave">Save this sitting</button>

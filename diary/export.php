@@ -51,8 +51,7 @@ if ($scope === 'mine') {
             $esc = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
             $items[] = [
                 'title'    => (string) ($x['title'] ?? 'A book'),
-                'subtitle' => trim('Reading · ' . (string) $x['covered'] . ' · ' . (int) $x['minutes'] . ' minutes'
-                              . ((string) $x['value_label'] !== '' ? ' · ' . (string) $x['value_label'] : ''), ' ·'),
+                'subtitle' => trim('Reading · ' . (string) $x['covered'] . ' · ' . (int) $x['minutes'] . ' minutes', ' ·'),
                 'date'     => (string) $x['day'],
                 'html'     => '<p><em>' . $esc(trim((string) $x['place'] . ((string) $x['mood_label'] !== '' ? ' · ' . (string) $x['mood_label'] : ''))) . '</em></p>'
                             . '<p>' . nl2br($esc((string) $x['notes'])) . '</p>'

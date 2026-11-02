@@ -67,7 +67,7 @@ takeaway on the whole book. Submitting names the first chapter that is short.
   a summary in the same words as another claim on the same book is flagged
   (`same-chapter-summary-as-another-participant`).
 
-## The sittings, and the seven values
+## The sittings
 
 A book is read over days, and the record used to keep only what was written
 at the end. So the programme could see that somebody had finished twenty-four
@@ -86,7 +86,6 @@ sent with none against it**. A sitting records:
 | what it covered | ≥ `MIN_SESSION_NOTES` (120) in their own words |
 | where they stand | what they **agree with or argue against, and why** — ≥ `MIN_SESSION_STANCE` (80) |
 | what they will do | the **life application** of this reading — ≥ `MIN_SESSION_APPLICATION` (60) |
-| which **value** it grew | one of the seven. Required. |
 | how it felt | `MOODS` — **the only optional field** |
 
 A claim with eight dated sittings behind it is also a far harder thing to
@@ -94,29 +93,26 @@ invent than one with none, which is the second reason the floor includes
 them. Once the book is sent, its sittings stop moving too: the evidence under
 a claim a reviewer is reading must not change any more than the claim does.
 
-### The value is the point
+### The values are on the list, not on the sitting
 
-The challenge exists to **grow the seven values**, and a shelf of finished
-titles cannot show that it has. A sitting that names its value can.
+A sitting is **not** asked which of the seven values it grew, and neither is
+the book or the claim. What a given book grew in a given person is a
+judgement for a conversation — the spoken check is where that conversation
+already happens — and a dropdown at the end of every sitting would record a
+guess as a fact and then report on it.
 
-The seven come from `MentorPortal::VALUES` — the one place they are declared,
-shared with the mentor portal, the Quest's points and the conduct awards.
-Reading does not keep a second list, and a test asserts it.
-
-- `NgvReading::valueGrowth($member)` — sittings, minutes and books per value
-  for one person, **every value including the ones at zero**, because the gap
-  is the useful part. The member sees it on their own reading card.
-- `NgvReading::valueGrowthAll()` — the same across the cohort, on the book
-  list page beside how many books are on the list for each value. A value
-  with no books is one the challenge cannot grow; a value with books and no
-  sittings is one nobody has chosen to read for.
-- A book on the list names the values it is **there for** (`ngv_books.value_keys`),
-  so a gap in the list is visible before a cohort reads its way into it.
+The values stay where they are useful: **a book on the list names the ones it
+is there for** (`ngv_books.value_keys`, from `MentorPortal::VALUES`, never a
+second copy). That is curation. The book list page shows, per value, what it
+is taught as and how many books on the list speak to it, so a gap is visible
+before a cohort reads its way into it. It says so in the page's own words: a
+value with no books is one the list cannot speak to, and the table is for
+choosing what to add next, not a measure of anybody's reading.
 
 ### In the diary
 
-The diary's library has a **Reading** section: every sitting, newest first,
-tagged with the value it grew. It is **read, not copied** —
+The diary's library has a **Reading** section: every sitting, newest first.
+It is **read, not copied** —
 `portal/notebooks.php?action=reading` reads `NgvReading::sessionsFor()`, so the
 record a track lead checks and the page the member reads back are one thing.
 It is read-only there for the same reason: a sitting is edited where it was
@@ -206,9 +202,6 @@ on the review desk, in four queries rather than one per participant:
   unfinished shelf. Somebody who has never logged a sitting is *not* stalled,
   they have not begun, and the table says which: a different conversation.
 - **What has waited longest** — the oldest claim still unchecked, in days.
-- **How wide** each person's reading is: how many of the seven their sittings
-  have touched. Twenty-four books and two values is reading widely in one
-  direction, and is worth asking about on its own.
 
 ## Who may check the reading
 
@@ -234,13 +227,12 @@ money and merit are signed off. A `byUid` of 0 is the system and is exempt.
 
 - **`academy/ngv/dashboard.php`** — the shelf. Each slot shows its state
   (empty / draft / with your track lead / sent back / not accepted / verified)
-  and opens the claim sheet, where the sittings are logged. Below it, **what
-  the reading is growing**: the seven values and the gaps. There is no verdict
-  control anywhere on the member side; a test asserts the page never calls
-  `review()`.
+  and opens the claim sheet, where the sittings are logged. There is no
+  verdict control anywhere on the member side; a test asserts the page never
+  calls `review()`.
 - **`academy/ngv/books.php`** — the book list (admins). Add, correct, retire,
-  name the values a book is on the list for, see what the list covers against
-  what the reading has fed, and say who may check the reading.
+  name the values a book is on the list for, see what the list covers, and
+  say who may check the reading.
 - **`academy/ngv/reading-review.php`** — the review desk, for anybody who may
   check the reading. How the challenge is going across the cohort, the claims
   waiting, the rejections that can be reopened, and the conversations due,
@@ -252,7 +244,7 @@ money and merit are signed off. A `byUid` of 0 is the system and is exempt.
 - **`portal/`** — the diary's **Reading** section, and the export.
 
 A claim in the queue leads with its **sittings** — how many, how many minutes,
-the span of days and the values they named, with "No reading logged against
+the span of days, with "No reading logged against
 this book" in red when there are none — then the chapter summaries, then the
 reflection and the takeaway. Flagged claims sort first with a red edge and
 their reasons spelled out; each has a required note field and Verify / Send
@@ -316,8 +308,8 @@ records what happened; a person decides what it means.
 
 `ngv_books`, `ngv_book_claims`, `ngv_book_spot_checks`, `ngv_reading_sessions`
 and `ngv_reading_reviewers`, in the NGV database. A sitting names its claim,
-its book, its slot and its value; `ngv_books.value_keys` is the CSV of the
-values a book is on the list for.
+its book and its slot; `ngv_books.value_keys` is the CSV of the values a book
+is on the list for, and is the only place a value is stored.
 A claim names its book by `book_id`, with `chapters` and `chapter_notes`.
 `ngv_book_claims` is `UNIQUE(member_id, slot)`, `ngv_book_spot_checks` is
 `UNIQUE(member_id, milestone)` so a milestone cannot open twice. Beyond the

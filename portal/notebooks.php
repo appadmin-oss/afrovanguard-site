@@ -97,7 +97,7 @@ try {
                     'excerpt'         => mb_substr(trim((string) $x['notes']), 0, 160),
                     'entry_date'      => (string) $x['day'],
                     'status'          => 'approved',
-                    'tags'            => array_values(array_filter([(string) $x['value_label']])),
+                    'tags'            => [],
                     'tab_count'       => 1,
                     'pinned'          => 0,
                     'mine'            => false,          // the diary shows it; the book owns it
@@ -107,7 +107,7 @@ try {
                     'first_tab_title' => (string) ($x['title'] ?? 'A book'),
                 ];
             }
-            json_out(['ok' => true, 'entries' => $out, 'values' => NgvReading::valueGrowth($uid)]);
+            json_out(['ok' => true, 'entries' => $out]);
         }
 
         case 'create':

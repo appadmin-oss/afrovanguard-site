@@ -168,6 +168,10 @@ details[open]>.pcard-summary::after{transform:rotate(-90deg)}
 .bk-sit p b{color:var(--ink)}
 .bk-sit-x{margin-top:8px;background:none;border:0;padding:0;color:var(--red);font:inherit;font-size:12px;font-weight:700;cursor:pointer;text-decoration:underline}
 .bk-sit-form{display:flex;flex-direction:column;gap:14px;border:1px dashed var(--border);border-radius:10px;padding:12px}
+.bk-fs{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.bk-fs>legend{padding:0;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.bk-sit-grid{display:grid;grid-template-columns:1.4fr .8fr .8fr .8fr;gap:10px}
+@media(max-width:560px){.bk-sit-grid{grid-template-columns:1fr 1fr}}
 .bk-sit-form textarea{min-height:76px}
 .bk-sit-acts{display:flex;gap:8px;flex-wrap:wrap}
 .bk-motto{font-size:12px;color:var(--muted);font-style:italic;min-height:1em}

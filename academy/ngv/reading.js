@@ -52,9 +52,8 @@
     sitTo: document.getElementById('bkSitTo'),
     sitPages: document.getElementById('bkSitPages'),
     sitPlace: document.getElementById('bkSitPlace'),
-    sitValue: document.getElementById('bkSitValue'),
-    sitMotto: document.getElementById('bkSitMotto'),
     sitMood: document.getElementById('bkSitMood'),
+    sitPagesF: document.getElementById('bkSitPagesF'),
     sitNotes: document.getElementById('bkSitNotes'),
     sitStance: document.getElementById('bkSitStance'),
     sitApply: document.getElementById('bkSitApply')
@@ -63,7 +62,7 @@
   var slot = 0, MIN = 320, MIN_TAKE = 60, MIN_CHAPTER = 80, opener = null;
   /* The sittings on this claim, the one being edited (0 = a new one), the
      seven values with their mottos, and today as the server reckons it. */
-  var sits = [], sitId = 0, VALUES = {}, MOTTOS = {}, MOODS = {}, TODAY = '';
+  var sits = [], sitId = 0, MOODS = {}, TODAY = '';
   var typedMs = 0, pastes = 0, lastKey = 0;
   /* The book list, the claim being edited, and — for a claim made before
      there was a list — the title and author it was recorded with. */
@@ -203,7 +202,7 @@
         + '<div class="bk-sit-top"><span class="bk-sit-when">' + esc(x.day) + '</span>'
         + (x.covered ? '<span>· ' + esc(x.covered) + '</span>' : '')
         + '<span>· ' + esc(x.minutes) + ' min</span>'
-        + (x.value_label ? '<span class="bk-sit-val">' + esc(x.value_label) + '</span>' : '') + '</div>'
+        + '</div>'
         + '<div class="bk-sit-meta">' + esc(x.place) + (x.mood_label ? ' · ' + esc(x.mood_label) : '') + '</div>'
         + '<p>' + esc(x.notes) + '</p>'
         + '<p><b>Where I stand:</b> ' + esc(x.stance) + '</p>'
@@ -223,30 +222,42 @@
     el.sitTo.value = x.chapter_to || '';
     el.sitPages.value = x.pages || '';
     el.sitPlace.value = x.place || '';
-    el.sitValue.value = x.value_key || '';
     el.sitMood.value = x.mood || '';
     el.sitNotes.value = x.notes || '';
     el.sitStance.value = x.stance || '';
     el.sitApply.value = x.application || '';
-    el.sitMotto.textContent = MOTTOS[el.sitValue.value] || '';
+    sitCounts();
     el.sitErr.hidden = true;
     el.sitSave.textContent = sitId ? 'Save this sitting' : 'Add this sitting';
+  }
+  /* The same counter the book's own fields carry, so somebody writing a
+     sitting can see the floor rather than meet it on save. */
+  function sitCounts() {
+    [el.sitNotes, el.sitStance, el.sitApply].forEach(function (t) {
+      var out = modal.querySelector('.bk-count[data-for="' + t.id + '"]');
+      if (!out) return;
+      var n = t.value.replace(/\s+/g, ' ').trim().length, min = +t.getAttribute('data-min') || 0;
+      out.textContent = n < min ? n + ' / ' + min : String(n);
+      out.classList.toggle('short', n < min);
+    });
   }
   function fillSelect(sel, map, blank) {
     sel.innerHTML = '<option value="">' + blank + '</option>' + Object.keys(map).map(function (k) {
       return '<option value="' + esc(k) + '">' + esc(map[k]) + '</option>';
     }).join('');
   }
-  el.sitValue.addEventListener('change', function () { el.sitMotto.textContent = MOTTOS[el.sitValue.value] || ''; });
+  [el.sitNotes, el.sitStance, el.sitApply].forEach(function (t) { t.addEventListener('input', sitCounts); });
+  /* Pages only matter when the book has no chapters to count. */
+  function sitPagesVisible() { el.sitPagesF.hidden = (claim.chapters || 0) > 0; }
   el.sitAdd.addEventListener('click', function () {
-    sitFormReset(); el.sitForm.hidden = false; el.sitAdd.hidden = true; el.sitDay.focus();
+    sitFormReset(); sitPagesVisible(); el.sitForm.hidden = false; el.sitAdd.hidden = true; el.sitDay.focus();
   });
   el.sitCancel.addEventListener('click', function () { el.sitForm.hidden = true; el.sitAdd.hidden = false; el.sitAdd.focus(); });
   el.sitList.addEventListener('click', function (ev) {
     var e2 = ev.target.closest('[data-sit-edit]'), dr = ev.target.closest('[data-sit-drop]');
     if (e2) {
       var one = sits.filter(function (x) { return x.id === +e2.getAttribute('data-sit-edit'); })[0];
-      if (one) { sitFormReset(one); el.sitForm.hidden = false; el.sitAdd.hidden = true; el.sitDay.focus(); }
+      if (one) { sitFormReset(one); sitPagesVisible(); el.sitForm.hidden = false; el.sitAdd.hidden = true; el.sitDay.focus(); }
       return;
     }
     if (!dr) return;
@@ -262,8 +273,7 @@
     post({ book_action: 'session', session: {
       id: sitId, slot: slot, day: el.sitDay.value, minutes: +el.sitMins.value || 0,
       chapter_from: +el.sitFrom.value || 0, chapter_to: +el.sitTo.value || 0,
-      pages: el.sitPages.value, place: el.sitPlace.value, value_key: el.sitValue.value,
-      mood: el.sitMood.value, notes: el.sitNotes.value, stance: el.sitStance.value, application: el.sitApply.value
+      pages: el.sitPages.value, place: el.sitPlace.value, mood: el.sitMood.value, notes: el.sitNotes.value, stance: el.sitStance.value, application: el.sitApply.value
     } }).then(function (j) {
       b.disabled = false; b.textContent = label;
       sits = j.sessions || []; drawSits(false);
@@ -282,9 +292,7 @@
       var c = j.claim || {};
       claim = c; books = j.books || [];
       MIN = j.min || MIN; MIN_TAKE = j.minTake || MIN_TAKE; MIN_CHAPTER = j.minChapter || MIN_CHAPTER;
-      VALUES = j.values || {}; MOODS = j.moods || {}; TODAY = j.today || '';
-      MOTTOS = {}; Object.keys(VALUES).forEach(function (k, i) { MOTTOS[k] = (j.mottos || [])[i] || ''; });
-      fillSelect(el.sitValue, VALUES, 'Choose one…');
+      MOODS = j.moods || {}; TODAY = j.today || '';
       fillSelect(el.sitMood, MOODS, 'Rather not say');
       sits = j.sessions || [];
       /* A claim recorded before the book list keeps the book it named. */

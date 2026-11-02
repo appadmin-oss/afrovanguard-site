@@ -139,7 +139,6 @@ if ($method === 'POST') {
         json_out(['ok' => true, 'claim' => $c, 'books' => $books, 'min' => NgvReading::MIN_REFLECTION,
                   'minTake' => NgvReading::MIN_TAKEAWAY, 'minChapter' => NgvReading::MIN_CHAPTER,
                   'sessions' => $c ? $c['sessions'] : [],
-                  'values' => NgvReading::values(), 'mottos' => array_map([NgvReading::class, 'valueMotto'], array_keys(NgvReading::values())),
                   'moods' => NgvReading::MOODS, 'today' => function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d'),
                   'minSit' => ['notes' => NgvReading::MIN_SESSION_NOTES, 'stance' => NgvReading::MIN_SESSION_STANCE,
                                'application' => NgvReading::MIN_SESSION_APPLICATION, 'minutes' => NgvReading::MAX_SESSION_MINUTES]]);
