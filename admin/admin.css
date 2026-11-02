@@ -838,6 +838,15 @@ body.studio { --gold-deep: var(--av-gold-text); }
 @container (max-width:560px) { .mem-class-new, .mem-class-row { grid-template-columns:1fr; } }
 .mem-pane[data-pane="classes"] { container-type:inline-size; }
 
+/* To verify: who, why they are here, and the one field that makes it a
+   decision rather than a click. */
+.mem-verify-row { grid-template-columns:minmax(220px,1.4fr) minmax(220px,1.6fr) auto; align-items:start; }
+.mem-verify-who { padding-top:2px; }
+.mem-verify-basis { align-self:end; }
+.mem-verify-row .mem-role-ops { align-self:end; }
+@container (max-width:720px) { .mem-verify-row { grid-template-columns:1fr; } }
+.mem-pane[data-pane="verify"] { container-type:inline-size; }
+
 /* The day-to-day desk (lib/MemberDesk.php): filter chips, export, message, activity, notes. */
 .mem-chips-bar { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 0; }
 .mem-chips-bar:empty { display:none; }

@@ -32,9 +32,30 @@ final class LmsAuth
         $at = strrchr(strtolower(trim($email)), '@');
         return $at !== false && substr($at, 1) === strtolower((string) (defined('AV_ORG_DOMAIN') ? AV_ORG_DOMAIN : 'afrovanguard.org.ng'));
     }
-    /** Org member = elevated role OR an org-domain email. Gates mentorship. */
+    /**
+     * Is this an Afrovanguard member? An elevated ROLE (an act by the office),
+     * or an explicit VERIFICATION (lib/MemberVerification.php). Being declined
+     * beats both.
+     *
+     * It used to be "or an org-domain email", which made a member of anybody
+     * the organisation had ever given an address to — a contractor, a
+     * one-week volunteer, somebody who left two years ago, a shared inbox —
+     * for ever, with no record of anybody having decided it. Everybody that
+     * rule covered on the day this changed is grandfathered, so nobody lost
+     * access; the address confers nothing on anyone new.
+     *
+     * The domain is still read for what it actually tells you — whether to
+     * require a sign-in code, which Workspace account somebody has, how the
+     * community segments — and none of that is membership.
+     */
     public static function isOrgMember(?array $u): bool {
-        return $u !== null && (self::rank((string) ($u['role'] ?? '')) >= self::ROLE_RANK['member'] || self::isOrgEmail((string) ($u['email'] ?? '')));
+        if ($u === null) return false;
+        $id = (int) ($u['id'] ?? 0);
+        if ($id > 0 && class_exists('MemberVerification')) {
+            if (MemberVerification::isDeclined($id)) return false;
+            if (MemberVerification::isVerified($id)) return true;
+        }
+        return self::rank((string) ($u['role'] ?? '')) >= self::ROLE_RANK['member'];
     }
     public static function canMentor(?array $u): bool { return self::atLeast($u, 'mentor'); }
     public static function canManageMembers(?array $u): bool { return self::atLeast($u, 'coordinator'); }
@@ -158,7 +179,10 @@ final class LmsAuth
         $u = self::byEmail($email);
         if (!$u) {
             $display = trim($name) !== '' ? trim($name) : ucfirst(explode('@', $email)[0]);
-            $role = self::isOrgEmail($email) ? 'member' : 'learner';
+            /* An org address is no longer a membership. A new account starts
+               as a learner whatever it is, and somebody at the office verifies
+               them — MemberVerification::toVerify() is where they appear. */
+            $role = 'learner';
             $db->prepare('INSERT INTO lms_users (name, email, password_hash, role, email_verified) VALUES (?,?,?,?,1)')
                ->execute([$display, $email, password_hash(bin2hex(random_bytes(18)), PASSWORD_BCRYPT), $role]);
             $u = self::byEmail($email);
@@ -167,10 +191,8 @@ final class LmsAuth
         } else {
             if (($u['status'] ?? 'active') !== 'active') return ['ok' => false, 'error' => 'This account is not active. Please contact us.'];
             if ((int) ($u['email_verified'] ?? 0) === 0) self::claimUnverified((int) $u['id']);
-            if (self::isOrgEmail($email) && self::rank((string) $u['role']) < self::ROLE_RANK['member']) {
-                $db->prepare("UPDATE lms_users SET role = 'member' WHERE id = ?")->execute([$u['id']]);
-                $u['role'] = 'member';
-            }
+            /* Signing in used to PROMOTE a learner on an org address to
+               member. It does not: nobody becomes a member by signing in. */
         }
         if (!$u) return ['ok' => false, 'error' => 'Could not complete sign-in. Please try again.'];
         self::clearFailures($email);
@@ -324,15 +346,17 @@ final class LmsAuth
            finds the account BY that address — so it would sign a stranger in
            as its owner. Refused, whatever the caller does. */
         if (!$emailVerified) return ['ok' => false, 'code' => 'unverified', 'error' => 'Your provider has not verified that email address.'];
-        /* The member role on an org address also needs the provider to vouch
-           for the domain (Google's hd claim, GoogleAuth::orgVerified). null
-           means the caller has no such signal and the address decides. */
-        $orgVerified = $emailVerified && self::isOrgEmail($email) && ($orgDomainVerified ?? true);
+        /* $orgDomainVerified — Google's hd claim, via GoogleAuth::orgVerified —
+           used to decide the member role here, and no longer decides
+           anything: a provider vouching for a domain proves who holds the
+           address, not that the organisation considers them a member. It
+           stays on the signature because callers pass it and it is the right
+           signal to have in hand; nothing in this method reads it now. */
         $db = Database::pdo();
         $u = self::byEmail($email);
         if (!$u) {
             $display = $name !== '' ? $name : ucfirst(explode('@', $email)[0]);
-            $role = $orgVerified ? 'member' : 'learner';
+            $role = 'learner';
             $db->prepare('INSERT INTO lms_users (name, email, password_hash, role, email_verified) VALUES (?,?,?,?,?)')
                ->execute([$display, $email, password_hash(bin2hex(random_bytes(18)), PASSWORD_BCRYPT), $role, $emailVerified ? 1 : 0]);
             $u = self::byEmail($email);
@@ -342,10 +366,9 @@ final class LmsAuth
             if (($u['status'] ?? 'active') !== 'active') return ['ok' => false, 'code' => 'inactive', 'error' => 'This account is not active. Please contact us.'];
             // A successful OAuth sign-in proves email ownership — clear any pending verification.
             if ($emailVerified && (int) ($u['email_verified'] ?? 0) === 0) self::claimUnverified((int) $u['id']);
-            if ($orgVerified && self::rank((string) $u['role']) < self::ROLE_RANK['member']) {
-                $db->prepare("UPDATE lms_users SET role = 'member' WHERE id = ?")->execute([$u['id']]);
-                $u['role'] = 'member';
-            }
+            /* Signing in with Google used to promote a learner on an org
+               address to member. It does not: nobody becomes a member by
+               signing in, by any door. */
         }
         if (!$u) return ['ok' => false, 'error' => 'Could not complete sign-in. Please try again.'];
         $db->prepare('UPDATE lms_users SET last_login = ? WHERE id = ?')->execute([gmdate('Y-m-d H:i:s'), $u['id']]);

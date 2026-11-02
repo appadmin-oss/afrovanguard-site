@@ -144,6 +144,7 @@ try {
         'roster_membership', 'roster_membership_change', 'dues_settings', 'dues_owing', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
         'roles_list', 'role_save', 'role_delete',
         'member_classes', 'member_class_assign',
+        'member_verify_list', 'member_verify', 'member_unverify', 'member_decline',
         'centres_list', 'centre_save', 'centre_status', 'centre_delete',
         'approvals_list', 'approval_decide', 'approval_withdraw', 'member_requests_list', 'member_request_decide',
         // Programme sessions (kept on CACENTRE): who served in each.
@@ -1463,6 +1464,25 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = MemberRoles::delete((int) ($body['id'] ?? 0), av_admin_actor());
             json_out($r, $r['ok'] ? 200 : 404);
+        /* ── Verification: being a member is an act with a record, not an
+              email domain (lib/MemberVerification.php) ── */
+        case 'member_verify_list':
+            json_out(['ok' => true, 'waiting' => MemberVerification::toVerify(max(1, min(500, (int) ($_GET['limit'] ?? 200)))),
+                      'domain' => defined('AV_ORG_DOMAIN') ? AV_ORG_DOMAIN : 'afrovanguard.org.ng']);
+        case 'member_verify':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $mid = (int) ($body['id'] ?? 0);
+            if (!$lms->memberById($mid)) json_out(['ok' => false, 'error' => 'No such account.'], 404);
+            $r = MemberVerification::verify($mid, (string) ($body['basis'] ?? ''), av_admin_actor(), (string) ($body['note'] ?? ''));
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'member_unverify':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberVerification::unverify((int) ($body['id'] ?? 0), (string) ($body['reason'] ?? ''), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'member_decline':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberVerification::decline((int) ($body['id'] ?? 0), (string) ($body['reason'] ?? ''), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
         /* ── Member classes: what kind of member, and what that kind pays
               (lib/MemberClasses.php). Reading and assigning are management's;
               the PRICES are the Super Admin's, like the dues settings. ── */
@@ -1515,6 +1535,10 @@ try {
             json_out($r, $r['ok'] ? 200 : 409);
         case 'roster_get':
             $m = MemberRoster::get((int) ($_GET['id'] ?? 0));
+            if ($m) {
+                $m['verified'] = ['state' => MemberVerification::state((int) $m['id']),
+                                  'history' => MemberVerification::historyFor((int) $m['id'])];
+            }
             json_out($m ? ['ok' => true, 'member' => $m] : ['ok' => false, 'error' => 'No such member.'], $m ? 200 : 404);
         case 'ngv_intake':
             json_out(['ok' => true, 'waiting' => NgvIntake::waiting()]);

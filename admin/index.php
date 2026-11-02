@@ -480,6 +480,7 @@
       <button class="subtab" data-mv="roster" role="tab">Roster</button>
       <button class="subtab" data-mv="roles" role="tab">Roles</button>
       <button class="subtab" data-mv="classes" role="tab">Classes</button>
+      <button class="subtab" data-mv="verify" role="tab">To verify <span class="badge draft" id="mvBadge" hidden></span></button>
       <button class="subtab" data-mv="centres" role="tab">Centres</button>
       <button class="subtab" data-mv="approvals" role="tab">Approvals <span class="badge draft" id="apprBadge" hidden></span></button>
       <button class="subtab" data-mv="import" role="tab">Import</button>
@@ -672,6 +673,14 @@
       </form>
       <p class="muted tiny" id="roleMsg" role="status" aria-live="polite"></p>
       <div id="memRolesList"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section class="mem-pane" data-pane="verify" hidden>
+      <p class="muted">Being a member is something somebody at the office DID, with a record of who, when and on what basis. An <code id="mvDomain">afrovanguard.org.ng</code> address used to be enough on its own, so anybody the organisation had ever given an address to was a member for ever and “who made this person a member?” had no answer.</p>
+      <p class="muted tiny">Nobody was locked out when this changed: everybody the old rule covered is <b>grandfathered</b> — they keep their access, and they are on this list until somebody decides. From here you can <b>verify</b> them (they are a member, and you say what that rests on), or record that they are <b>not a member</b>, which beats their role and their address. Taking a verification back is not a suspension: it says nobody has established who they are, and their standing falls back to their access level.</p>
+      <p class="muted tiny">The address still decides whether a sign-in code is required, which Google Workspace account somebody has and how the community segments its spaces. None of that is membership, and none of it changed.</p>
+      <p class="muted tiny" id="mvMsg" role="status" aria-live="polite"></p>
+      <div id="memVerifyList" aria-live="polite"><p class="muted">Loading…</p></div>
     </section>
 
     <section class="mem-pane" data-pane="classes" hidden>

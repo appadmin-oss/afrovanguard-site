@@ -851,3 +851,45 @@ measuring the window while sitting inside a 555px panel; it is a container
 query now.
 
 See `docs/member-classes.md`.
+
+## Membership is an act, not an email address (Nov 2026)
+
+An `@afrovanguard.org.ng` address WAS membership, in three places:
+`LmsAuth::isOrgMember()` (role **or** org email), account creation at
+sign-in (org email ⇒ role `member`), and promotion of an existing learner on
+sign-in — by code **and**, separately, by Google. So anybody the organisation
+had ever given an address to was a member for ever: a contractor, a one-week
+volunteer, somebody who left two years ago, a shared inbox. "Who made this
+person a member?" had no answer, because nobody had.
+
+It is an explicit act now, with a record of **who, when and on what basis**,
+in the same shape as `Volunteers::isVolunteer()` — a roster an admin writes
+to, never inferred. Four states: `verified`, `grandfathered`, `declined` (which
+beats both an elevated role and the address) and none. The basis is
+**required**: a verification with nothing behind it is the old rule with a
+button on it, and the refusal says so.
+
+**Nobody was locked out.** `grandfatherAll()` runs once on the first request
+after the deploy and marks everybody the old rule covered. Enforcing
+immediately would have locked out everybody the office had not reached, and an
+organisation that cannot sign in does not finish the clean-up — it turns the
+check off. The pass **claims the marker before working**, because the first
+request after a deploy is several processes at once; the claim is
+time-limited so a process that dies mid-pass does not stall it for ever.
+
+Studio → Members → **To verify** lists who is waiting and why, with a count on
+the tab. A member on an org address who is not verified is TOLD on their own
+Account view rather than silently shown less.
+
+The org domain still decides whether a sign-in code is required, which
+Workspace account somebody has, how the community segments and which
+addresses may hold an elevated role. None of that is membership.
+
+Two things worth keeping: the test suite found the **Google** promotion path,
+which the first pass missed — the OTP one was the obvious one and there were
+two. And the first version of the claim test asserted only that a running
+marker is respected, which passes just as well when nothing ever writes one;
+mutation testing caught it, and the claim is its own method now so the write
+can be pinned.
+
+See `docs/member-verification.md`.

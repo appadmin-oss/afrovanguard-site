@@ -22,7 +22,7 @@ if ($rfProbe = @stream_socket_server('tcp://127.0.0.1:0', $e1, $e2)) {
     $n = (string) stream_socket_get_name($rfProbe, false); $rfPort = (int) substr($n, strrpos($n, ':') + 1); fclose($rfProbe);
 }
 $rfEnv = getenv(); $rfEnv['APP_ENV'] = 'dev';
-$rfLog = tempnam(sys_get_temp_dir(), 'avrf');
+$rfLog = getenv('AVRF_LOG') ?: tempnam(sys_get_temp_dir(), 'avrf');
 $rfProc = $rfPort > 0 ? @proc_open([PHP_BINARY, '-S', '127.0.0.1:' . $rfPort, AV_ROOT . '/router.php'],
     [0 => ['pipe', 'r'], 1 => ['file', $rfLog, 'a'], 2 => ['file', $rfLog, 'a']], $rfPipes, AV_ROOT, $rfEnv) : null;
 $rfUp = false;

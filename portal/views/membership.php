@@ -17,6 +17,22 @@ declare(strict_types=1);
       <section class="pview avp-view avp-membership" id="view-membership" data-view="membership" hidden aria-labelledby="avpMemH">
         <div class="avp-view-head"><h1 class="avp-h1" id="avpMemH"><?= $isOrg ? 'Membership' : 'Account' ?></h1></div>
         <div class="avp-stack">
+<?php
+/* Somebody on one of our addresses who is NOT a member. The address used to
+   be enough on its own; it no longer is, and seeing "Learner" with no reason
+   reads as a fault in the software rather than a step nobody has taken yet.
+   Say which it is. */
+$mvPending = !$isOrg && class_exists('LmsAuth') && LmsAuth::isOrgEmail((string) ($u['email'] ?? ''))
+          && !(class_exists('MemberVerification') && MemberVerification::isDeclined((int) $u['id']));
+if ($mvPending): ?>
+          <section class="avp-card" aria-labelledby="avpVerH">
+            <div class="avp-card-head"><h2 id="avpVerH">Membership not confirmed yet</h2><span class="avp-chip avp-chip--gold">Waiting</span></div>
+            <div class="avp-card-body">
+              <p class="avp-note">You are signed in, and everything in Learning and the Diary is yours. Membership is a separate thing somebody at the office confirms — having an Afrovanguard address does not decide it on its own.</p>
+              <p class="avp-note">You are on their list. If it has been a while, or you believe this is wrong, say so and they will put it right.</p>
+            </div>
+          </section>
+<?php endif; ?>
 <?php if ($isOrg && $dues):
     $duesPT   = $dues['paid_through'] ? date('j M Y', (int) strtotime((string) $dues['paid_through'])) : null;
     $duesPill = ['active' => 'Current', 'due_soon' => 'Due soon', 'overdue' => 'Overdue', 'none' => 'Not paid'][$duesState] ?? 'Dues';

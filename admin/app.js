@@ -3468,6 +3468,7 @@
     if (which === 'roster') { mclsGet().catch(function () {}); loadMemRoster(); }
     if (which === 'roles') loadMemRoles();
     if (which === 'classes') loadMemClasses();
+    if (which === 'verify') loadMemVerify();
     if (which === 'centres') loadMemCentres();
     if (which === 'approvals') loadApprovals();
     if (which === 'import') loadMemFormats();
@@ -4089,6 +4090,35 @@
       + MCLS.map(function (c) { return '<option value="' + escapeHtml(c.class_key) + '">' + escapeHtml(c.name) + '</option>'; }).join('');
     sel.value = had;
   }
+  /* Who the office still owes a decision about. Each row carries WHY it is
+     here, because "verify this person" with no reason is the old rule with a
+     button on it. */
+  function mvSaid(t, bad) { var m = $('#mvMsg'); if (m) { m.textContent = t || ''; m.classList.toggle('is-bad', !!bad); } }
+  function mvBadge(n) {
+    var b = $('#mvBadge'); if (!b) return;
+    b.hidden = !n; b.textContent = n > 99 ? '99+' : String(n);
+  }
+  function loadMemVerify() {
+    var box = $('#memVerifyList'); if (!box) return;
+    api('member_verify_list').then(function (r) {
+      var d = (r && r.data) || {}, rows = d.waiting || [];
+      var dom = $('#mvDomain'); if (dom && d.domain) dom.textContent = d.domain;
+      mvBadge(rows.length);
+      box.innerHTML = rows.length ? '<div class="mem-roles">' + rows.map(function (m) {
+        return '<form class="mem-role-row mem-verify-row" data-id="' + m.id + '">'
+          + '<div class="mem-verify-who"><b>' + escapeHtml(m.name || '(no name)') + '</b>'
+          + ' <span class="mem-chip">' + escapeHtml(m.state === 'grandfathered' ? 'grandfathered' : 'not a member yet') + '</span>'
+          + '<div class="muted tiny">' + escapeHtml(m.email) + ' · ' + escapeHtml(m.role)
+          + (m.since ? ' · since ' + escapeHtml(String(m.since).slice(0, 10)) : '') + '</div>'
+          + '<div class="muted tiny">' + escapeHtml(m.why) + '</div></div>'
+          + '<label class="fld mem-verify-basis"><span>What this rests on</span><input name="basis" maxlength="200" placeholder="Saw their ID · signed form on file · known to the team at Egbeda" /></label>'
+          + '<div class="mem-role-ops"><button type="submit" class="btn btn-primary btn-sm">Verify</button>'
+          + '<button type="button" class="btn btn-outline btn-sm" data-mv-decline="' + m.id + '" data-name="' + escapeHtml(m.name || m.email) + '">Not a member</button></div></form>';
+      }).join('') + '</div>'
+        : '<p class="muted">Nobody is waiting. Every member has been checked, and an address on its own makes nobody a member.</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the list.</p>'; });
+  }
+
   function loadMemClasses() {
     var box = $('#memClassList'); if (!box) return;
     mclsGet(true).then(function (list) {
@@ -4572,6 +4602,27 @@
         /* Who holds it: the roster, filtered to the role. */
         rolesGet().then(function () { $('#memWorkRole').value = see.getAttribute('data-role-members'); memPage = 1; memSel = {}; memTab('roster'); });
       }
+    });
+    $('#memVerifyList').addEventListener('submit', function (e) {
+      var f = e.target.closest('.mem-verify-row'); if (!f) return;
+      e.preventDefault();
+      var basis = f.elements.basis.value.trim();
+      if (!basis) { mvSaid('Say what the verification rests on — that is the whole change.', true); f.elements.basis.focus(); return; }
+      post('member_verify', { id: +f.getAttribute('data-id'), basis: basis }).then(function (r) {
+        var d = r.data || {};
+        mvSaid(d.ok ? 'Verified.' : (d.error || 'Could not.'), !d.ok);
+        if (d.ok) { loadMemVerify(); loadMemRoster(); }
+      });
+    });
+    $('#memVerifyList').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-mv-decline]'); if (!b) return;
+      var why = prompt('Record that ' + b.getAttribute('data-name') + ' is NOT a member.\n\nThis beats their access level and their email address. Why?');
+      if (why === null || !why.trim()) return;
+      post('member_decline', { id: +b.getAttribute('data-mv-decline'), reason: why.trim() }).then(function (r) {
+        var d = r.data || {};
+        mvSaid(d.ok ? 'Recorded as not a member.' : (d.error || 'Could not.'), !d.ok);
+        if (d.ok) { loadMemVerify(); loadMemRoster(); }
+      });
     });
     $('#mclsNew').addEventListener('submit', function (e) {
       e.preventDefault();

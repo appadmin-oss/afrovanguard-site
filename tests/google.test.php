@@ -100,10 +100,21 @@ $gEmail = 'victim.' . bin2hex(random_bytes(3)) . '@example.test';
 $gPdo->prepare('INSERT INTO lms_users (name, email, password_hash, role, status, email_verified) VALUES (?,?,?,?,?,1)')->execute(['Victim', $gEmail, 'x', 'member', 'active']);
 $gRes = LmsAuth::oauthSignIn($gEmail, 'Attacker', false, 'google');
 ck('google: an unverified address does not sign anybody in as its owner', empty($gRes['ok']) && ($gRes['code'] ?? '') === 'unverified');
+/* An org address signs in as a LEARNER whether or not the provider vouches
+   for the domain. This used to turn on the hd claim; membership is now an act
+   somebody takes (lib/MemberVerification.php), so neither answer buys it and
+   the assertion covers both rather than only the one that already passed. */
 $gOrg = 'unmanaged.' . bin2hex(random_bytes(3)) . '@afrovanguard.org.ng';
 $gR2 = @LmsAuth::oauthSignIn($gOrg, 'Unmanaged', true, 'google', false);
+$gRole = static fn(string $e) => (string) Database::pdo()->query('SELECT role FROM lms_users WHERE email = ' . Database::pdo()->quote($e))->fetchColumn();
 ck('google: an org address without the tenant\'s hd signs in as a learner, not a member',
-    !empty($gR2['ok']) && (string) $gPdo->query('SELECT role FROM lms_users WHERE email = ' . $gPdo->quote($gOrg))->fetchColumn() === 'learner');
+    !empty($gR2['ok']) && $gRole($gOrg) === 'learner');
+@LmsAuth::logout();
+$gOrg2 = 'managed.' . bin2hex(random_bytes(3)) . '@afrovanguard.org.ng';
+$gR3 = @LmsAuth::oauthSignIn($gOrg2, 'Managed', true, 'google', true);
+ck('google: …and WITH the hd claim it is still a learner — the address buys no membership',
+    !empty($gR3['ok']) && $gRole($gOrg2) === 'learner'
+    && LmsAuth::isOrgMember(['id' => (int) Database::pdo()->query('SELECT id FROM lms_users WHERE email = ' . Database::pdo()->quote($gOrg2))->fetchColumn(), 'role' => 'learner', 'email' => $gOrg2]) === false);
 @LmsAuth::logout();
 
 /* ══ 4. Over HTTP: the callback, the Setup probes, refresh, the directory ═ */

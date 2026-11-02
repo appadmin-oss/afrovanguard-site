@@ -58,12 +58,26 @@ final class MemberRoster
      * Over `lms_users u`; memberWhere() adds the vanguards. */
     public const MEMBER_SQL = "u.role <> 'learner'";
 
-    /** MEMBER_SQL, plus every NextGen Vanguard — a vanguard is a member whatever their account began as.
-     *  The NGV record lives in its own database, so its ids are inlined (integers only). */
+    /**
+     * MEMBER_SQL, plus every NextGen Vanguard and everybody VERIFIED — and
+     * minus anybody the office has considered and declined.
+     *
+     * A vanguard is a member whatever their account began as; the NGV record
+     * lives in its own database, so its ids are inlined (integers only). A
+     * verified learner is a member because somebody said so, which is the
+     * whole point of lib/MemberVerification.php. Declined beats all three:
+     * the office looked and said no, and an elevated role left over from an
+     * old import must not quietly overrule that.
+     */
     public static function memberWhere(): string
     {
         $ids = array_keys(self::vanguardIds());
-        return $ids ? '(' . self::MEMBER_SQL . ' OR u.id IN (' . implode(',', array_map('intval', $ids)) . '))' : self::MEMBER_SQL;
+        $or = [self::MEMBER_SQL];
+        if ($ids) $or[] = 'u.id IN (' . implode(',', array_map('intval', $ids)) . ')';
+        if (class_exists('MemberVerification')) $or[] = MemberVerification::countsSql();
+        $w = count($or) > 1 ? '(' . implode(' OR ', $or) . ')' : self::MEMBER_SQL;
+        if (class_exists('MemberVerification')) $w = '(' . $w . ' AND NOT ' . MemberVerification::declinedSql() . ')';
+        return $w;
     }
 
     public static function isMember(int $id): bool
