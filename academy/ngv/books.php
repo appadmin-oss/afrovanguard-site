@@ -118,7 +118,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
   <div class="gatebox">
     <h1>Admin sign-in required</h1>
     <p>This page holds the NextGen Vanguard book list. Sign in to the Academy Studio, then come back.</p>
-    <p><a href="/academy/studio/">Go to the Studio →</a></p>
+    <p><a href="/academy/studio/">Sign in at the Academy Studio →</a></p>
   </div>
 <?php else: ?>
 <header class="top">
@@ -148,7 +148,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
         <label>Chapters <input id="b_chapters" type="number" min="1" max="<?= (int) NgvReading::MAX_CHAPTERS ?>" inputmode="numeric" size="5" required></label>
         <label style="flex:1;min-width:14rem">Note for vanguards <input id="b_note" maxlength="300" placeholder="Edition, where to find it (optional)"></label>
         <button class="btn primary" id="b_go" type="submit">Add to the list</button>
-        <button class="btn" id="b_cancel" type="button" hidden>Cancel</button>
+        <button class="btn" id="b_cancel" type="button" hidden>Cancel editing</button>
       </form>
       <p class="sub" id="b_out" role="status"></p>
     </div>
@@ -171,8 +171,8 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
             <td class="num"><?= $use ?></td>
             <td><span class="pill <?= $b['active'] ? 's-on' : 's-off' ?>"><?= $b['active'] ? 'Yes' : 'Retired' ?></span></td>
             <td style="white-space:nowrap">
-              <button class="btn sm" type="button" data-edit="<?= (int) $b['id'] ?>" data-title="<?= $e((string) $b['title']) ?>" data-author="<?= $e((string) $b['author']) ?>" data-chapters="<?= (int) $b['chapters'] ?>" data-note="<?= $e((string) $b['note']) ?>">Edit</button>
-              <button class="btn sm" type="button" data-active="<?= (int) $b['id'] ?>" data-to="<?= $b['active'] ? '0' : '1' ?>"><?= $b['active'] ? 'Retire' : 'Restore' ?></button>
+              <button class="btn sm" type="button" data-edit="<?= (int) $b['id'] ?>" data-title="<?= $e((string) $b['title']) ?>" data-author="<?= $e((string) $b['author']) ?>" data-chapters="<?= (int) $b['chapters'] ?>" data-note="<?= $e((string) $b['note']) ?>">Edit book</button>
+              <button class="btn sm" type="button" data-active="<?= (int) $b['id'] ?>" data-to="<?= $b['active'] ? '0' : '1' ?>"><?= $b['active'] ? 'Retire from the list' : 'Put back on the list' ?></button>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -218,7 +218,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
       $('b_author').value = ed.getAttribute('data-author');
       $('b_chapters').value = ed.getAttribute('data-chapters');
       $('b_note').value = ed.getAttribute('data-note');
-      $('b_go').textContent = 'Save changes'; $('b_cancel').hidden = false;
+      $('b_go').textContent = 'Save book changes'; $('b_cancel').hidden = false;
       $('h-add').textContent = 'Edit a book';
       $('b_title').focus();
       return;

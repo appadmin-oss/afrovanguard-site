@@ -14,10 +14,26 @@ require_once AV_ROOT . '/partials/avh-chrome.php';
 
 $slug = preg_replace('/[^a-z0-9-]/', '', strtolower((string) ($_GET['slug'] ?? '')));
 $ev = $slug !== '' ? SiteEvents::bySlug($slug) : null;
-if (!$ev || $ev['audience'] !== 'public' || !in_array($ev['status'], ['published', 'cancelled'], true)) {
+if (!$ev || !in_array($ev['status'], ['published', 'cancelled'], true)) {
     http_response_code(404);
     require AV_ROOT . '/404.html';
     exit;
+}
+/* A members' or team event has a page too, for the people it is for. Signed out: the sign-in, and
+   back here after. Signed in without the audience: the same 404 a stranger gets, so the page does
+   not confirm that a team event exists. */
+$private = $ev['audience'] !== 'public';
+if ($private) {
+    $viewer = LmsAuth::user();
+    if (!$viewer) {
+        header('Location: /login/?next=' . rawurlencode('/events/' . $ev['slug'] . '/'), true, 302);
+        exit;
+    }
+    if (!in_array($ev['audience'], SiteEvents::audiencesFor($viewer), true)) {
+        http_response_code(404);
+        require AV_ROOT . '/404.html';
+        exit;
+    }
 }
 $e = SiteEvents::shape($ev);
 $S = rtrim(SITE_URL, '/');
@@ -43,6 +59,8 @@ if ($e['location'] !== '') $ld['location'] = ['@type' => 'Place', 'name' => $e['
 elseif ($ev['online_url'] !== '') $ld['location'] = ['@type' => 'VirtualLocation', 'url' => $ev['online_url']];
 
 if (function_exists('send_security_headers')) send_security_headers('public');
+/* A members' page is not for search engines or a shared cache. */
+if ($private) { header('X-Robots-Tag: noindex, nofollow'); header('Cache-Control: private, no-store'); }
 ?>
 <!DOCTYPE html>
 <html lang="en-NG" prefix="og: https://ogp.me/ns#" class="no-js">
@@ -61,7 +79,11 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <meta property="og:url" content="<?= e($canonical) ?>" />
   <meta property="og:image" content="<?= e($img) ?>" />
   <meta name="twitter:card" content="summary_large_image" />
+<?php if ($private): ?>
+  <meta name="robots" content="noindex, nofollow" />
+<?php else: ?>
   <script type="application/ld+json"><?= json_encode($ld, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script>
+<?php endif; ?>
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="stylesheet" href="<?= e(av_asset('/assets/site/fonts.css')) ?>" />
   <link rel="stylesheet" href="<?= e(av_asset('/assets/site/av-tokens.css')) ?>" />
@@ -79,6 +101,9 @@ if (function_exists('send_security_headers')) send_security_headers('public');
     <nav aria-label="Breadcrumb"><ol class="avev-crumbs"><li><a href="/">Home</a></li><li><a href="/events/">Events</a></li><li><span aria-current="page"><?= e($ev['title']) ?></span></li></ol></nav>
     <div class="avev-one-grid">
       <div>
+<?php if ($private): ?>
+        <p class="avev-one-flag"><?= $ev['audience'] === 'org' ? 'Team only' : 'Members only' ?></p>
+<?php endif; ?>
 <?php if ($ev['status'] === 'cancelled'): ?>
         <p class="avev-one-flag is-off">Cancelled</p>
 <?php elseif ($e['ongoing']): ?>
@@ -102,11 +127,18 @@ if (function_exists('send_security_headers')) send_security_headers('public');
         </dl>
 <?php if ($ev['status'] !== 'cancelled' && !$past): ?>
         <div class="avev-one-acts">
+<?php if ($e['join_open']): ?>
+          <a class="avev-vol" href="<?= e($ev['online_url']) ?>" rel="noopener" target="_blank">Join now<span class="avev-sr"> (opens the call in a new tab)</span></a>
+<?php elseif ($ev['online_url'] !== ''): ?>
+          <span class="avev-one-soon">The join button appears here 30 minutes before it starts.</span>
+<?php endif; ?>
 <?php if ($ev['rsvp_url'] !== ''): ?>
-          <a class="avev-vol" href="<?= e($ev['rsvp_url']) ?>" rel="noopener" target="_blank">Reserve a place</a>
+          <a class="<?= $e['join_open'] ? 'avev-touch' : 'avev-vol' ?>" href="<?= e($ev['rsvp_url']) ?>" rel="noopener" target="_blank">Reserve a place</a>
 <?php endif; ?>
           <a class="avev-touch" href="<?= e(SiteEvents::googleAddUrl($ev)) ?>" rel="noopener" target="_blank">Add to Google Calendar</a>
+<?php if (!$private): ?>
           <a class="avev-touch" href="/events/calendar.ics">Subscribe to our calendar (.ics)</a>
+<?php endif; ?>
         </div>
 <?php endif; ?>
 <?php if (trim($ev['body']) !== ''): ?>
@@ -118,7 +150,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
 <?php endif; ?>
       </div>
 <?php if ($e['image'] !== ''): ?>
-      <figure class="avev-one-cover"><img src="<?= e($e['image']) ?>" alt="" loading="eager" decoding="async" /></figure>
+      <figure class="avev-one-cover"><a href="<?= e($e['image']) ?>" target="_blank" rel="noopener"><img src="<?= e($e['image']) ?>" alt="Flier for <?= e($ev['title']) ?>" loading="eager" decoding="async" /><span class="avev-sr"> (opens the full flier)</span></a></figure>
 <?php endif; ?>
     </div>
     <p class="avev-one-back"><a href="/events/">← All events</a></p>

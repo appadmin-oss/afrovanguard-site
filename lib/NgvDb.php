@@ -182,6 +182,17 @@ final class NgvDb
              start_date (NgvMember::PROGRAMME_MONTHS). Set only when staff
              extend or shorten one person's programme. */
           end_date    VARCHAR(10) NOT NULL DEFAULT '',
+          /* The programme fee as SIGNED (lib/NgvProgrammeFee.php): the basis,
+             the rate, the day it starts and the two halves' lengths, frozen at
+             registration. A later settings edit changes what the next person
+             signs, never this one. An empty basis is a participant from before
+             it — their fee, if any, is the training schedule above. */
+          prog_basis            VARCHAR(10) NOT NULL DEFAULT '',
+          prog_rate             INTEGER NOT NULL DEFAULT 0,
+          prog_start            VARCHAR(10) NOT NULL DEFAULT '',
+          prog_training_months  INTEGER NOT NULL DEFAULT 0,
+          prog_internship_months INTEGER NOT NULL DEFAULT 0,
+          prog_mou_version      VARCHAR(40) NOT NULL DEFAULT '',
           created_at  TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -348,6 +359,19 @@ final class NgvDb
           created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_ngv_cert_member ON ngv_certifications (member_id);
+        /* Every change of a participant's status, with the day it took effect.
+           The programme fee is worked off only on days somebody was ACTIVE, and
+           a current status alone cannot say which days those were: paused in
+           March and back in May looks exactly like never paused. */
+        CREATE TABLE IF NOT EXISTS ngv_status_log (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          member_id  INTEGER NOT NULL,
+          status     VARCHAR(20) NOT NULL DEFAULT '',
+          since      VARCHAR(10) NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_ngv_status_log_member ON ngv_status_log (member_id, id);
+
         CREATE TABLE IF NOT EXISTS ngv_applications (
           id          INTEGER PRIMARY KEY AUTOINCREMENT,
           name        TEXT NOT NULL DEFAULT '',
@@ -371,10 +395,61 @@ final class NgvDb
           guardian_name    TEXT NOT NULL DEFAULT '',
           guardian_phone   TEXT NOT NULL DEFAULT '',
           guardian_consent INTEGER NOT NULL DEFAULT 0,
+          /* A date of birth, not an age: an age goes stale, and it alone decided
+             whether a guardian was needed. `age` stays, derived, for older readers.
+             The guardian CONFIRMS by a link emailed to them (NgvMember::askGuardian),
+             because the only consent before was a box the applicant ticked, which is
+             not consent. Only the token's hash is kept. */
+          dob                   TEXT NOT NULL DEFAULT '',
+          guardian_email        TEXT NOT NULL DEFAULT '',
+          guardian_token        TEXT NOT NULL DEFAULT '',
+          guardian_asked_at     TEXT NOT NULL DEFAULT '',
+          guardian_confirmed_at TEXT NOT NULL DEFAULT '',
+          guardian_method       TEXT NOT NULL DEFAULT '',
+          /* Registration (lib/NgvRegistration.php). The form is the first step,
+             and it is completed at a CACENTRE. `ref` is what the applicant quotes,
+             prints on the MoU and is found by at the desk. */
+          ref                   VARCHAR(16) NOT NULL DEFAULT '',
+          centre                TEXT NOT NULL DEFAULT '',
+          availability          TEXT NOT NULL DEFAULT '',
+          understood_at         TEXT NOT NULL DEFAULT '',
+          g_name                TEXT NOT NULL DEFAULT '',
+          g_relationship        VARCHAR(24) NOT NULL DEFAULT '',
+          g_relationship_other  TEXT NOT NULL DEFAULT '',
+          g_phone               TEXT NOT NULL DEFAULT '',
+          g_email               TEXT NOT NULL DEFAULT '',
+          invited_at            TEXT NOT NULL DEFAULT '',
+          no_shows              INTEGER NOT NULL DEFAULT 0,
+          /* At the desk. The checklist is a JSON list of what was ticked, by whom
+             and when, with each item's label as it read then — the list itself
+             is the office's to edit, and an edit must not rewrite a record. */
+          checklist_json        TEXT NOT NULL DEFAULT '',
+          g_present_at          TEXT NOT NULL DEFAULT '',
+          g_id_seen             TEXT NOT NULL DEFAULT '',
+          mou_version           VARCHAR(40) NOT NULL DEFAULT '',
+          mou_scan              TEXT NOT NULL DEFAULT '',
+          registered_at         TEXT NOT NULL DEFAULT '',
+          registered_by         INTEGER NOT NULL DEFAULT 0,
           created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_ngv_app_status ON ngv_applications (status);
         CREATE INDEX IF NOT EXISTS idx_ngv_app_email  ON ngv_applications (email);
+        CREATE INDEX IF NOT EXISTS idx_ngv_app_ref    ON ngv_applications (ref);
+
+        /* A visit booked to finish registering. Booking is advised, not
+           required: a walk-in is served the same way, just without a row here. */
+        CREATE TABLE IF NOT EXISTS ngv_bookings (
+          id             INTEGER PRIMARY KEY AUTOINCREMENT,
+          application_id INTEGER NOT NULL,
+          centre         VARCHAR(120) NOT NULL DEFAULT '',
+          slot_date      VARCHAR(10) NOT NULL DEFAULT '',
+          slot_time      VARCHAR(5) NOT NULL DEFAULT '',
+          status         VARCHAR(12) NOT NULL DEFAULT 'booked',
+          created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_ngv_book_slot ON ngv_bookings (centre, slot_date, slot_time);
+        CREATE INDEX IF NOT EXISTS idx_ngv_book_app  ON ngv_bookings (application_id);
 
         /* What a fine needs beyond the ledger row (lib/NgvFines.php): the day it
          * happened, which import it came from, and when the member was told. The

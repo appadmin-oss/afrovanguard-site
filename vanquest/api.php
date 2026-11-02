@@ -9,6 +9,9 @@
  *   GET  ?action=community&t=TOKEN                     → community page data
  *   POST {action:"interview", t, first_name, sex, phone, note?}
  *   GET  ?action=avatar&a=SEED&s=m|f                   → the pixel avatar, PNG
+ *   GET  ?action=preview&mail=welcome|onboard          → a VanQuest mail with made-up data, as this server renders it
+ *
+ * join needs adult:true (the player confirms they are 18 or over).
  *
  * Every call also runs VanQuest::tick(), so the onboarding mail goes out fifteen
  * minutes after confirming even on a host whose cron is not set up.
@@ -31,6 +34,16 @@ if ($method === 'OPTIONS') { http_response_code(204); exit; }
 $in = $method === 'POST' ? (json_decode((string) file_get_contents('php://input'), true) ?: $_POST) : $_GET;
 $action = (string) ($in['action'] ?? '');
 
+if ($action === 'preview') {
+    // What this server actually sends, with made-up data: to check a deployment by eye.
+    $r = VanQuest::preview((string) ($in['mail'] ?? 'welcome'));
+    header('Content-Type: text/html; charset=utf-8');
+    header('X-Robots-Tag: noindex');
+    header('Cache-Control: no-store');
+    echo $r['html'];
+    exit;
+}
+
 if ($action === 'avatar') {
     $png = VanQuest::avatarPng((string) ($in['a'] ?? ''), (string) ($in['s'] ?? 'm'), 4);
     header('Content-Type: image/png');
@@ -52,7 +65,7 @@ try {
     switch ($action) {
         case 'join':
             if ($method !== 'POST') json_out(['ok' => false, 'message' => 'POST required.'], 405);
-            $r = VanQuest::join((string) ($in['email'] ?? ''), (string) ($in['placement'] ?? ''), (int) ($in['xp'] ?? 50));
+            $r = VanQuest::join((string) ($in['email'] ?? ''), (string) ($in['placement'] ?? ''), (int) ($in['xp'] ?? 50), ($in['adult'] ?? false) === true);
             unset($r['token']);                       // the token travels by email only: that is the confirmation
             json_out($r, $r['ok'] ? 200 : 400);
         case 'seat':

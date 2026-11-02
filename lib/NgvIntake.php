@@ -130,7 +130,7 @@ final class NgvIntake
          * address would have been enrolled as a vanguard too. Both are held
          * for a person rather than guessed.
          */
-        $taken = $pdo->prepare("SELECT ngg_member_id FROM ngv_intake WHERE LOWER(email) = ? AND status = 'linked' AND ngg_member_id <> ? LIMIT 1");
+        $taken = $pdo->prepare("SELECT ngg_member_id FROM ngv_intake WHERE LOWER(email) = ? AND status IN ('linked','invited') AND ngg_member_id <> ? LIMIT 1");
         $taken->execute([$email, $nggId]);
         if (($other = $taken->fetchColumn()) !== false) {
             self::mark($nggId, 'needs_review', 0, 'The email ' . $email . ' is already NGG member ' . $other . '’s account. Give this member their own email, or link them by hand.');
@@ -144,6 +144,60 @@ final class NgvIntake
         }
 
         $dob = (string) ($d['dob'] ?? '');
+        /*
+         * Promotion is an INVITATION now (29 Oct 2026), not an enrolment. A
+         * vanguard registers in person at a CACENTRE, with a guarantor and the
+         * current NGV MoU, whoever they are — NGG members included, because the
+         * MoU they would sign is NGV's, with NGV's policies. So the promotion
+         * becomes an application, already filled in and already invited; the
+         * desk completes it (NgvRegistration::complete), and only then is the
+         * account made and this row marked linked (registered()).
+         */
+        if ($row && (string) $row['status'] === 'invited') {
+            return ['ok' => true, 'status' => 'already_invited'];
+        }
+        if (class_exists('NgvRegistration')) {
+            /* They may already have applied themselves and been invited: that
+               invitation stands, and is marked as NGG's. A second application
+               would put two references for one person at the desk. */
+            $open = NgvDb::pdo()->prepare("SELECT id, ref, name, status FROM ngv_applications WHERE LOWER(email) = ? AND status IN ('new','reviewing','invited','accepted','booked','attended') ORDER BY id DESC LIMIT 1");
+            $open->execute([$email]);
+            $have = $open->fetch(PDO::FETCH_ASSOC);
+            /* Under the same address but somebody else — a sibling on a
+               parent's email, usually. Held for a person, as above. */
+            if ($have && self::nameKey((string) $have['name']) !== self::nameKey($name)) {
+                self::mark($nggId, 'needs_review', 0, 'An NGV application from ' . (string) $have['name'] . ' is already open under ' . $email . '. Give this member their own email, or link them by hand.');
+                return ['ok' => true, 'status' => 'needs_review'];
+            }
+            if ($have && in_array((string) $have['status'], ['new', 'reviewing'], true)) {
+                NgvDb::pdo()->prepare("UPDATE ngv_applications SET source = 'ngg' WHERE id = ?")->execute([(int) $have['id']]);
+                $inv = NgvRegistration::invite((int) $have['id'], 0);
+                $ref = NgvRegistration::ensureRef((int) $have['id']);
+                self::mark($nggId, 'invited', 0, 'Invited to register at a CACENTRE (' . $ref . ')' . (empty($inv['ok']) ? ' — ' . (string) ($inv['error'] ?? '') : '') . '.');
+                return ['ok' => true, 'status' => 'invited', 'application_id' => (int) $have['id'], 'ref' => $ref];
+            }
+            if ($have) {
+                NgvDb::pdo()->prepare("UPDATE ngv_applications SET source = 'ngg' WHERE id = ?")->execute([(int) $have['id']]);
+                $ref = NgvRegistration::ensureRef((int) $have['id']);
+                self::mark($nggId, 'invited', 0, 'Already invited to register (' . $ref . ').');
+                return ['ok' => true, 'status' => 'invited', 'application_id' => (int) $have['id'], 'ref' => $ref];
+            }
+            $appId = NgvMember::submitApplication(array_filter([
+                'name' => $name, 'email' => $email, 'phone' => (string) ($d['phone'] ?? ''),
+                'dob' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $dob) ? $dob : '', 'track' => (string) ($d['track'] ?? ''),
+                'centre' => (string) ($d['centre'] ?? ''),
+                'message' => 'Promoted from NextGen Genius (' . $nggId . (($d['displayId'] ?? '') !== '' ? ', ' . $d['displayId'] : '') . ').',
+            ], static fn($v) => $v !== '') + ['source' => 'ngg', 'consent' => true]);
+            if ($appId <= 0) {
+                self::mark($nggId, 'failed', 0, 'Could not file their NGV application.');
+                return ['ok' => false, 'status' => 'failed', 'error' => 'Could not file their NGV application.'];
+            }
+            $inv = NgvRegistration::invite($appId, 0);
+            $ref = NgvRegistration::ensureRef($appId);
+            self::mark($nggId, 'invited', 0, 'Invited to register at a CACENTRE (' . $ref . ')' . (empty($inv['ok']) ? ' — ' . (string) ($inv['error'] ?? '') : '') . '.');
+            (new LmsRepository())->audit('ngv.intake', $email, 'promoted from NGG ' . $nggId . ' · invited to register (' . $ref . ')', 'ngg');
+            return ['ok' => true, 'status' => 'invited', 'application_id' => $appId, 'ref' => $ref];
+        }
         $made = MemberRoster::create(array_filter([
             'name' => $name, 'email' => $email,
             'phone' => (string) ($d['phone'] ?? ''), 'centre' => (string) ($d['centre'] ?? ''),
@@ -193,6 +247,14 @@ final class NgvIntake
         $nggId = mb_substr(trim((string) ($d['nggMemberId'] ?? '')), 0, 64);
         if ($nggId === '') return ['ok' => true, 'status' => 'bad_event'];
         $row = self::row($nggId);
+        /* Demoted while still only invited: the invitation is withdrawn, so the
+           desk cannot register somebody NGG no longer puts forward. */
+        if ($row && (string) $row['status'] === 'invited') {
+            NgvDb::pdo()->prepare("UPDATE ngv_applications SET status = 'withdrawn' WHERE LOWER(email) = ? AND source = 'ngg' AND status IN ('invited','booked','attended')")
+                ->execute([strtolower((string) $row['email'])]);
+            self::mark($nggId, 'revoked', 0, 'Demoted on NGG before registering — invitation withdrawn.');
+            return ['ok' => true, 'status' => 'revoked'];
+        }
         if (!$row || (int) $row['member_id'] <= 0) return ['ok' => true, 'status' => 'unknown'];
         $mid = (int) $row['member_id'];
         try {
@@ -251,6 +313,11 @@ final class NgvIntake
         return self::take(['nggMemberId' => $nggId, 'name' => (string) $row['name'], 'email' => (string) $row['email'], 'guardianConsent' => $consent]);
     }
 
+    private static function nameKey(string $n): string
+    {
+        return preg_replace('/[^a-z]/', '', mb_strtolower($n)) ?? '';
+    }
+
     private static function row(string $nggId): ?array
     {
         $st = Database::pdo()->prepare('SELECT * FROM ngv_intake WHERE ngg_member_id = ?');
@@ -262,6 +329,17 @@ final class NgvIntake
     {
         Database::pdo()->prepare('UPDATE ngv_intake SET status = ?, member_id = ?, detail = ?, updated_at = ? WHERE ngg_member_id = ?')
             ->execute([$status, $mid, mb_substr($detail, 0, 255), self::now(), $nggId]);
+    }
+
+    /**
+     * The desk has registered somebody NGG promoted: the promotion is linked to
+     * their new account, and their NGV ID card is theirs.
+     */
+    public static function registered(string $email, int $memberId): void
+    {
+        self::ensure();
+        Database::pdo()->prepare("UPDATE ngv_intake SET status = 'linked', member_id = ?, detail = ?, updated_at = ? WHERE LOWER(email) = ? AND status = 'invited'")
+            ->execute([$memberId, 'Registered at a CACENTRE.', self::now(), strtolower(trim($email))]);
     }
 
     /** Promotions waiting for something a person has to supply — for the Members dashboard. */

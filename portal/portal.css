@@ -1847,8 +1847,14 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .portal-app .wifi-dl dt { color:var(--muted); font-size:13.5px; }
 .portal-app .wifi-dl dd { margin:0; text-align:right; color:var(--ink); }
 .portal-app .wifi-v { display:flex; align-items:center; gap:10px; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:16px; font-weight:600; }
-.portal-app .wifi-foot { margin-top:14px; display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
-.portal-app .wifi-foot .wifi-note:first-child { flex-basis:100%; }
+.portal-app .wifi-foot { margin-top:18px; display:grid; gap:12px; max-width:28rem; }
+.portal-app .wifi-h { margin:0; font-size:15px; font-weight:700; color:var(--ink); }
+.portal-app .wifi-lbl { display:grid; gap:5px; font-size:12.5px; font-weight:700; color:var(--ink); }
+.portal-app .wifi-inp { width:100%; min-height:44px; padding:9px 11px; border:1px solid var(--border-2); border-radius:9px; background:var(--surface); color:var(--ink); font-size:16px; }
+.portal-app .wifi-inp:focus-visible { outline:2px solid var(--ink); outline-offset:1px; }
+.portal-app .wifi-acts { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.portal-app .wifi-acts .pbtn { min-height:44px; }
+.portal-app .wifi-dl[hidden], .portal-app .wifi-foot[hidden] { display:none; }
 .portal-app .wifi-note { margin:0; font-size:13px; color:var(--muted); }
 /* Who a task fits (lib/TaskMatch.php) */
 .task-fit { font-size:12.5px; color:var(--muted); }

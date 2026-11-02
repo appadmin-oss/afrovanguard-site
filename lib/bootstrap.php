@@ -284,6 +284,8 @@ require_once __DIR__ . '/AcademyRepository.php';
 require_once __DIR__ . '/Ngv.php';
 require_once __DIR__ . '/NgvDb.php';       // separate NextGen Vanguard database (isolated connection)
 require_once __DIR__ . '/NgvLedger.php';   // NGV money: membership, commitment, training fee, fines
+require_once __DIR__ . '/NgvProgrammeFee.php'; // NGV programme fee: worked off through the internship (the MoU)
+require_once __DIR__ . '/NgvRegistration.php'; // NGV: apply online, finish registering at a CACENTRE
 require_once __DIR__ . '/NgvMember.php';   // NGV participant/certifications domain (money delegates to NgvLedger)
 require_once __DIR__ . '/NgvReading.php';  // the 24-book challenge: claims, checks, verification
 require_once __DIR__ . '/NgvJourney.php';  // NGV 2.0: levels, the 8-point score, engines, schools
@@ -317,6 +319,7 @@ require_once __DIR__ . '/MemberRequests.php';   /* a member asks from their own 
 require_once __DIR__ . '/MemberRoles.php';      /* the work roles members hold, kept as one list with descriptions */
 require_once __DIR__ . '/Membership.php';       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited once the receipt is verified */
+require_once __DIR__ . '/MemberStatement.php';  /* the wallet: every ledger's money on one statement, read only */
 require_once __DIR__ . '/NgvIntake.php';        /* NGG promotions to NGV become NGV accounts here */
 require_once __DIR__ . '/Backups.php';          /* daily encrypted copies of both databases (tasks/cron.php) */
 require_once __DIR__ . '/NgvFines.php';         /* NGV fines: catalogue, issue, list, import with smart assignment */
@@ -428,6 +431,8 @@ require_once __DIR__ . '/MeetingMinutes.php';   /* answers, minutes draft→revi
 require_once __DIR__ . '/MeetingLive.php';
 require_once __DIR__ . '/CrmAudiencePush.php';  /* this site's people, pushed (signed) to CACENTRE's CRM */
 require_once __DIR__ . '/NggVolunteers.php';    /* NGG's volunteers, fetched (signed) from NGG */
+require_once __DIR__ . '/NggPay.php';           /* a member's NGG volunteer pay, read from NGG for their wallet */
+require_once __DIR__ . '/NggFineSettle.php';    /* Afrovanguard's fines taken off NGG volunteer pay (integrations/ngg-fines.php) */
 require_once __DIR__ . '/VolunteerSeeds.php';   /* NGG volunteers seeded from a file, linked as they sign in */
 require_once __DIR__ . '/TaskReport.php';       /* the day's tasks: done, undone, unclaimed */
 require_once __DIR__ . '/ProgrammeSessions.php';  /* the year's programme sessions: TONI, MEDI, SUMMER, DOMI */

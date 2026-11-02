@@ -118,6 +118,8 @@ avac_head([
     'js'  => ['/assets/site/avh.js', '/academy/avac.js', '/academy/avco.js'],
 ]);
 $cta = trim((string) ($c['cta_url'] ?? ''));
+// The NGV course card was seeded with the retired bit.ly/ngv → WhatsApp group link (Ngv::mendApplyUrl).
+if ($cta !== '' && class_exists('Ngv')) $cta = Ngv::mendApplyUrl($cta);
 $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
     echo '<a class="' . e($cls) . '" href="' . e($resumeUrl) . '">' . ($started ? 'Continue learning' : 'Start learning') . ' →</a>';
 };

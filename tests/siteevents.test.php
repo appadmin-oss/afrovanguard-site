@@ -95,6 +95,26 @@ $sh = SiteEvents::listFor(null, 'upcoming', 1)[0];
 ck('ours link to their own page here', $sh['url'] === '/events/' . $pub['event']['slug'] . '/' && $sh['source'] === 'av'
    && $sh['time'] === '16:00' && $sh['end_time'] === '18:00');
 
+$memSh = array_values(array_filter(SiteEvents::listFor(['id' => 1, 'email' => 'someone@gmail.com', 'role' => 'student'], 'upcoming', 20), fn($e) => $e['title'] === 'Members Mixer'))[0];
+ck('a members\' event links to its own page, not to the portal page the card is already on',
+   $memSh['url'] === '/events/' . $mem['event']['slug'] . '/' && !str_contains($memSh['url'], '#overview'));
+ck('every event of ours carries an add-to-calendar link', str_starts_with($memSh['calendar'], 'https://calendar.google.com/'));
+$nowL = (new DateTimeImmutable('now', new DateTimeZone('Africa/Lagos')));
+$live = SiteEvents::save(['title' => 'Live Masterclass', 'starts_at' => $nowL->modify('+20 minutes')->format('Y-m-d H:i'), 'ends_at' => $nowL->modify('+2 hours')->format('Y-m-d H:i'),
+    'online_url' => 'https://meet.google.com/abc-defg-hij', 'audience' => 'members', 'status' => 'published'], 'test');
+$later = SiteEvents::save(['title' => 'Later Masterclass', 'starts_at' => $nowL->modify('+3 hours')->format('Y-m-d H:i'),
+    'online_url' => 'https://meet.google.com/xyz-defg-hij', 'audience' => 'members', 'status' => 'published'], 'test');
+ck('join opens half an hour before an online event starts', SiteEvents::shape($live['event'])['join_open'] === true);
+ck('and not three hours before', SiteEvents::shape($later['event'])['join_open'] === false);
+SiteEvents::delete((int) $live['event']['id'], 'test'); SiteEvents::delete((int) $later['event']['id'], 'test');
+$view = (string) file_get_contents(AV_ROOT . '/events/view.php');
+ck('a members\' page asks for the sign-in, and a non-member gets the 404 a stranger gets',
+   str_contains($view, "header('Location: /login/?next='") && str_contains($view, 'SiteEvents::audiencesFor($viewer)'));
+ck('and is kept out of search and shared caches', str_contains($view, "X-Robots-Tag: noindex") && str_contains($view, 'private, no-store'));
+$todayV = (string) file_get_contents(AV_ROOT . '/portal/views/today.php');
+ck('Today\'s events show the flier and buttons that act', str_contains($todayV, "\$evImg = (string) (\$ev['image']") && str_contains($todayV, '>Join now<')
+   && str_contains($todayV, '>Details<') && str_contains($todayV, '>Add to calendar<'));
+
 $cal = SiteEvents::calendarItems(['id' => 2, 'email' => 'x@afrovanguard.org.ng', 'role' => 'member'], date('Y-m-d'), date('Y-m-d', strtotime('+20 days')));
 $kinds = array_count_values(array_column($cal, 'kind'));
 ck('the portal calendar has ours as "site" and Africa GATES\' as "afg"', ($kinds['site'] ?? 0) === 3 && ($kinds['afg'] ?? 0) === 2);

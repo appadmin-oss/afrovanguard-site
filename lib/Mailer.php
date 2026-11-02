@@ -334,6 +334,10 @@ final class Mailer
                 if ($fake) return isset(self::$fakes['resend']) ? '' : 'not configured';
                 return self::resendKey() !== '' ? '' : 'no Resend key';
             case 'host':
+                /* A caller that must not have mail binned unseen (CACENTRE's,
+                   through lib/CacSend.php) refuses mail() up front: it "sends",
+                   and the recipient's provider drops it for want of SPF/DKIM. */
+                if (!empty($opt['noHost'])) return 'refused by the caller (mail() is not delivered reliably)';
                 if ($fake) return isset(self::$fakes['host']) ? '' : 'not available';
                 return function_exists('mail') ? '' : 'PHP mail() is not available';
         }

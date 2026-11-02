@@ -75,30 +75,33 @@ NgvMember::ensureParticipant(702, ['name' => 'Bode Ade', 'email' => 'bode@exampl
 $auDoc = Ngv::get();
 $auOff = $auDoc;
 foreach ($auOff['plans'] as $k => $p) if (($p['name'] ?? '') === 'Full Programme') $auOff['plans'][$k]['enabled'] = false;
+/* A second published plan to accept. The page ships one plan since the
+   half-year plans were retired (29 Oct 2026); the rule is about any plan. */
+$auOff['plans'][] = ['name' => 'Weekend Programme', 'price' => 'Free', 'enabled' => true];
 Ngv::save($auOff);
 $c = new ReflectionProperty('NgvLedger', 'cache'); $c->setAccessible(true); $c->setValue(null, null);
 
 NgvMember::saveSelf(702, ['plan' => 'Full Programme']);
 ck('ngv audit: a member cannot self-select a plan the admin switched off',
    (string) NgvMember::participant(702)['plan'] === '');
-NgvMember::saveSelf(702, ['plan' => 'Training Only']);
+NgvMember::saveSelf(702, ['plan' => 'Weekend Programme']);
 ck('ngv audit: a member cannot pick their own plan at all — not even a published one',
    (string) NgvMember::participant(702)['plan'] === '');
 NgvMember::setAdmin(702, ['plan' => 'Full Programme']);
 ck('ngv audit: staff cannot set a plan the admin switched off',
    (string) NgvMember::participant(702)['plan'] === '');
-NgvMember::setAdmin(702, ['plan' => 'Training Only']);
+NgvMember::setAdmin(702, ['plan' => 'Weekend Programme']);
 ck('ngv audit: a plan that IS on the page is still accepted',
-   (string) NgvMember::participant(702)['plan'] === 'Training Only');
+   (string) NgvMember::participant(702)['plan'] === 'Weekend Programme');
 /* Refusing has to mean LEAVING IT ALONE. Blanking the field on a bad value
    would be its own bug: the plan prices the training fee, so a stale form or a
    hand-crafted POST could quietly stop somebody's instalments. */
 NgvMember::setAdmin(702, ['plan' => 'Platinum Invented Tier']);
 ck('ngv audit: a plan nobody published is refused, and the stored one stands',
-   (string) NgvMember::participant(702)['plan'] === 'Training Only');
+   (string) NgvMember::participant(702)['plan'] === 'Weekend Programme');
 NgvMember::setAdmin(702, ['plan' => 'Platinum Invented Tier']);
 ck('ngv audit: staff cannot set an unpublished plan either, and lose nothing trying',
-   (string) NgvMember::participant(702)['plan'] === 'Training Only');
+   (string) NgvMember::participant(702)['plan'] === 'Weekend Programme');
 /* Deliberately choosing nothing is still allowed — that is a different act
    from naming something we do not recognise. */
 NgvMember::setAdmin(702, ['plan' => '']);
@@ -126,8 +129,11 @@ ck('ngv audit: the console offers only switched-on plans',
    str_contains($auCon, "\$planOn = array_filter(\$planCat"));
 ck('ngv audit: except the one this member is already on',
    str_contains($auCon, 'no longer offered'));
+/* The summary quotes the programme fee's own terms now (29 Oct 2026), and
+   those read only a plan that is switched on. */
 ck('ngv audit: and the fee summary quotes a price somebody can actually pick',
-   str_contains($auCon, 'array_filter($planOn'));
+   str_contains($auCon, 'NgvProgrammeFee::terms()')
+   && str_contains((string) file_get_contents(AV_ROOT . '/lib/NgvProgrammeFee.php'), "if (!empty(\$pl['enabled']) && (int) \$pl['fee'] > 0)"));
 
 Ngv::save($auDoc);
 $c->setValue(null, null);

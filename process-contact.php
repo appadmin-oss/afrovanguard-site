@@ -533,7 +533,7 @@ if ($action === 'newsletter') {
             echo json_encode(['success' => false, 'message' => 'Too many requests. Please try again later.']);
             exit;
         }
-        $r = VanQuest::join($email, (string) ($input['placement'] ?? ''), (int) ($input['xp'] ?? 50));
+        $r = VanQuest::join($email, (string) ($input['placement'] ?? ''), (int) ($input['xp'] ?? 50), in_array($input['adult'] ?? '', [true, 'true', '1', 1, 'on'], true));
         http_response_code($r['ok'] ? 200 : 400);
         echo json_encode(['success' => $r['ok'], 'status' => $r['status'], 'message' => $r['message']]);
         exit;

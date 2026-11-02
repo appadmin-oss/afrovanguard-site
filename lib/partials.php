@@ -178,6 +178,8 @@ function render_head(array $o): void {
   <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
   <link href="<?= e(av_asset('/assets/site/tokens.css')) ?>" rel="stylesheet" />
   <link href="<?= e(av_asset('/diary/diary.css')) ?>" rel="stylesheet" />
+  <?php /* First: keeps a page's anti-forgery token fresh, so an open tab keeps saving. */ ?>
+  <script src="<?= e(av_asset('/assets/site/csrf-renew.js')) ?>" defer></script>
 <?php if ($site): /* The Home chrome and the new system, then avpg.css, which
      re-points the old --afg-* and Diary tokens at --av-* and sets the type, so
      the page bodies built on diary.css read as part of the new site. nav.css is

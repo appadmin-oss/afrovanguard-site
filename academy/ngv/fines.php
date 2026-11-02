@@ -187,7 +187,7 @@ dialog .lbl input,dialog .lbl select{width:100%}
   <div class="gatebox">
     <h1>Admin sign-in required</h1>
     <p>This page holds NextGen Vanguard fines. Sign in to the Academy Studio, then come back.</p>
-    <p><a href="/academy/studio/">Go to the Studio →</a></p>
+    <p><a href="/academy/studio/">Sign in at the Academy Studio →</a></p>
   </div>
 <?php else: ?>
 <header class="top">
@@ -201,7 +201,7 @@ dialog .lbl input,dialog .lbl select{width:100%}
 </header>
 <main class="wrap">
   <section class="stats" aria-label="Fines at a glance">
-    <div class="stat"><div class="k">Outstanding</div><div class="v"><?= $nm((int) $sum['outstanding']) ?></div><div class="s"><?= (int) $sum['owing_members'] ?> member<?= (int) $sum['owing_members'] === 1 ? '' : 's' ?> owing</div></div>
+    <div class="stat"><div class="k">Outstanding</div><div class="v"><?= $nm((int) $sum['outstanding']) ?></div><div class="s"><?php if ((int) $sum['owing_members'] > 0): ?><a href="?status=open#list">See the <?= (int) $sum['owing_members'] ?> member<?= (int) $sum['owing_members'] === 1 ? '' : 's' ?> owing</a><?php else: ?>nobody owing<?php endif; ?></div></div>
     <div class="stat"><div class="k">This month</div><div class="v"><?= $nm((int) $sum['this_month']) ?></div><div class="s"><?= (int) $sum['this_month_n'] ?> fine<?= (int) $sum['this_month_n'] === 1 ? '' : 's' ?> issued</div></div>
     <div class="stat"><div class="k">Settled</div><div class="v"><?= (int) $sum['settled'] ?></div><div class="s">paid in full</div></div>
     <div class="stat"><div class="k">Waived</div><div class="v"><?= (int) $sum['waived'] ?></div><div class="s">set aside, kept on record</div></div>
@@ -275,8 +275,8 @@ dialog .lbl input,dialog .lbl select{width:100%}
         <label>From <input type="date" name="from" value="<?= $e($f['from']) ?>"></label>
         <label>To <input type="date" name="to" value="<?= $e($f['to']) ?>"></label>
         <label class="check"><input type="checkbox" name="source" value="import"<?= $f['source'] ? ' checked' : '' ?>> Imported</label>
-        <button class="btn" type="submit">Show</button>
-        <?php if ($filtered): ?><a class="btn" href="?#list">Clear</a><?php endif; ?>
+        <button class="btn" type="submit">Show fines</button>
+        <?php if ($filtered): ?><a class="btn" href="?#list">Clear filters</a><?php endif; ?>
       </form>
       <div class="scroll" style="margin-top:12px">
       <?php if (!$list): ?><p class="sub"><?= $filtered ? 'No fine matches.' : 'No fines yet.' ?></p><?php else: ?>
@@ -295,7 +295,7 @@ dialog .lbl input,dialog .lbl select{width:100%}
             <td class="num"><?= $nm((int) $r['amount']) ?></td>
             <td class="num"><?= $open ? $nm((int) $r['owing']) : '—' ?></td>
             <td><span class="pill s-<?= $e($s) ?>"><?= $e($stLabel[$s] ?? $s) ?></span></td>
-            <td style="white-space:nowrap"><?php if ($open): ?><button class="btn sm" data-pay="<?= (int) $r['id'] ?>" data-owing="<?= (int) $r['owing'] ?>"<?= $no ?>>Record payment</button> <button class="btn sm" data-waive="<?= (int) $r['id'] ?>"<?= $no ?>>Waive</button> <?php endif; ?><?php if ($s !== 'voided'): ?><button class="btn sm" data-void="<?= (int) $r['id'] ?>"<?= $no ?>>Void</button><?php endif; ?></td>
+            <td style="white-space:nowrap"><?php if ($open): ?><button class="btn sm" data-pay="<?= (int) $r['id'] ?>" data-owing="<?= (int) $r['owing'] ?>"<?= $no ?>>Record payment</button> <button class="btn sm" data-waive="<?= (int) $r['id'] ?>"<?= $no ?>>Waive fine</button> <?php endif; ?><?php if ($s !== 'voided'): ?><button class="btn sm" data-void="<?= (int) $r['id'] ?>"<?= $no ?>>Void fine</button><?php endif; ?></td>
           </tr>
         <?php endforeach; ?>
         </tbody>

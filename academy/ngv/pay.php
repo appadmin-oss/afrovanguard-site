@@ -179,7 +179,7 @@ render_nav('academy');
     <span class="ed-kicker ed-kicker--muted">Payment</span>
     <h1 class="ed-h2">Please sign in</h1>
     <p class="ed-lede">We need to know whose account to credit. Sign in and open your payment again.</p>
-    <p><a class="ed-link" href="<?= e(av_login_url('/academy/ngv/dashboard.php')) ?>">Sign in</a></p>
+    <p><a class="ed-link" href="<?= e(av_login_url('/academy/ngv/dashboard.php')) ?>">Sign in to your NGV dashboard</a></p>
 
   <?php elseif ($state === 'done'): ?>
     <span class="ed-kicker">Payment received</span>
@@ -200,21 +200,21 @@ render_nav('academy');
     <p class="ed-lede"><?= $owed > 0
         ? 'Still outstanding: <strong>₦' . number_format($owed) . '</strong>.'
         : 'Your account is now clear.' ?></p>
-    <p><a class="ed-link" href="/academy/ngv/dashboard.php">Back to my dashboard</a></p>
+    <p><a class="ed-link" href="/academy/ngv/dashboard.php<?= $owed > 0 ? '#account' : '' ?>"><?= $owed > 0 ? 'Pay the remaining ₦' . number_format($owed) . ' from my dashboard' : 'Back to my dashboard' ?></a></p>
 
   <?php elseif ($state === 'already'): ?>
     <span class="ed-kicker">Payment received</span>
     <h1 class="ed-h2">That one is already on your account</h1>
     <p class="ed-lede">We had recorded this payment before you got back here — nothing has been charged twice.
       <?= $owed > 0 ? 'Still outstanding: <strong>₦' . number_format($owed) . '</strong>.' : 'Your account is clear.' ?></p>
-    <p><a class="ed-link" href="/academy/ngv/dashboard.php">Back to my dashboard</a></p>
+    <p><a class="ed-link" href="/academy/ngv/dashboard.php<?= $owed > 0 ? '#account' : '' ?>"><?= $owed > 0 ? 'Pay the remaining ₦' . number_format($owed) . ' from my dashboard' : 'Back to my dashboard' ?></a></p>
 
   <?php elseif ($state === 'notpaid'): ?>
     <span class="ed-kicker ed-kicker--muted">Payment</span>
     <h1 class="ed-h2">That payment didn't go through</h1>
     <p class="ed-lede">Nothing has been taken and nothing has changed on your account. Card payments fail for
       ordinary reasons — a daily limit, a bank timeout — and trying again usually works.</p>
-    <p><a class="ed-link" href="/academy/ngv/dashboard.php">Back to my dashboard</a></p>
+    <p><a class="ed-link" href="/academy/ngv/dashboard.php#account">Try the payment again from my dashboard</a></p>
 
   <?php elseif ($state === 'notyours'): ?>
     <span class="ed-kicker ed-kicker--muted">Payment</span>
@@ -222,7 +222,7 @@ render_nav('academy');
     <p class="ed-lede">Paystack knows reference <strong><?= e($ref) ?></strong>, but it was not made from your NextGen
       Vanguard account, so nothing has been added to it. If you paid your fees and see this, quote the reference
       to your track lead.</p>
-    <p><a class="ed-link" href="/academy/ngv/dashboard.php">Back to my dashboard</a></p>
+    <p><a class="ed-link" href="/academy/ngv/dashboard.php#account">Check my account on the dashboard</a></p>
 
   <?php elseif ($state === 'failed'): ?>
     <span class="ed-kicker ed-kicker--muted">Payment</span>
@@ -230,13 +230,13 @@ render_nav('academy');
     <p class="ed-lede">Paystack confirmed <strong><?= e('₦' . number_format($paid)) ?></strong>, but we could not write it to
       your account just now. <strong>You have not lost it.</strong> Quote reference
       <strong><?= e($ref) ?></strong> to your track lead and it will be put right today.</p>
-    <p><a class="ed-link" href="/contact.html">Contact us</a></p>
+    <p><a class="ed-link" href="/contact.html">Contact us — quote reference <?= e($ref) ?></a></p>
 
   <?php else: ?>
     <span class="ed-kicker ed-kicker--muted">Payment</span>
     <h1 class="ed-h2">Nothing to confirm here</h1>
     <p class="ed-lede">This page confirms a payment after you have made one. Start from your dashboard.</p>
-    <p><a class="ed-link" href="/academy/ngv/dashboard.php">Back to my dashboard</a></p>
+    <p><a class="ed-link" href="/academy/ngv/dashboard.php#account">Pay from my dashboard</a></p>
   <?php endif; ?>
 </main>
 <?php render_footer();

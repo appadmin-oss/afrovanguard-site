@@ -22,6 +22,9 @@ final class Ngv
     private const KEY = 'ngv_content';
     private const PREV_KEY = 'ngv_content_prev'; // one-step backup for undo/restore
     private const MAX_LIST = 60;                 // cap items per list (runaway/abuse guard)
+
+    /** Where somebody applies. The one address every "Apply" on the site means. */
+    public const APPLY_URL = '/academy/ngv/register.php';
     private static ?array $cache = null;
 
     /** Canonical defaults, sourced from the NextGen Vanguard brochure + flyer. */
@@ -109,29 +112,18 @@ final class Ngv
             ],
 
             'plans_enabled' => true,
-            'plans_title'   => 'Choose the plan that fits you',
-            'plans_intro'   => 'Each plan runs for a different length of time at a different fee — pick your entry point. No one is turned away for lack; committed applicants who need support can write to their track lead.',
+            'plans_title'   => 'One programme, one year',
+            'plans_intro'   => 'Six months of training, then six months of a guided internship. The programme fee is not a bill while you are on the programme: you work it off through your internship, and it is written off when you finish. No one is turned away for lack; committed applicants who need support can write to their track lead.',
+            /* One plan. "Training Only" and "Internship Only" were retired on
+               29 Oct 2026 — the programme is the year, and the fee is worked off
+               through its second half, which a half-year plan cannot do. */
             'plans' => [
                 [
-                    'name' => 'Training Only', 'duration' => '6 months', 'price' => 'Free', 'price_note' => 'Limited slots',
-                    'desc' => 'Phase 1 — full learning access with classes three times a day.',
-                    'features' => ['All core courses & your chosen track', 'Three global certifications', 'Weekly workshops & panels', '24-book leadership reading challenge'],
-                    'cta_label' => 'Apply free', 'cta_url' => '/academy/ngv/register.php',
-                    'featured' => false, 'enabled' => true,
-                ],
-                [
-                    'name' => 'Full Programme', 'duration' => '12 months', 'price' => '₦240,000', 'price_note' => 'per year',
+                    'name' => 'Full Programme', 'duration' => '12 months', 'price' => '₦240,000', 'price_note' => 'for the year · worked off through your internship',
                     'desc' => 'The complete transformation — six months of training plus a guided, paid internship.',
-                    'features' => ['Everything in Training', 'Guided internship on real projects', 'Six global certifications', 'Weekly stipends', 'Portfolio & final showcase'],
+                    'features' => ['All core courses & your chosen track', 'Guided internship on real projects', 'Six global certifications', 'Weekly stipends', '24-book leadership reading challenge', 'Portfolio & final showcase'],
                     'cta_label' => 'Start your application', 'cta_url' => '/academy/ngv/register.php',
                     'featured' => true, 'enabled' => true,
-                ],
-                [
-                    'name' => 'Internship Only', 'duration' => '6 months', 'price' => 'Free', 'price_note' => 'Limited slots',
-                    'desc' => 'Phase 2 — serve on real Afrovanguard projects and earn stipends as you build experience.',
-                    'features' => ['Real project placement', 'Weekly stipends', 'Mentorship & references', 'Three global certifications'],
-                    'cta_label' => 'Apply free', 'cta_url' => '/academy/ngv/register.php',
-                    'featured' => false, 'enabled' => true,
                 ],
             ],
 
@@ -149,7 +141,7 @@ final class Ngv
             'fees_enabled' => true,
             'fees_title'   => 'Simple, purposeful commitment',
             'fees' => [
-                ['name' => 'Membership fee', 'amount' => '₦10,000 / year', 'desc' => 'A symbol of commitment. Covers your uniform package, ID card & file setup, program starter pack, digital onboarding and induction/graduation prep.'],
+                ['name' => 'Membership fee', 'amount' => '₦10,000 / year', 'desc' => 'A symbol of commitment. Covers your ID card & file setup, program starter pack, digital onboarding and induction/graduation prep. Paid on registration day.'],
                 ['name' => 'Commitment fee', 'amount' => '₦1,000 / month', 'desc' => 'Not for profit — a leadership-culture tool. Covers resource refreshers, guest-speaker honorariums, community outreach and facility upkeep.'],
             ],
             'fees_note' => 'No one is turned away for lack. If you\'re truly committed and need support, speak to your track lead or send a letter requesting consideration — we\'re here to help you rise, not shame you.',
@@ -219,6 +211,59 @@ final class Ngv
             'j_project_past' => [],
             'j_chapter'      => ['name' => '', 'place' => ''],
             'j_roster'       => [],
+
+            /* ── Registration (lib/NgvRegistration.php) ─────────────────────
+               Applying online is the first step; registration is completed in
+               person at a CACENTRE, with a guarantor and the signed MoU. Every
+               part of that below is the office's to edit — nothing in it is
+               hard-coded. */
+
+            /* What the applicant must show they understand before applying.
+               Not a test anybody fails: a wrong answer shows the right one. */
+            'reg_understand' => [
+                ['q' => 'How long is NextGen Vanguard?', 'options' => ['Six months', 'One year: six months of training, then six of internship', 'As long as I like'],
+                 'answer' => '2', 'explain' => 'It is one year: six months of training, then a six-month guided internship.'],
+                ['q' => 'What happens to the programme fee while you stay on the programme?', 'options' => ['I pay it in monthly instalments', 'I work it off through my internship, and it is written off when I finish', 'Nothing — there is no fee'],
+                 'answer' => '2', 'explain' => 'You are given the place. You work the fee off through the internship, and it is written off when you finish. Only if you leave early does what is left become owed.'],
+                ['q' => 'Who is your guarantor?', 'options' => ['Anybody whose name I write down', 'An adult who knows me — a parent or guardian, employer, faith leader or community leader — who comes in with me and vouches for my character', 'Somebody who pays my fees'],
+                 'answer' => '2', 'explain' => 'Your guarantor vouches for your character. They come to the CACENTRE with you. They are not responsible for your fees.'],
+                ['q' => 'How do you finish registering?', 'options' => ['The online form is enough', 'I bring the signed MoU, my documents and my guarantor to the CACENTRE', 'I send a WhatsApp message'],
+                 'answer' => '2', 'explain' => 'The form is the first step. You finish in person at the CACENTRE with the signed MoU, your documents and your guarantor.'],
+            ],
+
+            /* What to bring, and what the desk checks. `applies`: all | minor | adult | ngg. */
+            'reg_checklist' => [
+                ['label' => 'The MoU, printed and signed by you and your guarantor', 'desc' => 'Print it from your application page. Sign it before you come.', 'required' => true, 'applies' => 'all'],
+                ['label' => 'Your ID', 'desc' => 'National ID (NIN slip), voter’s card, international passport, driver’s licence, or a school or NYSC ID.', 'required' => true, 'applies' => 'all'],
+                ['label' => 'Your guarantor, in person, with their ID', 'desc' => 'They come with you and sign in front of the desk.', 'required' => true, 'applies' => 'all'],
+                ['label' => 'Your parent or guardian as your guarantor', 'desc' => 'If you are under 18, your guarantor must be your parent or guardian.', 'required' => true, 'applies' => 'minor'],
+                ['label' => 'Two passport photographs', 'desc' => 'Recent, plain background.', 'required' => false, 'applies' => 'all'],
+                ['label' => 'Your NGG member card', 'desc' => 'If you are coming up from Next Generation Genius.', 'required' => false, 'applies' => 'ngg'],
+            ],
+
+            /* The MoU, as printed. `version` is recorded on every registration,
+               so a later edit changes what the next person signs only.
+               Placeholders: {name} {ref} {dob} {track} {centre} {fee} {basis}
+               {training_months} {internship_months} {membership} {commitment}
+               {guarantor} {relationship} {date}. */
+            'mou' => [
+                'version' => 'NGV-MoU-2026.10',
+                'title'   => 'Memorandum of Understanding — NextGen Vanguard',
+                'body'    => "This memorandum is between Afrovanguard Academy and {name} (reference {ref}), with {guarantor} as guarantor ({relationship}).\n\n"
+                           . "1. The programme. NextGen Vanguard runs for one year: {training_months} months of training, then {internship_months} months of a guided internship, at {centre}.\n\n"
+                           . "2. Attendance and conduct. I will attend as the programme schedule requires, keep the programme's code of conduct, and accept its policy on lateness, absence and fines.\n\n"
+                           . "3. The programme fee. The programme fee is {fee} {basis}. I am given my place: I will not be asked to pay this fee while I remain on the programme. I work it off through my internship, and it is written off when I complete the programme. If I withdraw, or am removed, before completing, the part I have not worked off becomes owed.\n\n"
+                           . "4. Other fees. The membership fee ({membership}) is paid on registration day, and the monthly commitment fee ({commitment}) while I am on the programme. No one is turned away for lack: I may ask my track lead for consideration.\n\n"
+                           . "5. My guarantor. My guarantor knows me and vouches for my character, and agrees to be contacted about my conduct. My guarantor is not responsible for my fees.\n\n"
+                           . "6. My details are used to run the programme and are not sold or shared for marketing.",
+            ],
+
+            /* When applicants can come in. Booking is advised; walking in also works. */
+            'reg_walkin' => 'You can also walk in, Monday to Friday, 10am to 3pm, with your reference number. Booking means somebody is ready for you.',
+            'reg_slots' => [
+                ['centre' => 'CACENTRE Egbeda', 'days' => 'Mon, Wed, Fri', 'times' => ['10:00', '12:00', '14:00'], 'capacity' => '6'],
+                ['centre' => 'CACENTRE Okun Alimosho', 'days' => 'Tue, Thu', 'times' => ['10:00', '13:00'], 'capacity' => '6'],
+            ],
         ];
     }
 
@@ -231,7 +276,56 @@ final class Ngv
             $raw = Database::metaGet(self::KEY);
             if ($raw) { $d = json_decode($raw, true); if (is_array($d)) $stored = $d; }
         } catch (Throwable $e) { /* DB not ready → defaults */ }
-        return self::$cache = self::merge(self::defaults(), $stored);
+        return self::$cache = self::mendApplyLinks(self::merge(self::defaults(), $stored));
+    }
+
+    /**
+     * An "Apply" that does not reach the application form.
+     *
+     * Before the form existed, applying was `bit.ly/ngv`, which redirects to a
+     * WhatsApp group invite. The form shipped and the shipped defaults pointed at
+     * it, but the live page's stored copy still carried the old link — so every
+     * "Apply now" on the page put people in a chat: no record of who applied, no
+     * consent, no staff queue, and every member's phone number shown to every
+     * other. An apply link is the form; a chat is a chat (`cta_secondary_url` is
+     * the one for that, and is left alone). Mended on the way OUT, so it holds
+     * for a copy saved before this and for one an editor saves with the old link
+     * pasted back in.
+     */
+    public static function mendApplyUrl(string $url): string
+    {
+        return preg_match('~^\s*(https?://)?(www\.)?(bit\.ly/ngv(/|\?|#|\s*$)|chat\.whatsapp\.com/)~i', $url) ? self::APPLY_URL : $url;
+    }
+
+    /** Plans withdrawn from the programme. A stored copy of the page from before still lists them. */
+    public const RETIRED_PLANS = ['training only', 'internship only'];
+
+    private static function mendApplyLinks(array $doc): array
+    {
+        /* Content the programme has withdrawn, mended on the way out like the
+           apply links: a stored page saved before still carries it, and a
+           visitor must not be offered a plan that no longer exists, nor a
+           uniform NGV does not issue. */
+        if (is_array($doc['plans'] ?? null)) {
+            $doc['plans'] = array_values(array_filter($doc['plans'], static fn($pl) =>
+                !is_array($pl) || !in_array(mb_strtolower(trim((string) ($pl['name'] ?? ''))), self::RETIRED_PLANS, true)));
+        }
+        if (is_array($doc['fees'] ?? null)) {
+            foreach ($doc['fees'] as $i => $f) {
+                if (is_array($f) && isset($f['desc']) && is_string($f['desc'])) {
+                    $doc['fees'][$i]['desc'] = trim((string) preg_replace('/\byour uniform package,\s*|\buniform package,\s*|\buniform,\s*/i', '', $f['desc']));
+                }
+            }
+        }
+        foreach ([['hero', 'cta_primary_url'], ['cta', 'button_url'], ['contact', 'apply_url']] as [$sec, $key]) {
+            if (isset($doc[$sec][$key]) && is_string($doc[$sec][$key])) $doc[$sec][$key] = self::mendApplyUrl($doc[$sec][$key]);
+        }
+        if (is_array($doc['plans'] ?? null)) {
+            foreach ($doc['plans'] as $i => $pl) {
+                if (is_array($pl) && isset($pl['cta_url']) && is_string($pl['cta_url'])) $doc['plans'][$i]['cta_url'] = self::mendApplyUrl($pl['cta_url']);
+            }
+        }
+        return $doc;
     }
 
     /** Validate a (partial or full) patch, persist the merged document, return it. */
@@ -241,7 +335,7 @@ final class Ngv
         $merged = self::capLists(self::merge($before, self::clean($patch)));
         try { Database::metaSet(self::PREV_KEY, json_encode($before, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)); } catch (Throwable $e) {}
         Database::metaSet(self::KEY, json_encode($merged, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-        self::$cache = $merged;
+        self::$cache = self::mendApplyLinks($merged);
         if (class_exists('Sitemap')) { try { Sitemap::rebuild(); } catch (Throwable $e) {} }
         if (class_exists('Events'))  { try { Events::emit('ngv.updated', ['by' => 'admin']); } catch (Throwable $e) {} }
         return $merged;

@@ -63,10 +63,9 @@ ck('ngv fees: the membership figure is read off the public page, not a constant'
 ck('ngv fees: …and so is the monthly commitment, with the page\'s own cadence',
    (int) $amt['commitment']['amount'] === 1000 && $amt['commitment']['cadence'] === 'month'
    && $amt['commitment']['source'] === 'page');
-ck('ngv fees: the training fee is the plan price from the same page',
+ck('ngv fees: the programme fee is the one plan\'s price from the same page — the half-year plans are retired',
    (int) ($amt['plans']['Full Programme']['fee'] ?? 0) === 240000
-   && ($amt['plans']['Full Programme']['cadence'] ?? '') === 'year'
-   && (int) ($amt['plans']['Training Only']['fee'] ?? -1) === 0);
+   && !isset($amt['plans']['Training Only']) && !isset($amt['plans']['Internship Only']));
 
 // Rows are matched by NAME, so reordering the two on the page cannot swap the
 // yearly and the monthly charge on everybody's account.
@@ -682,11 +681,11 @@ ck('ngv programme: a completed vanguard is still a vanguard', NgvMember::isVangu
 ck('ngv programme: the sweep is idempotent', NgvMember::completeElapsed('2027-03-11')['completed'] === 0);
 
 /* ══ Members cannot change their programme ═══════════════════════════════ */
-NgvMember::setAdmin(903, ['track' => '', 'plan' => 'Training Only', 'phase' => '1']);
-NgvMember::saveSelf(903, ['plan' => 'Full Programme', 'phase' => 'done', 'focus_note' => 'Two books']);
+NgvMember::setAdmin(903, ['track' => '', 'plan' => 'Full Programme', 'phase' => '1']);
+NgvMember::saveSelf(903, ['plan' => '', 'phase' => 'done', 'focus_note' => 'Two books']);
 $nl903 = NgvMember::participant(903);
 ck('ngv programme: a member cannot change their plan or phase',
-   (string) $nl903['plan'] === 'Training Only' && (string) $nl903['phase'] === '1');
+   (string) $nl903['plan'] === 'Full Programme' && (string) $nl903['phase'] === '1');
 ck('ngv programme: …but their focus note still saves', (string) $nl903['focus_note'] === 'Two books');
 $nlDash = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php');
 ck('ngv programme: the dashboard refuses a track/plan/phase save out loud',

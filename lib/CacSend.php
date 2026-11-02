@@ -76,7 +76,13 @@ final class CacSend
         if (strlen($html) > 1_000_000) return ['ok' => false, 'code' => 'too_big', 'error' => 'The message is over 1 MB.'];
         if (self::headroom() <= 0) return ['ok' => false, 'code' => 'daily_cap', 'error' => 'Afrovanguard has sent its ' . self::dailyCap() . ' for CACENTRE in the last 24 hours.'];
 
-        $opt = ['fromName' => mb_substr(trim((string) ($m['from_name'] ?? '')) ?: 'CACENTRE', 0, 80)];
+        /* Never this server's mail(): it reports "sent" for mail the
+           recipient's provider bins, and CACENTRE then believed it had
+           delivered and tried nothing else. Refused here, CACENTRE goes on to
+           its own roads. A batch (CACENTRE's Wi-Fi starting passwords) is
+           also kept off the Apps Script, whose small daily allowance this
+           site's own sign-in codes need. */
+        $opt = ['fromName' => mb_substr(trim((string) ($m['from_name'] ?? '')) ?: 'CACENTRE', 0, 80), 'noHost' => true, 'bulk' => !empty($m['batch'])];
         $reply = trim((string) ($m['reply_to'] ?? ''));
         if (filter_var($reply, FILTER_VALIDATE_EMAIL)) $opt['replyTo'] = $reply;
         if (trim((string) ($m['text'] ?? '')) !== '') $opt['text'] = (string) $m['text'];

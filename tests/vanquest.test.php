@@ -15,33 +15,33 @@ Database::pdo()->exec('DELETE FROM vq_players');
 /* The token travels only by email, so the test reads it back the way the site
    would: from the link in the rendered mail. */
 $lastLink = null;
-$join = function (string $email, string $placement = '') use (&$lastLink) { $r = VanQuest::join($email, $placement, 50); $lastLink = $r['token'] ?? null; return $r; };
+$join = function (string $email, string $placement = '') use (&$lastLink) { $r = VanQuest::join($email, $placement, 50, true); $lastLink = $r['token'] ?? null; return $r; };
 
 $r = $join('Ada@Example.com');
 ck('vanquest: a new email joins and gets the first mail', $r['ok'] && $r['status'] === 'new' && $r['mailed'] === true);
 $m = $mails();
 ck('vanquest: the first mail is the seat confirmation', count($m) === 1 && $m[0][0] === 'ada@example.com' && $m[0][1] === 'Confirm your seat in the VanQuest community');
-ck('vanquest: a bad address is refused', !VanQuest::join('not-an-email')['ok']);
+ck('vanquest: a bad address is refused', !VanQuest::join('not-an-email', '', 50, true)['ok']);
 ck('vanquest: asking again at once is held back, not mailed twice', $join('ada@example.com')['status'] === 'wait' && $mails() === []);
 /* A mail that does not go is not reported as sent, and the player can ask again at once. */
 Mailer::fakeRoads(['smtp' => static fn(array $m): bool => false]);
-$u = VanQuest::join('nomail@example.com');
+$u = VanQuest::join('nomail@example.com', '', 50, true);
 ck('vanquest: when the email cannot be sent, the player is told, not "an email has been sent"', !$u['ok'] && $u['status'] === 'unsent' && str_contains($u['message'], 'could not send'));
 Mailer::fakeRoads(['smtp' => static function (array $m) use (&$sent): bool { $sent[] = [$m['to'], $m['subject']]; return true; }]);
-ck('vanquest: …and asking again straight away is not held back', VanQuest::join('nomail@example.com')['status'] !== 'wait');
+ck('vanquest: …and asking again straight away is not held back', VanQuest::join('nomail@example.com', '', 50, true)['status'] !== 'wait');
 $mails();
 
 /* VanQuest's mail comes from VanQuest, not from Afrovanguard. */
 $fromSeen = null;
 Mailer::fakeRoads(['smtp' => static function (array $m) use (&$fromSeen): bool { $fromSeen = $m; return true; }]);
-VanQuest::join('sender.check@example.com');
+VanQuest::join('sender.check@example.com', '', 50, true);
 ck('vanquest: its mail is from VanQuest, not Afrovanguard', ($fromSeen['from']['name'] ?? '') === 'VanQuest');
 ck('vanquest: …its plain-text part is signed VanQuest too', str_ends_with(trim((string) ($fromSeen['text'] ?? '')), '— VanQuest'));
 putenv('AV_VQ_FROM_EMAIL=vanquest@afrovanguard.org.ng');
-VanQuest::join('sender.check2@example.com');
+VanQuest::join('sender.check2@example.com', '', 50, true);
 ck('vanquest: …from its own address when one is set, and replies go there', ($fromSeen['from']['email'] ?? '') === 'vanquest@afrovanguard.org.ng' && ($fromSeen['from']['replyTo'] ?? '') === 'vanquest@afrovanguard.org.ng');
 putenv('AV_VQ_FROM_EMAIL');
-VanQuest::join('sender.check3@example.com');
+VanQuest::join('sender.check3@example.com', '', 50, true);
 ck('vanquest: Afrovanguard\'s own mail still comes from Afrovanguard', Mailer::send('x@example.com', 'Hi', '<p>Hi</p>') && ($fromSeen['from']['name'] ?? '') !== 'VanQuest');
 Mailer::fakeRoads(['smtp' => static function (array $m) use (&$sent): bool { $sent[] = [$m['to'], $m['subject']]; return true; }]);
 Database::pdo()->exec("DELETE FROM vq_players WHERE email LIKE 'sender.check%'");
@@ -104,3 +104,16 @@ ck('vanquest: process-contact.php hands VanQuest joins to the module',
 
 Mailer::fakeRoads(null);
 Database::pdo()->exec('DELETE FROM vq_players');
+
+/* 18 and over only (the owner, 27 October 2026). */
+$minor = VanQuest::join('under.eighteen@example.com', '', 50, false);
+ck('vanquest: nobody joins without confirming they are 18 or over', !$minor['ok'] && $minor['status'] === 'age');
+ck('vanquest: …and nothing is stored for them', (int) Database::pdo()->query("SELECT COUNT(*) FROM vq_players WHERE email = 'under.eighteen@example.com'")->fetchColumn() === 0);
+ck('vanquest: the API passes the age confirmation through', str_contains((string) file_get_contents(AV_ROOT . '/vanquest/api.php'), "(\$in['adult'] ?? false) === true"));
+
+/* VanQuest mail is always in VanQuest's frame, whatever the shared layout chooses. */
+$pv = VanQuest::preview('welcome');
+ck('vanquest: its mail renders in its own frame', str_contains($pv['html'], 'VanQuest mail, frame vq') && !str_contains($pv['html'], 'Cormorant'));
+ck('vanquest: the onboarding mail too', str_contains(VanQuest::preview('onboard')['html'], 'VanQuest mail, frame vq'));
+ck('vanquest: its plain text is signed VanQuest', str_ends_with(trim($pv['text']), '— VanQuest'));
+ck('vanquest: the mail never goes through the shared frame choice', !str_contains((string) file_get_contents(AV_ROOT . '/lib/VanQuest.php'), 'Mailer::sendTemplate('));

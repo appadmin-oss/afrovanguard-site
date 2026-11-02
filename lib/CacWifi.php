@@ -14,13 +14,17 @@
  *
  *   roster()/push()   every Afrovanguard member and our say about each, from
  *                     the cron. `full`: anybody not sent loses Wi-Fi there.
- *   card($id)         one member's card for the portal, op show
- *   newPin($id)       a new PIN (CACENTRE allows three a day)
+ *   card($id)         one member's card for the portal, op show. The token
+ *                     carries the member's own roster row (`me`), so a member
+ *                     CACENTRE has not been sent yet is added there at once.
+ *   setPassword($id)  the Wi-Fi password the member chose (three changes a
+ *                     day). In the POST body, never a URL; never stored here.
  *
  * WHAT TRAVELS: id, kind (member | staff), name, email, our verdict and its
  * reason. Nothing else.
  */
 declare(strict_types=1);
+require_once __DIR__ . '/IdCard.php';
 
 final class CacWifi
 {
@@ -41,20 +45,32 @@ final class CacWifi
     {
         $out = [];
         foreach (Database::pdo()->query('SELECT id, name, email, role, status FROM lms_users ORDER BY id')->fetchAll(PDO::FETCH_ASSOC) as $u) {
-            if (!LmsAuth::isOrgMember($u)) continue;
+            if (($row = self::row($u)) !== null) $out[] = $row;
+        }
+        return $out;
+    }
+
+    /** One member's roster row, or null when they are not an org member. */
+    public static function row(array $u): ?array
+    {
+            if (!LmsAuth::isOrgMember($u)) return null;
+            /* Their Wi-Fi sign-in name is the number printed on their card,
+               without the level letter in front of it ("B-NGV-25-0005" signs
+               in as NGV-25-0005): the letter changes as they climb the ladder,
+               and a sign-in name must not. No card number yet, and CACENTRE
+               uses a stand-in until one arrives. */
+            [, $number] = IdCard::splitId(IdCard::printedId((int) $u['id']));
             $active = (string) ($u['status'] ?? 'active') === 'active';
-            $out[] = [
+            return [
                 'id'        => (string) (int) $u['id'],
                 'kind'      => LmsAuth::canManageMembers($u) ? 'staff' : 'member',
                 'name'      => mb_substr(trim((string) $u['name']), 0, 160),
                 'email'     => strtolower(trim((string) $u['email'])),
-                'printedId' => '',
+                'printedId' => mb_substr($number, 0, 64),
                 'homeSite'  => '',
                 'verdict'   => $active ? 'on' : 'off',
                 'why'       => $active ? '' : 'The Afrovanguard account is not active',
             ];
-        }
-        return $out;
     }
 
     /** Send the roster. One full push; a list over the cap is not sent at all, and says so. */
@@ -63,37 +79,117 @@ final class CacWifi
         if (!CacSso::ready()) return ['ok' => false, 'error' => 'not-configured'];
         $people = self::roster();
         if (count($people) > self::ROSTER_MAX) return ['ok' => false, 'error' => 'too-many', 'sent' => 0];
-        $raw = self::send(CacTasks::site() . self::PATH, [
-            'action' => 'roster',
-            'token'  => CacSso::sign(['aud' => 'wifi', 'typ' => 'wifi.roster', 'full' => true, 'people' => $people]),
-        ], 60);
+        $raw = self::sendRoster($people, true);
         if ($raw === null) return ['ok' => false, 'error' => 'unreachable', 'sent' => count($people)];
         $d = json_decode($raw, true);
         if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'error' => is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreadable', 'sent' => count($people)];
         return ['ok' => true, 'sent' => count($people), 'applied' => (int) ($d['applied'] ?? 0), 'refused' => (int) ($d['refused'] ?? 0), 'gone' => (int) ($d['gone'] ?? 0)];
     }
 
-    /** One member's card: ['ok', 'card' => array|null, 'error']. */
-    public static function card(int $memberId): array
+    /**
+     * Starting passwords CACENTRE could not email (its mail failing, or its
+     * own tick not running), sent by this site with its own mail and reported
+     * back, so nobody is sent one twice. Three failures in a row stop the run.
+     *
+     * @return array{ok:bool, sent?:int, failed?:int, marked?:int, error?:string}
+     */
+    public static function mailStartCodes(): array
     {
-        return self::ask($memberId, null);
+        if (!CacSso::ready()) return ['ok' => false, 'error' => 'not-configured'];
+        $raw = self::send(CacTasks::site() . self::PATH, ['action' => 'startPending', 'token' => CacSso::sign(['aud' => 'wifi', 'typ' => 'wifi.start'])], 20);
+        $d = $raw !== null ? json_decode($raw, true) : null;
+        if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'error' => is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreachable'];
+        $sent = []; $failed = 0; $failRun = 0;
+        $st = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?');
+        foreach ((array) ($d['people'] ?? []) as $x) {
+            if ($failRun >= 3) break;
+            $id = (int) ($x['id'] ?? 0); $user = (string) ($x['username'] ?? ''); $code = (string) ($x['code'] ?? '');
+            if ($id <= 0 || $user === '' || !preg_match('/^[a-z0-9]{4,16}$/', $code)) continue;
+            $st->execute([$id]);
+            $u = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$u || !filter_var((string) $u['email'], FILTER_VALIDATE_EMAIL)) continue;
+            $first = trim(explode(' ', trim((string) $u['name']))[0] ?? '');
+            $html = '<p>Hello' . ($first !== '' ? ' ' . e($first) : '') . ',</p>'
+                  . '<p>You are on the Wi-Fi at CACENTRE and the Afrovanguard centres. Keep this email: you need these to sign in, and you will not have the internet until you do.</p>'
+                  . '<p>Username: <b>' . e($user) . '</b><br>Starting password: <b>' . e($code) . '</b></p>'
+                  . '<p>Join the Wi-Fi, and when the sign-in page opens, type both exactly as they are here. You can keep this password, or choose your own in the portal under Wi-Fi. Never share it: anything done on the Wi-Fi with it counts as you.</p>';
+            if (Mailer::send((string) $u['email'], 'Your Wi-Fi sign-in', $html)) { $sent[] = ['id' => (string) $id, 'code' => $code]; $failRun = 0; }
+            else { $failed++; $failRun++; }
+        }
+        $marked = 0;
+        if ($sent) {
+            $raw = self::send(CacTasks::site() . self::PATH, ['action' => 'startSent', 'token' => CacSso::sign(['aud' => 'wifi', 'typ' => 'wifi.start', 'sent' => $sent])], 20);
+            $marked = (int) ((json_decode((string) $raw, true) ?: [])['marked'] ?? 0);
+        }
+        return ['ok' => true, 'sent' => count($sent), 'failed' => $failed, 'marked' => $marked];
     }
 
-    public static function newPin(int $memberId): array
+    /** Send people as a roster. `full` withdraws anybody not sent; a partial one withdraws nobody. */
+    private static function sendRoster(array $people, bool $full): ?string
     {
-        return self::ask($memberId, ['action' => 'newpin']);
+        return self::send(CacTasks::site() . self::PATH, [
+            'action' => 'roster',
+            'token'  => CacSso::sign(['aud' => 'wifi', 'typ' => 'wifi.roster', 'full' => $full, 'people' => $people]),
+        ], $full ? 60 : self::TIMEOUT);
+    }
+
+    /**
+     * One member's card: ['ok', 'card' => array|null, 'error'].
+     *
+     * Automatic, never "come back in a quarter of an hour": if CACENTRE has
+     * not been sent this member yet, they are sent now, alone, as a partial
+     * roster (which withdraws nobody, and which every CACENTRE that has the
+     * Wi-Fi door accepts), and the card is asked for again. A CACENTRE that
+     * also reads the member's own row from the card request adds them on the
+     * first ask; this covers one that does not.
+     */
+    public static function card(int $memberId): array
+    {
+        $r = self::ask($memberId, null);
+        if (empty($r['ok']) || $r['card'] !== null) return $r;
+        $me = self::me($memberId);
+        if ($me === null) return $r;
+        $raw = self::sendRoster([$me], false);
+        $d = $raw !== null ? json_decode($raw, true) : null;
+        if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'card' => null, 'error' => $raw === null ? 'unreachable' : 'roster-refused', 'message' => '',
+                                                      'detail' => self::failure($raw, is_array($d) ? $d : null)];
+        $again = self::ask($memberId, null);
+        if (!empty($again['ok']) && $again['card'] === null) {
+            /* Sent and still not listed: CACENTRE refused the row, and says why. */
+            $why = (string) ($d['results'][0]['error'] ?? '');
+            return ['ok' => false, 'card' => null, 'error' => 'not-accepted', 'message' => $why === 'name_taken' ? 'Your sign-in name is already used by somebody else on the Wi-Fi.' : ''];
+        }
+        return $again;
+    }
+
+    /** This member's roster row, or null when they are not an org member. */
+    private static function me(int $memberId): ?array
+    {
+        $st = Database::pdo()->prepare('SELECT id, name, email, role, status FROM lms_users WHERE id = ?');
+        $st->execute([$memberId]);
+        $u = $st->fetch(PDO::FETCH_ASSOC);
+        return $u ? self::row($u) : null;
+    }
+
+    public static function setPassword(int $memberId, string $password): array
+    {
+        return self::ask($memberId, ['action' => 'password', 'password' => $password]);
     }
 
     private static function ask(int $memberId, ?array $post): array
     {
         if ($memberId <= 0) return ['ok' => false, 'card' => null, 'error' => 'no-member'];
         if (!CacSso::ready()) return ['ok' => false, 'card' => null, 'error' => 'not-configured'];
-        $url = CacTasks::site() . self::PATH . '?t=' . rawurlencode(CacSso::sign(['aud' => 'wifi', 'uid' => $memberId]));
+        $claims = ['aud' => 'wifi', 'uid' => $memberId];
+        if ($post === null && ($me = self::me($memberId)) !== null) $claims['me'] = $me;
+        $url = CacTasks::site() . self::PATH . '?t=' . rawurlencode(CacSso::sign($claims));
         $raw = self::send($url, $post, self::TIMEOUT);
-        if ($raw === null) return ['ok' => false, 'card' => null, 'error' => 'unreachable'];
+        if ($raw === null) return ['ok' => false, 'card' => null, 'error' => 'unreachable', 'detail' => self::failure(null, null)];
         $d = json_decode($raw, true);
-        if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'card' => null, 'error' => is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreadable'];
-        return ['ok' => true, 'card' => is_array($d['card'] ?? null) ? self::clean($d['card']) : null, 'error' => ''];
+        if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'card' => null, 'error' => is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreadable',
+                                                      'message' => is_array($d) ? mb_substr((string) ($d['message'] ?? ''), 0, 200) : '',
+                                                      'detail' => self::failure($raw, is_array($d) ? $d : null)];
+        return ['ok' => true, 'card' => is_array($d['card'] ?? null) ? self::clean($d['card']) : null, 'error' => '', 'message' => ''];
     }
 
     /** Only the fields the portal draws, each bounded. */
@@ -103,7 +199,10 @@ final class CacWifi
         $u = is_array($c['usage'] ?? null) ? $c['usage'] : [];
         return [
             'username'   => mb_substr((string) ($c['username'] ?? ''), 0, 64),
-            'pin'        => preg_match('/^\d{4,8}$/', (string) ($c['pin'] ?? '')) ? (string) $c['pin'] : '',
+            'hasPassword' => !empty($c['hasPassword']),
+            /* The starting password CACENTRE made, until they choose their own (theirs is never sent). */
+            'startCode'  => preg_match('/^[a-z0-9]{4,16}$/', (string) ($c['startCode'] ?? '')) ? (string) $c['startCode'] : '',
+            'pinSetAt'   => preg_match('/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/', (string) ($c['pinSetAt'] ?? '')) ? (string) $c['pinSetAt'] : '',
             'access'     => in_array($c['access'] ?? '', ['on', 'limited', 'off'], true) ? (string) $c['access'] : 'off',
             /* CACENTRE words a reason for its staff ("Afrovanguard has no Wi-Fi
                for them: …"); on the member's own screen our part is just our reason. */
@@ -118,6 +217,29 @@ final class CacWifi
     }
 
     /** One request (a POST when $body is given), every transport failure turned into null. TLS verification stays on. */
+    /** The last call's HTTP status and transport error, so a failure can be said exactly. */
+    private static array $last = ['status' => 0, 'error' => ''];
+
+    /**
+     * CACENTRE's answer, in words a person can act on: what it said, or its
+     * HTTP status and what came back instead of an answer (a host or proxy
+     * error page, say).
+     */
+    private static function failure(?string $raw, ?array $d): string
+    {
+        $st = (int) self::$last['status'];
+        if ($raw === null) return 'CACENTRE could not be reached' . (self::$last['error'] !== '' ? ' (' . self::$last['error'] . ')' : '') . '.';
+        if (is_array($d)) {
+            $code = (string) ($d['error'] ?? 'refused');
+            $words = ['bad-signature' => 'the key shared by the two sites (AV_SSO_SECRET) is not the same on both',
+                      'not-configured' => 'AV_SSO_SECRET is not set on CACENTRE', 'expired' => 'the two servers’ clocks disagree',
+                      'wrong-door' => 'CACENTRE is older than this site expects', 'unavailable' => 'CACENTRE hit an error (see its error log)'];
+            return 'CACENTRE said no (' . $st . ' ' . $code . ')' . (isset($words[$code]) ? ': ' . $words[$code] . '.' : '.');
+        }
+        $text = trim(preg_replace('/\s+/', ' ', strip_tags($raw)) ?? '');
+        return 'CACENTRE answered ' . $st . ' with something that is not an answer' . ($text !== '' ? ': ' . mb_substr($text, 0, 120) : '') . '.';
+    }
+
     private static function send(string $url, ?array $body, int $timeout): ?string
     {
         if (!function_exists('curl_init')) return null;
@@ -134,6 +256,7 @@ final class CacWifi
         if ($body !== null) $opt += [CURLOPT_POST => true, CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_SLASHES), CURLOPT_HTTPHEADER => ['Content-Type: application/json']];
         curl_setopt_array($ch, $opt);
         $out = curl_exec($ch);
+        self::$last = ['status' => (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE), 'error' => curl_error($ch)];
         curl_close($ch);
         /* The body comes back on a refusal too: the far side says which one. */
         return $out === false ? null : (string) $out;

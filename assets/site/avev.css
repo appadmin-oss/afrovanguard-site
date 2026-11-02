@@ -139,3 +139,13 @@
 .avev-one-back a{font-weight:600;color:var(--av-ink)}
 @media (max-width:560px){.avev-one-facts div{grid-template-columns:1fr;gap:2px}}
 .avev-links{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+/* The actions on one event's page. `.avev-touch` was drawn for the dark call-to-action band,
+   white on white here, so "Add to Google Calendar" was a link nobody could see. */
+.avev-one-acts a{display:inline-flex;align-items:center;min-height:44px;padding:12px 20px;border-radius:8px;font-size:15.5px;text-decoration:none}
+.avh .avev-one-acts .avev-touch{border:1px solid var(--av-ink);color:var(--av-ink);background:transparent}
+.avh .avev-one-acts .avev-touch:hover{color:var(--av-ink);background:var(--av-stone)}
+.avev-one-soon{display:inline-flex;align-items:center;min-height:44px;font-size:15px;color:var(--av-body)}
+.avev-one-cover a{display:block}
+.avev-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* On a phone the flier comes first: it is what people recognise the event by. */
+@media (max-width:899px){.avev-one-cover{order:-1;max-width:480px}}

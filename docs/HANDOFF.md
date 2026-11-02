@@ -603,6 +603,121 @@ does not shrink because people stopped consenting to be named.
 
 Tests: `tests/donorwall.test.php`, including the endpoint over HTTP.
 
+---
+
+## 29 Oct 2026 — Applying to NGV: the form, the account, and a guardian's own consent
+
+Asked: make "Apply" reach the application, take the account step off the
+applicant, ask a date of birth, and have a child's guardian confirm for
+themselves.
+
+**Every "Apply now" on `/academy/ngv/` went to `bit.ly/ngv`, which is a WhatsApp
+group invite.** The form at `/academy/ngv/register.php` existed and the shipped
+defaults pointed at it, but the page's stored copy (`ngv_content`) still held the
+old link, so nobody reached the form, the staff queue or the consent notice.
+`Ngv::mendApplyUrl()` maps the shortlink and any `chat.whatsapp.com/` group link
+to the form in every apply field (hero primary, closing CTA, contact, each plan),
+on the way OUT of `Ngv::get()` and after `save()`, so it holds for the stored
+copy and for the old link pasted back in. The "Chat on WhatsApp" button
+(`cta_secondary_url`) is a chat and is left alone. The Academy course card
+(`db/academy_content.php`, and `academy/course.php` for seeded rows) and the
+editor's new-plan default were the other two places carrying it.
+
+**NGG hands over pre-filled.** NGG's application sends 18-and-overs to
+`register.php?from=ngg&name=…&dob=…&email=…&phone=…`; the form fills those in
+on a GET and saves nothing until it is sent (`<meta name="referrer"
+content="same-origin">` keeps them on this site).
+
+**Enrolment makes the account** (`NgvMember::enrollApplication`), through
+`MemberRoster::create`, as `NgvIntake` already did for NGG promotions. The old
+path marked the application `accepted` and emailed the applicant to make an
+account with the same address; nothing chased the ones who never did. The
+welcome email says to sign in with a code; no password is needed first.
+
+**Date of birth, not age.** `ngv_applications.dob` (the column sync adds it);
+`age` is still written, derived, for older readers. `NgvMember::applicantIsMinor`
+reads the date, or the typed age on an application from before.
+
+**A child's guardian consents themselves.** The form takes the guardian's email
+(not the applicant's own) and `NgvMember::askGuardian` emails them a link to
+`/academy/ngv/guardian.php`. Opening it agrees to nothing — mail scanners open
+every link — the guardian ticks and POSTs. The token is single use, 14 days
+(`GUARDIAN_LINK_DAYS`), and only its hash is stored; a new link voids the last.
+The office can record consent given another way (signed form, in person, phone
+— never "email link") from the console, logged by name. Enrol is disabled for a
+child until one or the other has happened, and refused on the server too
+(`needs_guardian`).
+
+**Behaviour change to know about:** an application filed before this whose only
+consent was the applicant's own tick now shows "no consent yet". The office
+records the guardian's consent when they have it.
+
+Tests: `tests/ngvguardian.test.php`; `tests/ngvregister.test.php`'s form check
+was rewritten to the new rule.
+
+---
+
+## 29 Oct 2026 — The NGV programme fee, worked off through the internship
+
+Asked: make NGV's full programme fee work like NGG's training fee; one year,
+₦240,000 by default and editable; every NGG basis available; remove the
+half-year plans; no uniform.
+
+An audit of NGG's fee (run against its real code with a throwaway database)
+found it wrong in ways that would have carried across, so this is modelled on
+what NGG's fee was MEANT to do rather than copied: see `docs/ngv-fees.md`, "The
+programme fee". The NGG findings themselves were reported to the owner and NGG
+was left unchanged pending a decision.
+
+New: `lib/NgvProgrammeFee.php`, `ngv_status_log`, the `prog_*` columns on
+`ngv_participants`, the fee settings section in the Vanguards console, the
+dashboard's "not a bill" explanation (its chip says "% covered", never "Paid").
+`tests/ngvprogrammefee.test.php`; three older tests that used "Training Only" as
+the second real plan now use a fixture plan, the rule unchanged.
+
+Not yet wired: `freeze()` is called by nothing in production — the registration
+desk (next) is where it belongs, so until then nobody new carries the fee.
+
+---
+
+## 29 Oct 2026 — The CACENTRE registration desk; NGG promotions invite rather than enrol
+
+Asked (the concept agreed earlier): an applicant completes registration in
+person at a CACENTRE with the signed MoU, their ID and their guarantor; NGG
+promotions go through registration day too; the membership fee is taken that
+day; the MoU scan is kept.
+
+New: `academy/ngv/desk.php` (plain forms, CSRF field, 303 after success, every
+action on the audit trail as `ngv.desk.*`); the desk functions in
+`lib/NgvRegistration.php` (`deskState`, `arrive`, `tick`, `guarantorSeen`,
+`setMouVersion`, `attachScan`, `complete`); `NgvIntake::registered()`.
+
+Changed:
+- `NgvIntake::take` files an invited application instead of making an account.
+  It reuses an open application under the same email and name rather than
+  filing a second, and holds one under the same email but another name.
+  `revoke` withdraws an invitation not yet registered.
+- The console: Enrol → Invite to register / Open at the desk; `app_enroll`
+  refuses with a pointer to the desk; `app_status` sets only `reviewing` and
+  `rejected`. Recording a guardian's consent from the console is gone from the
+  screen — it is given in person at the desk now (the action still exists).
+- `data/ngv-mou/` is gitignored.
+
+Left as it was: "Enrol by member email" in the console (an existing account
+onto the roster without the desk) and the restore path for a vanguard NGG
+promotes again after a demotion — both are for people who already registered.
+
+Tests: `tests/ngvregistration.test.php` (desk: 15 checks, including a
+mutation run — removing the "still needed" refusal fails four of them),
+`tests/ngvintake.test.php` rewritten to the invited flow,
+`tests/accountsecurity.test.php`, `ngvregister`, `ngvguardian`, `ngvmanage`,
+`ngvconsole` updated; `tests/_ngvdesk.php` is the shared "register at the desk"
+helper. Verified live on `php -S` with a throwaway database: found by MoU
+reference, early completion refused naming five items, a bad CSRF token
+refused, each step 303s, scan stored and served only to an admin, completion
+made member #10 with a card and the fee frozen on NGV-MoU-2026.10.
+
+
 ## A second factor on the Studio (Oct 2026)
 
 Audit B16. A Studio sign-in stood on one secret, while the admin roles reach
