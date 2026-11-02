@@ -13,6 +13,10 @@ turn on exactly that (R6, R7).
 
 ---
 
+> **Closed.** Every finding below was fixed on 2 November 2026 — see *What
+> was done* at the foot of this page. The findings are kept as written,
+> because what was wrong is the part worth reading later.
+
 ## The short version
 
 **The design is sound and the implementation matches it.** The bitstring is
@@ -301,6 +305,28 @@ Reproduced and confirmed working as documented:
   on the book, which looks alarming and is not.
 
 ---
+
+---
+
+## What was done, 2 November 2026
+
+All nine are closed. Commits `ec9c89b`, `5145d00`, `30976cb`.
+
+| | Fix | Where it is held |
+|---|---|---|
+| R1 | The milestone is the lowest **unserved** one, and `spotRecord()` re-opens after recording, so the queue drains in order one at a time instead of dropping what it could not hold. Twenty-four books now give four conversations. | `ngvreading.test.php` — a whole shelf verified in one sitting, then 6, 12, 18, 24 and no fifth |
+| R2 | `queueCount()` and `spotCount()` on the NGV admin bar and on the new desk. | source assertions on the bar |
+| R3 | `NgvReading::selfDealing()`, mirroring the ledger's, on `review()` and `spotRecord()`. | refusals asserted; uid 0 still exempt |
+| R4 | A rejection closes the claim. The way back is a reviewer reopening it from a "Not accepted" list, with a reason. | closed, listed, reopened, rewritten |
+| R5 | A grant that is exactly the reading (`ngv_reading_reviewers`), and `academy/ngv/reading-review.php` — the desk without the roster, the fines desk or the ledger. One partial, shared with the console. | granted, used, taken away |
+| R6 | The reading is in the diary's **Reading** section and in "download my diary", read from `NgvReading::sessionsFor()` rather than copied. | the endpoint, the export, and the flow over HTTP |
+| R7 | `NgvReading::cohort()` on the desk: who stalled, who has not begun, what has waited longest, how wide each person's reading is across the seven. | stalled told apart from not-begun |
+| R8 | Over the ceiling is a refusal with the number in it — reflection, takeaway and chapter summary. | refused, with nothing saved |
+| R9 | `queue()` joins for the name, as `spotQueue()` always did. | the name rides on the row |
+
+Beyond the audit, because the programme asked for it: **a book is read a
+sitting at a time now**, and every sitting names the **value** it grew. See
+`docs/ngv-reading.md`.
 
 ## Suggested order
 
