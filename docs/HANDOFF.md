@@ -772,3 +772,41 @@ MONTH, so it failed on the 1st to the 14th of every month. Found when the
 date rolled into November; it is the test that was wrong, not the code.
 
 Tests: `tests/adminmfa.test.php`, including RFC 6238's own vectors.
+
+## Reading: a sitting at a time, and the seven values (Nov 2026)
+
+The 24-book challenge kept one record per book, written at the end. So the
+programme could see that somebody had finished twenty-four and nothing about
+the reading — not when it happened, not how long it took, not what they made
+of it as they went — and nothing at all about whether it had grown the seven
+values the challenge exists for.
+
+**Every sitting is logged now** (`ngv_reading_sessions`), and a book cannot be
+sent with none behind it. A sitting records the day, the minutes, how far
+(chapters or pages), where, what it covered, **what they agree with or argue
+against and why**, **the life application**, and **which of the seven values
+it grew**. The mood is the only optional field. Once the book is sent its
+sittings freeze with it: the evidence under a claim a reviewer is reading must
+not move any more than the claim does.
+
+**The value is the point.** The seven come from `MentorPortal::VALUES`, the
+one place they are declared — reading keeps no second list, and a test says
+so. A member sees which of the seven their reading has fed and which it has
+not touched; the programme sees the same across the cohort, beside how many
+books the list carries for each value. A value with no books is one the
+challenge cannot grow; a value with books and no sittings is one nobody has
+chosen to read for. Both are on the book list page, and a book now names the
+values it is on the list for.
+
+**The diary has a Reading section.** It reads `NgvReading::sessionsFor()` — it
+does not keep a copy, so the record a track lead checks and the page the
+member reads back are one thing. Read-only there for the same reason: a
+sitting is edited on the book it belongs to. "Download my diary" carries the
+reading with it, in date order, which answers the audit's R6: a participant's
+sittings are the largest body of personal writing the programme holds about
+them and they were in no export at all.
+
+The flow changed shape, so the tests did: a claim is drafted, read in
+sittings, then sent. `tests/readingflow.test.php` drives it over HTTP as a
+signed-in vanguard, because if the dashboard's endpoint, the claim sheet and
+the diary disagree about that, the member is the one who finds out.

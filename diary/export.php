@@ -2,7 +2,8 @@
 /**
  * diary/export.php — download/print the Diary.
  *   ?format=book|html|md|json   (default: book — the print-ready Journal)
- *   ?scope=mine                 (a signed-in member's OWN entries; requires login)
+ *   ?scope=mine                 (a signed-in member's OWN entries AND their
+ *                                24-book reading log; requires login)
  * Public scope exports published articles only. Light per-IP rate limit.
  */
 declare(strict_types=1);
@@ -37,6 +38,33 @@ if ($scope === 'mine') {
             'html'     => nl2br(htmlspecialchars((string) $e['body'], ENT_QUOTES, 'UTF-8')),
             'slug'     => (string) ($e['published_slug'] ?? ''),
         ];
+    }
+    /* AND THE READING. A participant's sittings are the largest body of
+       personal writing the programme holds about them, and they used to be
+       in no export at all — so "download my diary" answered with everything
+       except the part they wrote most of. They are read from the one place
+       that owns them, not copied. */
+    if (class_exists('NgvReading')) {
+        $rd = NgvReading::sessionsFor((int) $u['id']);
+        if ($format === 'book') $rd = array_reverse($rd);
+        foreach ($rd as $x) {
+            $esc = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+            $items[] = [
+                'title'    => (string) ($x['title'] ?? 'A book'),
+                'subtitle' => trim('Reading · ' . (string) $x['covered'] . ' · ' . (int) $x['minutes'] . ' minutes'
+                              . ((string) $x['value_label'] !== '' ? ' · ' . (string) $x['value_label'] : ''), ' ·'),
+                'date'     => (string) $x['day'],
+                'html'     => '<p><em>' . $esc(trim((string) $x['place'] . ((string) $x['mood_label'] !== '' ? ' · ' . (string) $x['mood_label'] : ''))) . '</em></p>'
+                            . '<p>' . nl2br($esc((string) $x['notes'])) . '</p>'
+                            . '<p><strong>Where I stand:</strong> ' . nl2br($esc((string) $x['stance'])) . '</p>'
+                            . '<p><strong>What I will do:</strong> ' . nl2br($esc((string) $x['application'])) . '</p>',
+                'slug'     => '',
+            ];
+        }
+        /* One sequence, in date order, so the journal reads as the year went. */
+        usort($items, static fn($a, $b) => $format === 'book'
+            ? strcmp((string) $a['date'], (string) $b['date'])
+            : strcmp((string) $b['date'], (string) $a['date']));
     }
     $first = explode(' ', trim((string) $u['name']))[0] ?: 'My';
     $meta['title']    = $first . '’s Journal';

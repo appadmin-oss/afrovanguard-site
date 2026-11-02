@@ -4,6 +4,7 @@
  *
  * NOTEBOOKS (the diary's folders, properly named — see lib/DiaryNotebooks.php)
  *   GET  ?action=list                                → { ok, notebooks, counts, tags }
+ *   GET  ?action=reading                             → the reading log, as diary pages
  *   POST ?action=create   {name, description, colour}
  *   POST ?action=update   {id, name?, description?, colour?, archived?, sort?}
  *   POST ?action=delete   {id}                       → entries survive, unfiled
@@ -65,11 +66,49 @@ try {
             json_out([
                 'ok'        => true,
                 'notebooks' => $nb->forUser($uid, !empty($_GET['archived'])),
-                'counts'    => $org->counts($uid),
+                'counts'    => $org->counts($uid)
+                    + ['reading' => class_exists('NgvReading') ? count(NgvReading::sessionsFor($uid)) : 0],
                 'tags'      => $org->vocabulary($uid),
                 'colours'   => DiaryNotebooks::COLOURS,
                 'roles'     => DiaryNotebooks::ROLES,
             ]);
+
+        /* ── Reading ──────────────────────────────────────────────────────
+           The 24-book challenge's sittings, as pages of the diary. They are
+           NOT copied here: lib/NgvReading owns them and this reads them, so
+           the record a track lead checks and the page the member reads back
+           are one thing. Read-only in the diary for the same reason — a
+           sitting is edited where it was written, on the book itself. */
+        case 'reading': {
+            if (!class_exists('NgvReading')) json_out(['ok' => true, 'entries' => []]);
+            $out = [];
+            foreach (NgvReading::sessionsFor($uid) as $x) {
+                $where = trim((string) $x['covered'] . ' · ' . (int) $x['minutes'] . ' minutes · ' . (string) $x['place'], ' ·');
+                $body  = '<p><em>' . htmlspecialchars($where, ENT_QUOTES, 'UTF-8')
+                       . ((string) $x['mood_label'] !== '' ? ' · ' . htmlspecialchars((string) $x['mood_label'], ENT_QUOTES, 'UTF-8') : '')
+                       . '</em></p>'
+                       . '<p>' . nl2br(htmlspecialchars((string) $x['notes'], ENT_QUOTES, 'UTF-8')) . '</p>'
+                       . '<p><strong>Where I stand:</strong> ' . nl2br(htmlspecialchars((string) $x['stance'], ENT_QUOTES, 'UTF-8')) . '</p>'
+                       . '<p><strong>What I will do:</strong> ' . nl2br(htmlspecialchars((string) $x['application'], ENT_QUOTES, 'UTF-8')) . '</p>';
+                $out[] = [
+                    'id'              => 'r' . (int) $x['id'],      // never collides with a diary entry id
+                    'kind'            => 'private',
+                    'title'           => (string) ($x['title'] ?? 'A book'),
+                    'excerpt'         => mb_substr(trim((string) $x['notes']), 0, 160),
+                    'entry_date'      => (string) $x['day'],
+                    'status'          => 'approved',
+                    'tags'            => array_values(array_filter([(string) $x['value_label']])),
+                    'tab_count'       => 1,
+                    'pinned'          => 0,
+                    'mine'            => false,          // the diary shows it; the book owns it
+                    'reading'         => true,
+                    'author'          => (string) ($u['name'] ?? ''),
+                    'body'            => $body,
+                    'first_tab_title' => (string) ($x['title'] ?? 'A book'),
+                ];
+            }
+            json_out(['ok' => true, 'entries' => $out, 'values' => NgvReading::valueGrowth($uid)]);
+        }
 
         case 'create':
             $post(); $writeGuard();

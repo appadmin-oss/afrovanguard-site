@@ -147,7 +147,9 @@
   function loadList(keepSel) {
     var my = ++listSeq, sc = S.scope, p;
     S.loading = true; S.error = ''; renderList();
-    if (sc === 'shared') {
+    if (sc === 'reading') {
+      p = nbGet('reading').then(function (d) { if (d && d.ok) S.values = d.values || {}; return d; });
+    } else if (sc === 'shared') {
       p = Promise.resolve({ ok: true, entries: S.shared.map(function (e) {
         return { id: e.id, kind: e.kind, title: e.title, excerpt: e.excerpt, entry_date: e.entry_date, status: 'approved', tags: [], tab_count: 1, mine: false, author: e.author, direct: true };
       }) });
@@ -192,7 +194,12 @@
   /* ── Library ───────────────────────────────────────────────────────── */
   function renderLib() {
     var c = S.counts || {};
+    /* READING sits with the diary's own buckets because that is what it is:
+       the pages of the 24-book challenge, written a sitting at a time. They
+       are read here and edited on the book itself, which is where they
+       belong — one record, not a copy that drifts. */
     var buckets = [['all', 'All entries', IC.all, c.all], ['pinned', 'Pinned', IC.pin, c.pinned], ['unfiled', 'Unfiled', IC.inbox, c.unfiled], ['archive', 'Archive', IC.archive, c.archived]];
+    if (c.reading) buckets.push(['reading', 'Reading', IC.book, c.reading]);
     q('[data-dy-buckets]').innerHTML = buckets.map(function (b) {
       return '<button type="button" class="avnb-li" data-dy-scope="' + b[0] + '"' + (S.scope === b[0] ? ' aria-current="true"' : '') + '>' + svg(b[2]) + '<span class="avnb-li-t">' + b[1] + '</span><span class="avnb-li-n av-num">' + (b[3] == null ? '' : b[3]) + '</span></button>';
     }).join('');
@@ -221,8 +228,8 @@
       if (nb.mine) { acts = true; sub = (nb.entries || 0) + ' entries · ' + (nb.shared_link ? 'Link on' : 'Only you, unless you share it'); if (nb.description) sub = nb.description + ' · ' + sub; }
       else sub = 'Kept by ' + nb.owner_name + ' · ' + (nb.role === 'contributor' ? 'you can add entries' : 'you can read');
     } else if (S.scope.indexOf('tag:') === 0) { title = '#' + S.scope.slice(4); sub = 'Tag · across every notebook'; }
-    else title = { all: 'All entries', pinned: 'Pinned', unfiled: 'Unfiled', archive: 'Archive', shared: 'Shared with you' }[S.scope] || 'All entries';
-    if (!nb && S.scope !== 'all' && S.scope.indexOf('tag:') !== 0) sub = { pinned: 'Held at the top · up to 8', unfiled: 'Not in a notebook — they live in the diary itself', archive: 'Out of the way, not deleted', shared: 'Entries members shared with you directly' }[S.scope] || '';
+    else title = { all: 'All entries', pinned: 'Pinned', unfiled: 'Unfiled', archive: 'Archive', shared: 'Shared with you', reading: 'Reading' }[S.scope] || 'All entries';
+    if (!nb && S.scope !== 'all' && S.scope.indexOf('tag:') !== 0) sub = { pinned: 'Held at the top · up to 8', unfiled: 'Not in a notebook — they live in the diary itself', archive: 'Out of the way, not deleted', shared: 'Entries members shared with you directly', reading: 'Your 24-book challenge, a sitting at a time' }[S.scope] || '';
     q('[data-dy-htitle]').textContent = title;
     var sp = q('[data-dy-hspine]'); sp.hidden = !nb; if (nb) sp.setAttribute('data-c', nb.colour);
     var s = q('[data-dy-hsub]'); s.hidden = !sub; s.textContent = sub;
@@ -262,7 +269,7 @@
       var nb = curNb(), m;
       if (S.q || S.kind !== 'all') m = ['No entries match', 'Try another word, or clear the filter.', false];
       else if (nb) m = nb.mine || nb.role === 'contributor' ? ['This notebook is empty', 'New entries you start here are filed in it.', true] : ['Nothing here yet', first(nb.owner_name) + ' hasn’t added anything.', false];
-      else m = { pinned: ['Nothing pinned', 'Pin up to 8 entries to hold them at the top.', false], archive: ['Archive is empty', 'Archived entries rest here, out of the way.', false], shared: ['Nothing shared with you', 'When a member shares an entry with you, it appears here.', false] }[S.scope] || ['No entries yet', 'Your first one will appear here.', true];
+      else m = { pinned: ['Nothing pinned', 'Pin up to 8 entries to hold them at the top.', false], archive: ['Archive is empty', 'Archived entries rest here, out of the way.', false], shared: ['Nothing shared with you', 'When a member shares an entry with you, it appears here.', false], reading: ['No reading logged yet', 'Open a book on your Programme page and log a sitting — it appears here.', false] }[S.scope] || ['No entries yet', 'Your first one will appear here.', true];
       html = '<div class="avnb-empty"><strong>' + m[0] + '</strong><span>' + m[1] + '</span>' + (m[2] ? '<button type="button" class="avnb-btn" data-dy-new>New entry</button>' : '') + '</div>';
     }
     box.innerHTML = html;
@@ -273,17 +280,22 @@
   function flushNow() { if (saveT) { clearTimeout(saveT); saveT = null; return save(); } return Promise.resolve(); }
   function select(id) {
     return flushNow().then(function () {
-      var row = S.list.filter(function (e) { return e.id === id; })[0];
+      /* String compare: a reading sitting's id is "r12", so it never
+         collides with a diary entry's, and +id on it would be NaN. */
+      var row = S.list.filter(function (e) { return String(e.id) === String(id); })[0];
       if (!row) return;
       S.entry = row; S.ti = 0; S.menu = null; S.delArm = false; S.saveErr = ''; S.people = null; S.shareUrl = '';
       S.readOnly = row.mine === false || !!row.direct;
       var nb = nbOf(row.notebook_id);
-      S.roNote = row.direct ? 'Shared with you by ' + row.author + '. You can read it; only ' + first(row.author) + ' can edit it.'
+      S.roNote = row.reading ? 'From your 24-book challenge. It is kept with the book it belongs to — open that book on your Programme page to change it.'
+        : row.direct ? 'Shared with you by ' + row.author + '. You can read it; only ' + first(row.author) + ' can edit it.'
         : S.readOnly && nb ? 'Written by ' + row.author + ' in “' + nb.name + '”. ' + (nb.role === 'contributor' ? 'You can add your own entries here, but only ' + first(row.author) + ' can edit this one.' : 'You can read everything in this notebook, including entries added later.') : '';
       S.tabs = [{ id: 0, title: row.first_tab_title || 'Entry', body: row.body || '' }];
       if (row.font && row.font !== 'default') loadFonts();
       renderList(); renderEditor();
-      if (row.direct) {
+      if (row.reading) {
+        /* The body came with the row; there is nothing further to fetch. */
+      } else if (row.direct) {
         dyGet('entry.read', { id: row.id }).then(function (d) { if (S.entry !== row) return; S.tabs[0].body = d.ok ? d.entry.body_html : '<p>' + esc(d.error || 'Not available.') + '</p>'; renderEditor(); });
       } else if (row.id && (row.tab_count || 1) > 1) {
         nbGet('tabs', { entry: row.id }).then(function (d) {
@@ -611,7 +623,7 @@
     if ((a = t.getAttribute('data-dy-scope')) !== null) return go(a);
     if (t.hasAttribute('data-dy-libopen')) return S.libOpen ? closeLib() : openLib();
     if (t.hasAttribute('data-dy-retry')) return loadList(true);
-    if ((a = t.getAttribute('data-dy-pick')) !== null) { S.mobileEdit = true; return select(+a); }
+    if ((a = t.getAttribute('data-dy-pick')) !== null) { S.mobileEdit = true; return select(a); }
     if (t.hasAttribute('data-dy-back')) { flushNow(); S.mobileEdit = false; root.classList.remove('is-editing'); var b = q('[data-dy-pick="' + (E ? E.id : '') + '"]'); if (b) b.focus(); return; }
     if ((a = t.getAttribute('data-dy-kind')) !== null) { S.kind = a; qa('[data-dy-kind]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === t)); }); return flushNow().then(function () { loadList(true); }); }
     if (t.hasAttribute('data-dy-nbnew')) return openModal('nb', null, t.hasAttribute('data-dy-movenew') && E ? E.id : 0);

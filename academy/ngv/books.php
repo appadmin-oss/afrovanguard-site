@@ -87,6 +87,14 @@ $csrf  = av_csrf_token();
         <label>Author <input id="b_author" maxlength="120" required></label>
         <label>Chapters <input id="b_chapters" type="number" min="1" max="<?= (int) NgvReading::MAX_CHAPTERS ?>" inputmode="numeric" size="5" required></label>
         <label style="flex:1;min-width:14rem">Note for vanguards <input id="b_note" maxlength="300" placeholder="Edition, where to find it (optional)"></label>
+        <fieldset style="flex:1 1 100%;border:1px solid var(--line);border-radius:10px;padding:.6rem .8rem;margin:0">
+          <legend style="font-size:.78rem;font-weight:700;color:var(--muted);padding:0 .3rem">Which of our seven values is it on the list for?</legend>
+          <div class="chips">
+            <?php foreach (NgvReading::values() as $vk => $vl): ?>
+              <label class="check" style="margin-right:.9rem"><input type="checkbox" class="b_val" value="<?= $e($vk) ?>"> <?= $e($vl) ?></label>
+            <?php endforeach; ?>
+          </div>
+        </fieldset>
         <button class="btn primary" id="b_go" type="submit">Add to the list</button>
         <button class="btn" id="b_cancel" type="button" hidden>Cancel editing</button>
       </form>
@@ -101,17 +109,18 @@ $csrf  = av_csrf_token();
         <p class="sub">No books yet. Until there are, vanguards have nothing to choose from — add the first above.</p>
       <?php else: ?>
       <table>
-        <thead><tr><th>Title</th><th>Author</th><th class="num">Chapters</th><th class="num">Recorded</th><th>On the list</th><th></th></tr></thead>
+        <thead><tr><th>Title</th><th>Author</th><th>Values</th><th class="num">Chapters</th><th class="num">Recorded</th><th>On the list</th><th></th></tr></thead>
         <tbody>
         <?php foreach ($books as $b): $use = NgvReading::bookUse((int) $b['id']); ?>
           <tr class="<?= $b['active'] ? '' : 'off' ?>">
             <td><strong><?= $e((string) $b['title']) ?></strong><?= (string) $b['note'] !== '' ? '<div class="sub">' . $e((string) $b['note']) . '</div>' : '' ?></td>
             <td><?= $e((string) $b['author']) ?></td>
+            <td><?= $b['value_labels'] ? implode(' · ', array_map($e, $b['value_labels'])) : '<span class="sub">none named</span>' ?></td>
             <td class="num"><?= (int) $b['chapters'] ?></td>
             <td class="num"><?= $use ?></td>
             <td><span class="pill <?= $b['active'] ? 's-on' : 's-off' ?>"><?= $b['active'] ? 'Yes' : 'Retired' ?></span></td>
             <td style="white-space:nowrap">
-              <button class="btn sm" type="button" data-edit="<?= (int) $b['id'] ?>" data-title="<?= $e((string) $b['title']) ?>" data-author="<?= $e((string) $b['author']) ?>" data-chapters="<?= (int) $b['chapters'] ?>" data-note="<?= $e((string) $b['note']) ?>">Edit book</button>
+              <button class="btn sm" type="button" data-edit="<?= (int) $b['id'] ?>" data-title="<?= $e((string) $b['title']) ?>" data-author="<?= $e((string) $b['author']) ?>" data-chapters="<?= (int) $b['chapters'] ?>" data-note="<?= $e((string) $b['note']) ?>" data-values="<?= $e(implode(',', $b['value_list'])) ?>">Edit book</button>
               <button class="btn sm" type="button" data-active="<?= (int) $b['id'] ?>" data-to="<?= $b['active'] ? '0' : '1' ?>"><?= $b['active'] ? 'Retire from the list' : 'Put back on the list' ?></button>
             </td>
           </tr>
@@ -120,6 +129,37 @@ $csrf  = av_csrf_token();
       </table>
       <?php endif; ?>
       <p class="sub" style="margin-bottom:0"><b>Retire</b> takes a book off the list for new claims; anybody who already recorded it keeps it. Changing the chapter count applies to claims started after the change — a summary somebody has begun keeps the chapters it was started with.</p>
+    </div>
+  </section>
+
+  <?php /* WHAT THE LIST IS FOR. The challenge exists to grow the seven
+           values, so the list is curated against them: eleven books on
+           Diligence and none on Communal Spirit is a thing to see here,
+           before a cohort reads its way into the same gap. Beside it, what
+           the reading has actually fed — which is the measure, and is not
+           the same number. */
+  $cov = []; foreach ($books as $b) foreach ($b['value_list'] as $vk) $cov[$vk] = ($cov[$vk] ?? 0) + ($b['active'] ? 1 : 0);
+  $grew = NgvReading::valueGrowthAll(); ?>
+  <section class="card" aria-labelledby="h-cov" id="values">
+    <header><h2 id="h-cov">The seven values, and what the reading is feeding</h2></header>
+    <div class="body scroll">
+      <table>
+        <thead><tr><th>Value</th><th>What it is taught as</th><th class="num">Books on the list</th><th class="num">Sittings</th><th class="num">Hours read</th><th class="num">Vanguards</th></tr></thead>
+        <tbody>
+        <?php foreach (NgvReading::values() as $vk => $vl): $g = $grew[$vk] ?? []; $n = (int) ($cov[$vk] ?? 0); ?>
+          <tr<?= $n === 0 ? ' class="off"' : '' ?>>
+            <td><strong><?= $e($vl) ?></strong></td>
+            <td class="sub"><?= $e(NgvReading::valueMotto($vk)) ?></td>
+            <td class="num"><?= $n ?: '<span class="pill s-off">none</span>' ?></td>
+            <td class="num"><?= (int) ($g['sessions'] ?? 0) ?></td>
+            <td class="num"><?= number_format(((int) ($g['minutes'] ?? 0)) / 60, 1) ?></td>
+            <td class="num"><?= (int) ($g['readers'] ?? 0) ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      <p class="sub" style="margin-bottom:0">A value with no books is one the challenge cannot grow. A value with books
+        but no sittings is one nobody has chosen to read for — worth asking about before adding more titles to it.</p>
     </div>
   </section>
 
@@ -172,14 +212,16 @@ $csrf  = av_csrf_token();
   }
   function reset() {
     $('b_id').value = ''; $('b_form').reset();
+    document.querySelectorAll('.b_val').forEach(function (c) { c.checked = false; });
     $('b_go').textContent = 'Add to the list'; $('b_cancel').hidden = true;
     $('h-add').textContent = 'Add a book';
   }
   $('b_form').addEventListener('submit', function (ev) {
     ev.preventDefault();
     var btn = $('b_go'); btn.disabled = true;
+    var vals = Array.prototype.slice.call(document.querySelectorAll('.b_val:checked')).map(function (c) { return c.value; });
     post({ action: 'save', id: +$('b_id').value || 0, title: $('b_title').value, author: $('b_author').value,
-           chapters: +$('b_chapters').value || 0, note: $('b_note').value }).then(function (r) {
+           chapters: +$('b_chapters').value || 0, note: $('b_note').value, value_keys: vals }).then(function (r) {
       btn.disabled = false;
       if (!r.ok) { $('b_out').textContent = r.error || 'Not saved.'; return; }
       toast('Saved', true); location.reload();
@@ -218,6 +260,8 @@ $csrf  = av_csrf_token();
       $('b_author').value = ed.getAttribute('data-author');
       $('b_chapters').value = ed.getAttribute('data-chapters');
       $('b_note').value = ed.getAttribute('data-note');
+      var have = (ed.getAttribute('data-values') || '').split(',');
+      document.querySelectorAll('.b_val').forEach(function (c) { c.checked = have.indexOf(c.value) >= 0; });
       $('b_go').textContent = 'Save book changes'; $('b_cancel').hidden = false;
       $('h-add').textContent = 'Edit a book';
       $('b_title').focus();

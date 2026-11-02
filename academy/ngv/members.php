@@ -409,6 +409,10 @@ $creditWord = ['payment' => 'Payment', 'waiver' => 'Waived', 'writeoff' => 'Writ
 .bkq-chapters li{margin-bottom:8px}
 .bkq-act{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
 .bkq-note{flex:1 1 260px;min-height:40px;padding:9px 11px;border:1px solid var(--line,#e5e7eb);border-radius:9px;font:inherit}
+.bkq-sits{font-size:.86rem;margin:.35rem 0;color:var(--muted,#5f6874)}
+.bkq-sits strong{color:var(--ink,#15120e)}
+.bkq-sits-none{color:var(--danger,#c0322b);font-weight:700}
+.bkq-val{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;background:#fff3cd;color:#6b4e00;font-size:.76rem;font-weight:800}
 .bkq-note:focus{outline:3px solid #E0A82E;outline-offset:1px}
 .spq{border:1px solid var(--line,#e5e7eb);border-left:3px solid #1d4ed8;border-radius:12px;padding:14px 16px;margin-bottom:12px;background:rgba(29,78,216,.03)}
 .spq-who{font-weight:800}

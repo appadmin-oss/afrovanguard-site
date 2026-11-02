@@ -40,6 +40,30 @@ $rdBook = static function (string $title, string $author = 'Test Author', int $c
 };
 $rdChap = static fn(string $tag = ''): string => 'This chapter sets out how institutions are shaped by the incentives of those who run them. ' . $tag;
 
+/**
+ * SEND A CLAIM THE WAY A MEMBER DOES. A book cannot be submitted with no
+ * reading logged against it, so every claim here is drafted, read in at
+ * least one sitting, and then sent — which is also the flow the claim sheet
+ * walks somebody through.
+ */
+$rdSit = static fn(array $o = []): array => $o + [
+    'minutes' => 45, 'pages' => '1-20', 'place' => 'At the centre', 'value_key' => 'diligence',
+    'notes' => 'This sitting covered the opening argument about institutions and the incentives of the people inside them, '
+             . 'and the example the author uses to carry it.',
+    'stance' => 'I agree with the claim that rules follow incentives, though I think it underrates what one stubborn person can hold in place.',
+    'application' => 'I am going to write down the incentive behind each of our own rules at the next meeting.',
+];
+$rdSend = static function (int $member, array $claim) use ($rdSit) {
+    $d = NgvReading::save($member, $claim, false);
+    if (empty($d['ok'])) return $d;
+    $today = function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d');
+    $day = (string) ($claim['started_on'] ?? '');
+    if ($day === '' || $day > $today) $day = $today;
+    $sit = NgvReading::logSession($member, $rdSit(['slot' => (int) $claim['slot'], 'day' => $day]));
+    if (empty($sit['ok'])) return $sit;
+    return NgvReading::save($member, $claim, true);
+};
+
 /* ══ The count cannot be written around ═══════════════════════════════════ */
 
 $rdReset();
@@ -75,18 +99,18 @@ foreach ([
     ['no specific takeaway',    ['takeaway' => 'it was useful']],
 ] as [$rdWhy, $rdBad]) {
     ck('reading: a claim with ' . $rdWhy . ' cannot be submitted',
-       empty(NgvReading::save(901, array_merge($rdOk, $rdBad), true)['ok']));
+       empty($rdSend(901, array_merge($rdOk, $rdBad))['ok']));
 }
 ck('reading: a slot outside 1-24 is refused',
-   empty(NgvReading::save(901, array_merge($rdOk, ['slot' => 99]), true)['ok'])
-   && empty(NgvReading::save(901, array_merge($rdOk, ['slot' => 0]), true)['ok']));
+   empty($rdSend(901, array_merge($rdOk, ['slot' => 99]))['ok'])
+   && empty($rdSend(901, array_merge($rdOk, ['slot' => 0]))['ok']));
 /* A draft is for working on, so it is NOT held to the floor. */
 ck('reading: but an incomplete draft can still be saved',
    !empty(NgvReading::save(901, ['slot' => 4, 'book_id' => $rdBook('Halfway through')], false)['ok']));
 
 /* ══ Submitting is not the same as counting ══════════════════════════════ */
 
-$rdClaim = NgvReading::save(901, $rdOk, true);
+$rdClaim = $rdSend(901, $rdOk);
 ck('reading: a complete claim submits', !empty($rdClaim['ok']));
 ck('reading: submitting does NOT make it count', NgvReading::verifiedCount(901) === 0);
 ck('reading: and the derived bitstring stays empty',
@@ -114,30 +138,30 @@ NgvMember::ensureParticipant(901, ['name' => 'Adaeze', 'email' => 'a@example.tes
 NgvMember::ensureParticipant(902, ['name' => 'Bode',   'email' => 'b@example.test']);
 NgvDb::pdo()->exec("UPDATE ngv_participants SET start_date = '2026-02-01', status = 'active'");
 
-NgvReading::save(901, $rdOk, true);
+$rdSend(901, $rdOk);
 /* The copy-paste that actually happens in a cohort: one person's words on
    somebody else's claim. */
-$rdCopy = NgvReading::save(902, array_merge($rdOk, ['slot' => 1]), true);
+$rdCopy = $rdSend(902, array_merge($rdOk, ['slot' => 1]));
 ck('reading: the same reflection as another participant is flagged',
    in_array('same-words-as-another-participant', $rdCopy['flags'] ?? [], true));
 /* Normalisation: changing the capitals and punctuation is still a copy. */
-$rdCopy2 = NgvReading::save(902, array_merge($rdOk, [
-    'slot' => 2, 'book_id' => $rdBook('The Second Book'), 'reflection' => strtoupper($rdText()) . '!!!']), true);
+$rdCopy2 = $rdSend(902, array_merge($rdOk, [
+    'slot' => 2, 'book_id' => $rdBook('The Second Book'), 'reflection' => strtoupper($rdText()) . '!!!']));
 ck('reading: re-capitalising a copied reflection does not hide it',
    in_array('same-words-as-another-participant', $rdCopy2['flags'] ?? [], true));
 
-$rdSame = NgvReading::save(902, array_merge($rdOk, [
+$rdSame = $rdSend(902, array_merge($rdOk, [
     'slot' => 3, 'book_id' => $rdBook('The Third Book'), 'chapter_notes' => [$rdChap('Three.')], 'started_on' => '2026-04-01', 'finished_on' => '2026-04-01',
     'reflection' => $rdText('A closing line unique to this one.'),
-    'typed_ms' => 2000, 'paste_count' => 3]), true);
+    'typed_ms' => 2000, 'paste_count' => 3]));
 ck('reading: starting and finishing on the same day is flagged',
    in_array('started-and-finished-same-day', $rdSame['flags'], true));
 ck('reading: pasting rather than typing is flagged',
    in_array('pasted-rather-than-typed', $rdSame['flags'], true));
 
-$rdEarly = NgvReading::save(902, array_merge($rdOk, [
+$rdEarly = $rdSend(902, array_merge($rdOk, [
     'slot' => 4, 'book_id' => $rdBook('The Fourth Book'), 'chapter_notes' => [$rdChap('Four.')], 'started_on' => '2025-10-01', 'finished_on' => '2025-11-01',
-    'reflection' => $rdText('Another closing line, different again.')]), true);
+    'reflection' => $rdText('Another closing line, different again.')]));
 ck('reading: finishing before they enrolled is flagged',
    in_array('finished-before-they-enrolled', $rdEarly['flags'], true));
 
@@ -235,9 +259,9 @@ NgvMember::ensureParticipant(903, ['name' => 'Chidi Okeke', 'email' => 'chidi@ex
 NgvDb::pdo()->exec("UPDATE ngv_participants SET start_date = '2026-01-01', status = 'active' WHERE member_id = 903");
 
 /** Verify n books for 903, each with its own wording so nothing gets flagged as a copy. */
-$rdVerify = static function (int $from, int $to) use ($rdText, $rdTake, $rdBook, $rdChap): void {
+$rdVerify = static function (int $from, int $to) use ($rdText, $rdTake, $rdBook, $rdChap, $rdSend): void {
     for ($i = $from; $i <= $to; $i++) {
-        $r = NgvReading::save(903, [
+        $r = $rdSend(903, [
             'slot' => $i, 'book_id' => $rdBook('Book number ' . $i, 'Author ' . $i), 'chapter_notes' => [$rdChap('Book ' . $i . '.')],
             /* Dates spread by weeks from a fixed past point — NOT by month
                number, which walks into the future once the year is half over
@@ -246,7 +270,7 @@ $rdVerify = static function (int $from, int $to) use ($rdText, $rdTake, $rdBook,
             'finished_on' => date('Y-m-d', strtotime('2026-01-05 +' . ($i * 7 + 5) . ' days')),
             'reflection' => $rdText('This one turned on the idea numbered ' . $i . ', which I had not met before.'),
             'takeaway' => $rdTake . ' Specifically after book ' . $i . '.',
-        ], true);
+        ]);
         NgvReading::review((int) $r['id'], 'verified', 77);
     }
 };
@@ -288,13 +312,13 @@ for ($rdM = 910; $rdM < 930; $rdM++) {
     NgvMember::ensureParticipant($rdM, ['name' => 'M' . $rdM, 'email' => 'm' . $rdM . '@example.test']);
     NgvDb::pdo()->exec("UPDATE ngv_participants SET start_date = '2026-01-01', status = 'active' WHERE member_id = $rdM");
     for ($i = 1; $i <= 6; $i++) {
-        $r = NgvReading::save($rdM, [
+        $r = $rdSend($rdM, [
             'slot' => $i, 'book_id' => $rdBook('Slot ' . $i, 'A'), 'chapter_notes' => [$rdChap('Member ' . $rdM . ', book ' . $i . '.')],
             'started_on' => date('Y-m-d', strtotime('2026-01-05 +' . ($i * 7) . ' days')),
             'finished_on' => date('Y-m-d', strtotime('2026-01-05 +' . ($i * 7 + 5) . ' days')),
             'reflection' => $rdText('Member ' . $rdM . ' on book ' . $i . ', in their own words entirely.'),
             'takeaway' => $rdTake . ' For member ' . $rdM . ' at book ' . $i . '.',
-        ], true);
+        ]);
         NgvReading::review((int) $r['id'], 'verified', 77);
     }
     $sp = NgvReading::spotOpen($rdM);
@@ -362,10 +386,10 @@ $bkClaim = ['slot' => 1, 'book_id' => $bkId, 'started_on' => '2026-03-01', 'fini
 ck('book list: a title typed by hand, not on the list, is refused',
    empty(NgvReading::save(940, ['slot' => 1, 'title' => 'A book I made up', 'author' => 'Me'], false)['ok']));
 ck('book list: every chapter needs its summary before it can be sent',
-   empty(NgvReading::save(940, array_merge($bkClaim, ['chapter_notes' => [$rdChap('One.'), $rdChap('Two.')]]), true)['ok']));
+   empty($rdSend(940, array_merge($bkClaim, ['chapter_notes' => [$rdChap('One.'), $rdChap('Two.')]]))['ok']));
 ck('book list: …and the refusal names the chapter',
-   str_contains((string) NgvReading::save(940, array_merge($bkClaim, ['chapter_notes' => [$rdChap('One.'), 'Short.', $rdChap('Three.')]]), true)['error'], 'chapter 2'));
-$bkSent = NgvReading::save(940, $bkClaim, true);
+   str_contains((string) $rdSend(940, array_merge($bkClaim, ['chapter_notes' => [$rdChap('One.'), 'Short.', $rdChap('Three.')]]))['error'], 'chapter 2'));
+$bkSent = $rdSend(940, $bkClaim);
 $bkRow = NgvReading::claimById((int) $bkSent['id']);
 ck('book list: a complete claim is sent with the list\'s title and author, and a summary per chapter',
    !empty($bkSent['ok']) && $bkRow['title'] === 'Things Fall Apart' && $bkRow['author'] === 'Chinua Achebe'
@@ -374,8 +398,8 @@ ck('book list: the same book cannot fill two slots',
    empty(NgvReading::save(940, array_merge($bkClaim, ['slot' => 2]), false)['ok']));
 
 /* Somebody else's chapter summary, word for word, on the same book. */
-$bkCopy = NgvReading::save(941, array_merge($bkClaim, ['chapter_notes' => [$rdChap('One, by Efe.'), $rdChap('Two, Funmi.'), $rdChap('Three, Funmi.')],
-                                                       'reflection' => $rdText('Funmi, her own reflection entirely.')]), true);
+$bkCopy = $rdSend(941, array_merge($bkClaim, ['chapter_notes' => [$rdChap('One, by Efe.'), $rdChap('Two, Funmi.'), $rdChap('Three, Funmi.')],
+                                                       'reflection' => $rdText('Funmi, her own reflection entirely.')]));
 ck('book list: a chapter summary copied from another vanguard is flagged',
    in_array('same-chapter-summary-as-another-participant', $bkCopy['flags'] ?? [], true)
    && NgvReading::flagLabel('same-chapter-summary-as-another-participant') !== 'same-chapter-summary-as-another-participant');
@@ -395,8 +419,8 @@ NgvReading::setBookActive($bkId, true);
 /* A claim recorded before the list existed keeps the book it named. */
 NgvDb::pdo()->exec("INSERT INTO ngv_book_claims (member_id, slot, title, author, status, created_at, updated_at) VALUES (940, 7, 'An Old Favourite', 'Someone', 'resubmit', '2026-02-01', '2026-02-01')");
 ck('book list: a claim from before the list can still be put right in its own words',
-   !empty(NgvReading::save(940, ['slot' => 7, 'title' => 'An Old Favourite', 'author' => 'Someone', 'started_on' => '2026-02-01', 'finished_on' => '2026-02-20',
-                                 'reflection' => $rdText('The old favourite, put right.'), 'takeaway' => $rdTake], true)['ok'])
+   !empty($rdSend(940, ['slot' => 7, 'title' => 'An Old Favourite', 'author' => 'Someone', 'started_on' => '2026-02-01', 'finished_on' => '2026-02-20',
+                                 'reflection' => $rdText('The old favourite, put right.'), 'takeaway' => $rdTake])['ok'])
    && NgvReading::claim(940, 7)['title'] === 'An Old Favourite' && NgvReading::claim(940, 7)['book_id'] === 0);
 
 /* The pages. */
@@ -418,11 +442,11 @@ $rdReset();
 NgvMember::ensureParticipant(950, ['name' => 'Full Shelf', 'email' => 'full@reading.test']);
 NgvDb::pdo()->exec("UPDATE ngv_participants SET start_date = '2026-01-01', status = 'active' WHERE member_id = 950");
 for ($i = 1; $i <= 24; $i++) {
-    $r = NgvReading::save(950, ['slot' => $i, 'book_id' => $rdBook('Shelf book ' . $i, 'A'),
+    $r = $rdSend(950, ['slot' => $i, 'book_id' => $rdBook('Shelf book ' . $i, 'A'),
         'chapter_notes' => [$rdChap('Shelf book ' . $i . '.')],
         'started_on' => '2026-02-01', 'finished_on' => '2026-02-02',
         'reflection' => $rdText('Shelf book ' . $i . ', in their own words.'),
-        'takeaway' => $rdTake . ' For shelf book ' . $i . '.'], true);
+        'takeaway' => $rdTake . ' For shelf book ' . $i . '.']);
     NgvReading::review((int) $r['id'], 'verified', 77);
 }
 $rdStones = static fn(): array => array_map('intval', NgvDb::pdo()->query(
@@ -463,10 +487,10 @@ $rdNoBook = $rdBook('A Rejected Read', 'A');
 $rdNoClaim = ['slot' => 1, 'book_id' => $rdNoBook, 'chapter_notes' => [$rdChap('Rejected.')],
               'started_on' => '2026-02-01', 'finished_on' => '2026-02-08',
               'reflection' => $rdText('Written out in full for the rejection test.'), 'takeaway' => $rdTake];
-$rdNo = NgvReading::save(952, $rdNoClaim, true);
+$rdNo = $rdSend(952, $rdNoClaim);
 NgvReading::review((int) $rdNo['id'], 'rejected', 77, 'This is a summary of the blurb.');
 ck('reading: a rejected claim is closed to the member',
-   (NgvReading::save(952, $rdNoClaim, true)['code'] ?? '') === 'closed'
+   ($rdSend(952, $rdNoClaim)['code'] ?? '') === 'closed'
    && (string) NgvReading::claim(952, 1)['status'] === 'rejected');
 ck('reading: …and it is listed where it can be reopened',
    in_array((int) $rdNo['id'], array_map('intval', array_column(NgvReading::rejected(), 'id')), true));
@@ -474,7 +498,7 @@ ck('reading: a reviewer reopens it, with a reason, on the record',
    !empty(NgvReading::review((int) $rdNo['id'], 'resubmit', 77, 'You made your case — rewrite chapter two.')['ok'])
    && (string) NgvReading::claim(952, 1)['status'] === 'resubmit');
 ck('reading: …and then the member can write it again',
-   !empty(NgvReading::save(952, $rdNoClaim, true)['ok']));
+   !empty($rdSend(952, $rdNoClaim)['ok']));
 
 /* R8. Over the ceiling is a refusal with the number in it, never a silent cut. */
 $rdBig = trim(str_repeat('x y ', 4000));
@@ -490,7 +514,7 @@ ck('reading: …and so is a takeaway, with nothing saved either way',
    ($rdLong2['code'] ?? '') === 'too_long' && NgvReading::claim(952, 2) === null);
 
 /* R9. The reviewer's name comes with the row, not a query per row. */
-NgvReading::save(952, $rdNoClaim, true);
+$rdSend(952, $rdNoClaim);
 $rdNamed = NgvReading::queue(10);
 ck('reading: the review queue carries the participant\'s name',
    $rdNamed !== [] && (string) ($rdNamed[0]['member_name'] ?? '') === 'Told No');
@@ -517,4 +541,129 @@ $rdHome = (string) @file_get_contents(AV_ROOT . '/academy/ngv/index.php');
 ck('reading: the console says how many claims and conversations are waiting',
    str_contains($rdHome, 'NgvReading::queueCount()') && str_contains($rdHome, 'NgvReading::spotCount()'));
 
+
+/* ══ A sitting, not just a summary ═══════════════════════════════════════
+   A book used to leave one record, written at the end — so the programme
+   could see that twenty-four were finished and nothing about the reading.
+   Each sitting says when, how far, how long, where, what it covered, where
+   they stand on it, what they will do, and which of the seven values it
+   grew. The last is the point: the challenge exists to grow them, and a
+   shelf of finished titles cannot show that it has. */
+
 $rdReset();
+NgvDb::pdo()->exec('DELETE FROM ngv_reading_sessions');
+NgvMember::ensureParticipant(960, ['name' => 'Sitting Reader', 'email' => 'sit@reading.test']);
+NgvDb::pdo()->exec("UPDATE ngv_participants SET start_date = '2026-01-01', status = 'active' WHERE member_id = 960");
+$sitBook = $rdBook('A Book Read Slowly', 'An Author', 4);
+$sitClaim = ['slot' => 1, 'book_id' => $sitBook, 'started_on' => '2026-03-01', 'finished_on' => '2026-03-20',
+             'chapter_notes' => [$rdChap('One.'), $rdChap('Two.'), $rdChap('Three.'), $rdChap('Four.')],
+             'reflection' => $rdText('Read slowly, over a fortnight.'), 'takeaway' => $rdTake];
+
+ck('sitting: nothing can be logged against a book that has not been started',
+   empty(NgvReading::logSession(960, $rdSit(['slot' => 1, 'day' => '2026-03-02']))['ok']));
+NgvReading::save(960, $sitClaim, false);
+
+/* The floor, field by field. */
+foreach ([
+    ['no day',              ['day' => '']],
+    ['a day in the future', ['day' => '2099-01-01']],
+    ['a day before they started the book', ['day' => '2026-02-01']],
+    ['no minutes',          ['minutes' => 0]],
+    ['more minutes than a day of reading', ['minutes' => 2000]],
+    ['neither chapters nor pages', ['pages' => '', 'chapter_from' => 0, 'chapter_to' => 0]],
+    ['a chapter this book does not have', ['pages' => '', 'chapter_from' => 1, 'chapter_to' => 9]],
+    ['chapters the wrong way round', ['pages' => '', 'chapter_from' => 3, 'chapter_to' => 2]],
+    ['nowhere',             ['place' => '']],
+    ['no value named',      ['value_key' => '']],
+    ['a value that is not one of the seven', ['value_key' => 'punctuality']],
+    ['nothing on what it covered', ['notes' => 'Read a bit.']],
+    ['no stance on it',     ['stance' => 'It was fine.']],
+    ['no life application', ['application' => 'Nothing.']],
+] as [$sitWhy, $sitBad]) {
+    ck('sitting: one with ' . $sitWhy . ' is refused',
+       empty(NgvReading::logSession(960, $rdSit($sitBad + ['slot' => 1, 'day' => '2026-03-02']))['ok']));
+}
+$sitOk = NgvReading::logSession(960, $rdSit(['slot' => 1, 'day' => '2026-03-02', 'chapter_from' => 1, 'chapter_to' => 2, 'pages' => '']));
+ck('sitting: a complete one is logged', !empty($sitOk['ok']) && count($sitOk['sessions']) === 1);
+$sitRow = NgvReading::sessions((int) NgvReading::claim(960, 1)['id'])[0];
+ck('sitting: …with how far, how long, where and which value',
+   $sitRow['covered'] === 'Chapters 1–2' && $sitRow['minutes'] === 45
+   && $sitRow['place'] === 'At the centre' && $sitRow['value_label'] === 'Diligence');
+ck('sitting: the mood is the only optional part', $sitRow['mood'] === ''
+   && !empty(NgvReading::logSession(960, $rdSit(['id' => $sitRow['id'], 'slot' => 1, 'day' => '2026-03-02', 'mood' => 'absorbed']))['ok'])
+   && NgvReading::session((int) $sitRow['id'])['mood_label'] !== '');
+ck('sitting: …and a mood that is not one of ours is simply not recorded',
+   !empty(NgvReading::logSession(960, $rdSit(['id' => $sitRow['id'], 'slot' => 1, 'day' => '2026-03-02', 'mood' => 'ecstatic']))['ok'])
+   && NgvReading::session((int) $sitRow['id'])['mood'] === '');
+
+/* The floor on the BOOK: it cannot be sent with no reading behind it. */
+$rdReset2 = NgvReading::claim(960, 1);
+NgvDb::pdo()->exec('DELETE FROM ngv_reading_sessions WHERE claim_id = ' . (int) $rdReset2['id']);
+ck('sitting: a book with no reading logged against it cannot be sent',
+   (NgvReading::save(960, $sitClaim, true)['code'] ?? '') === 'no_sessions');
+NgvReading::logSession(960, $rdSit(['slot' => 1, 'day' => '2026-03-02']));
+ck('sitting: …and with one, it can', !empty(NgvReading::save(960, $sitClaim, true)['ok']));
+
+/* Once it is with the track lead, the evidence under it stops moving too. */
+ck('sitting: a sent book\'s sittings cannot be changed',
+   (NgvReading::logSession(960, $rdSit(['slot' => 1, 'day' => '2026-03-03']))['code'] ?? '') === 'closed');
+$sitNow = NgvReading::sessions((int) $rdReset2['id']);
+ck('sitting: …nor removed', (NgvReading::dropSession(960, (int) $sitNow[0]['id'])['code'] ?? '') === 'closed');
+ck('sitting: the reviewer sees them on the claim',
+   ($rdQ2 = array_values(array_filter(NgvReading::queue(50), static fn($c) => (int) $c['member_id'] === 960))) !== []
+   && count($rdQ2[0]['sessions']) === 1 && (int) $rdQ2[0]['session_minutes'] === 45);
+
+/* A sitting belongs to its owner. 961 has a draft of their OWN at slot 1,
+   so the refusal below is the ownership check and not "you have not started
+   that book" — which is what it was the first time this was written, and it
+   passed with the guard removed. */
+NgvMember::ensureParticipant(961, ['name' => 'Somebody Else', 'email' => 'else@reading.test']);
+NgvDb::pdo()->exec("UPDATE ngv_participants SET start_date = '2026-01-01', status = 'active' WHERE member_id = 961");
+NgvReading::save(961, ['slot' => 1, 'book_id' => $rdBook('Their Own Book', 'An Author', 2), 'started_on' => '2026-03-01'], false);
+ck('sitting: nobody edits somebody else\'s, even with a book of their own open',
+   empty(NgvReading::logSession(961, $rdSit(['id' => $sitNow[0]['id'], 'slot' => 1, 'day' => '2026-03-02']))['ok'])
+   && empty(NgvReading::dropSession(961, (int) $sitNow[0]['id'])['ok'])
+   && NgvReading::session((int) $sitNow[0]['id'])['member_id'] === 960);
+
+/* ══ The reading grows the seven values ══════════════════════════════════ */
+
+ck('values: the seven come from the one place they are declared, never a copy',
+   NgvReading::values() === MentorPortal::VALUES && NgvReading::valueLabel('communal') === 'Communal Spirit'
+   && NgvReading::valueMotto('diligence') === 'Talent is cheap. Discipline is rare.');
+$grew = NgvReading::valueGrowth(960);
+ck('values: a member sees every one of the seven, including the ones at zero',
+   array_keys($grew) === array_keys(MentorPortal::VALUES) && count($grew) === 7);
+ck('values: …with what their reading has actually fed',
+   (int) $grew['diligence']['sessions'] === 1 && (int) $grew['diligence']['minutes'] === 45
+   && (int) $grew['faith']['sessions'] === 0);
+$all = NgvReading::valueGrowthAll();
+ck('values: and the programme sees the same across everybody',
+   (int) $all['diligence']['readers'] === 1 && (int) $all['communal']['sessions'] === 0);
+
+/* A book on the list says which values it is there for, so a gap in the
+   list is visible before a cohort reads its way into it. */
+$vb = NgvReading::saveBook(['title' => 'On Our People', 'author' => 'A Writer', 'chapters' => 2,
+                            'value_keys' => ['faith', 'culture', 'not-a-value']], 1);
+ck('values: a book names the values it is on the list for, and only real ones',
+   !empty($vb['ok']) && $vb['book']['value_list'] === ['faith', 'culture']
+   && $vb['book']['value_labels'] === ['Faith', 'Cultural Appreciation']);
+
+/* ══ The diary keeps the reading ═════════════════════════════════════════ */
+
+$rdLog = NgvReading::sessionsFor(960);
+ck('diary: a member\'s whole reading log reads back, newest first, with its book',
+   count($rdLog) === 1 && (string) $rdLog[0]['title'] === 'A Book Read Slowly');
+$rdNb = (string) @file_get_contents(AV_ROOT . '/portal/notebooks.php');
+ck('diary: the diary READS the sittings rather than keeping a second copy',
+   str_contains($rdNb, "case 'reading'") && str_contains($rdNb, 'NgvReading::sessionsFor(')
+   && !str_contains($rdNb, 'INSERT INTO ngv_reading_sessions'));
+$rdJs = (string) @file_get_contents(AV_ROOT . '/portal/avdy.js');
+ck('diary: …and shows them as a section of their own, read-only',
+   str_contains($rdJs, "'reading', 'Reading'") && str_contains($rdJs, "sc === 'reading'")
+   && str_contains($rdJs, 'row.reading ?'));
+$rdEx = (string) @file_get_contents(AV_ROOT . '/diary/export.php');
+ck('diary: and "download my diary" carries the reading with it',
+   str_contains($rdEx, 'NgvReading::sessionsFor('));
+
+$rdReset();
+NgvDb::pdo()->exec('DELETE FROM ngv_reading_sessions');

@@ -57,6 +57,39 @@ declare(strict_types=1);
                 <?php endforeach; ?>
               </ul>
             <?php endif; ?>
+            <?php /* THE SITTINGS, before the writing. A claim backed by eight
+                     dated sittings is a different thing from one backed by
+                     none, and the dates, the minutes and the values they
+                     named are the part a reviewer can weigh fastest. */
+              $bcSits = (array) ($bc['sessions'] ?? []);
+              $bcVals = array_values(array_unique(array_filter(array_map(static fn($x) => (string) $x['value_label'], $bcSits)))); ?>
+            <div class="bkq-sits">
+              <?php if (!$bcSits): ?>
+                <span class="bkq-sits-none">No reading logged against this book.</span>
+              <?php else: ?>
+                <strong><?= count($bcSits) ?> sitting<?= count($bcSits) === 1 ? '' : 's' ?></strong>
+                · <?= (int) ($bc['session_minutes'] ?? 0) ?> minutes
+                · <?= $e((string) $bcSits[0]['day']) ?> → <?= $e((string) $bcSits[count($bcSits) - 1]['day']) ?>
+                <?php foreach ($bcVals as $bv): ?><span class="bkq-val"><?= $e($bv) ?></span><?php endforeach; ?>
+              <?php endif; ?>
+            </div>
+            <?php if ($bcSits): ?>
+            <details class="bkq-read">
+              <summary>Their reading, sitting by sitting</summary>
+              <ol class="bkq-chapters">
+                <?php foreach ($bcSits as $bs): ?>
+                  <li>
+                    <strong><?= $e((string) $bs['day']) ?></strong>
+                    <span class="sub"><?= $e(trim((string) $bs['covered'] . ' · ' . (int) $bs['minutes'] . ' min · ' . (string) $bs['place'], ' ·')) ?><?= (string) $bs['mood_label'] !== '' ? ' · ' . $e((string) $bs['mood_label']) : '' ?>
+                      <?= (string) $bs['value_label'] !== '' ? '· <b>' . $e((string) $bs['value_label']) . '</b>' : '' ?></span>
+                    <div class="bkq-text"><?= nl2br($e((string) $bs['notes'])) ?></div>
+                    <p class="bkq-take"><strong>Where they stand:</strong> <?= nl2br($e((string) $bs['stance'])) ?></p>
+                    <p class="bkq-take"><strong>What they will do:</strong> <?= nl2br($e((string) $bs['application'])) ?></p>
+                  </li>
+                <?php endforeach; ?>
+              </ol>
+            </details>
+            <?php endif; ?>
             <details class="bkq-read">
               <summary>Read what they wrote<?= $bc['chapter_notes_list'] ? ' — ' . count($bc['chapter_notes_list']) . ' chapter' . (count($bc['chapter_notes_list']) === 1 ? '' : 's') . ' and the whole book' : '' ?></summary>
               <?php if ($bc['chapter_notes_list']): ?>

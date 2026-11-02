@@ -98,6 +98,68 @@ final class NgvReading
     /** open → passed | failed. */
     public const SPOT_OUTCOMES = ['open', 'passed', 'failed'];
 
+    /* ── A SITTING, not just a summary ──────────────────────────────────
+     *
+     * A book used to leave one record: the reflection written at the end. So
+     * the programme could see that somebody finished twenty-four books and
+     * nothing about the reading itself — not when it happened, not how long
+     * it took, not what they made of it as they went. A claim backed by eight
+     * dated sittings is also far harder to invent than one backed by nothing,
+     * which is why at least one is now part of the evidence floor.
+     *
+     * Each sitting answers the questions the programme actually cares about,
+     * and they are not comprehension questions:
+     *
+     *   what it covered        the sitting in their own words
+     *   where they stand       what they AGREE with or are AGAINST, and why
+     *   what they will do      the life application of this reading
+     *   which value it grew    one of the seven (MentorPortal::VALUES)
+     *
+     * The value is the point. The challenge exists to grow the seven values
+     * in the people who read, and a list of finished titles cannot show that
+     * it has. A sitting that names its value can: a member sees which of the
+     * seven their reading has fed and which it has not touched, and so does
+     * the programme, across the cohort.
+     */
+
+    /** The floor for a sitting. Smaller than the book's, because it is one sitting. */
+    public const MIN_SESSION_NOTES = 120;
+    public const MIN_SESSION_STANCE = 80;
+    public const MIN_SESSION_APPLICATION = 60;
+    private const MAX_SESSION_TEXT = 4000;
+    public const MAX_SESSION_MINUTES = 600;
+
+    /** Optional, and the only optional one. */
+    public const MOODS = [
+        'absorbed'   => 'Absorbed — I did not want to stop',
+        'steady'     => 'Steady — it went fine',
+        'hard'       => 'Hard going — I had to push',
+        'bored'      => 'Bored — I read it anyway',
+        'unsettled'  => 'Unsettled — it argued with me',
+    ];
+
+    /**
+     * The seven values, from the one place they are declared
+     * (MentorPortal::VALUES), never a second copy. The mentor portal, the
+     * Quest's points and the conduct awards all read that list; reading
+     * joins them rather than inventing its own seven.
+     */
+    public static function values(): array
+    {
+        return class_exists('MentorPortal') ? MentorPortal::VALUES : [];
+    }
+
+    public static function valueLabel(string $key): string
+    {
+        return (string) (self::values()[$key] ?? $key);
+    }
+
+    /** The sentence each value is taught in, for the person choosing one. */
+    public static function valueMotto(string $key): string
+    {
+        return class_exists('MentorPortal') ? (string) (MentorPortal::VALUE_MOTTO[$key] ?? '') : '';
+    }
+
     private static bool $ready = false;
 
     /* ── schema ──────────────────────────────────────────────────────────── */
@@ -151,6 +213,7 @@ CREATE TABLE IF NOT EXISTS ngv_books (
   author      VARCHAR(120) NOT NULL DEFAULT '',
   chapters    INTEGER NOT NULL DEFAULT 0,
   note        VARCHAR(300) NOT NULL DEFAULT '',
+  value_keys  VARCHAR(200) NOT NULL DEFAULT '',
   active      INTEGER NOT NULL DEFAULT 1,
   created_by  INTEGER NOT NULL DEFAULT 0,
   created_at  VARCHAR(32) NOT NULL DEFAULT '',
@@ -173,6 +236,29 @@ CREATE TABLE IF NOT EXISTS ngv_book_spot_checks (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_spot_stone ON ngv_book_spot_checks (member_id, milestone);
 CREATE INDEX IF NOT EXISTS idx_spot_open ON ngv_book_spot_checks (outcome, id);
+CREATE TABLE IF NOT EXISTS ngv_reading_sessions (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  member_id    INTEGER NOT NULL,
+  claim_id     INTEGER NOT NULL DEFAULT 0,
+  book_id      INTEGER NOT NULL DEFAULT 0,
+  slot         INTEGER NOT NULL DEFAULT 0,
+  day          VARCHAR(10) NOT NULL DEFAULT '',
+  minutes      INTEGER NOT NULL DEFAULT 0,
+  chapter_from INTEGER NOT NULL DEFAULT 0,
+  chapter_to   INTEGER NOT NULL DEFAULT 0,
+  pages        VARCHAR(40) NOT NULL DEFAULT '',
+  place        VARCHAR(80) NOT NULL DEFAULT '',
+  mood         VARCHAR(16) NOT NULL DEFAULT '',
+  notes        TEXT NOT NULL DEFAULT '',
+  stance       TEXT NOT NULL DEFAULT '',
+  application  TEXT NOT NULL DEFAULT '',
+  value_key    VARCHAR(24) NOT NULL DEFAULT '',
+  created_at   VARCHAR(32) NOT NULL DEFAULT '',
+  updated_at   VARCHAR(32) NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_rsession_claim ON ngv_reading_sessions (claim_id, day);
+CREATE INDEX IF NOT EXISTS idx_rsession_member ON ngv_reading_sessions (member_id, day);
+CREATE INDEX IF NOT EXISTS idx_rsession_value ON ngv_reading_sessions (value_key);
 CREATE TABLE IF NOT EXISTS ngv_reading_reviewers (
   member_id   INTEGER PRIMARY KEY,
   added_by    INTEGER NOT NULL DEFAULT 0,
@@ -324,10 +410,7 @@ SQL;
             $rows = NgvDb::pdo()->query('SELECT * FROM ngv_books' . ($all ? '' : ' WHERE active = 1') . ' ORDER BY active DESC, title, id')
                 ->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (Throwable $e) { error_log('[ngvreading] books: ' . $e->getMessage()); return []; }
-        return array_map(static function (array $b): array {
-            foreach (['id', 'chapters', 'active', 'created_by'] as $k) $b[$k] = (int) ($b[$k] ?? 0);
-            return $b;
-        }, $rows);
+        return array_map([self::class, 'shapeBook'], $rows);
     }
 
     public static function book(int $id): ?array
@@ -340,7 +423,14 @@ SQL;
             $b = $st->fetch(PDO::FETCH_ASSOC);
         } catch (Throwable $e) { return null; }
         if (!$b) return null;
+        return self::shapeBook($b);
+    }
+
+    private static function shapeBook(array $b): array
+    {
         foreach (['id', 'chapters', 'active', 'created_by'] as $k) $b[$k] = (int) ($b[$k] ?? 0);
+        $b['value_list'] = array_values(array_filter(explode(',', (string) ($b['value_keys'] ?? ''))));
+        $b['value_labels'] = array_map([self::class, 'valueLabel'], $b['value_list']);
         return $b;
     }
 
@@ -367,6 +457,12 @@ SQL;
         $author   = mb_substr(trim(preg_replace('/\s+/u', ' ', (string) ($in['author'] ?? '')) ?? ''), 0, 120);
         $chapters = (int) ($in['chapters'] ?? 0);
         $note     = mb_substr(trim((string) ($in['note'] ?? '')), 0, 300);
+        /* Which of the seven this book is on the list FOR. The challenge
+           exists to grow them, so the list is curated against them: a
+           programme can see it has eleven books on Diligence and none on
+           Communal Spirit before a cohort reads its way into the same gap. */
+        $vals = array_values(array_intersect(
+            array_map('strval', (array) ($in['value_keys'] ?? [])), array_keys(self::values())));
         if ($title === '') return ['ok' => false, 'error' => 'Give the book its title.'];
         if ($author === '') return ['ok' => false, 'error' => 'Who wrote it?'];
         if ($chapters < 1 || $chapters > self::MAX_CHAPTERS) return ['ok' => false, 'error' => 'How many chapters? Between 1 and ' . self::MAX_CHAPTERS . '.'];
@@ -377,12 +473,12 @@ SQL;
         try {
             if ($id > 0) {
                 if (!self::book($id)) return ['ok' => false, 'error' => 'No such book.'];
-                $pdo->prepare('UPDATE ngv_books SET title = ?, author = ?, chapters = ?, note = ?, updated_at = ? WHERE id = ?')
-                    ->execute([$title, $author, $chapters, $note, self::now(), $id]);
+                $pdo->prepare('UPDATE ngv_books SET title = ?, author = ?, chapters = ?, note = ?, value_keys = ?, updated_at = ? WHERE id = ?')
+                    ->execute([$title, $author, $chapters, $note, implode(',', $vals), self::now(), $id]);
                 self::audit('ngv_book_list_edit', 0, 'Book list: ' . $title . ' — ' . $chapters . ' chapters');
             } else {
-                $pdo->prepare('INSERT INTO ngv_books (title, author, chapters, note, active, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)')
-                    ->execute([$title, $author, $chapters, $note, $by, self::now(), self::now()]);
+                $pdo->prepare('INSERT INTO ngv_books (title, author, chapters, note, value_keys, active, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)')
+                    ->execute([$title, $author, $chapters, $note, implode(',', $vals), $by, self::now(), self::now()]);
                 $id = (int) $pdo->lastInsertId();
                 self::audit('ngv_book_list_add', 0, 'Book list: added ' . $title . ' — ' . $chapters . ' chapters');
             }
@@ -507,6 +603,20 @@ SQL;
         if ($submit) {
             $why = self::whyNotReady($title, $author, $started, $finished, $refl, $take, $notes);
             if ($why !== '') return ['ok' => false, 'error' => $why];
+            /* AND THE SITTINGS. A book used to leave one record, written at
+               the end, so the programme could see that twenty-four were
+               finished and nothing about the reading. A claim with dated
+               sittings behind it is also much harder to invent than one with
+               none. Checked against the row, which is why it is here rather
+               than in whyNotReady() — that function is pure. */
+            if ($have && self::sessionCount((int) $have['id']) < 1) {
+                return ['ok' => false, 'code' => 'no_sessions',
+                        'error' => 'Log at least one reading sitting before you send this — when you read, how far you got, and what you made of it.'];
+            }
+            if (!$have) {
+                return ['ok' => false, 'code' => 'no_sessions',
+                        'error' => 'Save this as a draft first, log your reading sittings against it, then send it.'];
+            }
         }
 
         $row = [
@@ -582,6 +692,232 @@ SQL;
                  . self::MIN_TAKEAWAY . ' characters. Your track lead may ask you about it.';
         }
         return '';
+    }
+
+    /* ── the sittings ──────────────────────────────────────────────────── */
+
+    /**
+     * Log one sitting against a claim, or correct one ($in['id']).
+     *
+     * A sitting belongs to the claim and the claim belongs to the member, so
+     * both are checked here rather than trusted from the request. Once the
+     * claim is out of the member's hands — submitted, verified, rejected —
+     * its sittings are too: the record a reviewer is reading must not change
+     * underneath them, and that includes the evidence under it.
+     */
+    public static function logSession(int $memberId, array $in): array
+    {
+        self::ensure();
+        if ($memberId <= 0) return ['ok' => false, 'error' => 'Sign in first.'];
+        $claim = self::claim($memberId, (int) ($in['slot'] ?? 0));
+        if (!$claim) return ['ok' => false, 'error' => 'Start the book first, then log your reading of it.'];
+        if (in_array((string) $claim['status'], ['submitted', 'verified', 'rejected'], true)) {
+            return ['ok' => false, 'code' => 'closed', 'error' => 'This book is no longer yours to change.'];
+        }
+
+        $id  = (int) ($in['id'] ?? 0);
+        $was = $id > 0 ? self::session($id) : null;
+        if ($id > 0 && (!$was || (int) $was['member_id'] !== $memberId || (int) $was['claim_id'] !== (int) $claim['id'])) {
+            return ['ok' => false, 'error' => 'No such sitting.'];
+        }
+
+        $row = [
+            'day'          => self::date((string) ($in['day'] ?? '')),
+            'minutes'      => (int) ($in['minutes'] ?? 0),
+            'chapter_from' => max(0, (int) ($in['chapter_from'] ?? 0)),
+            'chapter_to'   => max(0, (int) ($in['chapter_to'] ?? 0)),
+            'pages'        => mb_substr(trim((string) ($in['pages'] ?? '')), 0, 40),
+            'place'        => mb_substr(trim((string) ($in['place'] ?? '')), 0, 80),
+            'mood'         => isset(self::MOODS[(string) ($in['mood'] ?? '')]) ? (string) $in['mood'] : '',
+            'notes'        => trim((string) ($in['notes'] ?? '')),
+            'stance'       => trim((string) ($in['stance'] ?? '')),
+            'application'  => trim((string) ($in['application'] ?? '')),
+            'value_key'    => isset(self::values()[(string) ($in['value_key'] ?? '')]) ? (string) $in['value_key'] : '',
+        ];
+        if ($why = self::whySessionNotReady($row, $claim)) return ['ok' => false, 'error' => $why];
+
+        $row['member_id'] = $memberId;
+        $row['claim_id']  = (int) $claim['id'];
+        $row['book_id']   = (int) $claim['book_id'];
+        $row['slot']      = (int) $claim['slot'];
+        $row['updated_at'] = self::now();
+        try {
+            $pdo = NgvDb::pdo();
+            if ($id > 0) {
+                $set = implode(', ', array_map(static fn($c) => $c . ' = ?', array_keys($row)));
+                $args = array_values($row); $args[] = $id;
+                $pdo->prepare('UPDATE ngv_reading_sessions SET ' . $set . ' WHERE id = ?')->execute($args);
+            } else {
+                $row['created_at'] = self::now();
+                $names = implode(',', array_keys($row));
+                $marks = implode(',', array_fill(0, count($row), '?'));
+                $pdo->prepare("INSERT INTO ngv_reading_sessions ($names) VALUES ($marks)")->execute(array_values($row));
+                $id = (int) $pdo->lastInsertId();
+            }
+        } catch (Throwable $e) {
+            error_log('[ngvreading] logSession: ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'Could not save that sitting.'];
+        }
+        return ['ok' => true, 'id' => $id, 'sessions' => self::sessions((int) $claim['id'])];
+    }
+
+    /** Why this sitting is not ready — '' when it is. */
+    public static function whySessionNotReady(array $r, array $claim): string
+    {
+        if ((string) $r['day'] === '') return 'Which day did you read?';
+        if ((string) $r['day'] > self::today()) return 'You cannot log a sitting in the future.';
+        $started = (string) ($claim['started_on'] ?? '');
+        if ($started !== '' && (string) $r['day'] < $started) {
+            return 'That is before ' . $started . ', the day you said you started this book. Fix one or the other.';
+        }
+        $m = (int) $r['minutes'];
+        if ($m < 1 || $m > self::MAX_SESSION_MINUTES) {
+            return 'How many minutes did you read for? Between 1 and ' . self::MAX_SESSION_MINUTES . '.';
+        }
+        $chapters = (int) ($claim['chapters'] ?? 0);
+        $from = (int) $r['chapter_from']; $to = (int) $r['chapter_to'];
+        if ($from > 0 || $to > 0) {
+            if ($from < 1 || $to < 1) return 'Say which chapters you read — from and to.';
+            if ($to < $from) return 'The last chapter you read comes before the first one. Check those.';
+            if ($chapters > 0 && $to > $chapters) return 'This book has ' . $chapters . ' chapters, so there is no chapter ' . $to . '.';
+        } elseif ((string) $r['pages'] === '') {
+            return 'How far did you get? Give the chapters, or the pages.';
+        }
+        if ((string) $r['place'] === '') return 'Where did you read? A word is enough — at the centre, at home, on the bus.';
+        if ((string) $r['value_key'] === '') return 'Which of our seven values did this reading grow in you? That is what the challenge is for.';
+        foreach ([
+            ['notes', self::MIN_SESSION_NOTES, 'What did this sitting cover? In your own words — at least %d characters.'],
+            ['stance', self::MIN_SESSION_STANCE, 'What do you agree with here, or argue against, and why? At least %d characters.'],
+            ['application', self::MIN_SESSION_APPLICATION, 'What will you do differently because of this sitting? At least %d characters.'],
+        ] as [$k, $min, $msg]) {
+            $have = self::substance((string) $r[$k]);
+            if ($have < $min) return sprintf($msg, $min) . ' You have ' . $have . '.';
+            if (mb_strlen((string) $r[$k]) > self::MAX_SESSION_TEXT) {
+                return 'That is longer than we can keep (' . self::MAX_SESSION_TEXT . ' characters). Nothing has been saved.';
+            }
+        }
+        return '';
+    }
+
+    public static function session(int $id): ?array
+    {
+        self::ensure();
+        try {
+            $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_reading_sessions WHERE id = ?');
+            $st->execute([$id]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            return $r ? self::shapeSession($r) : null;
+        } catch (Throwable $e) { return null; }
+    }
+
+    /** Every sitting on one claim, oldest first — the way it was read. */
+    public static function sessions(int $claimId): array
+    {
+        self::ensure();
+        try {
+            $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_reading_sessions WHERE claim_id = ? ORDER BY day, id');
+            $st->execute([$claimId]);
+            return array_map([self::class, 'shapeSession'], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+        } catch (Throwable $e) { return []; }
+    }
+
+    /** One member's whole reading log, newest first. What the diary shows. */
+    public static function sessionsFor(int $memberId, int $limit = 500): array
+    {
+        self::ensure();
+        $limit = max(1, min(2000, $limit));
+        try {
+            $st = NgvDb::pdo()->prepare(
+                'SELECT s.*, c.title, c.author, c.status AS claim_status
+                   FROM ngv_reading_sessions s
+                   LEFT JOIN ngv_book_claims c ON c.id = s.claim_id
+                  WHERE s.member_id = ? ORDER BY s.day DESC, s.id DESC LIMIT ' . $limit);
+            $st->execute([$memberId]);
+            return array_map([self::class, 'shapeSession'], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+        } catch (Throwable $e) { error_log('[ngvreading] sessionsFor: ' . $e->getMessage()); return []; }
+    }
+
+    public static function dropSession(int $memberId, int $id): array
+    {
+        self::ensure();
+        $s = self::session($id);
+        if (!$s || (int) $s['member_id'] !== $memberId) return ['ok' => false, 'error' => 'No such sitting.'];
+        $claim = self::claimById((int) $s['claim_id']);
+        if ($claim && in_array((string) $claim['status'], ['submitted', 'verified', 'rejected'], true)) {
+            return ['ok' => false, 'code' => 'closed', 'error' => 'This book is no longer yours to change.'];
+        }
+        try { NgvDb::pdo()->prepare('DELETE FROM ngv_reading_sessions WHERE id = ?')->execute([$id]); }
+        catch (Throwable $e) { return ['ok' => false, 'error' => 'Could not remove that.']; }
+        return ['ok' => true, 'sessions' => self::sessions((int) $s['claim_id'])];
+    }
+
+    private static function shapeSession(array $r): array
+    {
+        foreach (['id', 'member_id', 'claim_id', 'book_id', 'slot', 'minutes', 'chapter_from', 'chapter_to'] as $k) {
+            $r[$k] = (int) ($r[$k] ?? 0);
+        }
+        $r['value_label'] = self::valueLabel((string) ($r['value_key'] ?? ''));
+        $r['mood_label']  = (string) (self::MOODS[(string) ($r['mood'] ?? '')] ?? '');
+        $r['covered']     = $r['chapter_from'] > 0
+            ? ($r['chapter_from'] === $r['chapter_to'] ? 'Chapter ' . $r['chapter_from'] : 'Chapters ' . $r['chapter_from'] . '–' . $r['chapter_to'])
+            : ((string) ($r['pages'] ?? '') !== '' ? 'Pages ' . $r['pages'] : '');
+        return $r;
+    }
+
+    /* ── what the reading grew ─────────────────────────────────────────────
+     *
+     * The challenge exists to grow the seven values, and a count of finished
+     * titles cannot show that it has. This can: every sitting names the value
+     * it fed, so a member can see which of the seven their reading has
+     * touched and which it has not, and the programme can see the same across
+     * a cohort. It is the measure the challenge was always for.
+     */
+
+    /** Minutes and sittings per value for one member — every value, zeros and all. */
+    public static function valueGrowth(int $memberId): array
+    {
+        self::ensure();
+        $out = [];
+        foreach (self::values() as $k => $label) {
+            $out[$k] = ['key' => $k, 'label' => $label, 'motto' => self::valueMotto($k), 'sessions' => 0, 'minutes' => 0, 'books' => 0];
+        }
+        try {
+            $st = NgvDb::pdo()->prepare(
+                'SELECT value_key, COUNT(*) n, COALESCE(SUM(minutes),0) m, COUNT(DISTINCT claim_id) b
+                   FROM ngv_reading_sessions WHERE member_id = ? AND value_key <> \'\' GROUP BY value_key');
+            $st->execute([$memberId]);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                $k = (string) $r['value_key'];
+                if (!isset($out[$k])) continue;
+                $out[$k]['sessions'] = (int) $r['n'];
+                $out[$k]['minutes']  = (int) $r['m'];
+                $out[$k]['books']    = (int) $r['b'];
+            }
+        } catch (Throwable $e) { error_log('[ngvreading] valueGrowth: ' . $e->getMessage()); }
+        return $out;
+    }
+
+    /** The same across everybody — what the cohort's reading is feeding. */
+    public static function valueGrowthAll(): array
+    {
+        self::ensure();
+        $out = [];
+        foreach (self::values() as $k => $label) {
+            $out[$k] = ['key' => $k, 'label' => $label, 'motto' => self::valueMotto($k), 'sessions' => 0, 'minutes' => 0, 'readers' => 0];
+        }
+        try {
+            $st = NgvDb::pdo()->query(
+                'SELECT value_key, COUNT(*) n, COALESCE(SUM(minutes),0) m, COUNT(DISTINCT member_id) r
+                   FROM ngv_reading_sessions WHERE value_key <> \'\' GROUP BY value_key');
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                $k = (string) $r['value_key'];
+                if (!isset($out[$k])) continue;
+                $out[$k]['sessions'] = (int) $r['n'];
+                $out[$k]['minutes']  = (int) $r['m'];
+                $out[$k]['readers']  = (int) $r['r'];
+            }
+        } catch (Throwable $e) { error_log('[ngvreading] valueGrowthAll: ' . $e->getMessage()); }
+        return $out;
     }
 
     /* ── the automatic checks ────────────────────────────────────────────── */
@@ -838,6 +1174,16 @@ SQL;
         return $out;
     }
 
+    public static function sessionCount(int $claimId): int
+    {
+        self::ensure();
+        try {
+            $st = NgvDb::pdo()->prepare('SELECT COUNT(*) FROM ngv_reading_sessions WHERE claim_id = ?');
+            $st->execute([$claimId]);
+            return (int) $st->fetchColumn();
+        } catch (Throwable $e) { return 0; }
+    }
+
     public static function verifiedCount(int $memberId): int
     {
         self::ensure();
@@ -929,6 +1275,12 @@ SQL;
         $notes = json_decode((string) ($r['chapter_notes'] ?? ''), true);
         $r['chapter_notes_list'] = is_array($notes) ? array_values(array_map('strval', $notes)) : [];
         $r['reflection_len'] = self::substance((string) ($r['reflection'] ?? ''));
+        if ($r['id'] > 0) {
+            $r['sessions'] = self::sessions($r['id']);
+            $r['session_minutes'] = array_sum(array_map(static fn($x) => (int) $x['minutes'], $r['sessions']));
+        } else {
+            $r['sessions'] = []; $r['session_minutes'] = 0;
+        }
         return $r;
     }
 

@@ -37,10 +37,33 @@
     err: document.getElementById('bkErr'),
     close: document.getElementById('bkClose'),
     draft: document.getElementById('bkSaveDraft'),
-    submit: document.getElementById('bkSubmit')
+    submit: document.getElementById('bkSubmit'),
+    /* The sittings. */
+    sits: document.getElementById('bkSits'),
+    sitList: document.getElementById('bkSitList'),
+    sitForm: document.getElementById('bkSitForm'),
+    sitAdd: document.getElementById('bkSitAdd'),
+    sitSave: document.getElementById('bkSitSave'),
+    sitCancel: document.getElementById('bkSitCancel'),
+    sitErr: document.getElementById('bkSitErr'),
+    sitDay: document.getElementById('bkSitDay'),
+    sitMins: document.getElementById('bkSitMins'),
+    sitFrom: document.getElementById('bkSitFrom'),
+    sitTo: document.getElementById('bkSitTo'),
+    sitPages: document.getElementById('bkSitPages'),
+    sitPlace: document.getElementById('bkSitPlace'),
+    sitValue: document.getElementById('bkSitValue'),
+    sitMotto: document.getElementById('bkSitMotto'),
+    sitMood: document.getElementById('bkSitMood'),
+    sitNotes: document.getElementById('bkSitNotes'),
+    sitStance: document.getElementById('bkSitStance'),
+    sitApply: document.getElementById('bkSitApply')
   };
 
   var slot = 0, MIN = 320, MIN_TAKE = 60, MIN_CHAPTER = 80, opener = null;
+  /* The sittings on this claim, the one being edited (0 = a new one), the
+     seven values with their mottos, and today as the server reckons it. */
+  var sits = [], sitId = 0, VALUES = {}, MOTTOS = {}, MOODS = {}, TODAY = '';
   var typedMs = 0, pastes = 0, lastKey = 0;
   /* The book list, the claim being edited, and — for a claim made before
      there was a list — the title and author it was recorded with. */
@@ -156,7 +179,100 @@
   function lock(on) {
     [el.book, el.started, el.finished, el.reflection, el.takeaway].concat(chapterFields()).forEach(function (f) { f.disabled = on; });
     el.draft.hidden = on; el.submit.hidden = on;
+    el.sitAdd.hidden = on; if (on) el.sitForm.hidden = true;
   }
+
+  /* ── The sittings ───────────────────────────────────────────────────
+     A book is read over days. Each sitting records when, how far, how long,
+     where, what it covered, where they stand on it, what they will do — and
+     which of the seven values it grew, which is the thing the challenge is
+     actually for and the one thing a shelf of finished titles cannot show. */
+  function esc(x) {
+    return String(x == null ? '' : x).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function drawSits(locked) {
+    if (!sits.length) {
+      el.sitList.innerHTML = '<p class="bk-sits-none">Nothing logged yet. Log each time you sit down with this book — '
+        + 'it is how the programme sees your reading, and how you see which of the seven values it is growing.</p>';
+      return;
+    }
+    el.sitList.innerHTML = sits.map(function (x) {
+      return '<div class="bk-sit">'
+        + '<div class="bk-sit-top"><span class="bk-sit-when">' + esc(x.day) + '</span>'
+        + (x.covered ? '<span>· ' + esc(x.covered) + '</span>' : '')
+        + '<span>· ' + esc(x.minutes) + ' min</span>'
+        + (x.value_label ? '<span class="bk-sit-val">' + esc(x.value_label) + '</span>' : '') + '</div>'
+        + '<div class="bk-sit-meta">' + esc(x.place) + (x.mood_label ? ' · ' + esc(x.mood_label) : '') + '</div>'
+        + '<p>' + esc(x.notes) + '</p>'
+        + '<p><b>Where I stand:</b> ' + esc(x.stance) + '</p>'
+        + '<p><b>What I will do:</b> ' + esc(x.application) + '</p>'
+        + (locked ? '' : '<button type="button" class="bk-sit-x" data-sit-edit="' + x.id + '">Edit</button>'
+            + ' <button type="button" class="bk-sit-x" data-sit-drop="' + x.id + '">Remove</button>')
+        + '</div>';
+    }).join('');
+  }
+  function sitFormReset(x) {
+    x = x || {};
+    sitId = +x.id || 0;
+    el.sitDay.value = x.day || TODAY;
+    el.sitDay.max = TODAY;
+    el.sitMins.value = x.minutes || '';
+    el.sitFrom.value = x.chapter_from || '';
+    el.sitTo.value = x.chapter_to || '';
+    el.sitPages.value = x.pages || '';
+    el.sitPlace.value = x.place || '';
+    el.sitValue.value = x.value_key || '';
+    el.sitMood.value = x.mood || '';
+    el.sitNotes.value = x.notes || '';
+    el.sitStance.value = x.stance || '';
+    el.sitApply.value = x.application || '';
+    el.sitMotto.textContent = MOTTOS[el.sitValue.value] || '';
+    el.sitErr.hidden = true;
+    el.sitSave.textContent = sitId ? 'Save this sitting' : 'Add this sitting';
+  }
+  function fillSelect(sel, map, blank) {
+    sel.innerHTML = '<option value="">' + blank + '</option>' + Object.keys(map).map(function (k) {
+      return '<option value="' + esc(k) + '">' + esc(map[k]) + '</option>';
+    }).join('');
+  }
+  el.sitValue.addEventListener('change', function () { el.sitMotto.textContent = MOTTOS[el.sitValue.value] || ''; });
+  el.sitAdd.addEventListener('click', function () {
+    sitFormReset(); el.sitForm.hidden = false; el.sitAdd.hidden = true; el.sitDay.focus();
+  });
+  el.sitCancel.addEventListener('click', function () { el.sitForm.hidden = true; el.sitAdd.hidden = false; el.sitAdd.focus(); });
+  el.sitList.addEventListener('click', function (ev) {
+    var e2 = ev.target.closest('[data-sit-edit]'), dr = ev.target.closest('[data-sit-drop]');
+    if (e2) {
+      var one = sits.filter(function (x) { return x.id === +e2.getAttribute('data-sit-edit'); })[0];
+      if (one) { sitFormReset(one); el.sitForm.hidden = false; el.sitAdd.hidden = true; el.sitDay.focus(); }
+      return;
+    }
+    if (!dr) return;
+    if (!window.confirm('Remove this sitting? What you wrote in it goes with it.')) return;
+    dr.disabled = true;
+    post({ book_action: 'session_drop', id: +dr.getAttribute('data-sit-drop') }).then(function (j) {
+      sits = j.sessions || []; drawSits(false);
+    }).catch(function (err) { dr.disabled = false; el.sitErr.textContent = err.message; el.sitErr.hidden = false; });
+  });
+  el.sitSave.addEventListener('click', function () {
+    var b = el.sitSave, label = b.textContent;
+    el.sitErr.hidden = true; b.disabled = true; b.textContent = 'Saving…';
+    post({ book_action: 'session', session: {
+      id: sitId, slot: slot, day: el.sitDay.value, minutes: +el.sitMins.value || 0,
+      chapter_from: +el.sitFrom.value || 0, chapter_to: +el.sitTo.value || 0,
+      pages: el.sitPages.value, place: el.sitPlace.value, value_key: el.sitValue.value,
+      mood: el.sitMood.value, notes: el.sitNotes.value, stance: el.sitStance.value, application: el.sitApply.value
+    } }).then(function (j) {
+      b.disabled = false; b.textContent = label;
+      sits = j.sessions || []; drawSits(false);
+      el.sitForm.hidden = true; el.sitAdd.hidden = false; el.sitAdd.focus();
+    }).catch(function (err) {
+      b.disabled = false; b.textContent = label;
+      el.sitErr.textContent = err.message; el.sitErr.hidden = false;
+    });
+  });
 
   function open(n, trigger) {
     slot = n; opener = trigger || null;
@@ -166,6 +282,11 @@
       var c = j.claim || {};
       claim = c; books = j.books || [];
       MIN = j.min || MIN; MIN_TAKE = j.minTake || MIN_TAKE; MIN_CHAPTER = j.minChapter || MIN_CHAPTER;
+      VALUES = j.values || {}; MOODS = j.moods || {}; TODAY = j.today || '';
+      MOTTOS = {}; Object.keys(VALUES).forEach(function (k, i) { MOTTOS[k] = (j.mottos || [])[i] || ''; });
+      fillSelect(el.sitValue, VALUES, 'Choose one…');
+      fillSelect(el.sitMood, MOODS, 'Rather not say');
+      sits = j.sessions || [];
       /* A claim recorded before the book list keeps the book it named. */
       legacy = c.title && !(c.book_id > 0) ? { title: c.title, author: c.author || '' } : null;
       el.book.innerHTML = '<option value="">Choose a book…</option>' + books.map(function (b) {
@@ -188,7 +309,10 @@
       setStatus(c);
       /* Submitted and verified claims are read-only — a claim a reviewer has
          seen must not change underneath them. */
-      lock(c.status === 'submitted' || c.status === 'verified');
+      var locked = c.status === 'submitted' || c.status === 'verified' || c.status === 'rejected';
+      drawSits(locked);
+      el.sitForm.hidden = true;
+      lock(locked);
       counts();
       modal.hidden = false;
       (el.book.disabled || el.pick.hidden ? el.close : el.book).focus();

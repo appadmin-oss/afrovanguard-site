@@ -76,6 +76,10 @@ $nToAsk   = $may ? NgvReading::spotCount() : 0;
 .btn.ok{background:var(--green);color:#fff;border-color:var(--green)}
 .btn.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
 .spq-prompts{margin:.4rem 0 0;padding-left:1.1rem;font-size:.9rem}
+.bkq-sits{font-size:.86rem;margin:.35rem 0;color:var(--muted)}
+.bkq-sits strong{color:var(--ink)}
+.bkq-sits-none{color:var(--danger);font-weight:700}
+.bkq-val{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;background:#fff3cd;color:#6b4e00;font-size:.76rem;font-weight:800}
 </style>
 </head>
 <body>

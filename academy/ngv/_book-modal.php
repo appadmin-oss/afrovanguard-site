@@ -24,6 +24,48 @@
                 <p class="bk-chapters-h">A summary of each chapter <em>at least <?= (int) NgvReading::MIN_CHAPTER ?> characters each — what the chapter said, in your words</em></p>
                 <div id="bkChapterList"></div>
               </div>
+              <?php /* THE SITTINGS. A book is read over days, and the record
+                       used to keep only what was written at the end — so the
+                       programme could see that twenty-four were finished and
+                       nothing about the reading. Each sitting also names the
+                       VALUE it grew, which is what the challenge is for and
+                       the one thing a list of titles cannot show. */ ?>
+              <div class="bk-sits" id="bkSits">
+                <p class="bk-chapters-h">Your reading of this book
+                  <em>log each sitting — at least one before you can send it</em></p>
+                <div id="bkSitList"></div>
+                <div class="bk-sit-form" id="bkSitForm" hidden>
+                  <div class="bk-grid">
+                    <label class="bk-f"><span>The day you read</span><input id="bkSitDay" type="date"></label>
+                    <label class="bk-f"><span>For how long <em>minutes</em></span><input id="bkSitMins" type="number" min="1" max="<?= (int) NgvReading::MAX_SESSION_MINUTES ?>" inputmode="numeric"></label>
+                    <label class="bk-f"><span>From chapter</span><input id="bkSitFrom" type="number" min="1" inputmode="numeric"></label>
+                    <label class="bk-f"><span>To chapter</span><input id="bkSitTo" type="number" min="1" inputmode="numeric"></label>
+                    <label class="bk-f"><span>Or the pages <em>if the book has no chapters</em></span><input id="bkSitPages" maxlength="40" placeholder="e.g. 40–72"></label>
+                    <label class="bk-f"><span>Where you read</span><input id="bkSitPlace" maxlength="80" placeholder="At the centre, at home, on the bus"></label>
+                    <label class="bk-f bk-f--wide"><span>Which of our seven values did this grow in you?</span>
+                      <select id="bkSitValue"><option value="">Choose one…</option></select>
+                      <span class="bk-motto" id="bkSitMotto"></span></label>
+                    <label class="bk-f bk-f--wide"><span>How was it? <em>optional</em></span>
+                      <select id="bkSitMood"><option value="">Rather not say</option></select></label>
+                  </div>
+                  <label class="bk-f bk-f--wide"><span>What did this sitting cover?
+                    <em>at least <?= (int) NgvReading::MIN_SESSION_NOTES ?> characters, in your words</em></span>
+                    <textarea id="bkSitNotes" rows="3" maxlength="4000"></textarea></label>
+                  <label class="bk-f bk-f--wide"><span>What do you agree with here, or argue against — and why?
+                    <em>at least <?= (int) NgvReading::MIN_SESSION_STANCE ?> characters</em></span>
+                    <textarea id="bkSitStance" rows="3" maxlength="4000"></textarea></label>
+                  <label class="bk-f bk-f--wide"><span>What will you do differently because of it?
+                    <em>at least <?= (int) NgvReading::MIN_SESSION_APPLICATION ?> characters — the life application</em></span>
+                    <textarea id="bkSitApply" rows="2" maxlength="4000"></textarea></label>
+                  <p class="bk-err" id="bkSitErr" hidden role="alert"></p>
+                  <div class="bk-sit-acts">
+                    <button type="button" class="pbtn pbtn-gold" id="bkSitSave">Save this sitting</button>
+                    <button type="button" class="pbtn pbtn-ghost" id="bkSitCancel">Cancel</button>
+                  </div>
+                </div>
+                <button type="button" class="pbtn pbtn-ghost" id="bkSitAdd">Log a sitting</button>
+              </div>
+
               <label class="bk-f bk-f--wide"><span>The whole book: what did it argue, and did you agree?
                 <em>at least <?= (int) NgvReading::MIN_REFLECTION ?> characters</em></span>
                 <textarea id="bkReflection" rows="8" maxlength="6000"></textarea>
