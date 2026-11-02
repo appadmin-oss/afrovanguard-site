@@ -143,6 +143,18 @@ ck('quest: the same challenge cannot be put forward twice while one waits',
 ck('quest: the mentor who proposed it may not decide it',
    !Conduct::decide($case['id'], ['id' => $MENTOR, 'email' => 'q' . $MENTOR . '@afrovanguard.org.ng'], true, '')['ok']);
 
+/* Only the compliance committee signs off a challenge — not a superadmin
+   (the owner, 2 November 2026). A superadmin still decides fines and awards. */
+$SUPER = 9504;
+$db->prepare('INSERT INTO lms_users (id, name, email, password_hash, role, created_at) VALUES (?,?,?,?,?,?)')
+   ->execute([$SUPER, 'Quest Super', 'q' . $SUPER . '@afrovanguard.org.ng', '', 'member', gmdate('Y-m-d H:i:s')]);
+AdminRoles::add('q' . $SUPER . '@afrovanguard.org.ng', 'superadmin', 'test');
+$super = ['id' => $SUPER, 'email' => 'q' . $SUPER . '@afrovanguard.org.ng'];
+$sup = Conduct::decide($case['id'], $super, true, 'Seen.');
+ck('quest: a superadmin off the committee does not sign off a challenge',
+   Conduct::canDecide($super) && !$sup['ok'] && str_contains($sup['error'], 'compliance committee') && Conduct::find($case['id'])['status'] === 'proposed');
+$db->prepare('DELETE FROM admin_users WHERE email = ?')->execute(['q' . $SUPER . '@afrovanguard.org.ng']);
+
 ck('quest: compliance signs it off', Conduct::decide($case['id'], $decider, true, 'Seen.')['ok']);
 ck('quest: …and the point lands in the Quest ledger, not the gate\'s',
    QuestPoints::total($MENTEE) === 1
@@ -152,6 +164,33 @@ ck('quest: and counted against the seventy', Quest::progress($MENTEE) === ['done
 
 $again = Conduct::propose($MENTOR, 95001, ['kind' => 'challenge', 'challenge_id' => 'diligence.4', 'occurred_on' => $today, 'evidence' => $ev]);
 ck('quest: a challenge is proved once, ever', !$again['ok'] && str_contains($again['error'], 'once, ever'));
+
+/* ── a Demonstrated mark is the proposal and its evidence ─────────────── */
+
+foreach ($official['challenges'] as &$row) {
+    if ($row['id'] === 'faith.2') { $row['status'] = 'official'; $row['text'] = 'Keep a promise to yourself for thirty days.'; $row['evidence'] = 'What was kept, and how it is known.'; }
+}
+unset($row);
+Quest::$override = ['challenges' => $official]; Quest::forget();
+$portal = new MentorPortal($MENTOR);
+$marks = array_fill_keys(array_keys(MentorPortal::VALUES), 0);
+$seen  = 'Kept to the dawn prayer every day this month and told me on the days it was hard, without being asked.';
+$low = $portal->saveValues(95001, ['faith' => 1] + $marks, ['faith' => $seen], ['faith' => 'faith.2']);
+ck('quest: a mark below Demonstrated puts no challenge forward', !$low['ok'] && str_contains($low['error'], 'Demonstrated'));
+$wrong = $portal->saveValues(95001, ['faith' => 2] + $marks, ['faith' => $seen], ['faith' => 'diligence.4']);
+ck('quest: the challenge must be one of that value\'s ten', !$wrong['ok'] && str_contains($wrong['error'], 'this value'));
+$noev = $portal->saveValues(95001, ['faith' => 2] + $marks, [], ['faith' => 'faith.2']);
+ck('quest: a challenge put forward needs the evidence written down', !$noev['ok']);
+$mark = $portal->saveValues(95001, ['faith' => 2] + $marks, ['faith' => $seen], ['faith' => 'faith.2']);
+$pcase = $db->query("SELECT * FROM conduct_cases WHERE mentee_id = $MENTEE AND challenge_id = 'faith.2'")->fetch(PDO::FETCH_ASSOC);
+ck('quest: a Demonstrated mark naming a challenge files it as a proposal', $mark['ok'] && $mark['proposed'] === ['faith.2']
+   && $pcase && $pcase['status'] === 'proposed' && str_contains((string) $pcase['evidence'], 'Marked Demonstrated on Faith'));
+ck('quest: …and completes nothing by itself', !in_array('faith.2', QuestPoints::challengesDone($MENTEE), true));
+$plain = $portal->saveValues(95001, ['diligence' => 3] + $marks, ['diligence' => $seen], ['diligence' => 'diligence.5']);
+ck('quest: the marks are kept even when the challenge cannot be put forward', $plain['ok'] && isset($plain['not_proposed']['diligence.5']));
+ck('quest: compliance confirms the mark to sign it off', Conduct::decide((int) $pcase['id'], $decider, true, 'Confirmed.')['ok']
+   && in_array('faith.2', QuestPoints::challengesDone($MENTEE), true));
+$db->exec("DELETE FROM mentor_values WHERE mentorship_id = 95001");
 
 Quest::$override = null;
 Quest::forget();

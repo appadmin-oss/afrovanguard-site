@@ -20,7 +20,7 @@ $focusFindings = $focus ? QuestRecord::findings($focus['id']) : [];
 $openFindings = [];
 try {
     foreach (Database::pdo()->query("SELECT id, member_id, kind, raised_at FROM quest_findings WHERE status = 'open' ORDER BY id DESC") ?: [] as $f) {
-        $openFindings[(int) $f['member_id']][] = ['id' => (int) $f['id'], 'kind' => QuestRecord::FINDING_KINDS[(string) $f['kind']] ?? 'Finding', 'at' => substr((string) $f['raised_at'], 0, 10)];
+        $openFindings[(int) $f['member_id']][] = ['id' => (int) $f['id'], 'kind' => QuestRecord::findingLabel((string) $f['kind']), 'at' => substr((string) $f['raised_at'], 0, 10)];
     }
 } catch (Throwable $e) { /* none */ }
 $levels = Levels::order();
@@ -101,7 +101,7 @@ $levels = Levels::order();
               <p class="qd-hint">A finding is a gate, not a deduction: while it stands no quantity of points promotes. It stays on the record once resolved.</p>
               <ul class="qd-list qd-list--plain" data-qd-findings>
 <?php foreach ($focusFindings as $f): if ($f['status'] !== 'open') continue; ?>
-                <li><span class="qd-list-main"><?= e(QuestRecord::FINDING_KINDS[(string) $f['kind']] ?? 'Finding') ?> · <?= e(substr((string) $f['raised_at'], 0, 10)) ?></span>
+                <li><span class="qd-list-main"><?= e(QuestRecord::findingLabel((string) $f['kind'])) ?> · <?= e(substr((string) $f['raised_at'], 0, 10)) ?></span>
                   <form class="qd-inline" method="post" action="/mentorship/conduct.php" data-qd-ajax data-qd-remove="li">
                     <input type="hidden" name="csrf" value="<?= e($csrf) ?>"><input type="hidden" name="op" value="finding_resolve"><input type="hidden" name="id" value="<?= (int) $f['id'] ?>">
                     <label class="qd-grow"><span class="av-sr">What changed</span><input type="text" name="note" required placeholder="What changed"></label>

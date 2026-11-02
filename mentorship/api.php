@@ -257,7 +257,7 @@ try {
                     $out($portal->sendMessage($pid, (string) ($body['body'] ?? '')));
 
                 case 'values':
-                    $out($portal->saveValues($pid, (array) ($body['level'] ?? []), (array) ($body['evidence'] ?? [])));
+                    $out($portal->saveValues($pid, (array) ($body['level'] ?? []), (array) ($body['evidence'] ?? []), (array) ($body['challenge'] ?? [])));
 
                 case 'checkin':
                     $out($portal->saveCheckin((int) ($body['checkin_id'] ?? 0), $pid,

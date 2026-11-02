@@ -82,7 +82,7 @@ final class QuestLadder
             $st = $db->prepare(Database::insertIgnore('quest_suggestions',
                 ['member_id', 'kind', 'source', 'reason', 'amount', 'month', 'status', 'created_at']));
             $st->execute([$memberId, $kind, mb_substr($source, 0, 80), mb_substr($reason, 0, 2000), max(0, $amount),
-                          preg_match('/^\d{4}-\d{2}$/', $month) ? $month : '', 'open', gmdate('Y-m-d H:i:s')]);
+                          (preg_match('/^\d{4}-\d{2}$/', $month) || preg_match('/^\d{4}W\d{2}$/', $month)) ? $month : '', 'open', gmdate('Y-m-d H:i:s')]);
             if ($st->rowCount() < 1) return 0;
             $id = (int) $db->lastInsertId();
         } catch (Throwable $e) {
@@ -132,7 +132,7 @@ final class QuestLadder
         } catch (Throwable $e) { return []; }
     }
 
-    /** Is this member under an ACCEPTED suspension for that month? */
+    /** Is this member under an ACCEPTED suspension for that period (a week key, or a legacy month)? */
     public static function suspendedIn(int $memberId, string $month): bool
     {
         self::ensure();
@@ -175,8 +175,9 @@ final class QuestLadder
             $outcome = 'ngv_charge:' . (int) ($r['entryId'] ?? 0);
         } else {
             /* A suspension is the record itself: the reconciliation reads it
-               for its month, and the member is told. */
-            $outcome = 'suspended:' . ($s['month'] !== '' ? $s['month'] : gmdate('Y-m'));
+               for its week (its `month` column holds the period key), and the
+               member is told. */
+            $outcome = 'suspended:' . ($s['month'] !== '' ? $s['month'] : gmdate('o\WW'));
         }
 
         if (!self::close($id, 'accepted', $by, $note, $outcome)) return ['ok' => false, 'error' => 'Somebody else decided this a moment ago.'];

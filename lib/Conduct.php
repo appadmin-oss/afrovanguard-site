@@ -623,6 +623,12 @@ final class Conduct
         if (!$c) return ['ok' => false, 'error' => 'That case does not exist.'];
         if ($c['status'] !== 'proposed') return ['ok' => false, 'error' => 'This was already ' . $c['status'] . '.'];
         $aid = (int) $approver['id'];
+        /* A challenge is signed off by the compliance committee only — not a
+           superadmin, never a mentor (the owner, 2 November 2026; van-quest
+           doctrine/05-evidence.md). Fines and awards keep the wider rule. */
+        if ($c['kind'] === 'challenge' && !self::isCommittee($aid)) {
+            return ['ok' => false, 'error' => 'Only a member of the compliance committee signs off a challenge.'];
+        }
         if ($aid === (int) $c['mentor_id']) return ['ok' => false, 'error' => 'You proposed this, so somebody else must decide it.'];
         if ($aid === (int) $c['mentee_id']) return ['ok' => false, 'error' => 'This is about you, so somebody else must decide it.'];
         $note = mb_substr(trim($note), 0, 1000);

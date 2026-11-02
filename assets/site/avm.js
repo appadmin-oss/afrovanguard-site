@@ -292,10 +292,14 @@
   if (vf) {
     var WEAK = /^(good|great|excellent|very good|nice|well done|ok|okay)[.!]?$/i;
     var weak = function (t) { t = (t || '').trim(); return t.length < 18 || WEAK.test(t); };
-    var needs = function (fs) { var c = fs.querySelector('input:checked'); if (!c) return false; var lv = +c.value; return lv > 0 && (lv === 3 || lv > +fs.dataset.last); };
+    /* A named challenge needs the evidence too: it is what compliance reads. */
+    var chosen = function (fs) { var sel = fs.querySelector('[data-avm-challenge] select'); return !!(sel && sel.value); };
+    var needs = function (fs) { var c = fs.querySelector('input:checked'); if (!c) return false; var lv = +c.value; return lv > 0 && (lv === 3 || lv > +fs.dataset.last || (lv >= 2 && chosen(fs))); };
     function check(fs, showErr) {
       var ev = fs.querySelector('[data-avm-evidence]'), ta = ev.querySelector('textarea'), need = needs(fs), empty = !ta.value.trim(), isWeak = !empty && weak(ta.value);
       ev.hidden = !need;
+      var ch = fs.querySelector('[data-avm-challenge]'), cur = fs.querySelector('input:checked');
+      if (ch) { ch.hidden = !(cur && +cur.value >= 2); if (ch.hidden) ch.querySelector('select').value = ''; }
       ev.querySelector('[data-avm-evmissing]').hidden = !(need && empty && showErr);
       ev.querySelector('[data-avm-evweak]').hidden = !(need && isWeak);
       return !need || (!empty && !isWeak);
@@ -312,7 +316,8 @@
       if (unrated.length) { toast('Rate all seven values. Use Not seen if you didn’t see it.'); unrated[0].querySelector('input').focus(); return; }
       if (bad.length) { bad[0].querySelector('textarea').focus(); return; }
       api('values', Object.assign({ pairing_id: vf.dataset.pairing }, Object.fromEntries(new FormData(vf)))).then(function (r) {
-        toast('Saved to their Quest record.'); location.search = r.next_id ? '?v=values&id=' + r.next_id : '?v=values';
+        var n = (r.proposed || []).length, miss = Object.keys(r.not_proposed || {}).length;
+        toast('Saved to their Quest record.' + (n ? ' ' + n + ' challenge' + (n > 1 ? 's' : '') + ' sent to compliance.' : '') + (miss ? ' ' + miss + ' could not be sent: ' + Object.values(r.not_proposed)[0] : '')); location.search = r.next_id ? '?v=values&id=' + r.next_id : '?v=values';
       }).catch(fail);
     });
   }

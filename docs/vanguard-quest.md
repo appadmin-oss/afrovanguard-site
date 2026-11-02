@@ -163,8 +163,20 @@ Resolving is reachable on purpose. A system nobody can recover from is not
 incorruptible, it is unforgiving, and it teaches people to hide things. The
 finding stays on the record; it stops standing.
 
-`FINDING_KINDS` is a starting list, not a policy. The owner has not settled
-what counts.
+`FINDING_KINDS` is seven kinds, settled by the owner on 2 November 2026:
+dishonesty, repeated failure to honour commitments, deliberate misuse of
+resources, bribery or extortion, theft or fraud, abuse or harassment,
+violence. Anything else is not an integrity finding. Findings recorded as
+`other` before then still read (`QuestRecord::findingLabel()`); no new one can
+be raised.
+
+### Decided 2 November 2026
+
+| Rule | Where it is enforced |
+| --- | --- |
+| Only the compliance committee signs off a challenge — not a superadmin, never a mentor | `Conduct::decide()` |
+| A mentor's *Demonstrated* or *Exemplary* mark may name one challenge in that value; it is filed as the proposal, with the mark's sentence as the evidence, and compliance confirms it | `MentorPortal::saveValues()`, the Values form |
+| The points-for-fines reconciliation is **weekly** — an ISO week, Monday to Sunday, keyed `2026W44` | `QuestMoney` |
 
 ## The Pyramid Manual, 22 October 2026
 
@@ -177,7 +189,7 @@ decided where it contradicted the earlier brief (van-quest
 | Attendance counts | Punctuality and workshops are priced catalogue actions, decided at the desk like any other |
 | Section 2 is the catalogue | `lib/quest/awardable-actions.json`; a mentor picks the deed, the catalogue prices it |
 | Deduct, don't demote | Deductions (Scoring Board §3) post negative points through the desk; "loss of current level" is a **suggestion** |
-| Build the money | Points against fines by income bracket, month by month (`QuestMoney`) |
+| Build the money | Points against fines by income bracket, week by week (`QuestMoney`) |
 | Every rule toggleable | `QuestRules` per line, AvRules group "Vanguard Quest" for the rest |
 | AI to optimise the catalogue | `QuestAdvisor`, proposals a superadmin applies |
 
@@ -213,7 +225,6 @@ Tests: `questrules`, `questdesk`, `questpyramid`, `questmoney`, `questadvisor`,
 | The seventy challenge texts | The sign-off path is inert without them |
 | Income brackets and the value of a point | Money stays off until they are set on the desk |
 | Earnings by level | The manual's share of CACENTRE service charges is recorded, not computed — the owner is sending more |
-| What counts as an integrity finding | `FINDING_KINDS` is still a guess; the manual's theft and dishonesty row is the best candidate |
 | The Reward Pool's percentage | 0 until leadership sets it |
 
 ## The member's page — Portal → Vanguard Quest → The Quest

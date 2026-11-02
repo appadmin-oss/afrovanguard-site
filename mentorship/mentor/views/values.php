@@ -62,6 +62,23 @@ $first = $who === '' ? 'them' : explode(' ', trim($who))[0];
             <p class="avm-evid-err" data-avm-evmissing hidden>Say what they did before saving this one.</p>
             <p class="avm-evid-err" data-avm-evweak hidden>Say what they did, not how good it was.</p>
           </div>
+<?php
+  /* A Demonstrated or Exemplary mark may put one challenge in this value
+     forward for compliance to sign off. Only challenges with official
+     wording are offered; until the seventy are written there are none, and
+     nothing is shown. */
+  $offer = class_exists('Quest') ? array_filter(Quest::challengesOf($k), static fn($c) => Quest::isOfficial((string) $c['id'])) : [];
+  if ($offer): ?>
+          <div data-avm-challenge hidden>
+            <label class="avm-sort">Evidence for a challenge <small>(optional — compliance confirms it)</small>
+              <select name="challenge[<?= e($k) ?>]">
+                <option value="">None this time</option>
+<?php foreach ($offer as $c): ?>                <option value="<?= e((string) $c['id']) ?>"><?= e(mb_substr((string) $c['text'], 0, 90)) ?></option>
+<?php endforeach; ?>
+              </select>
+            </label>
+          </div>
+<?php endif; ?>
         </fieldset>
 <?php endforeach; ?>
         <div class="avm-save">

@@ -31,13 +31,33 @@ final class QuestRecord
     /** Everybody is a part of the Quest, and everybody starts here. */
     public const JOURNEY_DEFAULT = 'visitor';
 
-    /** What may be recorded against somebody. The owner has not settled this list. */
+    /**
+     * What may be recorded against somebody: seven kinds, and only these.
+     * Settled by the owner on 2 November 2026 (van-quest
+     * doctrine/10-integrity.md): the source's three, and four added. Anything
+     * else is not an integrity finding, however serious; it goes to the
+     * disciplinary panel as itself.
+     */
     public const FINDING_KINDS = [
         'dishonesty'   => 'Dishonesty',
         'commitments'  => 'Repeated failure to honour commitments',
         'resources'    => 'Deliberate misuse of resources',
-        'other'        => 'Other (say what)',
+        'bribery'      => 'Bribery or extortion',
+        'theft'        => 'Theft or fraud',
+        'abuse'        => 'Abuse or harassment',
+        'violence'     => 'Violence',
     ];
+
+    /** Kinds that may be on old records but can no longer be raised. */
+    private const FINDING_KINDS_RETIRED = [
+        'other' => 'Other (recorded before the list was settled)',
+    ];
+
+    /** The words for a stored kind, including a retired one. */
+    public static function findingLabel(string $kind): string
+    {
+        return self::FINDING_KINDS[$kind] ?? self::FINDING_KINDS_RETIRED[$kind] ?? 'Finding';
+    }
 
     private static bool $ready = false;
 
