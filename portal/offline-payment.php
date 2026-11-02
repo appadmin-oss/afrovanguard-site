@@ -23,7 +23,7 @@ $uid = (int) $u['id'];
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     json_out(['ok' => true, 'payments' => OfflinePayments::forUser($uid), 'methods' => OfflinePayments::METHODS,
-              'prices' => ['month' => OfflinePayments::duesPrice(1, $uid), 'year' => OfflinePayments::duesPrice(12, $uid)]]);
+              'prices' => ['month' => OfflinePayments::duesPrice(1), 'year' => OfflinePayments::duesPrice(12)]]);
 }
 
 // Same-origin, CSRF and a per-member limit. Each submission costs a reading; a handful an hour is plenty for a real payer.

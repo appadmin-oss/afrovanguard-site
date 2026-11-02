@@ -19,8 +19,9 @@
 declare(strict_types=1);
 
 $dPdo = Database::pdo();
-MemberRoster::ensure(); Membership::ensure();
+MemberRoster::ensure(); Membership::ensure(); MemberVerification::ensure();
 $dPdo->exec("DELETE FROM memberships WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@dues.test')");
+$dPdo->exec("DELETE FROM member_verify_log WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@dues.test')");
 $dPdo->exec("DELETE FROM member_profiles WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@dues.test')");
 $dPdo->exec("DELETE FROM lms_users WHERE email LIKE '%@dues.test'");
 $keep = Database::metaGet(Membership::SETTINGS_KEY);
@@ -31,6 +32,16 @@ $mk = function (string $name, string $role = 'member', string $joined = '2026-01
     $id = (int) $dPdo->lastInsertId();
     $dPdo->prepare("UPDATE lms_users SET level = ? WHERE id = ?")->execute([$level, $id]);
     $dPdo->prepare("INSERT INTO member_profiles (user_id, joined_on, phone, centre, notes, work_roles, about, source, updated_at) VALUES (?, ?, '', '', '', '', '', '', '')")->execute([$id, $joined]);
+    /* Only a VERIFIED member owes dues (lib/MemberVerification.php), and
+       these fixtures are about the money, not about verification. They are
+       grandfathered rather than verified so their arrears run from the day
+       they joined, exactly as every member's did before verification
+       existed — a fresh verification would move the anchor to today and
+       every figure below would be zero. */
+    $dPdo->prepare("UPDATE member_profiles SET verified_state = 'grandfathered', verified_by = 'dues.test', verified_at = ?, verified_basis = 'test fixture' WHERE user_id = ?")
+         ->execute([$joined . ' 09:00:00', $id]);
+    $dPdo->prepare("INSERT INTO member_verify_log (user_id, action, basis, note, acted_by, acted_at) VALUES (?, 'grandfather', 'test fixture', '', 'dues.test', ?)")
+         ->execute([$id, $joined . ' 09:00:00']);
     return $id;
 };
 $set = function (array $s): void {
@@ -122,6 +133,7 @@ ck('ngv periods: 29 February falls on the 28th', NgvLedger::periods('2024-02-29'
 /* ── Leave the shared database as it was ────────────────────────────── */
 $dPdo->exec("DELETE FROM memberships WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@dues.test')");
 $dPdo->exec("DELETE FROM payments WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@dues.test')");
+$dPdo->exec("DELETE FROM member_verify_log WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@dues.test')");
 $dPdo->exec("DELETE FROM member_profiles WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@dues.test')");
 $dPdo->exec("DELETE FROM lms_users WHERE email LIKE '%@dues.test'");
 Database::metaSet(Membership::SETTINGS_KEY, (string) ($keep ?? ''));

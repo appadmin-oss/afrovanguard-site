@@ -101,17 +101,10 @@ final class OfflinePayments
     public static function accounts(): array { return array_values(array_filter(array_map(static fn($x) => preg_replace('/\D/', '', $x), explode(',', self::cfg('AV_OFFLINE_ACCOUNTS', ''))))); }
     public static function maxAgeDays(): int { return max(1, (int) self::cfg('AV_OFFLINE_MAX_AGE_DAYS', '60')); }
 
-    /**
-     * What dues for N months cost, the same prices the checkout charges.
-     *
-     * With a member named, at THEIR class's price. Without one it is the
-     * standard price — and a desk screen that quotes the standard price to
-     * somebody on the student rate would refuse the money they actually
-     * brought (`submit()` below checks the amount against this).
-     */
-    public static function duesPrice(int $months, int $userId = 0): int
+    /** What dues for N months cost, the same prices the checkout charges. */
+    public static function duesPrice(int $months): int
     {
-        return Membership::price($months, $userId);
+        return Membership::price($months);
     }
 
     /* ══ Submitting ═════════════════════════════════════════════════════════ */
@@ -148,7 +141,7 @@ final class OfflinePayments
         if ($purpose === 'dues') {
             $months = (int) ($claim['months'] ?? 12);
             if ($months < 1 || $months > Membership::MAX_MONTHS) return ['ok' => false, 'error' => 'Dues are for between 1 and ' . Membership::MAX_MONTHS . ' months.'];
-            $price = self::duesPrice($months, $userId);
+            $price = self::duesPrice($months);
             if ($amount < $price) return ['ok' => false, 'code' => 'short', 'error' => $months . ' month' . ($months === 1 ? '' : 's') . ' of dues is ₦' . number_format($price) . '. This says ₦' . number_format($amount) . '.'];
         } elseif (!NgvMember::participant($userId) && !self::onTheNgvLedger($userId)) {
             /* A fine can be issued to any active member, NGV or not, and it

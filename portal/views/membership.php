@@ -44,21 +44,11 @@ if ($mvPending): ?>
     /* Behind: months fallen due and not paid (Membership::arrears). */
     $duesOwe = (array) ($dues['arrears'] ?? []);
     $duesOweN = (int) ($duesOwe['months'] ?? 0);
-    /* Every figure on this card is THIS member's, at their class's price:
-       a student quoted the standard rate pays it and is told it is short. */
-    $duesUid = (int) $u['id'];
     if ($duesOweN > 0) { $duesPill = 'Behind'; $duesTone = 'red'; }
-    /* Which class they are in, so the rate on the card is explained rather
-       than just asserted — "₦250 a month" with no reason reads as a mistake
-       to anybody who has heard a different figure from somebody else. */
-    $duesClass = class_exists('Membership') ? Membership::classOf($duesUid) : ['class' => '', 'label' => '', 'monthly' => 0, 'owes' => true];
 ?>
           <section class="avp-card avp-dues dues-<?= e($duesState) ?>" id="membership" data-csrf="<?= e($duesCsrf) ?>" aria-labelledby="avpDuesH">
             <div class="avp-card-head"><h2 id="avpDuesH">Membership dues</h2><span class="avp-chip avp-chip--<?= e($duesTone) ?>"><?= e($duesPill) ?></span></div>
             <div class="avp-card-body avp-dues-body">
-<?php if (($duesClass['label'] ?? '') !== ''): ?>
-              <p class="avp-note avp-dues-class"><?= e($duesClass['label']) ?> member — <?= empty($duesClass['owes']) ? 'this class owes no dues' : '₦' . number_format((int) $duesClass['monthly']) . ' a month' ?>. The office sets your class; ask them if it looks wrong.</p>
-<?php endif; ?>
 <?php if ($duesTotal > 0): ?>
               <div class="avp-dues-total"><span>Total dues paid</span><strong class="av-num">₦<?= number_format($duesTotal) ?></strong><span class="avp-dues-n av-num">· <?= $duesN ?> payment<?= $duesN === 1 ? '' : 's' ?></span></div>
 <?php endif; ?>
@@ -97,8 +87,8 @@ if ($mvPending): ?>
                 <div class="avp-disclose-body">
                   <p class="avp-note">Your dues are credited once the receipt is checked — the amount, the date, and that it went to Afrovanguard. A receipt can be used once.</p>
                   <form class="avp-form dues-off-form" novalidate>
-                    <label>For<select name="months"><?php if ($duesOweN > 0 && $duesOweN !== 12 && $duesOweN <= Membership::MAX_MONTHS): ?><option value="<?= $duesOweN ?>" data-amount="<?= (int) OfflinePayments::duesPrice($duesOweN, $duesUid) ?>">What’s owed, <?= $duesOweN ?> month<?= $duesOweN === 1 ? '' : 's' ?> — ₦<?= number_format(OfflinePayments::duesPrice($duesOweN, $duesUid)) ?></option><?php endif; ?><option value="12" data-amount="<?= (int) OfflinePayments::duesPrice(12, $duesUid) ?>">A year — ₦<?= number_format(OfflinePayments::duesPrice(12, $duesUid)) ?></option><option value="1" data-amount="<?= (int) OfflinePayments::duesPrice(1, $duesUid) ?>">A month — ₦<?= number_format(OfflinePayments::duesPrice(1, $duesUid)) ?></option></select></label>
-                    <label>Amount paid (₦)<input name="amount" type="number" min="1" required value="<?= (int) OfflinePayments::duesPrice($duesOweN > 0 && $duesOweN <= Membership::MAX_MONTHS ? $duesOweN : 12, $duesUid) ?>"></label>
+                    <label>For<select name="months"><?php if ($duesOweN > 0 && $duesOweN !== 12 && $duesOweN <= Membership::MAX_MONTHS): ?><option value="<?= $duesOweN ?>" data-amount="<?= (int) OfflinePayments::duesPrice($duesOweN) ?>">What’s owed, <?= $duesOweN ?> month<?= $duesOweN === 1 ? '' : 's' ?> — ₦<?= number_format(OfflinePayments::duesPrice($duesOweN)) ?></option><?php endif; ?><option value="12" data-amount="<?= (int) OfflinePayments::duesPrice(12) ?>">A year — ₦<?= number_format(OfflinePayments::duesPrice(12)) ?></option><option value="1" data-amount="<?= (int) OfflinePayments::duesPrice(1) ?>">A month — ₦<?= number_format(OfflinePayments::duesPrice(1)) ?></option></select></label>
+                    <label>Amount paid (₦)<input name="amount" type="number" min="1" required value="<?= (int) OfflinePayments::duesPrice($duesOweN > 0 && $duesOweN <= Membership::MAX_MONTHS ? $duesOweN : 12) ?>"></label>
                     <label>How<select name="method"><option value="transfer">Bank transfer</option><option value="cash">Cash</option><option value="pos">POS</option><option value="deposit">Bank deposit</option></select></label>
                     <label>Day paid<input name="paid_on" type="date" max="<?= gmdate('Y-m-d') ?>"></label>
                     <label>Reference on the receipt (optional)<input name="reference" maxlength="80"></label>

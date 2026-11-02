@@ -67,6 +67,28 @@ confirms, and that they are on the office's list. Seeing "Learner" with no
 explanation reads as a fault in the software rather than a step nobody has
 taken yet.
 
+## Dues: only a verified member owes them
+
+There are two kinds of person, and that is the whole taxonomy:
+
+- **Verified** — a member. Owes monthly dues.
+- **Unverified** — a volunteer, with limited access. Owes nothing.
+
+A membership-class system with six priced categories was built for this and
+taken straight back out: it was more to keep up than the organisation wants,
+and the real answer is the verification state it already had.
+
+Two rules keep the money honest across the boundary:
+
+- **Dues begin the day somebody first counts as a member.** For anybody
+  verified from scratch that is the day they were verified — verifying
+  somebody must not hand them a year of arrears for months in which they were
+  an unverified volunteer and owed nothing.
+- **Verifying a grandfathered member changes nothing about their money.**
+  They were being charged the day before verification existed, so the office
+  doing its paperwork must not wipe a real debt. `Membership::anchorOf()`
+  applies the verification date only when there is no `grandfather` row.
+
 ## What the org domain still does
 
 It is a real signal and is still read for what it actually tells you:

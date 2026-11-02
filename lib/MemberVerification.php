@@ -97,6 +97,17 @@ final class MemberVerification
 
     /* ══ Reading ══════════════════════════════════════════════════════════ */
 
+    /**
+     * Drop the per-request memo. Writes through verify()/decline()/unverify()
+     * clear their own entry; this is for anything that changes the rows
+     * underneath — a bulk correction, or a test putting the database back.
+     */
+    public static function forget(?int $userId = null): void
+    {
+        if ($userId === null) self::$memo = [];
+        else unset(self::$memo[$userId]);
+    }
+
     /** '' | 'verified' | 'grandfathered' | 'declined'. */
     public static function state(int $userId): string
     {

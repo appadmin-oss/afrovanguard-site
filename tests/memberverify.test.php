@@ -140,6 +140,42 @@ MemberVerification::verify($mvOutsider, 'Signed the membership form at the AGM',
 ck('verify: …and a verified learner IS a member, whatever their address',
    $mvIsMember($mvOutsider) === true && LmsAuth::isOrgMember($mvUser($mvOutsider)) === true);
 
+/* ── Only a verified member owes dues ────────────────────────────────── */
+/* An unverified person is a volunteer with limited access. Sending an
+   invoice to somebody the organisation has not confirmed a relationship with
+   is the wrong way round. */
+Database::metaSet(Membership::SETTINGS_KEY, (string) json_encode(
+    ['enabled' => true, 'monthly_ngn' => 1000, 'annual_ngn' => 12000, 'from_level' => 'O', 'start' => '2026-01-01']));
+Membership::forgetSettings();
+$mvDues = $mvMk('Owes Nothing', 'mver.owes.nothing@gmail.test', 'member');
+$mvPdo->prepare("INSERT INTO member_profiles (user_id, joined_on, phone, centre, notes, work_roles, about, source, updated_at) VALUES (?, '2026-02-01', '', '', '', '', '', '', '')")->execute([$mvDues]);
+$mvPdo->prepare("UPDATE lms_users SET level = 'O', created_at = '2026-02-01 09:00:00' WHERE id = ?")->execute([$mvDues]);
+$mvOb2 = Membership::obligation($mvDues);
+ck('verify: an unverified person owes no dues, and the reason says volunteer',
+   $mvOb2['owes'] === false && $mvOb2['code'] === 'unverified' && str_contains($mvOb2['why'], 'volunteer'));
+ck('verify: …and they are not in the obliged list at all',
+   !isset(Membership::arrearsFor([$mvDues], (int) strtotime('2026-10-23 12:00:00 UTC'))[$mvDues]));
+
+/* Verifying them starts the clock THERE, not at the day they joined: they
+   owed nothing for the months nobody had checked who they were. */
+MemberVerification::verify($mvDues, 'Signed the form at the centre', 'desk@test');
+$mvPdo->prepare("UPDATE member_profiles SET verified_at = '2026-08-10 10:00:00' WHERE user_id = ?")->execute([$mvDues]);
+$mvPdo->prepare("UPDATE member_verify_log SET acted_at = '2026-08-10 10:00:00' WHERE user_id = ? AND action = 'verify'")->execute([$mvDues]);
+$mvA2 = Membership::arrearsFor([$mvDues], (int) strtotime('2026-10-23 12:00:00 UTC'))[$mvDues] ?? null;
+ck('verify: dues begin the day they were verified, not the day they joined',
+   $mvA2 && $mvA2['since'] === '2026-08-10' && $mvA2['months'] === 3);
+
+/* A GRANDFATHERED member was being charged the day before this shipped. The
+   office doing its paperwork must not wipe a real debt. */
+$mvGf = $mvMk('Long Standing', 'mver.long.standing@gmail.test', 'member');
+$mvPdo->prepare("INSERT INTO member_profiles (user_id, joined_on, phone, centre, notes, work_roles, about, source, updated_at) VALUES (?, '2026-02-01', '', '', '', '', '', '', '')")->execute([$mvGf]);
+$mvPdo->prepare("UPDATE lms_users SET level = 'O', created_at = '2026-02-01 09:00:00' WHERE id = ?")->execute([$mvGf]);
+MemberVerification::grandfatherAll('test', true);
+MemberVerification::verify($mvGf, 'Known to the team for years', 'desk@test');
+$mvA3 = Membership::arrearsFor([$mvGf], (int) strtotime('2026-10-23 12:00:00 UTC'))[$mvGf] ?? null;
+ck('verify: verifying a grandfathered member does NOT wipe what they already owed',
+   $mvA3 && $mvA3['since'] === '2026-02-01' && $mvA3['months'] === 9);
+
 /* The community bot is an account, not a person. A list with something
    nobody can ever action at the top is a list people stop reading. */
 $mvBotEmail = class_exists('Community') ? Community::BOT_EMAIL : 'community-bot@afrovanguard.org.ng';
@@ -170,6 +206,10 @@ $mvKeep = $mvBefore ? ' AND user_id NOT IN (' . implode(',', $mvBefore) . ')' : 
 $mvPdo->exec("UPDATE member_profiles SET verified_state = '', verified_by = '', verified_at = '', verified_basis = ''
                WHERE verified_state = 'grandfathered'$mvKeep");
 $mvPdo->exec("DELETE FROM member_verify_log WHERE action = 'grandfather' AND acted_by = 'test'");
+/* The rows went back; the per-request memo has to as well, or the next test
+   file in this process reads a state that is no longer in the database.
+   (tests/todo.test.php found exactly that, twice.) */
+MemberVerification::forget();
 if ($mvMarkerWas === null) { try { Database::metaSet(MemberVerification::BACKFILL_KEY, ''); } catch (Throwable $e) {} }
 ck('verify: the test puts the database back — no other fixture is left grandfathered',
    (int) $mvPdo->query("SELECT COUNT(*) FROM member_profiles WHERE verified_state = 'grandfathered'$mvKeep")->fetchColumn() === 0);

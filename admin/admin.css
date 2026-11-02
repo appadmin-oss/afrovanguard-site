@@ -820,24 +820,6 @@ body.studio { --gold-deep: var(--av-gold-text); }
 .mem-row-about { color:var(--muted); }
 @media (max-width:720px) { .mem-role-new, .mem-role-row { grid-template-columns:1fr; } }
 
-/* Membership classes: the roles row plus three narrow money fields. The
-   prices sit together on the right so a row reads name → who → what it costs. */
-.mem-class-new, .mem-class-row { grid-template-columns:minmax(130px,1fr) minmax(170px,1.8fr) 96px 96px 72px 72px auto; }
-.mem-class-ngn input, .mem-class-owes input { width:100%; }
-.mem-class-owes { text-align:center; }
-.mem-class-owes input[type=checkbox] { width:18px; height:18px; margin-top:6px; }
-.mem-class-note { grid-column:1/-1; margin:2px 0 0; }
-/* The drawer is a panel, not the window, so this wraps on its OWN width —
-   a media query here would measure the viewport and clip the button inside a
-   narrow drawer on a wide screen, which is exactly what it did. */
-.mem-class-set { display:flex; flex-wrap:wrap; gap:10px; align-items:end; }
-.mem-class-set .fld { flex:1 1 150px; min-width:0; }
-.mem-class-set .fld:nth-child(2) { flex:0 1 150px; }
-.mem-class-set .btn { flex:0 0 auto; }
-@container (max-width:860px) { .mem-class-new, .mem-class-row { grid-template-columns:1fr 1fr; } }
-@container (max-width:560px) { .mem-class-new, .mem-class-row { grid-template-columns:1fr; } }
-.mem-pane[data-pane="classes"] { container-type:inline-size; }
-
 /* To verify: who, why they are here, and the one field that makes it a
    decision rather than a click. */
 .mem-verify-row { grid-template-columns:minmax(220px,1.4fr) minmax(220px,1.6fr) auto; align-items:start; }

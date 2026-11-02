@@ -479,7 +479,6 @@
       <button class="subtab active" data-mv="dash" role="tab">Dashboard</button>
       <button class="subtab" data-mv="roster" role="tab">Roster</button>
       <button class="subtab" data-mv="roles" role="tab">Roles</button>
-      <button class="subtab" data-mv="classes" role="tab">Classes</button>
       <button class="subtab" data-mv="verify" role="tab">To verify <span class="badge draft" id="mvBadge" hidden></span></button>
       <button class="subtab" data-mv="centres" role="tab">Centres</button>
       <button class="subtab" data-mv="approvals" role="tab">Approvals <span class="badge draft" id="apprBadge" hidden></span></button>
@@ -532,7 +531,6 @@
         <select id="memStatus" aria-label="Filter by status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
         <select id="memKind" aria-label="Which accounts"><option value="">Afrovanguard members</option><option value="ngv">NextGen Vanguards</option><option value="member">Members who are not NGV</option><option value="learner">Academy learners (not members)</option><option value="all">Every account</option></select>
         <select id="memWorkRole" aria-label="Filter by work role"><option value="">Any work role</option></select>
-        <select id="memClass" aria-label="Filter by membership class"><option value="">Any class</option><option value="none">In no class</option></select>
         <select id="memCentre" aria-label="Filter by centre"><option value="">Any centre</option></select>
         <select id="memLevel" aria-label="Filter by level"><option value="">Any level</option></select>
         <select id="memVolunteer" aria-label="Volunteers"><option value="">Volunteers or not</option><option value="yes">Volunteers</option><option value="no">Not volunteers</option></select>
@@ -611,7 +609,6 @@
         <div class="side-card">
           <h3>The rules</h3>
           <p class="muted tiny">Every member at or above the level below owes dues each month, from the later of the start date and the day they joined. NextGen Vanguards are not charged here: their membership is on the NGV account. A payment covers the oldest month owed first.</p>
-          <p class="muted tiny">These are the <em>standard</em> prices, paid by every member the office has not put in a class. A class of its own (<b>Classes</b> tab) overrides them for the members in it, and a class marked <em>owes nothing</em> pays none.</p>
           <form class="dues-rules" id="duesRules" autocomplete="off" novalidate>
             <label class="mem-check"><input type="checkbox" id="dr_enabled"> <span>Members owe dues</span></label>
             <label class="fld"><span>A month (₦)</span><input id="dr_monthly" inputmode="numeric" maxlength="8"></label>
@@ -683,21 +680,6 @@
       <div id="memVerifyList" aria-live="polite"><p class="muted">Loading…</p></div>
     </section>
 
-    <section class="mem-pane" data-pane="classes" hidden>
-      <p class="muted">What KIND of member somebody is, and what that kind pays in monthly dues. A class is not their role and not their Level: the role says what they may do in the software, the Level says how far they have come, and the class says what they pay — so a promotion never changes somebody’s bill.</p>
-      <p class="muted tiny">A class with no price of its own is on the standard dues price (Dues tab), not free. A class marked <em>owes nothing</em> is free, whatever is typed in its price. Moving a member between classes is dated, on their own record under Membership: the months they already owe keep the price of the class they were in when each one fell due.</p>
-      <form class="mem-role-new mem-class-new" id="mclsNew" autocomplete="off">
-        <label class="fld"><span>New class</span><input id="mclsNewName" maxlength="40" placeholder="Student" required /></label>
-        <label class="fld mem-role-desc"><span>What it covers</span><input id="mclsNewDesc" maxlength="500" placeholder="In school, university or NYSC" /></label>
-        <label class="fld mem-class-ngn"><span>Monthly ₦</span><input id="mclsNewMonthly" type="number" min="0" step="1" value="0" /></label>
-        <label class="fld mem-class-ngn"><span>Yearly ₦</span><input id="mclsNewAnnual" type="number" min="0" step="1" value="0" placeholder="12 × monthly" /></label>
-        <label class="fld mem-class-owes"><span>Owes dues</span><input id="mclsNewOwes" type="checkbox" checked /></label>
-        <button class="btn btn-primary btn-sm" type="submit">Add class</button>
-      </form>
-      <p class="muted tiny" id="mclsMsg" role="status" aria-live="polite"></p>
-      <div id="memClassList" aria-live="polite"><p class="muted">Loading…</p></div>
-    </section>
-
     <section class="mem-pane" data-pane="approvals" hidden>
       <p class="muted">An admin's acts that take somebody's access away — suspending members, or ending dues for several at once — wait here for a second person, as NGG's do. A Super Admin or another admin approves or rejects them; nobody decides their own. Approved, the request runs exactly as it was asked, as the person who asked. A request nobody decides in 14 days expires.</p>
       <label class="fld appr-filter"><span>Show</span><select id="apprStatus"><option value="pending">Waiting</option><option value="approved">Approved</option><option value="rejected">Not approved</option><option value="failed">Could not run</option><option value="withdrawn">Withdrawn</option><option value="expired">Expired</option><option value="all">Everything</option></select></label>
@@ -764,17 +746,6 @@
           <select id="mdVolType" aria-label="Volunteers as"></select>
           <button class="btn btn-outline btn-sm" id="mdVolAdd">Place on project</button>
         </div>
-        <h3 class="mem-card-h">Membership class</h3>
-        <p class="muted tiny">What kind of member they are, and so what they pay a month. A change takes effect from the day you give: the months they already owe keep the price of the class they were in when each one fell due, so correcting a record does not re-price the past by accident.</p>
-        <div class="mem-card-row mem-class-set">
-          <label class="fld"><span>Class</span><select id="mdClass" aria-label="Membership class"><option value="">— no class —</option></select></label>
-          <label class="fld"><span>From</span><input id="mdClassFrom" type="date" aria-label="Takes effect from" /></label>
-          <label class="fld"><span>Why</span><input id="mdClassNote" maxlength="500" placeholder="Finished school, started work…" /></label>
-          <button class="btn btn-outline btn-sm" id="mdClassSave">Set class</button>
-        </div>
-        <div id="mdClassNow" aria-live="polite"></div>
-        <div id="mdClassHistory"></div>
-
         <h3 class="mem-card-h">Dues</h3>
         <p class="muted tiny">Dues open paid courses. They are not Afrovanguard membership: paying them changes nobody's access level.</p>
         <div id="mdMembership" aria-live="polite"></div>

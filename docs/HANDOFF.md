@@ -813,45 +813,6 @@ sittings, then sent. `tests/readingflow.test.php` drives it over HTTP as a
 signed-in vanguard, because if the dashboard's endpoint, the claim sheet and
 the diary disagree about that, the member is the one who finds out.
 
-## Membership classes: dues priced by what kind of member somebody is (Nov 2026)
-
-Dues were one price for everybody, so a student and a working professional
-owed the same figure and the only lever was a hand-typed waiver every month. A
-**class** now carries the price: Student, Working, Volunteer, Associate,
-Patron, Honorary as seeded, all office-editable.
-
-**A class is not the role and not the Level.** The role says what somebody may
-do in the software, the Level says how far they have come, the class says what
-they pay. Tying the price to either of the other two means a promotion changes
-somebody's bill.
-
-**Nothing changes until the office uses it.** No class, or a class with no
-price of its own, reads the single dues price exactly as before — a class with
-blank prices is *on the standard price*, not free. The first assertion in
-`tests/memberclasses.test.php` pins that, deliberately ahead of everything
-else: a money change nobody asked for is the worst kind.
-
-**The past keeps the price it was charged at.** `member_class_log` is one row
-per change with the day it takes effect, and arrears price **each month at the
-class in force on the day it fell due**, grouping consecutive months so a year
-owed in one class still gets that class's yearly rate. Pricing arrears at
-today's class would mean one correction trebled somebody's arrears with
-nothing on screen saying why. Backdating is allowed and is how a record is
-corrected; a future day is refused.
-
-**Prices are the Super Admin's** (`member_class_save`, beside the dues
-settings); reading the list and putting a person in a class are management's.
-An admin who cannot price sees the fields disabled and is told why.
-
-Found by screenshot, not by the suite: the new roster filter was never bound
-to the reload handler, so picking a class redrew the chip and left the list
-alone — the same class of defect as the fatal the reading screenshots caught.
-Its sibling, the drawer's class row clipping its own button, was a media query
-measuring the window while sitting inside a 555px panel; it is a container
-query now.
-
-See `docs/member-classes.md`.
-
 ## Membership is an act, not an email address (Nov 2026)
 
 An `@afrovanguard.org.ng` address WAS membership, in three places:
@@ -893,3 +854,45 @@ mutation testing caught it, and the claim is its own method now so the write
 can be pinned.
 
 See `docs/member-verification.md`.
+
+## Membership classes: built, then removed the same day (Nov 2026)
+
+"Dues vary by user type" was first built as a **membership class** — a list
+the office keeps (Student, Working, Volunteer, Associate, Patron, Honorary),
+each with its own monthly price, assigned per member with a dated history so
+arrears priced each month at the class in force when it fell due. It worked
+and it was tested. It was removed within the hour, on the owner's call: *"This
+is not how I want it. This would be too stressful. It is just verified and
+unverified. Unverified gets just volunteer with limited access."*
+
+That is a better answer, and the reason is worth keeping: the organisation
+already had the distinction it needed, in the verification state. Six priced
+categories was a second taxonomy to maintain on top of it, and the office is
+the one who would have maintained it.
+
+So: **only a verified member owes dues.** An unverified person is a volunteer
+with limited access and no bill. `Membership::obligedSql()` carries
+`MemberVerification::countsSql()` and `obligation()` answers `unverified` with
+that in words.
+
+Two anchoring rules came out of it and are the part most likely to be
+re-broken:
+
+- **Dues begin the day somebody first counts as a member.** Verified from
+  scratch ⇒ the verification day. Otherwise verifying somebody would hand
+  them a year of arrears for months in which they owed nothing.
+- **Verifying a grandfathered member changes nothing about their money.**
+  They were being charged the day before; the office doing its paperwork must
+  not wipe a real debt. `anchorOf()` applies the verification date only when
+  there is no `grandfather` row for them.
+
+`git revert` took out the class commit; `grep` for `MemberClasses`,
+`member_class` and `mem-class` is clean. `tests/dues.test.php`'s fixtures are
+now grandfathered rather than verified, for the same anchoring reason — a
+fresh verification would move every anchor to today and every figure in that
+file to zero.
+
+One thing to remember if a cache is ever added to a state like this:
+`MemberVerification` memoises per request, and a test that put the rows back
+with raw SQL left the memo stale, so the next test file in the process read a
+state that was no longer in the database. `forget()` exists for that.

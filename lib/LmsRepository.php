@@ -629,8 +629,8 @@ final class LmsRepository
      */
     public function duesStatus(int $userId): array
     {
-        $annualNgn  = Membership::annualFor($userId);
-        $monthlyNgn = Membership::monthlyFor($userId);
+        $annualNgn  = Membership::annual();
+        $monthlyNgn = Membership::monthly();
         $amountNgn = $annualNgn;
         $m = $this->latestMembership($userId);
         $paidThrough = $m['expires_at'] ?? null;
