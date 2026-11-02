@@ -1,12 +1,19 @@
 <?php
 /**
  * lib/QuestMoney.php — the Pyramid Manual's Section 3: points against fines,
- * month by month, by income bracket.
+ * WEEK BY WEEK, by income bracket.
+ *
+ * THE PERIOD IS A WEEK. The manual titled Section 3 "bi-monthly" and its text
+ * said "every one months"; the owner settled it as weekly on 2 November 2026
+ * (van-quest doctrine/06-awards-and-fines.md). A period is an ISO week,
+ * Monday to Sunday, keyed "2026W44" — seven characters, so it fits the
+ * existing VARCHAR(7) `month` columns, which now hold a week key. Rows written
+ * under the monthly rule ("2026-10") are left as they were and still read.
  *
  *   1. All fines are monetary and vary according to each member's monthly
  *      income category.
  *   2. All awards are expressed in points.
- *   3. At the end of every month, the points each member earned are
+ *   3. At the end of every period (a week), the points each member earned are
  *      monetised by their income bracket,
  *   4. and offset against the fines of the same period.
  *   5. A balance left over is paid within two weeks.
@@ -216,11 +223,47 @@ final class QuestMoney
         return (int) round($base * max(0, (int) $b['fine_pct']) / 100);
     }
 
-    /* ── The month ─────────────────────────────────────────────────────── */
+    /* ── The week ──────────────────────────────────────────────────────── */
+
+    /** A period key is an ISO week: "2026W44". */
+    public const PERIOD_RE = '/^\d{4}W\d{2}$/';
+
+    /** The week a day falls in. */
+    public static function weekOf(string $ymd): string
+    {
+        $t = strtotime($ymd . ' 12:00:00 UTC');
+        return $t === false ? '' : gmdate('o\WW', $t);
+    }
+
+    /** The week now running. */
+    public static function thisWeek(): string { return self::weekOf(gmdate('Y-m-d')); }
+
+    /** The last week that has ended. */
+    public static function lastWeek(): string { return self::weekOf(gmdate('Y-m-d', strtotime('-7 days'))); }
+
+    /** @return array{0:string,1:string} the week's Monday and Sunday */
+    public static function weekRange(string $week): array
+    {
+        if (!preg_match(self::PERIOD_RE, $week)) return ['', ''];
+        $mon = strtotime(substr($week, 0, 4) . 'W' . substr($week, 5, 2) . '1 12:00:00 UTC');
+        if ($mon === false) return ['', ''];
+        return [gmdate('Y-m-d', $mon), gmdate('Y-m-d', $mon + 6 * 86400)];
+    }
+
+    /** "Week 44, 2026 · 26 Oct – 1 Nov" */
+    public static function weekLabel(string $week): string
+    {
+        [$a, $b] = self::weekRange($week);
+        if ($a === '') return $week;
+        return 'Week ' . (int) substr($week, 5, 2) . ', ' . substr($week, 0, 4) . ' · '
+             . gmdate('j M', strtotime($a . ' 12:00:00 UTC')) . ' – ' . gmdate('j M', strtotime($b . ' 12:00:00 UTC'));
+    }
+
+    /* ── The reconciliation ─────────────────────────────────────────────────────── */
 
     /**
-     * What the month would do, without doing it. One row per member with a
-     * bracket who earned points or was fined in the month; members with
+     * What the week would do, without doing it. One row per member with a
+     * bracket who earned points or was fined in the week; members with
      * activity but no bracket are listed separately, because skipping them
      * silently would read as "nothing owed".
      *
@@ -229,7 +272,9 @@ final class QuestMoney
     public static function preview(string $month): array
     {
         $out = ['month' => $month, 'rows' => [], 'unplaced' => [], 'totals' => ['credit' => 0, 'fines' => 0, 'offset' => 0, 'balance' => 0], 'applied' => false];
-        if (!preg_match('/^\d{4}-\d{2}$/', $month)) return $out;
+        if (!preg_match(self::PERIOD_RE, $month)) return $out;
+        [$from, $to] = self::weekRange($month);
+        $out['from'] = $from; $out['to'] = $to;
         self::ensure();
         $db = Database::pdo();
 
@@ -237,8 +282,8 @@ final class QuestMoney
            deducted. One grouped query. */
         $points = [];
         try {
-            $st = $db->prepare('SELECT member_id, SUM(points) AS p FROM quest_points WHERE day LIKE ? GROUP BY member_id');
-            $st->execute([$month . '-%']);
+            $st = $db->prepare('SELECT member_id, SUM(points) AS p FROM quest_points WHERE day >= ? AND day <= ? GROUP BY member_id');
+            $st->execute([$from, $to]);
             foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) $points[(int) $r['member_id']] = max(0, (int) $r['p']);
         } catch (Throwable $e) { /* none */ }
 
@@ -246,7 +291,7 @@ final class QuestMoney
         $fines = []; $owing = [];
         if (class_exists('NgvFines')) {
             try {
-                foreach (NgvFines::all(['from' => $month . '-01', 'to' => $month . '-31']) as $f) {
+                foreach (NgvFines::all(['from' => $from, 'to' => $to]) as $f) {
                     if ($f['status'] === 'voided') continue;
                     $m = (int) $f['member_id'];
                     $fines[$m] = ($fines[$m] ?? 0) + (int) $f['amount'];
@@ -306,16 +351,16 @@ final class QuestMoney
     }
 
     /**
-     * Run the month: offset each member's fines by their points' value, as a
+     * Run the week: offset each member's fines by their points' value, as a
      * waiver on the NGV fines line, and record a reconciliation row with the
-     * balance and the day it is due. Once per member per month.
+     * balance and the day it is due. Once per member per week.
      */
     public static function apply(string $month, array $by): array
     {
-        if (!self::canRun($by)) return ['ok' => false, 'error' => 'Only the compliance committee or a superadmin runs the month.'];
+        if (!self::canRun($by)) return ['ok' => false, 'error' => 'Only the compliance committee or a superadmin runs the week.'];
         if (!AvRules::bool('quest.money_enabled')) return ['ok' => false, 'error' => 'The reconciliation is switched off.'];
         if (!self::ready()) return ['ok' => false, 'error' => 'Set at least one income bracket with a value for a point first.'];
-        if (!preg_match('/^\d{4}-\d{2}$/', $month) || $month >= gmdate('Y-m')) return ['ok' => false, 'error' => 'Only a month that has ended can be run.'];
+        if (!preg_match(self::PERIOD_RE, $month) || $month >= self::thisWeek()) return ['ok' => false, 'error' => 'Only a week that has ended can be run.'];
         $p = self::preview($month);
         $due = gmdate('Y-m-d', strtotime('+' . max(1, AvRules::int('quest.money_settle_days')) . ' days'));
         $now = gmdate('Y-m-d H:i:s');
@@ -326,7 +371,7 @@ final class QuestMoney
             $given = 0;
             if ($r['offset'] > 0 && class_exists('NgvLedger')) {
                 $w = NgvLedger::waive((int) $r['member_id'], 'fine', $r['offset'],
-                    'Quest points offset for ' . $month . ': ' . $r['points'] . ' pts × ₦' . number_format($r['point_value']) . ' (' . $r['bracket'] . ')', (int) $by['id']);
+                    'Quest points offset for ' . self::weekLabel($month) . ': ' . $r['points'] . ' pts × ₦' . number_format($r['point_value']) . ' (' . $r['bracket'] . ')', (int) $by['id']);
                 if (empty($w['ok'])) { $failed[] = $r['name'] . ': ' . ($w['error'] ?? 'not recorded'); continue; }
                 $given = (int) ($w['waived'] ?? $r['offset']);
             }
@@ -341,16 +386,16 @@ final class QuestMoney
             if (class_exists('Notifications')) {
                 $msg = $r['points'] . ' points at ₦' . number_format($r['point_value']) . ' — ₦' . number_format($given) . ' taken off your fines.'
                      . ($balance > 0 ? ' ₦' . number_format($balance) . ' is left to pay by ' . $due . '.' : ' Nothing is left to pay.');
-                try { Notifications::push((int) $r['member_id'], 'award', 'Your Quest month: ' . $month, $msg, '/portal/#quest', 'quest-month:' . $month); }
+                try { Notifications::push((int) $r['member_id'], 'award', 'Your Quest week: ' . self::weekLabel($month), $msg, '/portal/#quest', 'quest-week:' . $month); }
                 catch (Throwable $e) { /* best-effort */ }
             }
         }
         self::computePool($month);
-        self::audit('apply', 'month:' . $month, $ran . ' member(s), ₦' . number_format($offset) . ' offset' . ($failed ? ', ' . count($failed) . ' failed' : ''), (int) $by['id']);
+        self::audit('apply', 'week:' . $month, $ran . ' member(s), ₦' . number_format($offset) . ' offset' . ($failed ? ', ' . count($failed) . ' failed' : ''), (int) $by['id']);
         return ['ok' => true, 'ran' => $ran, 'offset' => $offset, 'failed' => $failed];
     }
 
-    /** @return array<int,array> a member's months, newest first */
+    /** @return array<int,array> a member's weeks, newest first */
     public static function forMember(int $memberId): array
     {
         self::ensure();
@@ -396,7 +441,7 @@ final class QuestMoney
             $why = 'The balance of ₦' . number_format((int) $r['balance']) . ' from ' . $r['month'] . ' was due on ' . $r['due_on']
                  . ' and ₦' . number_format($still) . ' in fines is still owed. The Pyramid Manual, Section 3.6.';
             if (class_exists('QuestLadder')) {
-                QuestLadder::suggest($m, 'suspension', $why, 'overdue:' . $r['month'], 0, substr($today, 0, 7));
+                QuestLadder::suggest($m, 'suspension', $why, 'overdue:' . $r['month'], 0, self::thisWeek());
                 if ($fine > 0) QuestLadder::suggest($m, 'fine', $why . ' Overdue fine: ₦' . number_format($fine) . '.', 'overdue-fine:' . $r['month'], $fine);
             }
             $overdue++;
@@ -406,15 +451,16 @@ final class QuestMoney
 
     /* ── The Reward Pool ───────────────────────────────────────────────── */
 
-    /** Fines actually paid in a month, and the pool's share of them. */
+    /** Fines actually paid in a week, and the pool's share of them. */
     public static function computePool(string $month): array
     {
         $pct = AvRules::int('quest.reward_pool_pct');
         $collected = 0;
-        if (class_exists('NgvDb')) {
+        [$from, $to] = self::weekRange($month);
+        if ($from !== '' && class_exists('NgvDb')) {
             try {
-                $st = NgvDb::pdo()->prepare("SELECT COALESCE(SUM(amount), 0) FROM ngv_payments WHERE kind = 'fine' AND credit_kind = 'payment' AND voided = 0 AND created_at LIKE ?");
-                $st->execute([$month . '-%']);
+                $st = NgvDb::pdo()->prepare("SELECT COALESCE(SUM(amount), 0) FROM ngv_payments WHERE kind = 'fine' AND credit_kind = 'payment' AND voided = 0 AND created_at >= ? AND created_at <= ?");
+                $st->execute([$from . ' 00:00:00', $to . ' 23:59:59']);
                 $collected = (int) $st->fetchColumn();
             } catch (Throwable $e) { /* none */ }
         }
@@ -442,7 +488,7 @@ final class QuestMoney
         return ['month' => $month, 'collected' => 0, 'pct' => AvRules::int('quest.reward_pool_pct'), 'amount' => 0];
     }
 
-    /** The pool across every month recorded. */
+    /** The pool across every period recorded. */
     public static function poolTotal(): int
     {
         self::ensure();

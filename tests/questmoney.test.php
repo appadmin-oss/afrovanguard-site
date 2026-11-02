@@ -41,8 +41,10 @@ foreach ([8301 => 'Money Member', 8302 => 'Money Unplaced', 8303 => 'Money Commi
 $db->prepare(Database::insertIgnore('compliance_members', ['user_id', 'added_by', 'created_at']))->execute([8303, 'test', $now]);
 $committee = ['id' => 8303, 'email' => 'm8303@x.test'];
 $member = ['id' => 8301, 'email' => 'm8301@x.test'];
-$last = gmdate('Y-m', strtotime(gmdate('Y-m-01') . ' -1 month'));
-$day = $last . '-10';
+/* The period is a week (the owner, 2 November 2026). */
+$last = QuestMoney::lastWeek();
+[$weekFrom, $weekTo] = QuestMoney::weekRange($last);
+$day = gmdate('Y-m-d', strtotime($weekFrom . ' +2 days'));
 
 /* ── nothing moves until it is set up ── */
 
@@ -53,7 +55,7 @@ ck('money: a bracket\'s top cannot be below its bottom', !QuestMoney::saveBracke
 $b = QuestMoney::saveBracket(['label' => 'Under ₦100k', 'min_income' => '0', 'max_income' => '100,000', 'point_value' => '50', 'fine_pct' => '150'], $committee);
 ck('money: the committee sets a bracket', $b['ok'] && (int) QuestMoney::brackets()[$b['id']]['point_value'] === 50);
 ck('money: still not ready while the switch is off', !QuestMoney::ready());
-ck('money: …and the month cannot be run', !QuestMoney::apply($last, $committee)['ok']);
+ck('money: …and the week cannot be run', !QuestMoney::apply($last, $committee)['ok']);
 
 /* ── a bracket scales the manual's base fines ── */
 
@@ -64,7 +66,12 @@ ck('money: nobody sets their own bracket', !QuestMoney::setMemberBracket(8303, $
 ck('money: in a bracket at 150%, the manual\'s ₦1,000 is ₦1,500', QuestMoney::scaleFine(8301, 1000) === 1500);
 ck('money: a bracket in use cannot be deleted', !QuestMoney::deleteBracket($b['id'], $committee)['ok']);
 
-/* ── the month ── */
+/* ── the week ── */
+
+ck('money: a week is keyed by its ISO week, Monday to Sunday', QuestMoney::weekOf('2026-11-02') === '2026W45'
+   && QuestMoney::weekRange('2026W44') === ['2026-10-26', '2026-11-01']);
+ck('money: the new year belongs to the ISO week it falls in', QuestMoney::weekOf('2027-01-01') === '2026W53');
+ck('money: a month key is not a week', QuestMoney::preview('2026-10')['rows'] === [] && !QuestMoney::apply('2026-10', $committee)['ok']);
 
 QuestPoints::grant(8301, 40, 'test:earned', 'test', '', 0, $day);
 QuestPoints::deduct(8301, 10, 'test:deducted', 'test', '', 0, $day);
@@ -77,25 +84,25 @@ QuestLadder::accept($s, $committee, '');
 
 $p = QuestMoney::preview($last);
 $row = current(array_filter($p['rows'], static fn($r) => $r['member_id'] === 8301));
-ck('money: net points that month are monetised by the bracket — (40 − 10) × ₦50', $row && $row['points'] === 30 && $row['credit'] === 1500);
-ck('money: and offset against that month\'s fines, leaving the balance', $row['fines'] === 3000 && $row['offset'] === 1500 && $row['balance'] === 1500);
+ck('money: net points that week are monetised by the bracket — (40 − 10) × ₦50', $row && $row['points'] === 30 && $row['credit'] === 1500);
+ck('money: and offset against that week\'s fines, leaving the balance', $row['fines'] === 3000 && $row['offset'] === 1500 && $row['balance'] === 1500);
 ck('money: somebody fined with no bracket is listed, not skipped', (bool) array_filter($p['unplaced'], static fn($u) => $u['member_id'] === 8302));
 $sus = current(array_filter($p['rows'], static fn($r) => $r['member_id'] === 8304));
-ck('money: a member suspended that month loses that month\'s incentive', $sus && $sus['suspended'] && $sus['credit'] === 0 && $sus['balance'] === 500);
+ck('money: a member suspended that week loses that week\'s incentive', $sus && $sus['suspended'] && $sus['credit'] === 0 && $sus['balance'] === 500);
 ck('money: previewing moves nothing', (int) NgvFines::forMember(8301)['owing'] === 3000);
 
 AvRules::save(['quest.money_enabled' => '1'], 'test');
 ck('money: ready once switched on with a valued bracket', QuestMoney::ready());
-ck('money: a month that has not ended cannot be run', !QuestMoney::apply(gmdate('Y-m'), $committee)['ok']);
-ck('money: nobody off the committee runs the month', !QuestMoney::apply($last, $member)['ok']);
+ck('money: a week that has not ended cannot be run', !QuestMoney::apply(QuestMoney::thisWeek(), $committee)['ok']);
+ck('money: nobody off the committee runs the week', !QuestMoney::apply($last, $member)['ok']);
 $a = QuestMoney::apply($last, $committee);
-ck('money: the committee runs the month', $a['ok'] && $a['ran'] === 2 && $a['offset'] === 1500 && $a['failed'] === []);
+ck('money: the committee runs the week', $a['ok'] && $a['ran'] === 2 && $a['offset'] === 1500 && $a['failed'] === []);
 ck('money: the offset is on the NGV ledger, and the fine is part-settled by it', (int) NgvFines::forMember(8301)['owing'] === 1500
    && (int) $nf->query("SELECT COUNT(*) FROM ngv_payments WHERE member_id = 8301 AND kind = 'fine' AND credit_kind = 'waiver' AND note LIKE 'Quest points offset%'")->fetchColumn() === 1);
 $rec = QuestMoney::forMember(8301)[0];
-ck('money: the month is recorded with the balance and the day it is due', $rec['month'] === $last && (int) $rec['balance'] === 1500
+ck('money: the week is recorded with the balance and the day it is due', $rec['month'] === $last && (int) $rec['balance'] === 1500
    && $rec['status'] === 'open' && $rec['due_on'] > gmdate('Y-m-d'));
-ck('money: the month runs once per member', QuestMoney::apply($last, $committee)['ran'] === 0
+ck('money: the week runs once per member', QuestMoney::apply($last, $committee)['ran'] === 0
    && (int) $nf->query("SELECT COUNT(*) FROM ngv_payments WHERE member_id = 8301 AND credit_kind = 'waiver'")->fetchColumn() === 1);
 
 /* ── overdue: suggested, never imposed ── */
@@ -106,7 +113,7 @@ $sug = QuestLadder::forMember(8301);
 ck('money: an overdue balance suggests a week\'s suspension and the ₦2,000 fine', $sw['overdue'] === 1
    && (bool) array_filter($sug, static fn($s) => $s['kind'] === 'suspension' && $s['status'] === 'open')
    && (bool) array_filter($sug, static fn($s) => $s['kind'] === 'fine' && (int) $s['amount'] === 2000));
-ck('money: and imposes neither', (int) NgvFines::forMember(8301)['owing'] === 1500 && !QuestLadder::suspendedIn(8301, gmdate('Y-m')));
+ck('money: and imposes neither', (int) NgvFines::forMember(8301)['owing'] === 1500 && !QuestLadder::suspendedIn(8301, QuestMoney::thisWeek()));
 $fineSug = current(array_filter($sug, static fn($s) => $s['kind'] === 'fine'));
 ck('money: accepting the suggested fine posts it', QuestLadder::accept((int) $fineSug['id'], $committee, '')['ok'] && (int) NgvFines::forMember(8301)['owing'] === 3500);
 ck('money: the row is marked overdue, and the sweep does not suggest twice', QuestMoney::forMember(8301)[0]['status'] === 'overdue'
@@ -118,8 +125,8 @@ $nf->prepare("INSERT INTO ngv_payments (member_id, kind, credit_kind, amount, cu
    ->execute([$day . ' 12:00:00']);
 AvRules::save(['quest.reward_pool_pct' => '10'], 'test');
 $pool = QuestMoney::computePool($last);
-ck('money: the pool is its share of fines actually paid that month — not waived, not owed', $pool['collected'] === 1000 && $pool['amount'] === 100);
-ck('money: and is kept by month', QuestMoney::poolFor($last)['amount'] === 100 && QuestMoney::poolTotal() === 100);
+ck('money: the pool is its share of fines actually paid that week — not waived, not owed', $pool['collected'] === 1000 && $pool['amount'] === 100);
+ck('money: and is kept by week', QuestMoney::poolFor($last)['amount'] === 100 && QuestMoney::poolTotal() === 100);
 
 $clean();
 AvRules::resetAll('test');

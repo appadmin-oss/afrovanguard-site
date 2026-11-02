@@ -117,7 +117,7 @@ $qMoney   = $qCtx !== null && QuestMoney::ready() ? (QuestMoney::forMember($qId)
 <?php endforeach; ?>
               </ul>
 <?php if ($qMoney): ?>
-              <p class="avp-note">Last set against your fines: <?= e((string) $qMoney['month']) ?>.</p>
+              <p class="avp-note">Last set against your fines: <?= e(preg_match(QuestMoney::PERIOD_RE, (string) $qMoney['month']) ? QuestMoney::weekLabel((string) $qMoney['month']) : (string) $qMoney['month']) ?>.</p>
 <?php endif; ?>
             </div>
           </section>
@@ -129,7 +129,7 @@ $qMoney   = $qCtx !== null && QuestMoney::ready() ? (QuestMoney::forMember($qId)
             <div class="avp-card-body">
               <ul class="avp-quest-list">
 <?php foreach ($qOpen as $f): ?>
-                <li><strong><?= e(QuestRecord::FINDING_KINDS[(string) $f['kind']] ?? 'A finding') ?></strong> <span class="avp-quest-when">recorded <?= e(substr((string) $f['raised_at'], 0, 10)) ?></span></li>
+                <li><strong><?= e(QuestRecord::findingLabel((string) $f['kind'])) ?></strong> <span class="avp-quest-when">recorded <?= e(substr((string) $f['raised_at'], 0, 10)) ?></span></li>
 <?php endforeach; ?>
               </ul>
               <p class="avp-note">While this stands, it holds your progress where it is. Points do not outweigh it; only resolving it with the committee does, and it stays on your record afterwards as resolved.</p>
