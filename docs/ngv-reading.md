@@ -197,6 +197,19 @@ labels say "not proof" in the reviewer's own words, and a test asserts that
 wording stays there — a signal a reviewer trusts more than it deserves is worse
 than no signal.
 
+## How the challenge is going
+
+`NgvReading::cohort()` answers the three questions a programme actually asks,
+on the review desk, in four queries rather than one per participant:
+
+- **Who has stalled** — started and logged nothing for four weeks, with an
+  unfinished shelf. Somebody who has never logged a sitting is *not* stalled,
+  they have not begun, and the table says which: a different conversation.
+- **What has waited longest** — the oldest claim still unchecked, in days.
+- **How wide** each person's reading is: how many of the seven their sittings
+  have touched. Twenty-four books and two values is reading widely in one
+  direction, and is worth asking about on its own.
+
 ## Who may check the reading
 
 Every member-facing string says the **track lead** checks the book. For a
@@ -229,8 +242,9 @@ money and merit are signed off. A `byUid` of 0 is the system and is exempt.
   name the values a book is on the list for, see what the list covers against
   what the reading has fed, and say who may check the reading.
 - **`academy/ngv/reading-review.php`** — the review desk, for anybody who may
-  check the reading. The claims waiting, the rejections that can be reopened,
-  and the conversations due, with counts.
+  check the reading. How the challenge is going across the cohort, the claims
+  waiting, the rejections that can be reopened, and the conversations due,
+  with counts.
 - **`academy/ngv/members.php`** — the NGV console shows the same desk. Both
   include `academy/ngv/_reading-review.php`, so there is one of it and not two
   that drift; its script is self-contained and posts back to whichever page

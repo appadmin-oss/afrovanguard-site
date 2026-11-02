@@ -694,6 +694,64 @@ SQL;
         return '';
     }
 
+    /* ── how the challenge is going ────────────────────────────────────────
+     *
+     * A reading challenge is a thing a programme MANAGES, and until this the
+     * only way to ask "how is it going" was to open the console and count
+     * tiles. Three questions, answered in four queries rather than one per
+     * participant — this is a roster read, and a per-row query inside one is
+     * how a page stops being opened.
+     */
+    public static function cohort(int $stalledDays = 28): array
+    {
+        self::ensure();
+        $pdo = NgvDb::pdo();
+        $out = ['people' => [], 'verified' => 0, 'waiting' => 0, 'stalled' => 0, 'oldest_days' => 0, 'minutes' => 0];
+        try {
+            $rows = $pdo->query("SELECT member_id, name, track, start_date FROM ngv_participants WHERE status = 'active' ORDER BY name")
+                ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            if (!$rows) return $out;
+
+            $by = [];
+            foreach ($rows as $r) {
+                $by[(int) $r['member_id']] = ['member_id' => (int) $r['member_id'], 'name' => (string) $r['name'],
+                    'track' => (string) ($r['track'] ?? ''), 'verified' => 0, 'waiting' => 0, 'needs_work' => 0,
+                    'sessions' => 0, 'minutes' => 0, 'last_read' => '', 'values' => 0];
+            }
+            foreach ($pdo->query("SELECT member_id, status, COUNT(*) n FROM ngv_book_claims GROUP BY member_id, status")->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                $m = (int) $r['member_id']; if (!isset($by[$m])) continue;
+                $k = ['verified' => 'verified', 'submitted' => 'waiting', 'resubmit' => 'needs_work', 'rejected' => 'needs_work'][(string) $r['status']] ?? '';
+                if ($k !== '') $by[$m][$k] += (int) $r['n'];
+            }
+            foreach ($pdo->query("SELECT member_id, COUNT(*) n, COALESCE(SUM(minutes),0) m, MAX(day) d, COUNT(DISTINCT value_key) v
+                                    FROM ngv_reading_sessions GROUP BY member_id")->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                $m = (int) $r['member_id']; if (!isset($by[$m])) continue;
+                $by[$m]['sessions'] = (int) $r['n'];
+                $by[$m]['minutes']  = (int) $r['m'];
+                $by[$m]['last_read'] = (string) $r['d'];
+                $by[$m]['values']   = (int) $r['v'];
+            }
+            $today = strtotime(self::today());
+            foreach ($by as &$p) {
+                $p['stalled_days'] = $p['last_read'] !== '' ? (int) floor(($today - strtotime($p['last_read'])) / 86400) : null;
+                /* Stalled means they started and stopped. Somebody who has
+                   never logged a sitting has not stalled, they have not
+                   begun — a different conversation, and this says which. */
+                $p['stalled'] = $p['verified'] < self::TOTAL && $p['stalled_days'] !== null && $p['stalled_days'] >= $stalledDays;
+                $out['verified'] += $p['verified'];
+                $out['waiting']  += $p['waiting'];
+                $out['minutes']  += $p['minutes'];
+                if ($p['stalled']) $out['stalled']++;
+            }
+            unset($p);
+            $out['people'] = array_values($by);
+
+            $oldest = (string) $pdo->query("SELECT MIN(submitted_at) FROM ngv_book_claims WHERE status = 'submitted' AND submitted_at <> ''")->fetchColumn();
+            $out['oldest_days'] = $oldest !== '' ? max(0, (int) floor(($today - strtotime($oldest)) / 86400)) : 0;
+        } catch (Throwable $e) { error_log('[ngvreading] cohort: ' . $e->getMessage()); }
+        return $out;
+    }
+
     /* ── the sittings ──────────────────────────────────────────────────── */
 
     /**

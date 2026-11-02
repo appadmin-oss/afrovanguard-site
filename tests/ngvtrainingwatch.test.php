@@ -104,9 +104,20 @@ $_COOKIE[AV_ADMIN_COOKIE] = av_admin_cookie_value((int) $twExp, $twNonce, 'admin
 $twHtml = render_page(dirname(__DIR__) . '/academy/ngv/members.php', ['tf' => 'behind', 'm' => '701']);
 unset($_COOKIE[AV_ADMIN_COOKIE]);
 ck('ngv training watch: the console renders without throwing', $twHtml !== '' && !str_contains($twHtml, 'render_page: threw'));
+/* Bounded by the section's own closing tag, not by "the next 9,000
+   characters" — that window reached into whatever happened to be rendered
+   after it, and the reading desk's cohort table, which names every active
+   vanguard on purpose, duly broke an assertion about a different section. */
+$twSect = static function (string $html, string $id): string {
+    $a = strpos($html, 'id="' . $id . '"');
+    if ($a === false) return '';
+    $b = strpos($html, '</section>', $a);
+    return substr($html, $a, $b === false ? 9000 : $b - $a);
+};
+$twTraining = $twSect($twHtml, 'training');
 ck('ngv training watch: the console has a Training fees section, filtered to who is behind',
-   str_contains($twHtml, 'id="training"') && str_contains($twHtml, 'Ada Behind') && str_contains($twHtml, 'Chidi Stopped')
-   && !str_contains(substr($twHtml, (int) strpos($twHtml, 'id="training"'), 9000), 'Bola Paid'));
+   $twTraining !== '' && str_contains($twHtml, 'Ada Behind') && str_contains($twHtml, 'Chidi Stopped')
+   && str_contains($twTraining, 'Ada Behind') && !str_contains($twTraining, 'Bola Paid'));
 ck('ngv training watch: one person\'s record shows their months, not numbered dots',
    str_contains($twHtml, 'class="tw-sched"') && str_contains($twHtml, 'tw-inst--charged') && str_contains($twHtml, 'tw-inst--upcoming')
    && !str_contains($twHtml, 'class="inst inst--'));

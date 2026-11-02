@@ -665,5 +665,30 @@ $rdEx = (string) @file_get_contents(AV_ROOT . '/diary/export.php');
 ck('diary: and "download my diary" carries the reading with it',
    str_contains($rdEx, 'NgvReading::sessionsFor('));
 
+/* ══ How the challenge is going, across everybody ════════════════════════
+   A reading challenge is a thing a programme manages, and the only way to
+   ask used to be to open the console and count tiles. */
+
+$co = NgvReading::cohort();
+$coOne = array_values(array_filter($co['people'], static fn($p) => (int) $p['member_id'] === 960))[0] ?? [];
+ck('cohort: every active vanguard is in it, with where they stand',
+   $coOne !== [] && (int) $coOne['sessions'] === 1 && (int) $coOne['waiting'] === 1
+   && (int) $coOne['values'] === 1 && (string) $coOne['last_read'] === '2026-03-02');
+ck('cohort: …and somebody who has not begun is told apart from somebody who stalled',
+   ($coTwo = array_values(array_filter($co['people'], static fn($p) => (int) $p['member_id'] === 961))[0] ?? [])
+   && (int) $coTwo['sessions'] === 0 && $coTwo['stalled_days'] === null && $coTwo['stalled'] === false);
+/* A sitting four weeks old on an unfinished shelf IS a stall. */
+NgvDb::pdo()->prepare('UPDATE ngv_reading_sessions SET day = ? WHERE member_id = 960')
+    ->execute([date('Y-m-d', strtotime((function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d')) . ' -40 days'))]);
+$co2 = NgvReading::cohort();
+ck('cohort: somebody who started and stopped is counted as stalled, and named',
+   (int) $co2['stalled'] === 1
+   && (array_values(array_filter($co2['people'], static fn($p) => (int) $p['member_id'] === 960))[0]['stalled'] ?? false) === true);
+ck('cohort: it answers in a handful of queries, not one per vanguard',
+   count($co2['people']) >= 2 && (int) $co2['verified'] >= 0);
+$rvDesk = (string) @file_get_contents(AV_ROOT . '/academy/ngv/_reading-review.php');
+ck('cohort: and the desk shows it where the people who run it look',
+   str_contains($rvDesk, 'NgvReading::cohort()') && str_contains($rvDesk, 'How the challenge is going'));
+
 $rdReset();
 NgvDb::pdo()->exec('DELETE FROM ngv_reading_sessions');

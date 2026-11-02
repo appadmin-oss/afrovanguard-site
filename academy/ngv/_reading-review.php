@@ -16,6 +16,57 @@
  */
 declare(strict_types=1);
 ?>
+  <?php /* ── How the challenge is going ─────────────────────────────────
+       A reading challenge is a thing a programme MANAGES, and the only way
+       to ask "how is it going" used to be to open the console and count
+       tiles. Who has stalled, who has not begun, what has waited longest,
+       and how wide each person's reading is across the seven values. */
+  $rvCo = NgvReading::cohort();
+  $rvPeople = $rvCo['people'];
+  usort($rvPeople, static function ($a, $b) {
+      if ($a['stalled'] !== $b['stalled']) return $a['stalled'] ? -1 : 1;
+      return $b['verified'] <=> $a['verified'];
+  });
+  $rvNever = array_values(array_filter($rvPeople, static fn($p) => $p['sessions'] === 0 && $p['verified'] === 0));
+  ?>
+  <section class="card" id="readingstate" aria-labelledby="h-rstate">
+    <header><h2 id="h-rstate">How the challenge is going</h2><span class="sp"></span>
+      <span class="sub"><?= count($rvPeople) ?> active vanguard<?= count($rvPeople) === 1 ? '' : 's' ?>
+        · <?= (int) $rvCo['verified'] ?> books verified
+        · <?= number_format(((int) $rvCo['minutes']) / 60, 1) ?> hours logged</span></header>
+    <div class="body">
+      <p class="sub" style="margin-top:0">
+        <?php if ((int) $rvCo['stalled']): ?><strong><?= (int) $rvCo['stalled'] ?></strong> started and have not logged a sitting in four weeks.<?php endif; ?>
+        <?php if ($rvNever): ?> <strong><?= count($rvNever) ?></strong> have not begun at all — a different conversation.<?php endif; ?>
+        <?php if ((int) $rvCo['oldest_days'] > 7): ?> The claim that has waited longest has been waiting <strong><?= (int) $rvCo['oldest_days'] ?> days</strong>.<?php endif; ?>
+        <?php if (!(int) $rvCo['stalled'] && !$rvNever): ?>Everybody who has started is still reading.<?php endif; ?>
+      </p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Vanguard</th><th>Track</th><th class="num">Verified</th><th class="num">Waiting</th><th class="num">To put right</th><th class="num">Sittings</th><th class="num">Hours</th><th class="num">Values</th><th>Last read</th></tr></thead>
+          <tbody>
+          <?php foreach (array_slice($rvPeople, 0, 60) as $p): ?>
+            <tr<?= $p['stalled'] ? ' class="bkq--flagged"' : '' ?>>
+              <td><strong><?= $e((string) $p['name']) ?></strong></td>
+              <td class="sub"><?= $e((string) $p['track']) ?></td>
+              <td class="num"><?= (int) $p['verified'] ?> / <?= (int) NgvReading::TOTAL ?></td>
+              <td class="num"><?= (int) $p['waiting'] ?: '—' ?></td>
+              <td class="num"><?= (int) $p['needs_work'] ?: '—' ?></td>
+              <td class="num"><?= (int) $p['sessions'] ?: '—' ?></td>
+              <td class="num"><?= $p['minutes'] ? number_format($p['minutes'] / 60, 1) : '—' ?></td>
+              <td class="num"><?= (int) $p['values'] ?> / <?= count(NgvReading::values()) ?></td>
+              <td class="sub"><?= $p['last_read'] === '' ? 'never' : $e((string) $p['last_read']) . ($p['stalled'] ? ' · ' . (int) $p['stalled_days'] . ' days ago' : '') ?></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+        <?php if (count($rvPeople) > 60): ?><p class="sub">Showing 60 of <?= count($rvPeople) ?>, stalled first.</p><?php endif; ?>
+      </div>
+      <p class="sub" style="margin-bottom:0"><b>Values</b> is how many of the seven their reading has touched. Somebody at 24 books
+        and two values has read widely in one direction; that is worth a conversation of its own.</p>
+    </div>
+  </section>
+
   <?php /* ── Book claims awaiting a human ──────────────────────────────────
        This queue is the whole verification story. Everything else — the
        substance floor, the duplicate check, the pacing flags — only narrows
