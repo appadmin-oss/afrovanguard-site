@@ -55,12 +55,16 @@ $pv = (string) file_get_contents("$root/portal/views/ngv.php");
    because they moved behind an include is pinning the file, not the page. */
 $pv = str_replace("require AV_ROOT . '/portal/_reading-card.php';",
                   '?>' . (string) file_get_contents("$root/portal/_reading-card.php") . '<?php', $pv);
+$pv = str_replace("require AV_ROOT . '/portal/_courses-card.php';",
+                  '?>' . (string) file_get_contents("$root/portal/_courses-card.php") . '<?php', $pv);
 $at = strpos($pv, 'id="view-ngv"'); $end = strpos($pv, 'id="view-ngv-account"');
 $prog = substr($pv, $at, $end - $at);
 ck('programme view: no inline styles', !preg_match('/\sstyle\s*=/', $prog) && stripos($prog, '<style') === false);
 ck('programme view: bars are <progress>, not widths', substr_count($prog, '<progress') >= 3);
 ck('programme view: book slots keep data-slot inside #books', str_contains($prog, 'id="books"') && str_contains($prog, 'data-slot='));
 ck('programme view: the claim sheet is drawn here', str_contains($prog, '_book-modal.php'));
+ck('programme view: and the course sheet, once', str_contains($prog, '_course-modal.php')
+   && substr_count($prog, '_course-modal.php') === 1);
 ck('programme view: the project card hides with no title', str_contains($prog, "trim((string) (\$nProj['title'] ?? '')) !== ''"));
 ck('programme view: the roster hides when empty', str_contains($prog, '<?php if ($nRoster): ?>'));
 ck('programme view: stylesheet is loaded by the shell', str_contains((string) file_get_contents("$root/portal/index.php"), '/portal/avng.css'));

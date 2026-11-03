@@ -831,8 +831,26 @@ SQL;
     {
         self::ensure();
         if ($memberId <= 0) return ['ok' => false, 'error' => 'Sign in first.'];
-        $claim = self::claim($memberId, (int) ($in['slot'] ?? 0));
-        if (!$claim) return ['ok' => false, 'error' => 'Start the book first, then log your reading of it.'];
+        $slot  = (int) ($in['slot'] ?? 0);
+        $claim = self::claim($memberId, $slot);
+        /* LOGGING A SITTING IS STARTING THE BOOK.
+           This used to refuse with "Start the book first, then log your
+           reading of it", which was true of the data and false of the
+           screen: the sheet offers "Log a sitting" the moment a book is
+           picked, so somebody chose their book, wrote out three paragraphs
+           about an evening's reading, pressed save and lost it to a sentence
+           telling them to have done something they had no way of knowing
+           about. The draft is opened here instead, from the book they picked
+           — which is what they meant by logging against it. */
+        if (!$claim) {
+            $bookId = (int) ($in['book_id'] ?? 0);
+            if ($bookId <= 0) return ['ok' => false, 'error' => 'Choose the book from the list, then log your reading of it.'];
+            $made = self::save($memberId, ['slot' => $slot, 'book_id' => $bookId,
+                                           'started_on' => (string) ($in['started_on'] ?? '')], false);
+            if (empty($made['ok'])) return $made;
+            $claim = self::claim($memberId, $slot);
+            if (!$claim) return ['ok' => false, 'error' => 'Could not start that book.'];
+        }
         if (in_array((string) $claim['status'], ['submitted', 'verified', 'rejected'], true)) {
             return ['ok' => false, 'code' => 'closed', 'error' => 'This book is no longer yours to change.'];
         }
@@ -1012,6 +1030,46 @@ SQL;
             if (class_exists('Volunteers') && Volunteers::isVolunteer(['id' => $memberId])) return true;
         } catch (Throwable $e) {}
         return false;
+    }
+
+    /**
+     * Put a NAME on every row of a review queue.
+     *
+     * The queues join ngv_participants for it, which answers for a vanguard
+     * and for nobody else — and reading (and now courses) is a member's and a
+     * volunteer's too. So every member or volunteer on the desk read
+     * "Member #412", which is not somebody a reviewer can go and talk to.
+     *
+     * The participants table is in the SEPARATE NGV database, so this cannot
+     * be one more join: it is ONE query against the main table for the rows
+     * the join left empty, never one per row.
+     *
+     * @param array $rows Rows carrying member_id and possibly member_name.
+     */
+    public static function nameRows(array $rows): array
+    {
+        $need = [];
+        foreach ($rows as $r) {
+            if (trim((string) ($r['member_name'] ?? '')) === '' && (int) ($r['member_id'] ?? 0) > 0) {
+                $need[(int) $r['member_id']] = true;
+            }
+        }
+        if (!$need) return $rows;
+        $ids = array_keys($need);
+        $names = [];
+        try {
+            $in = implode(',', array_fill(0, count($ids), '?'));
+            $st = Database::pdo()->prepare('SELECT id, name FROM lms_users WHERE id IN (' . $in . ')');
+            $st->execute($ids);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $u) $names[(int) $u['id']] = (string) $u['name'];
+        } catch (Throwable $e) { return $rows; }
+        foreach ($rows as $k => $r) {
+            $id = (int) ($r['member_id'] ?? 0);
+            if (trim((string) ($r['member_name'] ?? '')) === '' && isset($names[$id])) {
+                $rows[$k]['member_name'] = $names[$id];
+            }
+        }
+        return $rows;
     }
 
     /** Which of the three somebody is, for the copy on their own screen. */
@@ -1401,7 +1459,7 @@ SQL;
                   WHERE c.status = 'submitted'
                   ORDER BY (CASE WHEN c.flags <> '' THEN 0 ELSE 1 END), c.submitted_at ASC, c.id ASC LIMIT " . $limit);
             $st->execute();
-            return array_map([self::class, 'shape'], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+            return self::nameRows(array_map([self::class, 'shape'], $st->fetchAll(PDO::FETCH_ASSOC) ?: []));
         } catch (Throwable $e) { error_log('[ngvreading] queue: ' . $e->getMessage()); return []; }
     }
 
@@ -1422,7 +1480,7 @@ SQL;
                    LEFT JOIN ngv_participants p ON p.member_id = c.member_id
                   WHERE c.status = 'rejected' ORDER BY c.reviewed_at DESC, c.id DESC LIMIT " . $limit);
             $st->execute();
-            return array_map([self::class, 'shape'], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+            return self::nameRows(array_map([self::class, 'shape'], $st->fetchAll(PDO::FETCH_ASSOC) ?: []));
         } catch (Throwable $e) { error_log('[ngvreading] rejected: ' . $e->getMessage()); return []; }
     }
 

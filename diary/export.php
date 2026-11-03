@@ -60,11 +60,29 @@ if ($scope === 'mine') {
                 'slug'     => '',
             ];
         }
-        /* One sequence, in date order, so the journal reads as the year went. */
-        usort($items, static fn($a, $b) => $format === 'book'
-            ? strcmp((string) $a['date'], (string) $b['date'])
-            : strcmp((string) $b['date'], (string) $a['date']));
     }
+    /* AND THE COURSES, for the same reason and read the same way. */
+    if (class_exists('NgvCourses')) {
+        $rc = NgvCourses::sessionsFor((int) $u['id']);
+        foreach ($rc as $x) {
+            $esc = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+            $items[] = [
+                'title'    => (string) ($x['title'] ?? 'A course'),
+                'subtitle' => trim('Course · ' . (string) $x['covered'] . ' · ' . (int) $x['minutes'] . ' minutes', ' ·'),
+                'date'     => (string) $x['day'],
+                'html'     => '<p><em>' . $esc(trim((string) $x['place'] . ((string) $x['mood_label'] !== '' ? ' · ' . (string) $x['mood_label'] : ''))) . '</em></p>'
+                            . '<p>' . nl2br($esc((string) $x['notes'])) . '</p>'
+                            . '<p><strong>Where I stand:</strong> ' . nl2br($esc((string) $x['stance'])) . '</p>'
+                            . '<p><strong>What I will do:</strong> ' . nl2br($esc((string) $x['application'])) . '</p>',
+                'slug'     => '',
+            ];
+        }
+    }
+    /* One sequence, in date order, so the journal reads as the year went —
+       the diary entries, the reading and the courses interleaved. */
+    usort($items, static fn($a, $b) => $format === 'book'
+        ? strcmp((string) $a['date'], (string) $b['date'])
+        : strcmp((string) $b['date'], (string) $a['date']));
     $first = explode(' ', trim((string) $u['name']))[0] ?: 'My';
     $meta['title']    = $first . '’s Journal';
     $meta['subtitle'] = 'My Afrovanguard Diary';

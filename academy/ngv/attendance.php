@@ -133,6 +133,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
   <a href="/academy/ngv/members.php">Vanguards</a>
   <a href="/academy/ngv/fines.php">Fines</a>
   <a href="/academy/ngv/books.php">Book list</a>
+  <a href="/academy/ngv/courses.php">Course list</a>
   <a href="/academy/studio/">Rules (Studio)</a>
   <span class="msg" id="msg" role="status" aria-live="polite"></span>
 </header>

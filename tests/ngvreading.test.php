@@ -560,8 +560,19 @@ $sitClaim = ['slot' => 1, 'book_id' => $sitBook, 'started_on' => '2026-03-01', '
              'chapter_notes' => [$rdChap('One.'), $rdChap('Two.'), $rdChap('Three.'), $rdChap('Four.')],
              'reflection' => $rdText('Read slowly, over a fortnight.'), 'takeaway' => $rdTake];
 
-ck('sitting: nothing can be logged against a book that has not been started',
+ck('sitting: nothing can be logged without saying WHICH book it was',
    empty(NgvReading::logSession(960, $rdSit(['slot' => 1, 'day' => '2026-03-02']))['ok']));
+/* THE FIRST SITTING STARTS THE BOOK. The sheet offers "Log a sitting" as
+   soon as a book is picked, so refusing one for want of a draft the member
+   was never asked to save threw away three paragraphs they had just
+   written. Naming the book is what starting it means. */
+$sitOpen = NgvReading::logSession(960, $rdSit(['slot' => 1, 'book_id' => $sitBook, 'day' => '2026-03-02']));
+ck('sitting: …but naming it starts it, and the writing is kept',
+   !empty($sitOpen['ok']) && NgvReading::claim(960, 1) !== null
+   && (string) NgvReading::claim(960, 1)['status'] === 'draft'
+   && NgvReading::sessionCount((int) NgvReading::claim(960, 1)['id']) === 1);
+/* Back to a clean slot, so the floor tests below start where they did. */
+foreach (NgvReading::sessions((int) NgvReading::claim(960, 1)['id']) as $sx) NgvReading::dropSession(960, (int) $sx['id']);
 NgvReading::save(960, $sitClaim, false);
 
 /* The floor, field by field. */

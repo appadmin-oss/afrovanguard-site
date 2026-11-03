@@ -1,7 +1,7 @@
 <?php
 /**
- * portal/views/reading.php — the 24-book challenge for a member or a
- * volunteer.
+ * portal/views/reading.php — the learning record for a member or a
+ * volunteer: the books, and the courses beside them.
  *
  * A NextGen Vanguard reads inside their programme, so their copy of this card
  * sits in the Programme view. Everybody else who may read (a verified member,
@@ -18,8 +18,9 @@ $rdProgress = NgvReading::progress((int) $u['id']);
 $rdShelf    = NgvReading::shelf((int) $u['id']);
 ?>
       <section class="pview avp-view avp-ngv" id="view-reading" data-view="reading" hidden aria-labelledby="avpRdH">
-        <div class="avp-view-head"><h1 class="avp-h1" id="avpRdH">Reading</h1></div>
+        <div class="avp-view-head"><h1 class="avp-h1" id="avpRdH">Reading &amp; courses</h1></div>
         <div class="avp-stack avng">
 <?php require AV_ROOT . '/portal/_reading-card.php'; ?>
+<?php require AV_ROOT . '/portal/_courses-card.php'; ?>
         </div>
       </section>

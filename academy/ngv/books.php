@@ -75,6 +75,7 @@ $csrf  = av_csrf_token();
   <a href="/academy/ngv/fines.php">Fines</a>
   <a href="/academy/ngv/reading-review.php">Reading review</a>
   <a href="/academy/ngv/books.php" aria-current="page">Book list</a>
+  <a href="/academy/ngv/courses.php">Course list</a>
   <span class="msg" id="msg" role="status" aria-live="polite"></span>
 </header>
 <main class="wrap">

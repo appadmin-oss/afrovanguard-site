@@ -38,6 +38,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $r = NgvReading::review((int) ($in['claim_id'] ?? 0), (string) ($in['verdict'] ?? ''), $uid, (string) ($in['note'] ?? ''));
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
+    /* Courses are checked on the same desk, by the same people, because
+       "who may check learning" is one question (NgvCourses::review). */
+    if ($act === 'course_review') {
+        $r = NgvCourses::review((int) ($in['claim_id'] ?? 0), (string) ($in['verdict'] ?? ''), $uid, (string) ($in['note'] ?? ''));
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    if ($act === 'course_reopen') {
+        $r = NgvCourses::reopen((int) ($in['claim_id'] ?? 0), $uid, (string) ($in['note'] ?? ''));
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
     if ($act === 'book_spot') {
         $r = NgvReading::spotRecord((int) ($in['spot_id'] ?? 0), (string) ($in['outcome'] ?? ''), $uid, (string) ($in['note'] ?? ''));
         json_out($r, empty($r['ok']) ? 400 : 200);
@@ -48,13 +58,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 $e    = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 $nToCheck = $may ? NgvReading::queueCount() : 0;
 $nToAsk   = $may ? NgvReading::spotCount() : 0;
+$nCourses = $may ? NgvCourses::queueCount() : 0;
 ?><!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Reading review · NGV</title>
+<title>Reading &amp; courses review · NGV</title>
 <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
 <?php require __DIR__ . '/_staff-style.php'; ?>
 <style>
@@ -71,7 +82,10 @@ $nToAsk   = $may ? NgvReading::spotCount() : 0;
 .bkq-chapters li{margin-bottom:.5rem}
 .bkq-take{font-size:.9rem;margin:.4rem 0}
 .bkq-act,.spq-act{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
-.bkq-note,.spq-note{flex:1 1 260px;min-height:40px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font:inherit}
+/* min-width, not just a basis: the course row's three buttons are wider than
+   the book row's, and without it the reason box was crushed to "Why — requi".
+   It wraps to its own line instead. */
+.bkq-note,.spq-note{flex:1 1 260px;min-width:260px;min-height:40px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font:inherit}
 .bkq-note:focus,.spq-note:focus{outline:3px solid var(--orange);outline-offset:1px}
 .btn.ok{background:var(--green);color:#fff;border-color:var(--green)}
 .btn.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
@@ -92,11 +106,12 @@ $nToAsk   = $may ? NgvReading::spotCount() : 0;
   </div>
 <?php else: ?>
 <header class="top">
-  <h1><b>NextGen Vanguard</b> <span>· reading review</span></h1>
+  <h1><b>NextGen Vanguard</b> <span>· reading &amp; courses review</span></h1>
   <span class="sp"></span>
   <?php if ($isAdmin): ?>
     <a href="/academy/ngv/members.php">Vanguards</a>
     <a href="/academy/ngv/books.php">Book list</a>
+  <a href="/academy/ngv/courses.php">Course list</a>
   <?php endif; ?>
   <a href="/academy/ngv/reading-review.php" aria-current="page">Reading review</a>
   <span class="msg" id="msg" role="status" aria-live="polite"></span>
@@ -104,6 +119,7 @@ $nToAsk   = $may ? NgvReading::spotCount() : 0;
 <main class="wrap">
   <section class="stats" aria-label="What is waiting">
     <div class="stat"><div class="k">Books to check</div><div class="v"><?= (int) $nToCheck ?></div><div class="s">nothing counts until you say so</div></div>
+    <div class="stat"><div class="k">Courses to check</div><div class="v"><?= (int) $nCourses ?></div><div class="s">the same floor: the work, not the certificate</div></div>
     <div class="stat"><div class="k">Conversations due</div><div class="v"><?= (int) $nToAsk ?></div><div class="s">one every <?= (int) NgvReading::SPOT_EVERY ?> verified books</div></div>
   </section>
 

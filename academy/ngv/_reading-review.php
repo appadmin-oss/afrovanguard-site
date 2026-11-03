@@ -164,6 +164,125 @@ declare(strict_types=1);
     </div>
   </section>
 
+  <?php /* ── Courses to check ──────────────────────────────────────────
+       The same desk, the same people, the same floor: the sittings and what
+       they wrote, never the certificate. A certificate says a provider's
+       system recorded a completion; it does not say what the person did, and
+       a course verified on the strength of one is a course nobody checked.
+       It is shown last on each card, as evidence beside the work. */
+  $coQueue = NgvCourses::queue(40); ?>
+  <section class="card" id="courseclaims" aria-labelledby="h-courses">
+    <header><h2 id="h-courses">Courses to check</h2> <span class="sp"></span>
+      <span class="sub"><?= count($coQueue) ?> waiting</span></header>
+    <div class="body">
+      <?php if (!$coQueue): ?>
+        <p class="sub">Nothing waiting. Courses appear here the moment somebody sends one.</p>
+      <?php else: ?>
+        <p class="sub" style="margin-bottom:14px">
+          Most of these are taken elsewhere — freeCodeCamp, Google, a tutor at the centre — so this
+          desk is the only place the work is looked at by a person. Read the sittings first: what they
+          did, when, and for how long. A certificate attached to the claim is evidence beside it and
+          never the claim itself.
+        </p>
+        <?php foreach ($coQueue as $cc):
+              $ccSits = (array) ($cc['sessions'] ?? []);
+              $ccMods = (array) ($cc['module_notes_list'] ?? []); ?>
+          <article class="bkq coq<?= !$ccSits ? ' bkq--flagged' : '' ?>" data-course-claim="<?= (int) $cc['id'] ?>">
+            <div class="bkq-head"><div>
+              <div class="bkq-who"><?= $e((string) ($cc['member_name'] ?? '') !== '' ? (string) $cc['member_name'] : 'Member #' . (int) $cc['member_id']) ?></div>
+              <div class="bkq-book"><strong><?= $e((string) $cc['title']) ?></strong>
+                <span class="sub"><?= (string) $cc['provider'] !== '' ? 'at ' . $e((string) $cc['provider']) : 'taught at the centre' ?> ·
+                <?= $e((string) $cc['started_on']) ?> &rarr; <?= $e((string) $cc['finished_on']) ?></span></div>
+            </div></div>
+            <div class="bkq-sits">
+              <?php if (!$ccSits): ?>
+                <span class="bkq-sits-none">No time logged against this course.</span>
+              <?php else: ?>
+                <strong><?= count($ccSits) ?> sitting<?= count($ccSits) === 1 ? '' : 's' ?></strong>
+                · <?= (int) ($cc['session_minutes'] ?? 0) ?> minutes
+                · <?= $e((string) $ccSits[count($ccSits) - 1]['day']) ?> &rarr; <?= $e((string) $ccSits[0]['day']) ?>
+              <?php endif; ?>
+            </div>
+            <?php if ($ccSits): ?>
+            <details class="bkq-read">
+              <summary>Their work, sitting by sitting</summary>
+              <ol class="bkq-chapters">
+                <?php foreach ($ccSits as $cs): ?>
+                  <li>
+                    <strong><?= $e((string) $cs['day']) ?></strong>
+                    <span class="sub"><?= $e(trim((string) $cs['covered'] . ' · ' . (int) $cs['minutes'] . ' min · ' . (string) $cs['place'], ' ·')) ?><?= (string) $cs['mood_label'] !== '' ? ' · ' . $e((string) $cs['mood_label']) : '' ?></span>
+                    <div class="bkq-text"><?= nl2br($e((string) $cs['notes'])) ?></div>
+                    <p class="bkq-take"><strong>Where they stand:</strong> <?= nl2br($e((string) $cs['stance'])) ?></p>
+                    <p class="bkq-take"><strong>What they will do:</strong> <?= nl2br($e((string) $cs['application'])) ?></p>
+                  </li>
+                <?php endforeach; ?>
+              </ol>
+            </details>
+            <?php endif; ?>
+            <details class="bkq-read">
+              <summary>Read what they wrote<?= $ccMods ? ' — ' . count($ccMods) . ' module' . (count($ccMods) === 1 ? '' : 's') . ' and the whole course' : '' ?></summary>
+              <?php if ($ccMods): ?>
+                <ol class="bkq-chapters">
+                  <?php foreach ($ccMods as $cn): if (trim((string) $cn) === '') continue; ?>
+                    <li><?= nl2br($e((string) $cn)) ?></li>
+                  <?php endforeach; ?>
+                </ol>
+                <p class="bkq-take"><strong>The whole course:</strong></p>
+              <?php endif; ?>
+              <div class="bkq-text"><?= nl2br($e((string) $cc['reflection'])) ?></div>
+              <p class="bkq-take"><strong>What they did with it:</strong> <?= nl2br($e((string) $cc['takeaway'])) ?></p>
+            </details>
+            <p class="bkq-take"><strong>Certificate:</strong>
+              <?php if (trim((string) ($cc['certificate_url'] ?? '')) !== ''): ?>
+                <a href="<?= $e((string) $cc['certificate_url']) ?>" target="_blank" rel="noopener noreferrer">attached</a>
+                <span class="sub">— evidence beside the work, not the work</span>
+              <?php else: ?><span class="sub">none attached. That is not a reason to refuse it.</span><?php endif; ?></p>
+            <div class="bkq-act">
+              <input class="coq-note" maxlength="1000" placeholder="Why — required to send back or reject">
+              <button class="btn ok coq-btn" data-verdict="verified">Verify course</button>
+              <button class="btn coq-btn" data-verdict="resubmit">Send back to rewrite</button>
+              <button class="btn danger coq-btn" data-verdict="rejected" data-confirm="Reject this course?&#10;&#10;It closes: they cannot edit it or send it again. Use &ldquo;Send back to rewrite&rdquo; if you want them to fix it. A rejection can be reopened later.">Reject course</button>
+            </div>
+          </article>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </div>
+  </section>
+
+  <?php /* Courses not accepted — the same door back a rejected book has. */
+  $coNo = NgvCourses::rejected(15);
+  if ($coNo): ?>
+  <section class="card" id="courserejected" aria-labelledby="h-coursesno">
+    <header><h2 id="h-coursesno">Courses not accepted</h2> <span class="sp"></span>
+      <span class="sub"><?= count($coNo) ?> closed</span></header>
+    <div class="body">
+      <p class="sub" style="margin-bottom:14px">
+        A rejected course is closed to the person who took it. If it was rejected in error, or they
+        have made their case, reopen it and say why — they can then rewrite it.
+      </p>
+      <?php foreach ($coNo as $cc): ?>
+        <article class="bkq coq" data-course-claim="<?= (int) $cc['id'] ?>">
+          <div class="bkq-head"><div>
+            <div class="bkq-who"><?= $e((string) ($cc['member_name'] ?? '') !== '' ? (string) $cc['member_name'] : 'Member #' . (int) $cc['member_id']) ?></div>
+            <div class="bkq-book"><strong><?= $e((string) $cc['title']) ?></strong>
+              <span class="sub">rejected <?= $e(substr((string) $cc['reviewed_at'], 0, 10)) ?></span></div>
+          </div></div>
+          <?php if (trim((string) $cc['review_note']) !== ''): ?>
+            <p class="bkq-take"><strong>Why:</strong> <?= $e((string) $cc['review_note']) ?></p>
+          <?php endif; ?>
+          <details class="bkq-read"><summary>Read what they wrote</summary>
+            <div class="bkq-text"><?= nl2br($e((string) $cc['reflection'])) ?></div>
+          </details>
+          <div class="bkq-act">
+            <input class="coq-note" maxlength="1000" placeholder="Why are you reopening it — required">
+            <button class="btn coq-btn" data-verdict="reopen">Reopen for rewriting</button>
+          </div>
+        </article>
+      <?php endforeach; ?>
+    </div>
+  </section>
+  <?php endif; ?>
+
   <?php /* Not accepted. A rejection closes the claim to the member — that is
            what makes it a different decision from "send back to rewrite",
            which used to be the same thing in effect. So the door back is
@@ -270,7 +389,7 @@ declare(strict_types=1);
       .catch(function(){ return {ok:false, error:'No connection.'}; });
   }
   /* ── Book claims ───────────────────────────────────────────────────── */
-  document.querySelectorAll('.bkq').forEach(function(card){
+  document.querySelectorAll('.bkq:not(.coq)').forEach(function(card){
     var note = card.querySelector('.bkq-note');
     card.querySelectorAll('.bkq-btn').forEach(function(btn){
       btn.addEventListener('click', function(){
@@ -293,6 +412,46 @@ declare(strict_types=1);
             if (j.ok) { toast(verdict === 'verified' ? 'Verified — it counts toward their 24 ✓' : verdict === 'rejected' ? 'Rejected — they have been told why' : (card.closest('#bookrejected') ? 'Reopened — they can rewrite it' : 'Sent back — they have been told what to change')); card.remove(); }
             else { toast(j.error || 'Nothing changed — the server gave no reason', false); all.forEach(function(b){ b.disabled = false; }); }
           });
+      });
+    });
+  });
+
+  /* ── Courses ───────────────────────────────────────────────────────
+     A separate loop from the books rather than one that branches: the
+     verdicts differ (a rejected course reopens through its own op) and a
+     shared loop that has to ask "which kind am I?" on every click is where
+     the two would drift into checking differently. */
+  document.querySelectorAll('.coq').forEach(function(card){
+    var note = card.querySelector('.coq-note');
+    card.querySelectorAll('.coq-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var verdict = btn.getAttribute('data-verdict');
+        var why = (note && note.value || '').trim();
+        if (verdict !== 'verified' && !why) {
+          toast(verdict === 'rejected' ? 'Say why it was rejected'
+              : verdict === 'reopen' ? 'Say why you are reopening it'
+              : 'Say what needs changing', false);
+          if (note) note.focus();
+          return;
+        }
+        if (verdict === 'verified' && !window.confirm('Verify this course?\n\nIt counts toward their courses and they cannot change it afterwards.')) return;
+        var ask = btn.getAttribute('data-confirm');
+        if (ask && !window.confirm(ask)) return;
+        var all = card.querySelectorAll('.coq-btn');
+        all.forEach(function(b){ b.disabled = true; });
+        var id = +card.getAttribute('data-course-claim');
+        var body = verdict === 'reopen'
+          ? {action:'course_reopen', claim_id:id, note: why}
+          : {action:'course_review', claim_id:id, verdict: verdict, note: why};
+        post(body).then(function(j){
+          if (j.ok) {
+            toast(verdict === 'verified' ? 'Verified — it counts ✓'
+                : verdict === 'rejected' ? 'Rejected — they have been told why'
+                : verdict === 'reopen' ? 'Reopened — they can rewrite it'
+                : 'Sent back — they have been told what to change');
+            card.remove();
+          } else { toast(j.error || 'Nothing changed — the server gave no reason', false); all.forEach(function(b){ b.disabled = false; }); }
+        });
       });
     });
   });

@@ -67,7 +67,8 @@ try {
                 'ok'        => true,
                 'notebooks' => $nb->forUser($uid, !empty($_GET['archived'])),
                 'counts'    => $org->counts($uid)
-                    + ['reading' => class_exists('NgvReading') ? count(NgvReading::sessionsFor($uid)) : 0],
+                    + ['reading' => (class_exists('NgvReading') ? count(NgvReading::sessionsFor($uid)) : 0)
+                                    + (class_exists('NgvCourses') ? count(NgvCourses::sessionsFor($uid)) : 0)],
                 'tags'      => $org->vocabulary($uid),
                 'colours'   => DiaryNotebooks::COLOURS,
                 'roles'     => DiaryNotebooks::ROLES,
@@ -114,6 +115,45 @@ try {
                     'body'            => $body,
                     'first_tab_title' => $sitting,
                 ];
+            }
+            /* AND THE COURSES. The same writing, about a different kind of
+               learning, so it belongs in the same stream rather than behind a
+               second tab: a sitting with freeCodeCamp on a Tuesday and a
+               sitting with a book on a Wednesday are one week of work. The
+               course is the notebook chip; the provider stands where a book's
+               author does. */
+            if (class_exists('NgvCourses')) {
+                foreach (NgvCourses::sessionsFor($uid) as $x) {
+                    $course  = (string) ($x['title'] ?? 'A course');
+                    $sitting = (string) $x['covered'] !== '' ? (string) $x['covered'] : 'A sitting';
+                    $facts   = trim((int) $x['minutes'] . ' minutes · ' . (string) $x['place'], ' ·');
+                    if ((string) $x['mood_label'] !== '') $facts .= ' · ' . (string) $x['mood_label'];
+                    $body2 = '<p><em>' . htmlspecialchars($facts, ENT_QUOTES, 'UTF-8') . '</em></p>'
+                           . '<p>' . nl2br(htmlspecialchars((string) $x['notes'], ENT_QUOTES, 'UTF-8')) . '</p>'
+                           . '<p><strong>Where I stand:</strong> ' . nl2br(htmlspecialchars((string) $x['stance'], ENT_QUOTES, 'UTF-8')) . '</p>'
+                           . '<p><strong>What I will do:</strong> ' . nl2br(htmlspecialchars((string) $x['application'], ENT_QUOTES, 'UTF-8')) . '</p>';
+                    $out[] = [
+                        'id'              => 'c' . (int) $x['id'],   // 'r' is a reading sitting; neither collides with a diary entry
+                        'kind'            => 'private',
+                        'title'           => $course,
+                        'book'            => $course,
+                        'book_author'     => (string) ($x['provider'] ?? ''),
+                        'sitting'         => $sitting,
+                        'excerpt'         => trim($sitting . ' · ' . mb_substr(trim((string) $x['notes']), 0, 140), ' ·'),
+                        'entry_date'      => (string) $x['day'],
+                        'status'          => 'approved',
+                        'tags'            => [],
+                        'tab_count'       => 1,
+                        'pinned'          => 0,
+                        'mine'            => false,      // the diary shows it; the course owns it
+                        'reading'         => true,
+                        'author'          => (string) ($u['name'] ?? ''),
+                        'body'            => $body2,
+                        'first_tab_title' => $sitting,
+                    ];
+                }
+                /* One sequence, newest first, so a week reads as a week. */
+                usort($out, static fn($a, $b) => strcmp((string) $b['entry_date'], (string) $a['entry_date']));
             }
             json_out(['ok' => true, 'entries' => $out]);
         }

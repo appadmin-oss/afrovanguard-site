@@ -74,6 +74,7 @@
    season, and what drifts is what somebody is told their reading is worth. */
 $rdKind = 'vanguard'; $rdProgress = $nrp; $rdShelf = $nshelf;
 require AV_ROOT . '/portal/_reading-card.php';
+require AV_ROOT . '/portal/_courses-card.php';
 ?>
 
 <?php if ($nj['scored']): ?>

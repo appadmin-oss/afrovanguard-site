@@ -284,8 +284,12 @@
   el.sitSave.addEventListener('click', function () {
     var b = el.sitSave, label = b.textContent;
     el.sitErr.hidden = true; b.disabled = true; b.textContent = 'Saving…';
+    /* book_id and started_on ride along so the FIRST sitting can open the
+       draft itself — somebody who picks a book and logs an evening's reading
+       has started it, and should not have to know about "Save draft". */
     post({ book_action: 'session', session: {
-      id: sitId, slot: slot, day: el.sitDay.value, minutes: +el.sitMins.value || 0,
+      id: sitId, slot: slot, book_id: +el.book.value || 0, started_on: el.started.value,
+      day: el.sitDay.value, minutes: +el.sitMins.value || 0,
       chapter_from: +el.sitFrom.value || 0, chapter_to: +el.sitTo.value || 0,
       pages: el.sitPages.value, place: el.sitPlace.value, mood: el.sitMood.value, notes: el.sitNotes.value, stance: el.sitStance.value, application: el.sitApply.value
     } }).then(function (j) {

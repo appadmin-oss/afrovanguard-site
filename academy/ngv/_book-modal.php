@@ -30,9 +30,9 @@
               <?php /* THE SITTINGS. A book is read over days, and the record
                        used to keep only what was written at the end — so the
                        programme could see that twenty-four were finished and
-                       nothing about the reading. Each sitting also names the
-                       VALUE it grew, which is what the challenge is for and
-                       the one thing a list of titles cannot show. */ ?>
+                       nothing about the reading: not when it happened, not
+                       how long it took, not what they made of it as they
+                       went. That is what these are for. */ ?>
               <div class="bk-sits" id="bkSits">
                 <p class="bk-chapters-h">Your reading of this book
                   <em>log each sitting — at least one before you can send it</em></p>

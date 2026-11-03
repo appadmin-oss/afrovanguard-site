@@ -428,6 +428,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   <script>window.NGV_CSRF = <?= json_encode(av_csrf_token()) ?>;
           window.NGV_CHECKER = <?= json_encode('the reading checker') ?>;</script>
   <script src="<?= e(av_asset('/academy/ngv/reading.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/academy/ngv/courses-take.js')) ?>" defer></script>
 <?php endif; ?>
 <?php if ($isVol): ?>  <script src="<?= e(av_asset('/portal/volunteer.js')) ?>" defer></script>
 <?php endif; ?>

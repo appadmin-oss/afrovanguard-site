@@ -288,6 +288,7 @@ require_once __DIR__ . '/NgvProgrammeFee.php'; // NGV programme fee: worked off 
 require_once __DIR__ . '/NgvRegistration.php'; // NGV: apply online, finish registering at a CACENTRE
 require_once __DIR__ . '/NgvMember.php';   // NGV participant/certifications domain (money delegates to NgvLedger)
 require_once __DIR__ . '/NgvReading.php';  // the 24-book challenge: claims, checks, verification
+require_once __DIR__ . '/NgvCourses.php';     /* the courses half of the learning record — mostly external, their own target */
 require_once __DIR__ . '/NgvJourney.php';  // NGV 2.0: levels, the 8-point score, engines, schools
 require_once __DIR__ . '/NgvDamage.php';   // NGV equipment/premises damage, reported → assessed → outcome
 require_once __DIR__ . '/Appeals.php';    // fundraising appeals: campaigns, daily/weekly needs, updates

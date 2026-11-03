@@ -311,3 +311,21 @@ details[open]>.pcard-summary::after{transform:rotate(-90deg)}
 .bk-picklabel { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 .bk-picklabel select { width: 100%; }
 .bk-cover { width: 54px; height: 76px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); flex: 0 0 auto; }
+
+/* The course sheet. Same housing as the book sheet (.bk-*), so only what a
+   course has and a book does not needs its own rules: the provider line, and
+   the certificate block.
+
+   .bk-f[hidden] is here because .bk-f sets display:flex, and an author
+   display beats the browser's own [hidden] rule — so a field hidden by the
+   script (the module range on a course with no modules; the pages field on a
+   book that has chapters) stayed on screen. */
+.bk-f[hidden] { display: none !important; }
+.co-name { font-size: 15px; font-weight: 800; color: var(--ink); overflow-wrap: anywhere; }
+.co-where { font-size: 12.5px; color: var(--muted); }
+.co-where a { color: var(--ink); font-weight: 700; }
+.co-cert { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.co-cert-have { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0; font-size: 13px; }
+.co-cert-pick { align-self: flex-start; }
+.co-cert-pick .pbtn { cursor: pointer; }
+.co-cert-pick input:focus-visible + .pbtn { outline: 3px solid var(--gold); outline-offset: 2px; }

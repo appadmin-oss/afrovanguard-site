@@ -931,3 +931,51 @@ the programme's book list" and "your track lead may ask you about this" to
 people with neither. And the sitting panel was still offering to show **which
 of the seven values** a book was growing, a week after the values were taken
 out of reading entirely. None of the three was visible to 7,000 assertions.
+
+---
+
+## Courses count too (2026-11-03)
+
+Reading was half the learning record. Courses are the other half, and most of
+them are taken somewhere else — freeCodeCamp, Google, Microsoft, a tutor at
+the centre — so the organisation held no record of them at all.
+`lib/NgvCourses.php` is the second half, deliberately the same shape as the
+first: pick it, log the time sitting by sitting, write what you made of it,
+have a person check it. `docs/ngv-courses.md` is the reference.
+
+Three things the owner corrected mid-build, each of which changed the code:
+
+- **The target is asymmetric.** A vanguard is asked for **12 a year**.
+  Everybody else has **no target and no clock** and may set one of their own.
+  A progress bar reading "3 of 12" to somebody who never agreed to twelve is
+  a reproach, not information, and `targetFor()` is the one place that
+  answers it.
+- **The list is a menu with a required start.** Only **Foundation** is asked
+  of every vanguard (`REQUIRED_GROUP`); Business, Art, Media and Tech are
+  chosen with a track in mind. Drawing all eighteen as compulsory tells an
+  Art-track vanguard they are fourteen behind. `progress()` counts the
+  foundation separately and only that group is marked on the card.
+- **A certificate is evidence beside the claim, never the claim itself.** It
+  changes no status, and a claim with a certificate and no sittings still
+  cannot be sent. The sheet says so in its own copy, because somebody who
+  thinks the upload is the point will stop writing.
+
+Two defects found by driving the real screens, not by the suite:
+
+- **"Start the book first, then log your reading of it."** The sheet offers
+  "Log a sitting" the moment a book is picked, so somebody chose their book,
+  wrote three paragraphs about an evening's reading, pressed save and lost it
+  to a sentence telling them to have done something they had no way of
+  knowing about. Both `logSession()` methods open the draft themselves now,
+  from the book or course being logged against; the clients send `book_id` /
+  `started_on` so they can. This had been live for reading since the sittings
+  went in.
+- **"Member #412."** The review queues join `ngv_participants` for the name,
+  which answers for a vanguard and for nobody else — and reading has been a
+  member's and a volunteer's since the verification work. Every one of them
+  reached the desk without a name. `NgvReading::nameRows()` fills them in
+  with ONE query, and both queues use it.
+
+7,135 assertions across 175 files. Four guards were mutation-tested: dropping
+the foundation count, moving `REQUIRED_GROUP`, no-opping `nameRows()`, and
+putting the "start it first" refusal back — each failed only its own test.

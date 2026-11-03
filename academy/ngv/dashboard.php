@@ -76,13 +76,31 @@ if ($method === 'POST') {
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
 
+    /* A certificate arrives as multipart, so it is handled here, above the
+       php://input read, for the same reason the damage photos are. It gates
+       on who may LEARN, not on enrolment — a verified member attaching their
+       freeCodeCamp certificate is not a vanguard and must not be told to
+       apply. The claim itself never rests on it (lib/NgvCourses.php). */
+    if ((string) ($_POST['action'] ?? '') === 'course_certificate') {
+        if (!NgvCourses::mayTake($uid)) {
+            json_out(['ok' => false, 'code' => 'not_learning',
+                      'error' => 'Courses are for NextGen Vanguards, members and volunteers. Ask the office if this looks wrong.'], 403);
+        }
+        $r = NgvCourses::setCertificate($uid, (int) ($_POST['course_id'] ?? 0),
+                                        $_FILES['certificate'] ?? null, !empty($_POST['remove']));
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+
     $in = json_decode((string) file_get_contents('php://input'), true);
     if (!is_array($in)) $in = [];
 
-    /* Reading first, and through the ONE handler both doors use
-       (NgvReading::action), which gates on mayRead rather than enrolment. */
+    /* Reading and courses first, and through the ONE handler each has, both
+       gating on who may learn rather than on enrolment. */
     if (($rdR = NgvReading::action($uid, $in)) !== null) {
         json_out($rdR, empty($rdR['ok']) ? (int) ($rdR['status'] ?? 400) : 200);
+    }
+    if (($rcR = NgvCourses::action($uid, $in)) !== null) {
+        json_out($rcR, empty($rcR['ok']) ? (int) ($rcR['status'] ?? 400) : 200);
     }
 
     /* Everything from here is a vanguard's. Somebody not enrolled — or

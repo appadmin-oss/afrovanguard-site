@@ -272,6 +272,16 @@ if ($method === 'POST') {
         $r = NgvMember::revokeCertification((int) ($in['cert_id'] ?? 0), (string) ($in['reason'] ?? ''), $adminUid);
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
+    /* Courses are checked on the same desk, by the same people. */
+    if ($act === 'course_review') {
+        $r = NgvCourses::review((int) ($in['claim_id'] ?? 0), (string) ($in['verdict'] ?? ''),
+                                $adminUid, (string) ($in['note'] ?? ''));
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    if ($act === 'course_reopen') {
+        $r = NgvCourses::reopen((int) ($in['claim_id'] ?? 0), $adminUid, (string) ($in['note'] ?? ''));
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
     if ($act === 'book_spot') {
         $r = NgvReading::spotRecord((int) ($in['spot_id'] ?? 0), (string) ($in['outcome'] ?? ''),
                                     $adminUid, (string) ($in['note'] ?? ''));
@@ -408,7 +418,7 @@ $creditWord = ['payment' => 'Payment', 'waiver' => 'Waived', 'writeoff' => 'Writ
 .bkq-chapters{margin:10px 0 0;padding-left:1.4rem;font-size:14px;line-height:1.6;max-width:70ch}
 .bkq-chapters li{margin-bottom:8px}
 .bkq-act{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
-.bkq-note{flex:1 1 260px;min-height:40px;padding:9px 11px;border:1px solid var(--line,#e5e7eb);border-radius:9px;font:inherit}
+.bkq-note{flex:1 1 260px;min-width:260px;min-height:40px;padding:9px 11px;border:1px solid var(--line,#e5e7eb);border-radius:9px;font:inherit}
 .bkq-sits{font-size:.86rem;margin:.35rem 0;color:var(--muted,#5f6874)}
 .bkq-sits strong{color:var(--ink,#15120e)}
 .bkq-sits-none{color:var(--danger,#c0322b);font-weight:700}
@@ -635,6 +645,7 @@ details.sect>summary{margin-bottom:8px}
   <a href="/academy/ngv/attendance.php">Attendance</a>
   <a href="/academy/ngv/fines.php">Fines</a>
   <a href="/academy/ngv/books.php">Book list</a>
+  <a href="/academy/ngv/courses.php">Course list</a>
   <a href="/academy/ngv/edit.php">Edit page</a>
   <a href="/academy/ngv/" target="_blank" rel="noopener">Public ↗</a>
   <span class="msg" id="msg" role="status" aria-live="polite"></span>

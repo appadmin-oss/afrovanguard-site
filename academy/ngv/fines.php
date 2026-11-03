@@ -134,6 +134,7 @@ dialog .lbl input,dialog .lbl select{width:100%}
   <a href="/academy/ngv/attendance.php">Attendance</a>
   <a href="/academy/ngv/fines.php" aria-current="page">Fines</a>
   <a href="/academy/ngv/books.php">Book list</a>
+  <a href="/academy/ngv/courses.php">Course list</a>
   <span class="msg" id="msg" role="status" aria-live="polite"></span>
 </header>
 <main class="wrap">
