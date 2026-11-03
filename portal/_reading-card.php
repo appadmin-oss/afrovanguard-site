@@ -71,6 +71,12 @@ $rdRecorded = array_values(array_filter($rdShelf, static fn($b) => (string) ($b[
 <?php endif; ?>
                         <span class="avng-shelf-t"><span><?= e((string) $rdBc['title']) ?></span><span><?= e((string) ($rdBc['author'] ?? '')) ?><?= $rdChN ? ' · ' . $rdChW . ' of ' . $rdChN . ' chapters' : '' ?><?= $rdSits ? ' · ' . count($rdSits) . ' sitting' . (count($rdSits) === 1 ? '' : 's') . ', ' . $rdMin . ' min' : ' · no reading logged yet' ?></span></span>
                         <span class="avng-chip" data-tone="<?= e($rdStTone[$rdSt] ?? 'gray') ?>"><?= e($rdStWord[$rdSt] ?? $rdSt) ?></span>
+<?php /* The copy, where somebody who has the book open on this row would
+         reach for it. It opens in a new tab so a half-written claim is not
+         lost to a navigation. */
+      $rdEb = (string) ($rdBc['ebook_url'] ?? ''); if ($rdEb !== ''): ?>
+                        <a class="avng-btn avng-shelf-open" href="<?= e($rdEb) ?>" target="_blank" rel="noopener noreferrer">Open<span class="av-sr"> the <?= e((string) ($rdBc['ebook_label'] ?? 'e-version')) ?> of <?= e((string) $rdBc['title']) ?></span></a>
+<?php endif; ?>
                         <button type="button" class="avng-btn" data-slot="<?= (int) $rdBc['slot'] ?>"><?= $rdEd ? 'Continue' : 'View' ?></button>
                       </li>
 <?php endforeach; ?>

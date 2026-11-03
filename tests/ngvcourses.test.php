@@ -167,7 +167,7 @@ ck('courses: …and a desk of forty rows is ONE query, never one per row',
                                ['member_id' => 3, 'member_name' => '']])) === 3
    && NgvReading::nameRows([['member_id' => 2, 'member_name' => '']])[0]['member_name'] === 'Bode'
    && substr_count((string) file_get_contents(dirname(__DIR__) . '/lib/NgvReading.php'),
-                   'SELECT id, name FROM lms_users WHERE id IN') === 1);
+                   'FROM lms_users WHERE id IN') === 1);
 
 /* ── The diary reads the same rows ───────────────────────────────────── */
 $ncFor = NgvCourses::sessionsFor($ncVan);

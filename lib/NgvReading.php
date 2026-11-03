@@ -214,6 +214,9 @@ CREATE TABLE IF NOT EXISTS ngv_books (
   note        VARCHAR(300) NOT NULL DEFAULT '',
   value_keys  VARCHAR(200) NOT NULL DEFAULT '',
   cover_url   VARCHAR(300) NOT NULL DEFAULT '',
+  ebook_url   VARCHAR(500) NOT NULL DEFAULT '',
+  ebook_kind  VARCHAR(10) NOT NULL DEFAULT '',
+  ebook_note  VARCHAR(200) NOT NULL DEFAULT '',
   active      INTEGER NOT NULL DEFAULT 1,
   created_by  INTEGER NOT NULL DEFAULT 0,
   created_at  VARCHAR(32) NOT NULL DEFAULT '',
@@ -326,7 +329,10 @@ SQL;
                 'SELECT r.*, p.name, p.email FROM ngv_reading_reviewers r
                    LEFT JOIN ngv_participants p ON p.member_id = r.member_id
                   ORDER BY r.created_at DESC, r.member_id');
-            return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            /* Same join, same gap: a checker who is not a vanguard — which a
+               member granted the review on this very page is — read "Member
+               #66" on the screen that granted it. */
+            return self::nameRows($st->fetchAll(PDO::FETCH_ASSOC) ?: [], 'name', 'email');
         } catch (Throwable $e) { error_log('[ngvreading] reviewers: ' . $e->getMessage()); return []; }
     }
 
@@ -430,6 +436,10 @@ SQL;
         $b['value_list'] = array_values(array_filter(explode(',', (string) ($b['value_keys'] ?? ''))));
         $b['value_labels'] = array_map([self::class, 'valueLabel'], $b['value_list']);
         $b['cover_url'] = (string) ($b['cover_url'] ?? '');
+        $b['ebook_url']  = (string) ($b['ebook_url'] ?? '');
+        $b['ebook_kind'] = (string) ($b['ebook_kind'] ?? '');
+        $b['ebook_note'] = (string) ($b['ebook_note'] ?? '');
+        $b['ebook_label'] = self::EBOOK_LABELS[$b['ebook_kind']] ?? '';
         return $b;
     }
 
@@ -491,6 +501,170 @@ SQL;
         } catch (Throwable $e) { return ['ok' => false, 'error' => 'Could not record the cover.']; }
         self::auditBook('ngv_book_cover', $id, (string) $book['title'], $by);
         return ['ok' => true, 'cover_url' => $url, 'said' => 'Cover saved.'];
+    }
+
+    /* ══ The e-version ════════════════════════════════════════════════════
+       A copy somebody can actually open, because most of the people this
+       challenge is for do not have the book. It is either a FILE the office
+       holds (a PDF or an EPUB) or a LINK to where it is free and legitimate
+       — Project Gutenberg, a publisher's own page, an author's site. Both,
+       because the office has some of each and a field that takes only one of
+       them would push the other into the note where nothing can open it.
+
+       It is never required. A book with no e-version is a book somebody
+       borrows or buys, which is how most of the list works. */
+
+    public const EBOOK_MAX_BYTES = 25 * 1024 * 1024;
+    public const EBOOK_TYPES = ['application/pdf', 'application/epub+zip'];
+    public const EBOOK_LABELS = ['pdf' => 'PDF', 'epub' => 'EPUB', 'link' => 'Read online'];
+
+    /**
+     * What this server will actually accept, in bytes.
+     *
+     * PHP refuses an upload larger than upload_max_filesize or post_max_size
+     * BEFORE any of our code runs — $_FILES comes back empty and the page can
+     * only say "no file arrived", which sends an operator looking for a
+     * problem with the file. Shared hosting commonly caps this at 2M, well
+     * under a scanned book. So the screen states the real limit, and a file
+     * over it is refused in those words rather than vanishing.
+     */
+    public static function uploadLimitBytes(): int
+    {
+        $toBytes = static function (string $v): int {
+            $v = trim($v);
+            if ($v === '') return 0;
+            $n = (int) $v;
+            return match (strtolower(substr($v, -1))) {
+                'g' => $n * 1024 * 1024 * 1024,
+                'm' => $n * 1024 * 1024,
+                'k' => $n * 1024,
+                default => $n,
+            };
+        };
+        $limits = array_filter([
+            $toBytes((string) ini_get('upload_max_filesize')),
+            $toBytes((string) ini_get('post_max_size')),
+            self::EBOOK_MAX_BYTES,
+        ], static fn($n) => $n > 0);
+        return $limits ? (int) min($limits) : self::EBOOK_MAX_BYTES;
+    }
+
+    /** A size a person reads, not a number of bytes. */
+    public static function sizeWords(int $bytes): string
+    {
+        if ($bytes >= 1048576) return rtrim(rtrim(number_format($bytes / 1048576, 1), '0'), '.') . 'MB';
+        return max(1, (int) round($bytes / 1024)) . 'KB';
+    }
+
+    /**
+     * Is this really an EPUB?
+     *
+     * An EPUB is a zip, and fileinfo on a shared host often calls it
+     * application/zip — so trusting the sniffed type alone rejects real
+     * books, and trusting the .epub NAME accepts anything at all. The format
+     * settles it: the spec requires the first entry to be an uncompressed
+     * file called "mimetype" holding exactly "application/epub+zip", which
+     * puts that string at byte 30. That is a property of the bytes, which is
+     * the only thing worth checking on a file going under the web root.
+     */
+    public static function isEpub(string $tmp): bool
+    {
+        $fh = @fopen($tmp, 'rb');
+        if (!$fh) return false;
+        $head = (string) fread($fh, 58);
+        fclose($fh);
+        return str_starts_with($head, "PK\x03\x04") && str_contains($head, 'mimetypeapplication/epub+zip');
+    }
+
+    /**
+     * Give a book an e-version, or take it away.
+     *
+     * $link wins when it is given, because a link needs no upload; otherwise
+     * a file is stored through Storage::put, the same path the cover takes.
+     * The note is for what neither can say — "chapters 1-8 only", "the 1994
+     * edition", "free on Gutenberg".
+     */
+    public static function setBookEbook(int $id, ?array $file, int $by, bool $remove = false, string $link = '', string $note = ''): array
+    {
+        self::ensure();
+        $book = self::book($id);
+        if (!$book) return ['ok' => false, 'error' => 'No such book.'];
+        $note = mb_substr(trim(preg_replace('/\s+/u', ' ', $note) ?? ''), 0, 200);
+
+        if ($remove) {
+            try {
+                NgvDb::pdo()->prepare("UPDATE ngv_books SET ebook_url = '', ebook_kind = '', ebook_note = '', updated_at = ? WHERE id = ?")
+                    ->execute([self::now(), $id]);
+            } catch (Throwable $e) { return ['ok' => false, 'error' => 'Could not remove it.']; }
+            self::auditBook('ngv_book_ebook_clear', $id, (string) $book['title'], $by);
+            return ['ok' => true, 'ebook_url' => '', 'said' => 'The e-version was removed.'];
+        }
+
+        /* "No file" and "a file that failed" are different answers, and
+           conflating them read a 12MB upload rejected by PHP as somebody
+           quietly editing the note — the operator was told "Note saved" and
+           the book still had no copy. Only a field with NO file in it falls
+           through to the note. */
+        $err = is_array($file) ? (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) : UPLOAD_ERR_NO_FILE;
+        $haveFile = $err === UPLOAD_ERR_OK;
+        $triedFile = is_array($file) && $err !== UPLOAD_ERR_NO_FILE;
+        if ($link === '' && !$haveFile && !$triedFile && (string) $book['ebook_url'] !== '') {
+            try {
+                NgvDb::pdo()->prepare('UPDATE ngv_books SET ebook_note = ?, updated_at = ? WHERE id = ?')
+                    ->execute([$note, self::now(), $id]);
+            } catch (Throwable $e) { return ['ok' => false, 'error' => 'Could not save the note.']; }
+            return ['ok' => true, 'ebook_url' => (string) $book['ebook_url'], 'said' => 'Note saved.'];
+        }
+
+        if ($link !== '') {
+            $link = trim($link);
+            if (mb_strlen($link) > 500) return ['ok' => false, 'error' => 'That address is too long to keep.'];
+            /* https only, as the course links are: an http link to a book is
+               a link somebody else can rewrite in transit. */
+            if (!preg_match('~^https://~i', $link) || !filter_var($link, FILTER_VALIDATE_URL)) {
+                return ['ok' => false, 'error' => 'A link must be a full https:// web address.'];
+            }
+            try {
+                NgvDb::pdo()->prepare("UPDATE ngv_books SET ebook_url = ?, ebook_kind = 'link', ebook_note = ?, updated_at = ? WHERE id = ?")
+                    ->execute([$link, $note, self::now(), $id]);
+            } catch (Throwable $e) { return ['ok' => false, 'error' => 'Could not record the link.']; }
+            self::auditBook('ngv_book_ebook_link', $id, (string) $book['title'], $by);
+            return ['ok' => true, 'ebook_url' => $link, 'ebook_kind' => 'link', 'said' => 'The link was saved.'];
+        }
+
+        $cap = self::uploadLimitBytes();
+        if (!$haveFile || !is_uploaded_file((string) ($file['tmp_name'] ?? ''))) {
+            /* UPLOAD_ERR_INI_SIZE / FORM_SIZE, and the empty $_FILES a file
+               over post_max_size produces, all land here. Say the number. */
+            return ['ok' => false, 'code' => 'no_file',
+                    'error' => 'No file arrived. This server accepts uploads up to ' . self::sizeWords($cap)
+                             . ' — a larger book has to go in as a link instead.'];
+        }
+        if ((int) ($file['size'] ?? 0) > $cap) {
+            return ['ok' => false, 'error' => 'That file is ' . self::sizeWords((int) $file['size'])
+                . ' and this server accepts up to ' . self::sizeWords($cap) . '. Put it in as a link instead.'];
+        }
+        $tmp  = (string) $file['tmp_name'];
+        $mime = class_exists('Storage') ? Storage::mime($tmp) : '';
+        $kind = '';
+        if ($mime === 'application/pdf') $kind = 'pdf';
+        elseif (self::isEpub($tmp)) { $kind = 'epub'; $mime = 'application/epub+zip'; }
+        if ($kind === '') return ['ok' => false, 'error' => 'An e-version must be a PDF or an EPUB.'];
+
+        try {
+            $put = Storage::put($tmp, 'book-' . $id . '.' . $kind, 'document', 'books');
+            $url = (string) ($put['url'] ?? '');
+        } catch (Throwable $e) {
+            error_log('[ngvreading] ebook: ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'It could not be stored: ' . $e->getMessage()];
+        }
+        if ($url === '' || mb_strlen($url) > 500) return ['ok' => false, 'error' => 'It could not be stored.'];
+        try {
+            NgvDb::pdo()->prepare('UPDATE ngv_books SET ebook_url = ?, ebook_kind = ?, ebook_note = ?, updated_at = ? WHERE id = ?')
+                ->execute([$url, $kind, $note, self::now(), $id]);
+        } catch (Throwable $e) { return ['ok' => false, 'error' => 'Could not record it.']; }
+        self::auditBook('ngv_book_ebook', $id, (string) $book['title'] . ' (' . $kind . ')', $by);
+        return ['ok' => true, 'ebook_url' => $url, 'ebook_kind' => $kind, 'said' => strtoupper($kind) . ' saved.'];
     }
 
     private static function auditBook(string $what, int $id, string $title, int $by): void
@@ -1044,29 +1218,33 @@ SQL;
      * be one more join: it is ONE query against the main table for the rows
      * the join left empty, never one per row.
      *
-     * @param array $rows Rows carrying member_id and possibly member_name.
+     * @param array  $rows     Rows carrying member_id.
+     * @param string $nameKey  Which key holds the name on these rows.
+     * @param string $emailKey Which holds the email, when the screen shows one.
      */
-    public static function nameRows(array $rows): array
+    public static function nameRows(array $rows, string $nameKey = 'member_name', string $emailKey = ''): array
     {
         $need = [];
         foreach ($rows as $r) {
-            if (trim((string) ($r['member_name'] ?? '')) === '' && (int) ($r['member_id'] ?? 0) > 0) {
+            if (trim((string) ($r[$nameKey] ?? '')) === '' && (int) ($r['member_id'] ?? 0) > 0) {
                 $need[(int) $r['member_id']] = true;
             }
         }
         if (!$need) return $rows;
         $ids = array_keys($need);
-        $names = [];
+        $found = [];
         try {
             $in = implode(',', array_fill(0, count($ids), '?'));
-            $st = Database::pdo()->prepare('SELECT id, name FROM lms_users WHERE id IN (' . $in . ')');
+            $st = Database::pdo()->prepare('SELECT id, name, email FROM lms_users WHERE id IN (' . $in . ')');
             $st->execute($ids);
-            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $u) $names[(int) $u['id']] = (string) $u['name'];
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $u) $found[(int) $u['id']] = $u;
         } catch (Throwable $e) { return $rows; }
         foreach ($rows as $k => $r) {
             $id = (int) ($r['member_id'] ?? 0);
-            if (trim((string) ($r['member_name'] ?? '')) === '' && isset($names[$id])) {
-                $rows[$k]['member_name'] = $names[$id];
+            if (trim((string) ($r[$nameKey] ?? '')) !== '' || !isset($found[$id])) continue;
+            $rows[$k][$nameKey] = (string) $found[$id]['name'];
+            if ($emailKey !== '' && trim((string) ($r[$emailKey] ?? '')) === '') {
+                $rows[$k][$emailKey] = (string) $found[$id]['email'];
             }
         }
         return $rows;
@@ -1120,11 +1298,18 @@ SQL;
             $books = array_map(static fn($b) => ['id' => $b['id'], 'title' => $b['title'], 'author' => $b['author'],
                                                  'chapters' => $b['chapters'], 'note' => $b['note'],
                                                  'values' => $b['value_labels'],
-                                                 'cover' => $b['cover_url']], self::books());
+                                                 'cover' => $b['cover_url'],
+                                                 /* So the sheet can offer to OPEN the book it is
+                                                    asking about, rather than making somebody go
+                                                    and find it. */
+                                                 'ebook' => $b['ebook_url'], 'ebook_label' => $b['ebook_label'],
+                                                 'ebook_note' => $b['ebook_note']], self::books());
             if ($c && (int) $c['book_id'] > 0 && !in_array((int) $c['book_id'], array_column($books, 'id'), true)
                 && ($old = self::book((int) $c['book_id']))) {
                 $books[] = ['id' => $old['id'], 'title' => $old['title'], 'author' => $old['author'],
-                            'chapters' => $old['chapters'], 'note' => $old['note']];
+                            'chapters' => $old['chapters'], 'note' => $old['note'],
+                            'ebook' => $old['ebook_url'], 'ebook_label' => $old['ebook_label'],
+                            'ebook_note' => $old['ebook_note']];
             }
             return ['ok' => true, 'claim' => $c, 'books' => $books, 'min' => self::MIN_REFLECTION,
                     'minTake' => self::MIN_TAKEAWAY, 'minChapter' => self::MIN_CHAPTER,
@@ -1381,19 +1566,22 @@ SQL;
         try {
             /* The cover comes along on the same query. A lookup per slot
                would be 24 queries to draw one shelf. */
-            $st = NgvDb::pdo()->prepare('SELECT c.*, b.cover_url FROM ngv_book_claims c
+            $st = NgvDb::pdo()->prepare('SELECT c.*, b.cover_url, b.ebook_url, b.ebook_kind FROM ngv_book_claims c
                                            LEFT JOIN ngv_books b ON b.id = c.book_id
                                           WHERE c.member_id = ? ORDER BY c.slot');
             $st->execute([$memberId]);
             foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
                 $row = self::shape($r);
                 $row['cover_url'] = (string) ($r['cover_url'] ?? '');
+                $row['ebook_url'] = (string) ($r['ebook_url'] ?? '');
+                $row['ebook_label'] = self::EBOOK_LABELS[(string) ($r['ebook_kind'] ?? '')] ?? '';
                 $by[(int) $r['slot']] = $row;
             }
         } catch (Throwable $e) { }
         $out = [];
         for ($i = 1; $i <= self::TOTAL; $i++) {
-            $out[$i] = $by[$i] ?? ['slot' => $i, 'status' => 'empty', 'title' => '', 'cover_url' => '', 'flags_list' => []];
+            $out[$i] = $by[$i] ?? ['slot' => $i, 'status' => 'empty', 'title' => '', 'cover_url' => '',
+                                   'ebook_url' => '', 'ebook_label' => '', 'flags_list' => []];
         }
         return $out;
     }

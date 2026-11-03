@@ -832,3 +832,133 @@ ck('reading: …and it is ONE card, drawn by the programme view and the Reading 
    && str_contains((string) @file_get_contents(AV_ROOT . '/portal/views/reading.php'), "_reading-card.php"));
 $rvReset();
 NgvDb::pdo()->prepare('DELETE FROM ngv_book_claims WHERE member_id = 970')->execute();
+
+/* ── E-versions ──────────────────────────────────────────────────────────
+   A copy somebody can actually open, because most of the people this
+   challenge is for do not own the book. Either a FILE the office holds or a
+   LINK to where it is free — both, because the office has some of each. */
+$ebBook = (int) (NgvReading::saveBook(['title' => 'EBTEST A Book With A Copy', 'author' => 'An Author', 'chapters' => 3], 1)['book']['id'] ?? 0);
+ck('ebook: a book starts with no e-version, and that is not a defect',
+   $ebBook > 0 && (string) NgvReading::book($ebBook)['ebook_url'] === ''
+   && (string) NgvReading::book($ebBook)['ebook_kind'] === '');
+
+/* A link. https only — an http link to a book is one somebody else can
+   rewrite in transit. */
+ck('ebook: a link is saved, and labelled as one',
+   !empty(NgvReading::setBookEbook($ebBook, null, 1, false, 'https://www.gutenberg.org/ebooks/1234', 'free on Gutenberg')['ok'])
+   && (string) NgvReading::book($ebBook)['ebook_kind'] === 'link'
+   && (string) NgvReading::book($ebBook)['ebook_label'] === 'Read online'
+   && (string) NgvReading::book($ebBook)['ebook_note'] === 'free on Gutenberg');
+foreach (['http://insecure.test/book.pdf' => 'plain http',
+          'javascript:alert(1)'           => 'a script',
+          'gutenberg.org/x'               => 'no scheme'] as $ebBad => $ebWhat) {
+    ck('ebook: ' . $ebWhat . ' is refused as a link', !NgvReading::setBookEbook($ebBook, null, 1, false, $ebBad)['ok']);
+}
+ck('ebook: …and the good link survived every refusal',
+   (string) NgvReading::book($ebBook)['ebook_url'] === 'https://www.gutenberg.org/ebooks/1234');
+
+/* The note on its own, without re-uploading or re-linking. */
+ck('ebook: the note can be corrected without touching the copy',
+   !empty(NgvReading::setBookEbook($ebBook, null, 1, false, '', 'chapters 1-8 only')['ok'])
+   && (string) NgvReading::book($ebBook)['ebook_note'] === 'chapters 1-8 only'
+   && (string) NgvReading::book($ebBook)['ebook_url'] === 'https://www.gutenberg.org/ebooks/1234');
+
+/* What an EPUB IS, not what it is called. fileinfo on a shared host often
+   calls one application/zip, so the name would be the only other thing to
+   go on — and /uploads is under the web root. */
+$ebTmp = sys_get_temp_dir() . '/ebtest-' . getmypid();
+@mkdir($ebTmp);
+$ebEpub = $ebTmp . '/real.epub';
+$ebZip = new ZipArchive();
+if ($ebZip->open($ebEpub, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
+    $ebZip->addFromString('mimetype', 'application/epub+zip');
+    $ebZip->setCompressionName('mimetype', ZipArchive::CM_STORE);
+    $ebZip->addFromString('META-INF/container.xml', '<container/>');
+    $ebZip->close();
+}
+$ebPlain = $ebTmp . '/plain.zip';
+$ebZip2 = new ZipArchive();
+if ($ebZip2->open($ebPlain, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
+    $ebZip2->addFromString('hello.txt', 'not a book');
+    $ebZip2->close();
+}
+$ebPdf = $ebTmp . '/a.pdf';
+file_put_contents($ebPdf, "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
+ck('ebook: a real EPUB is recognised from its bytes', NgvReading::isEpub($ebEpub) === true);
+ck('ebook: a zip that is not a book is not an EPUB, whatever it is named',
+   NgvReading::isEpub($ebPlain) === false);
+ck('ebook: and neither is something that is not a zip at all',
+   NgvReading::isEpub($ebPdf) === false);
+
+/* The limit the SERVER will really take, said out loud. PHP drops an upload
+   over upload_max_filesize before any of our code runs, so a page that
+   claims 25MB on a host capped at 2M can only report "no file arrived". */
+ck('ebook: the stated limit is the server\'s own, never a number we hope is right',
+   NgvReading::uploadLimitBytes() > 0
+   && NgvReading::uploadLimitBytes() <= NgvReading::EBOOK_MAX_BYTES);
+/* A file PHP itself rejected is a FAILED UPLOAD, never "they must have
+   meant to edit the note" — that read a 12MB book refused by the server as
+   a quiet note edit and told the operator "Note saved" over a book that
+   still had no copy. */
+$ebTooBig = NgvReading::setBookEbook($ebBook, ['error' => UPLOAD_ERR_INI_SIZE], 1);
+ck('ebook: a file the server refused is reported as that, not read as a note',
+   empty($ebTooBig['ok'])
+   && str_contains((string) ($ebTooBig['error'] ?? ''), NgvReading::sizeWords(NgvReading::uploadLimitBytes())));
+ck('ebook: sizes are said in MB and KB, not bytes',
+   NgvReading::sizeWords(1048576) === '1MB' && NgvReading::sizeWords(2621440) === '2.5MB'
+   && NgvReading::sizeWords(5120) === '5KB');
+
+/* It reaches the two places somebody reads from. */
+/* Its own reader, so this block neither depends on nor disturbs the state
+   the tests above left 960 in. */
+$ebWho = 961;
+NgvMember::ensureParticipant($ebWho, ['name' => 'E Reader', 'email' => 'e@reading.test']);
+NgvDb::pdo()->prepare("UPDATE ngv_participants SET start_date = '2026-01-01', status = 'active' WHERE member_id = ?")->execute([$ebWho]);
+$ebPick = NgvReading::action($ebWho, ['book_action' => 'get', 'slot' => 2]);
+$ebRow = null;
+foreach ((array) ($ebPick['books'] ?? []) as $ebB) if ((int) $ebB['id'] === $ebBook) $ebRow = $ebB;
+ck('ebook: the claim sheet is told about it, so it can offer to open the book',
+   is_array($ebRow) && (string) $ebRow['ebook'] === 'https://www.gutenberg.org/ebooks/1234'
+   && (string) $ebRow['ebook_label'] === 'Read online');
+NgvReading::save($ebWho, ['slot' => 2, 'book_id' => $ebBook], false);
+$ebShelf = NgvReading::shelf($ebWho);
+ck('ebook: and the shelf row carries it, in the ONE query it already made',
+   (string) ($ebShelf[2]['ebook_url'] ?? '') === 'https://www.gutenberg.org/ebooks/1234');
+
+/* Taking it away leaves the book. */
+ck('ebook: removing the copy does not remove the book',
+   !empty(NgvReading::setBookEbook($ebBook, null, 1, true)['ok'])
+   && NgvReading::book($ebBook) !== null
+   && (string) NgvReading::book($ebBook)['ebook_url'] === ''
+   && (string) NgvReading::book($ebBook)['ebook_note'] === '');
+
+/* The screens are wired to it. */
+$ebRoot = dirname(__DIR__);
+ck('ebook: the office can add one, as a file or a link, from the book list',
+   str_contains((string) file_get_contents($ebRoot . '/academy/ngv/books.php'), "=== 'ebook'")
+   && str_contains((string) file_get_contents($ebRoot . '/academy/ngv/books.php'), 'data-ebooklink')
+   && str_contains((string) file_get_contents($ebRoot . '/academy/ngv/books.php'), 'b_ebook'));
+ck('ebook: the member can open it from the shelf and from the sheet',
+   str_contains((string) file_get_contents($ebRoot . '/portal/_reading-card.php'), 'avng-shelf-open')
+   && str_contains((string) file_get_contents($ebRoot . '/academy/ngv/_book-modal.php'), 'bkEbook')
+   && str_contains((string) file_get_contents($ebRoot . '/academy/ngv/reading.js'), 'function drawEbook'));
+/* The reviewers list had the same gap as the queues: a member granted the
+   review on the book list page is not a vanguard, so the screen that granted
+   it called them "Member #66". */
+reset_users();
+NgvReading::setReviewer(2, true, 1);
+$ebRevs = NgvReading::reviewers();
+$ebRev = null;
+foreach ($ebRevs as $ebR) if ((int) $ebR['member_id'] === 2) $ebRev = $ebR;
+ck('ebook: a checker who is not a vanguard is named on the page that grants it',
+   is_array($ebRev) && (string) $ebRev['name'] === 'Bode' && (string) $ebRev['email'] === 'b@x.co');
+NgvReading::setReviewer(2, false, 1);
+
+ck('ebook: an EPUB is stored as .epub, not as .bin',
+   Storage::safeExt('application/epub+zip', 'x.epub') === 'epub'
+   && Storage::safeExt('application/octet-stream', 'x.epub') === 'epub');
+
+@unlink($ebEpub); @unlink($ebPlain); @unlink($ebPdf); @rmdir($ebTmp);
+NgvDb::pdo()->prepare('DELETE FROM ngv_book_claims WHERE member_id = ?')->execute([$ebWho]);
+NgvDb::pdo()->prepare('DELETE FROM ngv_participants WHERE member_id = ?')->execute([$ebWho]);
+NgvDb::pdo()->prepare('DELETE FROM ngv_books WHERE id = ?')->execute([$ebBook]);

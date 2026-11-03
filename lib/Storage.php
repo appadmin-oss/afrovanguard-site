@@ -78,7 +78,7 @@ final class Storage
         static $byMime = [
             'image/jpeg' => 'jpg', 'image/pjpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif',
             'image/webp' => 'webp', 'image/avif' => 'avif', 'image/heic' => 'heic', 'image/heif' => 'heif',
-            'application/pdf' => 'pdf', 'application/msword' => 'doc',
+            'application/pdf' => 'pdf', 'application/epub+zip' => 'epub', 'application/msword' => 'doc',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
             'application/vnd.ms-excel' => 'xls',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
@@ -89,7 +89,7 @@ final class Storage
             'audio/aac' => 'aac', 'audio/ogg' => 'ogg', 'audio/wav' => 'wav', 'audio/x-wav' => 'wav',
             'audio/webm' => 'webm', 'video/mp4' => 'mp4', 'video/webm' => 'webm',
         ];
-        static $inert = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'heif', 'pdf', 'doc', 'docx', 'xls', 'xlsx',
+        static $inert = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'heif', 'pdf', 'epub', 'doc', 'docx', 'xls', 'xlsx',
                          'ppt', 'pptx', 'txt', 'csv', 'mp3', 'm4a', 'aac', 'ogg', 'oga', 'wav', 'webm', 'mp4'];
         $mime = strtolower(trim($mime));
         if (isset($byMime[$mime])) return $byMime[$mime];

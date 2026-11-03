@@ -27,6 +27,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         json_out(NgvReading::setBookCover((int) ($_POST['id'] ?? 0), $_FILES['cover'] ?? null, $by,
                                           (string) ($_POST['remove'] ?? '') === '1'));
     }
+    /* The e-version, the same way and for the same reason. A LINK posts here
+       too rather than as JSON, so one handler answers both and the screen
+       does not have to know which it is sending. */
+    if ((string) ($_POST['action'] ?? '') === 'ebook') {
+        json_out(NgvReading::setBookEbook((int) ($_POST['id'] ?? 0), $_FILES['ebook'] ?? null, $by,
+                                          (string) ($_POST['remove'] ?? '') === '1',
+                                          (string) ($_POST['link'] ?? ''), (string) ($_POST['note'] ?? '')));
+    }
     $in  = json_decode((string) file_get_contents('php://input'), true);
     if (!is_array($in)) $in = [];
     $act = (string) ($in['action'] ?? '');
@@ -113,11 +121,18 @@ $csrf  = av_csrf_token();
   <section class="card" aria-labelledby="h-list" id="list">
     <header><h2 id="h-list">The list</h2><span class="sp"></span><span class="sub"><?= count($books) ?> book<?= count($books) === 1 ? '' : 's' ?><?= count($books) > count($live) ? ' · ' . (count($books) - count($live)) . ' retired' : '' ?></span></header>
     <div class="body scroll">
+      <p class="sub" style="margin-top:0">
+        <b>E-version</b> is a copy somebody can open — a PDF or EPUB this office holds, or a link to
+        where the book is free and legitimate. Most of the list will have neither, which is fine: a
+        book with no e-version is one they borrow or buy. Only upload a copy the organisation has the
+        right to share. This server accepts uploads up to <?= $e(NgvReading::sizeWords(NgvReading::uploadLimitBytes())) ?>;
+        anything larger goes in as a link.
+      </p>
       <?php if (!$books): ?>
         <p class="sub">No books yet. Until there are, vanguards have nothing to choose from — add the first above.</p>
       <?php else: ?>
       <table>
-        <thead><tr><th>Cover</th><th>Title</th><th>Author</th><th>Values</th><th class="num">Chapters</th><th class="num">Recorded</th><th>On the list</th><th></th></tr></thead>
+        <thead><tr><th>Cover</th><th>Title</th><th>Author</th><th>Values</th><th class="num">Chapters</th><th>E-version</th><th class="num">Recorded</th><th>On the list</th><th></th></tr></thead>
         <tbody>
         <?php foreach ($books as $b): $use = NgvReading::bookUse((int) $b['id']); ?>
           <tr class="<?= $b['active'] ? '' : 'off' ?>">
@@ -139,6 +154,28 @@ $csrf  = av_csrf_token();
             <td><?= $e((string) $b['author']) ?></td>
             <td><?= $b['value_labels'] ? implode(' · ', array_map($e, $b['value_labels'])) : '<span class="sub">none named</span>' ?></td>
             <td class="num"><?= (int) $b['chapters'] ?></td>
+            <?php /* The e-version. A file the office holds, or a link to where
+                     it is free — most of the list is neither, and that is
+                     fine: a book with no e-version is one somebody borrows. */ ?>
+            <td class="bke-cell">
+              <?php if ((string) $b['ebook_url'] !== ''): ?>
+                <a class="bke-have" href="<?= $e((string) $b['ebook_url']) ?>" target="_blank" rel="noopener noreferrer">
+                  <span class="pill s-on"><?= $e((string) $b['ebook_label']) ?></span> open</a>
+                <?php if ((string) $b['ebook_note'] !== ''): ?><div class="sub"><?= $e((string) $b['ebook_note']) ?></div><?php endif; ?>
+              <?php else: ?>
+                <span class="sub">none</span>
+              <?php endif; ?>
+              <div class="bke-acts">
+                <label class="bke-pick">
+                  <input type="file" class="b_ebook" data-book="<?= (int) $b['id'] ?>" accept="application/pdf,application/epub+zip,.pdf,.epub" hidden>
+                  <span class="btn sm"><?= (string) $b['ebook_url'] !== '' ? 'Replace file' : 'Upload' ?></span>
+                </label>
+                <button class="btn sm" type="button" data-ebooklink="<?= (int) $b['id'] ?>" data-note="<?= $e((string) $b['ebook_note']) ?>">Link</button>
+                <?php if ((string) $b['ebook_url'] !== ''): ?>
+                  <button class="btn sm" type="button" data-ebookclear="<?= (int) $b['id'] ?>">Remove</button>
+                <?php endif; ?>
+              </div>
+            </td>
             <td class="num"><?= $use ?></td>
             <td><span class="pill <?= $b['active'] ? 's-on' : 's-off' ?>"><?= $b['active'] ? 'Yes' : 'Retired' ?></span></td>
             <td style="white-space:nowrap">
@@ -221,6 +258,10 @@ $csrf  = av_csrf_token();
 <script>
 (function () {
   var CSRF = <?= json_encode($csrf) ?>;
+  /* What this server will really take, from PHP's own ini — not a number we
+     hope is right. */
+  var EBOOK_CAP = <?= (int) NgvReading::uploadLimitBytes() ?>;
+  var EBOOK_CAP_WORDS = <?= json_encode(NgvReading::sizeWords(NgvReading::uploadLimitBytes())) ?>;
   var msg = document.getElementById('msg'), mt;
   function $(id) { return document.getElementById(id); }
   function toast(t, good) { msg.textContent = t; msg.style.color = good === false ? '#ffb4ab' : '#9be7b4'; clearTimeout(mt); mt = setTimeout(function () { msg.textContent = ''; }, 3500); }
@@ -269,6 +310,61 @@ $csrf  = av_csrf_token();
     toast('Uploading the cover…', true);
     coverSend(fd, 'Cover saved');
   });
+  /* The e-version. Same multipart path as the cover, because a link posts
+     through it too — one handler, so the two cannot drift into saving
+     differently. */
+  function ebookSend(fd, said) {
+    return fetch(location.pathname, { method: 'POST', credentials: 'same-origin',
+      headers: { 'X-CSRF-Token': CSRF }, body: fd })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Unreadable reply.' }; }); })
+      .then(function (r) {
+        if (!r.ok) { toast(r.error || 'It was not saved.', false); return; }
+        toast(r.said || said, true); location.reload();
+      })
+      .catch(function () { toast('No connection.', false); });
+  }
+  document.addEventListener('change', function (ev) {
+    var inp = ev.target.closest ? ev.target.closest('.b_ebook') : null;
+    if (!inp || !inp.files || !inp.files[0]) return;
+    var f = inp.files[0];
+    if (f.size > EBOOK_CAP) {
+      /* Refused here as well as on the server: a file over the server's
+         own limit never reaches our code at all — PHP drops it and $_FILES
+         comes back empty — so without this the operator watches a long
+         upload finish and then reads "no file arrived". */
+      toast('That file is ' + (f.size / 1048576).toFixed(1) + 'MB and this server accepts up to '
+            + EBOOK_CAP_WORDS + '. Put it in as a link instead.', false);
+      inp.value = '';
+      return;
+    }
+    var fd = new FormData();
+    fd.append('action', 'ebook'); fd.append('id', inp.getAttribute('data-book')); fd.append('ebook', f);
+    toast('Uploading…', true);
+    ebookSend(fd, 'Saved');
+  });
+  document.addEventListener('click', function (ev) {
+    var lk = ev.target.closest ? ev.target.closest('[data-ebooklink]') : null;
+    if (!lk) return;
+    var url = prompt('Where can this book be read, free and legitimately?\n\nA full https:// address — Project Gutenberg, the publisher\u2019s own page, the author\u2019s site.');
+    if (url === null) return;
+    url = url.trim();
+    if (!url) { toast('No address given.', false); return; }
+    var note = prompt('Anything to say about it? (optional)\n\ne.g. "chapters 1-8 only", "the 1994 edition", "free on Gutenberg"',
+                      lk.getAttribute('data-note') || '');
+    var fd = new FormData();
+    fd.append('action', 'ebook'); fd.append('id', lk.getAttribute('data-ebooklink'));
+    fd.append('link', url); fd.append('note', note === null ? '' : note);
+    ebookSend(fd, 'Link saved');
+  });
+  document.addEventListener('click', function (ev) {
+    var b = ev.target.closest ? ev.target.closest('[data-ebookclear]') : null;
+    if (!b) return;
+    if (!confirm('Remove this e-version? The book stays on the list.')) return;
+    var fd = new FormData();
+    fd.append('action', 'ebook'); fd.append('id', b.getAttribute('data-ebookclear')); fd.append('remove', '1');
+    ebookSend(fd, 'Removed');
+  });
+
   document.addEventListener('click', function (ev) {
     var b = ev.target.closest ? ev.target.closest('[data-coverclear]') : null;
     if (!b) return;

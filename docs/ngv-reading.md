@@ -67,6 +67,58 @@ takeaway on the whole book. Submitting names the first chapter that is short.
   a summary in the same words as another claim on the same book is flagged
   (`same-chapter-summary-as-another-participant`).
 
+## The e-version
+
+A book nobody can get hold of is a book nobody reads. So every book on the
+list may carry an **e-version** — a copy somebody can actually open — and the
+office adds it from the same screen, per book:
+
+| | What it is | Stored as |
+|---|---|---|
+| **A file** | a PDF or an EPUB this office holds | `ebook_kind` `pdf` / `epub`, `ebook_url` the stored file |
+| **A link** | where the book is free and legitimate — Project Gutenberg, a publisher's own page | `ebook_kind` `link` |
+
+Both, because the office has some of each, and a field that took only one of
+them would push the other into the note where nothing can open it.
+`ebook_note` is for what neither can say: "chapters 1–8 only", "the 1994
+edition", "free on Gutenberg". The note can be corrected on its own, without
+re-uploading.
+
+**It is never required.** Most of the list will have neither, which is fine: a
+book with no e-version is one somebody borrows or buys. Nothing about the
+claim, the floor or the checking changes.
+
+What it is, not what it is called:
+
+- A **link** must be `https://`. An `http://` link to a book is one somebody
+  else can rewrite in transit.
+- A **PDF** is accepted on its sniffed type. An **EPUB** cannot be: fileinfo on
+  a shared host often calls one `application/zip`, so the sniff alone rejects
+  real books and the `.epub` name alone accepts anything at all. The format
+  settles it — the spec puts the string `mimetypeapplication/epub+zip` at byte
+  30 of the file, and `isEpub()` reads it there. `/uploads` is under the web
+  root, so the bytes are the only thing worth asking.
+- `Storage::safeExt` knows `epub`, or an EPUB would be stored as `.bin` and no
+  phone would open it.
+
+**The size limit is the server's own.** PHP refuses an upload over
+`upload_max_filesize` or `post_max_size` *before any of our code runs* —
+`$_FILES` comes back empty, and a page that claims 25MB on a host capped at
+2M can only say "no file arrived", which sends an operator hunting for a
+problem with the file. `uploadLimitBytes()` reads the real number, the screen
+states it, and the browser refuses an oversized file before the upload rather
+than after it. Anything larger goes in as a link. Also: a file PHP rejected is
+reported as a failed upload, never quietly read as "they must have meant to
+edit the note".
+
+Where somebody opens it: the **shelf row** (an Open button beside Continue)
+and the **claim sheet**, next to the book they have just chosen — sending a
+reader off to find the book is how a reading challenge stops at the people who
+already own books.
+
+Only a copy the organisation has the right to share should be uploaded; the
+screen says so, and the choice is the office's.
+
 ## The sittings
 
 A book is read over days, and the record used to keep only what was written
@@ -357,6 +409,8 @@ and `ngv_reading_reviewers`, in the NGV database. A sitting names its claim,
 its book and its slot; `ngv_books.value_keys` is the CSV of the values a book
 is on the list for, and is the only place a value is stored.
 A claim names its book by `book_id`, with `chapters` and `chapter_notes`.
+`ngv_books` also carries `cover_url` and the e-version — `ebook_url`,
+`ebook_kind` (`pdf` | `epub` | `link`) and `ebook_note`.
 `ngv_book_claims` is `UNIQUE(member_id, slot)`, `ngv_book_spot_checks` is
 `UNIQUE(member_id, milestone)` so a milestone cannot open twice. Beyond the
 claim fields: `fingerprint`, `flags`, `typed_ms`, `paste_count`, `reviewed_by`,

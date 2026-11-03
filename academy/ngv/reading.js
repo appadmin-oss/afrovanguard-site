@@ -26,6 +26,20 @@
     var src = b && b.cover ? b.cover : '';
     img.hidden = !src;
     if (src) { img.src = src; img.alt = 'Cover of ' + b.title; }
+    drawEbook(b);
+  }
+  /* The copy the office holds, if there is one. */
+  function drawEbook(b) {
+    var box = document.getElementById('bkEbook');
+    var a = document.getElementById('bkEbookLink');
+    var note = document.getElementById('bkEbookNote');
+    if (!box || !a) return;
+    var url = b && b.ebook ? b.ebook : '';
+    box.hidden = !url;
+    if (!url) return;
+    a.href = url;
+    a.textContent = b.ebook_label === 'Read online' ? 'Read it online' : ('Open the ' + (b.ebook_label || 'e-version'));
+    if (note) note.textContent = b.ebook_note || '';
   }
   if (!modal || !shelf) return;
 

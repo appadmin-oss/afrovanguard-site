@@ -16,6 +16,15 @@
                   <label class="bk-picklabel"><span>Book <em>from the book list</em></span>
                     <select id="bkBook"><option value="">Choose a book…</option></select></label>
                 </div>
+                <?php /* The e-version, when the office holds one. Shown with
+                         the book rather than somewhere else on the page:
+                         somebody who has just chosen a title wants to open
+                         it, and sending them off to find it is how a reading
+                         challenge stops at the people who already own books. */ ?>
+                <p class="bk-f bk-f--wide bk-ebook" id="bkEbook" hidden>
+                  <a id="bkEbookLink" href="#" target="_blank" rel="noopener noreferrer"></a>
+                  <span class="bk-ebook-note" id="bkEbookNote"></span>
+                </p>
                 <p class="bk-f bk-f--wide bk-legacy" id="bkLegacy" hidden></p>
                 <p class="bk-f bk-f--wide bk-none" id="bkNone" hidden>The book list is empty for now. The NGV office adds the books — check back soon.</p>
                 <label class="bk-f"><span>Started</span>

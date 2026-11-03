@@ -329,3 +329,9 @@ details[open]>.pcard-summary::after{transform:rotate(-90deg)}
 .co-cert-pick { align-self: flex-start; }
 .co-cert-pick .pbtn { cursor: pointer; }
 .co-cert-pick input:focus-visible + .pbtn { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* The e-version on the claim sheet: a book somebody can open, where they
+   have just chosen the title. */
+.bk-ebook{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:0}
+.bk-ebook a{font-weight:800;font-size:13.5px;color:var(--ink)}
+.bk-ebook-note{font-size:12.5px;color:var(--muted)}

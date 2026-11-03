@@ -979,3 +979,49 @@ Two defects found by driving the real screens, not by the suite:
 7,135 assertions across 175 files. Four guards were mutation-tested: dropping
 the foundation count, moving `REQUIRED_GROUP`, no-opping `nameRows()`, and
 putting the "start it first" refusal back — each failed only its own test.
+
+---
+
+## E-versions of the books (2026-11-03)
+
+A book nobody can get hold of is a book nobody reads, and the list assumed
+every reader could find a copy. Each book may now carry an **e-version**: a
+PDF or EPUB the office holds, or a link to where the book is free and
+legitimate. Both, because the office has some of each — a field that took
+only one would push the other into the note, where nothing can open it. It is
+never required, and a book without one is simply a book somebody borrows.
+`docs/ngv-reading.md` has the reference.
+
+Three things that needed care:
+
+- **An EPUB cannot be identified by its sniffed type or its name.** fileinfo
+  on a shared host often calls one `application/zip`, so the sniff alone
+  rejects real books; and `/uploads` is under the web root, so the `.epub`
+  name alone is not something to trust. The format settles it: the spec puts
+  `mimetypeapplication/epub+zip` at byte 30, and `isEpub()` reads it there.
+  `Storage::safeExt` also had to learn `epub`, or every one would have been
+  stored as `.bin` and no phone would open it.
+- **The size limit has to be the server's own.** PHP drops an upload over
+  `upload_max_filesize` before any of our code runs — `$_FILES` comes back
+  empty — so a page claiming 25MB on a host capped at 2M can only report "no
+  file arrived", which sends an operator looking for a problem with the file.
+  `uploadLimitBytes()` reads the real number (2MB on the dev host), the screen
+  states it, and the browser refuses an oversized file up front. Anything
+  larger goes in as a link.
+- **A failed upload is not a note edit.** The first version let a field with
+  no usable file fall through to "save the note", so a 12MB book PHP had
+  already refused was answered with "Note saved" over a book that still had no
+  copy. `UPLOAD_ERR_NO_FILE` and a real upload error are different answers
+  now. Its own test crashed rather than failing when mutated, which is how the
+  conflation was found.
+
+And one more nameless-row fix of the same family as the review queues: the
+**reviewers list on the book list page** called a checker who is not a
+vanguard "Member #66" — on the very screen that had just granted them the
+review. `nameRows()` took a key argument and now fills that list too.
+
+7,241 assertions across 176 files. Five guards mutation-tested: the https-only
+link, the EPUB byte check, the `.epub` extension, the failed-upload branch,
+and the reviewer naming. Verified in a browser: a real EPUB uploaded through
+the book list, served back as `application/epub+zip`, a Gutenberg link added
+with its note, and both reachable from the member's shelf and claim sheet.

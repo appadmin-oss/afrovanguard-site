@@ -89,5 +89,11 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
 .bkcov-pick{display:inline-block;margin-left:6px}
 .bkcov-pick .btn{cursor:pointer}
 .bkcov-pick input:focus-visible + .btn{outline:3px solid var(--ink);outline-offset:2px}
+.bke-cell{min-width:180px}
+.bke-have{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:.86rem;text-decoration:none;color:var(--ink)}
+.bke-have:hover{text-decoration:underline}
+.bke-acts{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.bke-pick .btn{cursor:pointer}
+.bke-pick input:focus-visible + .btn{outline:3px solid var(--ink);outline-offset:2px}
 @media (max-width:640px){.top{padding:10px 16px}.wrap{padding:0 12px}.card>.body{padding:12px}}
 </style>
