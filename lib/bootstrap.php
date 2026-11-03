@@ -330,6 +330,8 @@ require_once __DIR__ . '/CacGoals.php';   /* CACENTRE's goals, mirrored here and
 require_once __DIR__ . '/CacInventory.php'; /* and its register, for the same reason */
 require_once __DIR__ . '/CacLeads.php';    /* and the follow-ups a member owes */
 require_once __DIR__ . '/CacWifi.php';     /* and their Wi-Fi: CACENTRE runs it, the PIN is shown here */
+require_once __DIR__ . '/Greeting.php';        /* the line at the top of Today: picked, not stored */
+require_once __DIR__ . '/GrowthSignature.php'; /* Today's growth signature, each bar from the record */
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/LmsDrip.php';
 require_once __DIR__ . '/GoogleAuth.php';

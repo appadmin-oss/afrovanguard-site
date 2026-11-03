@@ -157,7 +157,7 @@ ck('Portal: NGV is three portal views — Programme, Fees & account, Attendance 
     PortalNav::SECTIONS['ngv']['label'] === 'Programme' && PortalNav::SECTIONS['ngv-account']['label'] === 'Fees & account'
     && PortalNav::visible('attendance', ['ngv' => true]) && str_contains((string) file_get_contents(AV_ROOT . '/portal/views/attendance.php'), 'data-view="attendance"')
     && str_contains($portal, "'ngvStandalone' => false"));
-ck('Portal: Today carries the programme and what needs doing about it', str_contains($portal, 'today-ngv') && str_contains($portal, "outstanding on your NGV account") && str_contains($portal, 'The CACENTRE gate cannot let you in'));
+ck('Portal: Today carries the programme and what needs doing about it', str_contains($portal, "'NGV' . (\$hvTrack !== ''") && str_contains($portal, "outstanding on your NGV account") && str_contains($portal, 'The CACENTRE gate cannot let you in'));
 ck('Portal: Membership shows the ID (named by its kind), the NGV account and the gate beside the dues', str_contains($portal, 'IdCard::kindLabel($myId)') && str_contains($portal, '>NGV account<') && str_contains($portal, '>CACENTRE gate<'));
 ck('IDs: only an NGV number is an NGV ID; a member\'s is a Member ID', IdCard::kindLabel('B-NGV-25-0005') === 'NGV ID' && IdCard::kindLabel('E-AVM-17-0001') === 'Member ID' && IdCard::kindLabel('CAC-001') === 'Member ID');
 ck('Portal: the sidebar names a vanguard as one', str_contains($portal, "\$isNgv ? 'NextGen Vanguard'"));

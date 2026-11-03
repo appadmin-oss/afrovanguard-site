@@ -135,7 +135,9 @@ render_head([
                      /* The member card (Membership → Your card) and its photo editor. */
                      '/assets/site/avc-card.css', '/assets/site/avc-photo.css',
                      /* Last, so the v2 shell wins over the panel stylesheet. */
-                     '/portal/avp.css', '/portal/volunteer.css', '/portal/todo-pop.css'],
+                     '/portal/avp.css', '/portal/volunteer.css', '/portal/todo-pop.css',
+                     /* Today, Home v4: its own components (hv-), after the shell's. */
+                     '/portal/home.css'],
     'manifest'   => '/manifest.webmanifest',
     'chrome'     => 'app', /* its own shell and theme; not the Home chrome */
 ]);
@@ -376,6 +378,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
 <?php endif; ?>
 
   <script src="<?= e(av_asset('/portal/avp.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/portal/home.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/tasks.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/todo-pop.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/chat-panel.js')) ?>" defer></script>

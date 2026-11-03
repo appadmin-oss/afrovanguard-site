@@ -145,38 +145,37 @@ $portal = av_portal_source();   /* index.php, its views and avp.js — the promp
    ordinary task, written through the same endpoint the task list uses, and
    CACENTRE reads it over the bridge the two sites have shared since the
    task feature shipped. No new door, no second writer, and one list rather
-   than two. */
+   than two. Since Home v4 the prompt is Today's composer (portal/home.js). */
+$homeJs = (string) @file_get_contents(AV_ROOT . '/portal/home.js');
+$todayV = (string) @file_get_contents(AV_ROOT . '/portal/views/today.php');
 ck('AskTask: the answer is written through the existing task endpoint, not a door of its own',
-   str_contains($portal, "fetch('/portal/collab.php?action=task_add'"));
+   str_contains($homeJs, "fetch('/portal/collab.php?action=task_add'"));
 ck('AskTask: carrying the CSRF token the rest of the portal uses',
-   str_contains($portal, "'X-CSRF-Token': csrf"));
+   str_contains($homeJs, "'X-CSRF-Token': csrf") && str_contains($todayV, 'data-csrf="<?= e($collabCsrf) ?>"'));
 ck('AskTask: and CACENTRE sees it over the bridge it already has, rather than a copy',
    str_contains($portal, 'CacTasks::openFor'));
 
-/* IT ASKS ONLY WHEN THERE IS NOTHING TO SHOW. A member who has already
-   written down what they are doing has answered the question; asking again
-   teaches them to dismiss prompts without reading, and the next one that
-   matters goes with it. */
-ck('AskTask: it is rendered only when nothing is open for today',
-   str_contains($portal, 'if ($isOrg && !$hasPlan):'));
-ck('AskTask: counting tasks from BOTH sides of the bridge, so the console\'s own task silences it too',
-   str_contains($portal, 'array_merge($myTasks, $cacTasks)'));
-ck('AskTask: an undated task counts as a plan', str_contains($portal, "\$due === '' || \$due <= \$todayKey"));
-
-/* "Next" carries no date on purpose: a made-up due date is overdue by
-   tomorrow, and an overdue list nobody meant is what makes people stop
-   reading the list at all. */
-ck('AskTask: "next" is saved with no due date rather than an invented one',
-   str_contains($portal, "due: when === 'today' ? today : ''"));
+/* Home v4 asks every day, as the design's composer does: it is the first
+   thing under the greeting, and Enter adds a task due TODAY — the question
+   is "what are you working on today", so today is the honest date. Today's
+   plan ring counts the same tasks, from both sides of the bridge. */
+ck('AskTask: Enter adds a task for today, not an invented later date',
+   str_contains($homeJs, 'due: today,'));
+ck('AskTask: today\'s plan counts tasks from BOTH sides of the bridge',
+   str_contains($todayV, 'foreach ($myTasks as $t)') && str_contains($todayV, 'foreach ($cacTasks as $t)'));
+ck('AskTask: the composer is for members, who have a task list',
+   str_contains($todayV, "<?php if (\$isOrg): ?>\n          <form class=\"hv-composer\" id=\"hvAsk\""));
 
 /* A placeholder is not a label — it disappears the moment somebody types,
    and was never announced to a screen reader in the first place. */
-ck('AskTask: the field has a real label', str_contains($portal, 'for="askTaskTitle"'));
+ck('AskTask: the field has a real label', str_contains($todayV, 'for="hvAskTitle"'));
 ck('AskTask: and the prompt reports success or failure in a live region',
-   str_contains($portal, 'id="askTaskMsg"') && str_contains($portal, 'aria-live="polite"'));
+   str_contains($todayV, 'id="hvAskMsg" role="status" aria-live="polite"'));
+ck('AskTask: a saved task leaves the composer ready for the next one, not hidden',
+   str_contains($homeJs, "input.value = '';") && !str_contains($homeJs, 'card.hidden = true'));
 
-$css = (string) @file_get_contents(AV_ROOT . '/portal/portal.css');
+$css = (string) @file_get_contents(AV_ROOT . '/portal/home.css');
 ck('AskTask: its layout is in the stylesheet, where it can be corrected, not inline',
-   str_contains($css, '.today-ask .ask-row'));
-ck('AskTask: and it does not squeeze the field to nothing on a phone',
-   str_contains($css, '@media (max-width:30rem)') && str_contains($css, '.today-ask .ask-row { flex-direction:column'));
+   str_contains($css, '.hv-composer {'));
+ck('AskTask: and on a phone the hint gives way so the field keeps its room',
+   str_contains($css, '@media (max-width: 720px)') && str_contains($css, '.hv-composer-hint { display:none }'));
