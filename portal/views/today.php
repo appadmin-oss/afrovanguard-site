@@ -77,7 +77,7 @@ $hvGreet = Greeting::pick([
     'reading' => $hvBook !== null && (string) ($hvBook['status'] ?? '') === 'draft',
     'formal' => !empty($billsUnanswered),
 ]);
-$hvWeekLine = Greeting::subline($todayKey, $prog);
+$hvWeekLine = Greeting::sublineParts($todayKey, $prog);
 
 /* ── You: the ring is the way to the next level ─────────────────────── */
 $jNeedPts = $journey['next_points'] ?? null;
@@ -89,6 +89,9 @@ $hvPhoto = '';
 if (class_exists('CardPhoto')) { try { $hvPhoto = CardPhoto::deliver((string) (CardPhoto::of((int) $u['id'])['photo'] ?? '')); } catch (Throwable $e) {} }
 $hvVerified = class_exists('MemberVerification') && MemberVerification::isVerified((int) $u['id']);
 $hvTrack = $isNgv ? trim((string) ($ngvVars['myTrack'] ?? '')) : '';
+/* The printed ID, as on the card (lib/IdCard.php) — the desktop board shows it after the programme. */
+$hvIdNo = '';
+if (class_exists('IdCard')) { try { $hvIdNo = IdCard::printedId((int) $u['id']); } catch (Throwable $e) {} }
 $hvAbout = $isNgv ? 'NGV' . ($hvTrack !== '' ? ' · ' . $hvTrack : '') : (!empty($isVol) ? 'Volunteer' : ($isOrg ? (string) $accessLevel : 'Learner'));
 
 /* Today's plan: the tasks due today, on both sides of the CACENTRE bridge.
@@ -275,12 +278,12 @@ $hvRing = static function (int $size, int $r, int $w, int $pct, string $track = 
               <span class="hv-level" aria-hidden="true"><?= e($stageCode) ?></span>
             </a>
             <div class="hv-hero-t">
-              <p class="hv-hero-week" id="hvWeekLine"><?= e($hvWeekLine) ?></p>
+              <p class="hv-hero-week" id="hvWeekLine"><?= str_replace(' · ', '<span class="hv-sep"> · </span>', e($hvWeekLine['main'])) ?><?php if ($hvWeekLine['tail'] !== ''): ?><span class="hv-wide"><span class="hv-sep"> · </span><?= e($hvWeekLine['tail']) ?></span><?php endif; ?></p>
               <div class="hv-hello"><img src="/assets/site/av-seal-96.png" alt="" width="40" height="40"><h1 id="hvHello" data-kind="<?= e($hvGreet['kind']) ?>"><?= e($hvGreet['text']) ?></h1></div>
               <p class="hv-tags">
-                <span class="hv-tag hv-tag--you">Vanguard Level <?= e($stageCode) ?> — <?= e($hvLevelLabel) ?></span>
-<?php if ($hvVerified): ?>                <span class="hv-tag hv-tag--ok">Verified member</span>
-<?php endif; ?>                <span class="hv-tag hv-tag--n"><?= e($hvAbout) ?></span>
+                <span class="hv-tag hv-tag--you"><span class="hv-wide">Vanguard </span>Level <?= e($stageCode) ?><span class="hv-wide"> —</span><span class="hv-narrow"> ·</span> <?= e($hvLevelLabel) ?></span>
+<?php if ($hvVerified): ?>                <span class="hv-tag hv-tag--ok">Verified<span class="hv-wide"> member</span></span>
+<?php endif; ?>                <span class="hv-tag hv-tag--n"><?= e($hvAbout) ?><?php if ($hvIdNo !== ''): ?><span class="hv-wide"> · ID <?= e($hvIdNo) ?></span><?php endif; ?></span>
               </p>
               <p class="hv-motto">Your life is becoming the evidence of your leadership.</p>
             </div>
@@ -318,12 +321,16 @@ $hvRing = static function (int $size, int $r, int $w, int $pct, string $track = 
         <div class="hv-grid">
 <?php if ($hvNotice):
     $hvNTitle = trim((string) strtok(trim((string) $hvNotice['body']), "\n"));
-    $hvNTitle = mb_strlen($hvNTitle) > 110 ? mb_substr($hvNTitle, 0, 108) . '…' : $hvNTitle; ?>
+    $hvNTitle = mb_strlen($hvNTitle) > 240 ? mb_substr($hvNTitle, 0, 238) . '…' : $hvNTitle; ?>
           <aside class="hv-notice" id="hvNotice" data-id="<?= (int) $hvNotice['id'] ?>" aria-label="Announcement">
             <span class="hv-notice-ico" aria-hidden="true"><?= $hvSvg('megaphone', 17) ?></span>
             <span class="hv-lbl">Announcement</span>
-            <span class="hv-notice-t"><b><?= e($hvNTitle) ?></b> <span class="hv-muted hv-small">· <?= e((string) $hvNotice['author']) ?> · <?= e((string) $hvNotice['ago']) ?></span></span>
-            <a href="#community" data-goto="community" class="hv-more" style="padding:0 10px">Read</a>
+            <?php /* One line, always: a long one scrolls (portal/home.js measures it), the whole of it is a page away. */ ?>
+            <a class="hv-notice-t" href="/portal/announcement.php?id=<?= (int) $hvNotice['id'] ?>" title="<?= e($hvNTitle) ?>">
+              <span class="hv-marq"><b><?= e($hvNTitle) ?></b><b class="hv-marq-copy" aria-hidden="true"><?= e($hvNTitle) ?></b></span>
+            </a>
+            <span class="hv-notice-meta hv-muted hv-small"><?= e((string) $hvNotice['author']) ?> · <?= e((string) $hvNotice['ago']) ?></span>
+            <a href="/portal/announcement.php?id=<?= (int) $hvNotice['id'] ?>" class="hv-more" style="padding:0 10px">Read<span class="hv-sr"> the announcement</span></a>
             <button type="button" class="hv-btn hv-btn--sm hv-btn--ghost hv-btn--icon" data-hv-dismiss aria-label="Dismiss announcement"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           </aside>
 <?php endif; ?>

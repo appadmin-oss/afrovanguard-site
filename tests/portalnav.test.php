@@ -57,11 +57,12 @@ ck('portal nav: a learner sees the Quest, mentorship, learning and their account
    && PortalNav::label('membership', $guest) === 'Account');
 ck('portal nav: everything the account opens is listed exactly once', count($ids($all)) === count(PortalNav::SECTIONS) && count(array_unique($ids($all))) === count($ids($all)));
 ck('portal nav: the Vanguard Quest groups the Quest with what feeds it — bills, mentorship, attendance, fines',
-   array_column(PortalNav::groups($all)['Vanguard Quest'], 0) === ['quest', 'bills', 'mentorship', 'attendance', 'ngv-fines', 'fines']);
+   array_column(PortalNav::groups($all)['Vanguard Quest'], 0) === ['quest', 'mentorship', 'bills', 'attendance', 'ngv-fines', 'fines']);
 ck('portal nav: the gate is open to a gate-pass holder or a vanguard, and to nobody else',
    PortalNav::visible('attendance', ['gate' => true] + $guest) && PortalNav::visible('attendance', ['ngv' => true] + $guest) && !PortalNav::visible('attendance', $guest));
 ck('portal nav: each view file is drawn once, Today first', PortalNav::views($all)[0] === 'today' && count(PortalNav::views($all)) === count(array_unique(PortalNav::views($all))));
-ck('portal nav: the phone bar is four tabs chosen by who is signed in',
-   array_column(PortalNav::tabs($all), 0) === ['overview', 'tasks', 'chat', 'diary']
-   && array_column(PortalNav::tabs(['ngv' => true] + $guest), 0) === ['overview', 'ngv', 'community', 'diary']
-   && array_column(PortalNav::tabs($guest), 0) === ['overview', 'learning', 'community', 'diary']);
+ck('portal nav: the phone bar is four tabs chosen by who is signed in, the fourth the Journey (Home v4)',
+   array_column(PortalNav::tabs($all), 0) === ['overview', 'tasks', 'chat', 'quest']
+   && array_column(PortalNav::tabs(['ngv' => true] + $guest), 0) === ['overview', 'ngv', 'community', 'quest']
+   && array_column(PortalNav::tabs($guest), 0) === ['overview', 'learning', 'community', 'quest']
+   && PortalNav::tabs($guest)[3][1] === 'Journey');

@@ -28,7 +28,10 @@ ck('the sidebar no longer hides navigation links as you type — the one pattern
  . 'says measurably costs discoverability',
    !str_contains($portal, "a.style.display=(!q||t.indexOf(q)>=0)?'':'none'"));
 ck('and what replaced it is a button, because it opens a dialog',
-   str_contains($portal, '<button class="avp-search" type="button" data-cmdk="cmd">'));
+   str_contains($portal, '<button class="avp-search avn-search" type="button" data-cmdk="cmd">'));
+ck('and "/" opens it from anywhere that is not a field, as the sidebar says (Home v4)',
+   str_contains($portal, '<kbd class="avn-kbd" title="or Ctrl K">/</kbd>') && str_contains($js, "if (e.key === '/') { e.preventDefault(); open('cmd'); return; }")
+   && strpos($js, "if (e.key === '/')") > strpos($js, 'if (typing(e)) return;'));
 ck('which says which key it is', str_contains($portal, '<kbd class="cmdk-mod">Ctrl</kbd>'));
 ck('and the script corrects that on a Mac, where the server cannot know',
    str_contains($js, 'k.textContent = MOD;'));

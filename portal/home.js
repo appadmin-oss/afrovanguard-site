@@ -98,6 +98,20 @@
   if (notice) {
     var key = 'av-notice-gone-' + (notice.getAttribute('data-id') || '');
     try { if (localStorage.getItem(key)) notice.hidden = true; } catch (e) {}
+    /* One line, always. When it does not fit it scrolls, at about 60px a
+       second so it can be read, and the whole text is a page away. */
+    var marq = notice.querySelector('.hv-marq'), box = notice.querySelector('.hv-notice-t');
+    var fit = function () {
+      if (!marq || !box || notice.hidden) return;
+      notice.classList.remove('is-long');
+      var w = marq.firstElementChild ? marq.firstElementChild.scrollWidth : 0;
+      if (w > box.clientWidth + 2) {
+        notice.classList.add('is-long');
+        notice.style.setProperty('--hv-marq-s', Math.max(8, Math.round((w + 64) / 60)) + 's');
+      }
+    };
+    fit();
+    var t; window.addEventListener('resize', function () { clearTimeout(t); t = setTimeout(fit, 150); });
     notice.addEventListener('click', function (e) {
       if (!e.target.closest('[data-hv-dismiss]')) return;
       notice.hidden = true;

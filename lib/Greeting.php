@@ -81,18 +81,36 @@ final class Greeting
     }
 
     /**
-     * The one quiet line under it: the ISO week of the year, then the
-     * member's programme session and its week. Between sessions, the week alone.
+     * The one quiet line under it, as the design writes it:
+     *   in a session      "Week 45 · DOMI 2026, week 9 of 14"   + "41 days left"
+     *   before the next   "Week 45 · DOMI 2026 starts in 12 days"
+     *   with neither      "Week 45 · Tuesday 3 November"
+     * The ISO week of the year first, always. The tail (days left) is a
+     * separate part because the phone board leaves it off.
+     * @return array{main:string, tail:string}
      */
-    public static function subline(string $date, ?array $session): string
+    public static function sublineParts(string $date, ?array $session): array
     {
         $d = DateTimeImmutable::createFromFormat('!Y-m-d', $date) ?: new DateTimeImmutable();
-        $out = 'Week ' . (int) $d->format('W');
+        $main = 'Week ' . (int) $d->format('W');
+        $tail = '';
         if ($session && !empty($session['live'])) {
-            $out .= ' · ' . (string) $session['label'] . ', week ' . (int) $session['week_of'] . ' of ' . (int) $session['total_weeks'];
+            $main .= ' · ' . (string) $session['label'] . ', week ' . (int) $session['week_of'] . ' of ' . (int) $session['total_weeks'];
             $left = (int) ($session['days_left'] ?? 0);
-            if ($left > 0) $out .= ' · ' . $left . ' day' . ($left === 1 ? '' : 's') . ' left';
+            $tail = $left > 0 ? $left . ' day' . ($left === 1 ? '' : 's') . ' left' : 'last day';
+        } elseif ($session && ($session['state'] ?? '') === 'upcoming') {
+            $n = (int) ($session['days_to_start'] ?? 0);
+            $main .= ' · ' . (string) $session['label'] . ($n <= 1 ? ' starts tomorrow' : ' starts in ' . $n . ' days');
+        } else {
+            $main .= ' · ' . $d->format('l j F');
         }
-        return $out;
+        return ['main' => $main, 'tail' => $tail];
+    }
+
+    /** The whole line as one string (the parts joined), for anywhere but the hero. */
+    public static function subline(string $date, ?array $session): string
+    {
+        $p = self::sublineParts($date, $session);
+        return $p['main'] . ($p['tail'] !== '' ? ' · ' . $p['tail'] : '');
     }
 }

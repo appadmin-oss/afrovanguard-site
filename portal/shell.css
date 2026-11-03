@@ -1,0 +1,212 @@
+/*
+ * portal/shell.css — the portal's navigation, Home v4: the sidebar and top bar
+ * of the desktop board, the header and tab bar of the phone board, and the
+ * "Phone — More sheet" board. Loaded last, after avp.css, whose layout it keeps
+ * (.avp-app, the drawer under 960px) and whose look it replaces.
+ *
+ * The same colour logic as Today (portal/home.css): neutral by default; a
+ * chip's colour only confirms its word — red late, amber owing, gold yours,
+ * green fine, indigo learning.
+ */
+body.avp {
+  --avn-side:#F5F3EF; --avn-line:#E8E6E1; --avn-line-2:#D6D3CC; --avn-hair:#F1F0EC; --avn-hover:#EFEDE8; --avn-card:#FFFFFF;
+  --avn-ink:#111827; --avn-text-2:#454A56; --avn-muted:#5F636D; --avn-focus:#2F6FDB;
+  --avn-gold:#F3B416; --avn-gold-text:#8A6406; --avn-gold-deep:#6B5320; --avn-gold-bg:#FBF4E0;
+  --avn-ok:#17673D; --avn-ok-bg:#EAF5EE; --avn-warn:#8A4B00; --avn-warn-bg:#FBF0E0; --avn-bad:#B0361C; --avn-bad-bg:#FBEAEA;
+  --avn-info:#4338CA; --avn-info-bg:#EEF0FD;
+  --avn-band:#F5EDDA; --avn-sheet:#F7F5F0; --avn-scrim:rgba(17,24,39,.45); --avn-handle:#CFC9BC; --avn-chev:#B9B5AC;
+  --avn-seg:#F3F1EC; --avn-seg-on:#FFFFFF; --avn-shadow:rgba(17,24,39,.22); --avn-tabs:#FFFFFF; --avn-tabs-line:#ECE9E2;
+  --avn-badge:#111827; --avn-badge-fg:#FFFFFF;
+}
+body.avp.is-dark {
+  --avn-side:#121317; --avn-line:#26282E; --avn-line-2:#33363D; --avn-hair:#222429; --avn-hover:#1C1D22; --avn-card:#17181C;
+  --avn-ink:#ECECEC; --avn-text-2:#C2C4CA; --avn-muted:#9A9DA4; --avn-focus:#7AA7F0;
+  --avn-gold-text:#F3C34A; --avn-gold-deep:#E2C37A; --avn-gold-bg:rgba(243,180,22,.12);
+  --avn-ok:#4ADE80; --avn-ok-bg:rgba(34,197,94,.14); --avn-warn:#FBBF24; --avn-warn-bg:rgba(245,158,11,.14);
+  --avn-bad:#F87171; --avn-bad-bg:rgba(248,113,113,.12); --avn-info:#A5B4FC; --avn-info-bg:rgba(99,102,241,.16);
+  --avn-band:#19170F; --avn-sheet:#0E0F12; --avn-scrim:rgba(0,0,0,.6); --avn-handle:#3A3D45; --avn-chev:#5A5D66;
+  --avn-seg:#222429; --avn-seg-on:#33363D; --avn-shadow:rgba(0,0,0,.6); --avn-tabs:#121317; --avn-tabs-line:#26282E;
+  --avn-badge:#F3B416; --avn-badge-fg:#111827;
+}
+body.avp :focus-visible { outline:2px solid var(--avn-focus); outline-offset:2px }
+.avn-sr { position:absolute !important; width:1px; height:1px; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; padding:0 }
+
+/* ── the sidebar ──────────────────────────────────────────────────────── */
+body.avp .avn-side { width:256px; background:var(--avn-side); border-right:1px solid var(--avn-line); padding:18px 12px 12px;
+  display:flex; flex-direction:column; gap:0; font-family:"Source Sans 3",system-ui,sans-serif; color:var(--avn-ink) }
+body.avp .avn-brand { display:flex; align-items:center; gap:10px; padding:4px 8px 14px; text-decoration:none; color:var(--avn-ink) }
+body.avp .avn-brand img { width:32px; height:32px; display:block }
+body.avp .avn-brand-t { font-family:"Cormorant Garamond",Georgia,serif; font-size:20px; font-weight:700; letter-spacing:-.01em }
+body.avp .avn-search { display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding:0 12px; border:1px solid var(--avn-line-2);
+  border-radius:10px; background:var(--avn-card); color:var(--avn-muted); text-align:left; font:inherit; font-size:14px; cursor:pointer }
+body.avp .avn-search:hover { border-color:var(--avn-muted) }
+body.avp .avn-search-t { flex:1 }
+body.avp .avn-kbd { font-family:inherit; font-size:11px; border:1px solid var(--avn-line-2); border-radius:4px; padding:0 5px; line-height:18px }
+body.avp .avn-nav { display:flex; flex-direction:column; margin-top:8px; overflow-y:auto; flex:1; min-height:0; scrollbar-width:thin }
+body.avp .avn-gh { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:36px; margin-top:10px; padding:0 12px;
+  border:0; background:none; font:inherit; font-size:12px; font-weight:600; color:var(--avn-muted); text-align:left; cursor:pointer; border-radius:8px }
+body.avp .avn-gh:hover { color:var(--avn-ink) }
+body.avp .avn-gh svg { transition:transform .18s ease }
+body.avp .avn-gh[aria-expanded="false"] svg { transform:rotate(-90deg) }
+body.avp .avn-link { display:flex; align-items:center; gap:12px; min-height:44px; padding:0 12px; border-radius:10px; color:var(--avn-text-2);
+  font-weight:500; font-size:14.5px; text-decoration:none; position:relative }
+body.avp .avn-link:hover { background:var(--avn-hover); color:var(--avn-ink) }
+body.avp .avn-link svg { flex-shrink:0; color:var(--avn-muted) }
+body.avp .avn-link > span:not(.avn-end):not(.avn-ext) { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+body.avp .avn-link.is-active, body.avp .avn-link[aria-current] { background:var(--avn-card); color:var(--avn-ink); font-weight:700;
+  box-shadow:0 0 0 1px var(--avn-line),0 1px 2px rgba(17,24,39,.05) }
+body.avp .avn-link.is-active svg, body.avp .avn-link[aria-current] svg { color:var(--avn-ink) }
+body.avp .avn-ext { margin-left:auto; color:var(--avn-muted); font-size:12px }
+body.avp .avn-end { margin-left:auto; display:inline-flex; align-items:center; gap:6px; flex-shrink:0 }
+body.avp .avn-n { font-size:12px; color:var(--avn-muted); font-variant-numeric:tabular-nums }
+body.avp .avn-chip { display:inline-flex; align-items:center; height:20px; padding:0 7px; border-radius:999px; font-size:11.5px; font-weight:700; white-space:nowrap }
+body.avp .avn-chip--bad { background:var(--avn-bad-bg); color:var(--avn-bad) }
+body.avp .avn-chip--warn { background:var(--avn-warn-bg); color:var(--avn-warn) }
+body.avp .avn-chip--ok { background:transparent; color:var(--avn-ok); padding:0 }
+body.avp .avn-chip--info { background:var(--avn-info-bg); color:var(--avn-info) }
+/* Points you earned are yours: gold text, no pill — as the board draws "+180". */
+body.avp .avn-chip--you { background:transparent; color:var(--avn-gold-text); padding:0; font-size:12px }
+body.avp .avn-chip--n { background:var(--avn-hair); color:var(--avn-text-2) }
+body.avp .avn-google { margin-top:10px }
+body.avp .avn-foot { margin-top:auto; padding-top:12px; border-top:1px solid var(--avn-line); display:flex; align-items:center; gap:2px }
+body.avp .avn-foot-a { flex:1; display:inline-flex; align-items:center; justify-content:center; min-height:38px; border-radius:999px; font-size:13px;
+  font-weight:600; color:var(--avn-text-2); text-decoration:none; white-space:nowrap }
+body.avp .avn-foot-a:hover { background:var(--avn-hover); color:var(--avn-ink) }
+body.avp .avn-icon { width:38px; height:38px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; border:0;
+  background:none; color:var(--avn-text-2); cursor:pointer; flex-shrink:0 }
+body.avp .avn-icon:hover { background:var(--avn-hover); color:var(--avn-ink) }
+
+/* ── the top bar ──────────────────────────────────────────────────────── */
+body.avp .avn-top { height:64px; display:flex; align-items:center; gap:10px; padding:0 32px; border-bottom:1px solid var(--avn-hair) }
+body.avp .avn-top-seal { display:none }
+body.avp .avn-burger { display:none }
+body.avp .avn-top-actions { margin-left:auto; display:flex; align-items:center; gap:10px }
+body.avp .avn-online { display:inline-flex; align-items:center; gap:8px; margin-right:6px; font-size:13px; color:var(--avn-text-2); text-decoration:none;
+  background:none; padding:0; border:0 }
+body.avp .avn-online[hidden] { display:none }
+body.avp .avn-online:hover { color:var(--avn-ink) }
+body.avp .avn-dot { width:8px; height:8px; border-radius:50%; background:var(--avn-ok); display:inline-block }
+body.avp .avn-bell { width:44px; height:44px; border-radius:50%; border:1px solid var(--avn-line-2); background:var(--avn-card); color:var(--avn-ink);
+  display:inline-flex; align-items:center; justify-content:center; position:relative }
+body.avp .avn-me { width:40px; height:40px; border-radius:50%; background:var(--avn-side); border:2px solid var(--avn-gold); color:var(--avn-ink);
+  display:inline-flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; text-decoration:none; overflow:hidden; flex-shrink:0 }
+body.avp .avn-me img { width:100%; height:100%; object-fit:cover; display:block }
+
+/* Narrower than a desktop: the sidebar is the drawer (avp.css), opened by the burger. */
+@media (max-width: 959px) {
+  body.avp .avn-burger { display:inline-flex }
+  body.avp .avn-top { padding:0 16px }
+}
+
+/* ── the phone: header, tab bar ───────────────────────────────────────── */
+@media (max-width: 639px) {
+  body.avp .avn-burger { display:none }
+  body.avp .avn-top { height:56px; padding:0 6px 0 16px; gap:4px; border-bottom:0; background:var(--avn-band) }
+  body.avp .avn-top-seal { display:flex; align-items:center; min-height:44px; margin-right:auto }
+  body.avp .avn-top-seal img { width:36px; height:36px; display:block }
+  body.avp .avn-top-actions { margin-left:0; gap:2px }
+  body.avp .avn-online { min-height:44px; padding:0 8px; margin:0 }
+  body.avp .avn-bell { border:0; background:none }
+  body.avp .avn-me { display:none }
+  /* The band only belongs above Today's hero; elsewhere the bar is the page's own colour. */
+  body.avp:not(.avn-on-today) .avn-top { background:var(--avp-glass, var(--avn-card)); border-bottom:1px solid var(--avn-hair) }
+
+  body.avp .avn-tabs { height:calc(70px + env(safe-area-inset-bottom)); padding:0 4px env(safe-area-inset-bottom); background:var(--avn-tabs);
+    border-top:1px solid var(--avn-tabs-line); box-shadow:none }
+  body.avp .avn-tab { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:11px; font-weight:600;
+    color:var(--avn-muted); background:none; border:0; min-height:56px; text-decoration:none }
+  body.avp .avn-tab-i { width:52px; height:30px; border-radius:999px; display:flex; align-items:center; justify-content:center; transition:background-color .2s }
+  body.avp .avn-tab.is-active, body.avp .avn-tab[aria-expanded="true"] { color:var(--avn-ink) }
+  body.avp .avn-tab.is-active .avn-tab-i, body.avp .avn-tab[aria-expanded="true"] .avn-tab-i { background:var(--avn-band) }
+  body.avp.is-dark .avn-tab.is-active .avn-tab-i, body.avp.is-dark .avn-tab[aria-expanded="true"] .avn-tab-i { background:#2A2617 }
+  body.avp .avp-main { padding-bottom:calc(70px + env(safe-area-inset-bottom)) }
+}
+
+/* ── the More sheet ───────────────────────────────────────────────────── */
+.avm { position:fixed; inset:0; z-index:60; font-family:"Source Sans 3",system-ui,sans-serif; font-size:15px; line-height:1.4; color:var(--avn-ink) }
+.avm[hidden] { display:none }
+.avm-scrim { position:absolute; inset:0; background:var(--avn-scrim); opacity:0; transition:opacity .25s ease }
+.avm.is-open .avm-scrim { opacity:1 }
+.avm-sheet { position:absolute; left:0; right:0; bottom:0; top:48px; background:var(--avn-sheet); border-radius:28px 28px 0 0;
+  box-shadow:0 -12px 40px var(--avn-shadow); display:flex; flex-direction:column; outline:none;
+  transform:translateY(100%); transition:transform .32s cubic-bezier(.2,.8,.2,1), top .32s cubic-bezier(.2,.8,.2,1) }
+.avm.is-open .avm-sheet { transform:translateY(calc(min(100vh, 844px) * .36)) }
+.avm.is-open.is-full .avm-sheet { transform:none }
+.avm-handle { flex-shrink:0; display:flex; justify-content:center; align-items:center; width:100%; height:28px; border:0; background:none; padding:0;
+  cursor:grab; touch-action:none }
+.avm-handle span { width:40px; height:5px; border-radius:999px; background:var(--avn-handle); display:block }
+.avm-body { flex:1; min-height:0; overflow-y:hidden; padding:0 16px calc(28px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:14px;
+  scrollbar-width:none; overscroll-behavior:contain }
+.avm-body::-webkit-scrollbar { display:none }
+.avm.is-full .avm-body { overflow-y:auto }
+.avm a { color:inherit; text-decoration:none }
+.avm button { font:inherit; color:inherit; cursor:pointer }
+.avm h2, .avm p, .avm ul { margin:0; padding:0 } .avm ul { list-style:none }
+.avm-me { background:var(--avn-card); border-radius:20px; padding:12px; display:flex; align-items:center; gap:12px; box-shadow:0 0 0 1px var(--avn-line) }
+.avm-me-a { display:flex; align-items:center; gap:12px; flex:1; min-width:0 }
+.avm-ring { position:relative; width:52px; height:52px; flex-shrink:0; display:block }
+.avm-ring svg { position:absolute; inset:0 }
+.avm-ring-t { stroke:#EFE6D0 } body.avp.is-dark .avm-ring-t { stroke:#2E2A1C }
+.avm-ring-f { stroke:var(--avn-gold) }
+.avm-av { position:absolute; inset:6px; border-radius:50%; background:#F4ECDD; display:flex; align-items:center; justify-content:center; overflow:hidden;
+  font-family:"Cormorant Garamond",Georgia,serif; font-weight:600; font-size:17px; color:var(--avn-gold-deep) }
+body.avp.is-dark .avm-av { background:#24221A }
+.avm-av img { width:100%; height:100%; object-fit:cover }
+.avm-me-t { min-width:0; display:flex; flex-direction:column; gap:1px }
+.avm-me-t b { font-size:16px } .avm-me-t span { font-size:12.5px; color:var(--avn-gold-deep) }
+.avm-x { width:44px; height:44px; border-radius:50%; background:var(--avn-hair); color:var(--avn-text-2); border:0; display:flex; align-items:center; justify-content:center; flex-shrink:0 }
+.avm-search { display:flex; align-items:center; gap:10px; width:100%; min-height:48px; padding:0 16px; border:0; border-radius:999px; background:var(--avn-card);
+  color:var(--avn-muted) !important; text-align:left; box-shadow:0 0 0 1px var(--avn-line) }
+.avm-lab { display:flex; justify-content:space-between; align-items:center; padding:0 4px; min-height:36px }
+.avm-lab h2 { font-size:12px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--avn-gold-deep) }
+.avm-edit { border:0; background:none; font-size:13px; font-weight:600; color:var(--avn-gold-text) !important; min-height:44px; padding:0 4px }
+.avm-edit-note { font-size:13px; color:var(--avn-muted); padding:0 4px 8px }
+.avm-tiles { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px }
+.avm-tile { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; min-height:86px; padding:8px 2px; border-radius:18px;
+  background:var(--avn-card); font-size:12px; font-weight:600; color:var(--avn-text-2) !important; text-align:center; position:relative; box-shadow:0 0 0 1px var(--avn-line) }
+.avm-tile-i { width:40px; height:40px; border-radius:13px; background:var(--avn-gold-bg); color:var(--avn-gold-text); display:flex; align-items:center; justify-content:center }
+.avm-tile--learn .avm-tile-i { background:var(--avn-info-bg); color:var(--avn-info) }
+.avm-tile--warn .avm-tile-i { background:var(--avn-warn-bg); color:var(--avn-warn) }
+.avm-badge { position:absolute; top:7px; right:8px; min-width:20px; height:20px; padding:0 6px; border-radius:999px; font-size:11px; font-weight:700;
+  display:flex; align-items:center; justify-content:center; background:var(--avn-badge); color:var(--avn-badge-fg) }
+.avm-badge--warn { background:var(--avn-warn-bg); color:var(--avn-warn) }
+.avm-badge--bad { background:var(--avn-bad-bg); color:var(--avn-bad) }
+.avm-badge--ok, .avm-badge--you { background:var(--avn-gold-bg); color:var(--avn-gold-text) }
+.avm-badge--info { background:var(--avn-info-bg); color:var(--avn-info) }
+.avm.is-editing .avm-tile { box-shadow:0 0 0 2px var(--avn-gold) }
+.avm.is-editing .avm-tile::after { content:"−"; position:absolute; top:-6px; left:-6px; width:22px; height:22px; border-radius:50%; background:var(--avn-bad);
+  color:#FFFFFF; font-weight:700; display:flex; align-items:center; justify-content:center; line-height:1 }
+.avm.is-editing .avm-it[data-id] .avm-chev { display:none }
+.avm.is-editing .avm-it[data-id] .avm-end::after { content:"+"; width:24px; height:24px; border-radius:50%; background:var(--avn-gold-bg); color:var(--avn-gold-text);
+  font-weight:700; display:flex; align-items:center; justify-content:center }
+.avm-all { width:100%; min-height:44px; border:0; background:none; font-weight:600; font-size:14px; color:var(--avn-gold-deep) !important;
+  display:flex; align-items:center; justify-content:center; gap:6px }
+.avm.is-full .avm-all { display:none }
+.avm-grp { background:var(--avn-card); border-radius:18px; box-shadow:0 0 0 1px var(--avn-line); overflow:hidden }
+.avm-it { display:flex; align-items:center; gap:12px; min-height:54px; padding:0 14px; border-top:1px solid var(--avn-hair); font-weight:600; color:var(--avn-text-2) }
+.avm-grp li:first-child .avm-it, .avm-grp > .avm-it:first-child { border-top:0 }
+.avm-it--static { cursor:default }
+.avm-ico { width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0 }
+.avm-ico--you { background:var(--avn-gold-bg); color:var(--avn-gold-text) }
+.avm-ico--learn { background:var(--avn-info-bg); color:var(--avn-info) }
+.avm-ico--n { background:var(--avn-hair); color:var(--avn-text-2) }
+.avm-end { margin-left:auto; display:flex; align-items:center; gap:8px }
+.avm-chev { color:var(--avn-chev) }
+.avm-segs { position:relative; display:grid; grid-template-columns:repeat(3,52px); background:var(--avn-seg); border-radius:999px; padding:3px; gap:0 }
+.avm-thumb { position:absolute; top:3px; left:3px; width:52px; height:calc(100% - 6px); border-radius:999px; background:var(--avn-seg-on);
+  box-shadow:0 1px 3px rgba(0,0,0,.18); transition:transform .38s cubic-bezier(.3,1.3,.5,1) }
+.avm-segs[data-mode="dark"] .avm-thumb { transform:translateX(52px) }
+.avm-segs[data-mode="auto"] .avm-thumb { transform:translateX(104px) }
+.avm-seg { position:relative; z-index:1; min-height:38px; padding:0; border:0; border-radius:999px; font-size:13px; font-weight:700; background:transparent; color:var(--avn-muted) !important }
+.avm-seg[aria-checked="true"] { color:var(--avn-ink) !important }
+.avm-foot { display:flex; gap:10px }
+.avm-foot-a { flex:1; display:flex; align-items:center; justify-content:center; min-height:48px; border-radius:999px; background:var(--avn-card);
+  box-shadow:0 0 0 1px var(--avn-line); font-weight:600; color:var(--avn-text-2) !important }
+.avm-out { background:var(--avn-bad-bg); box-shadow:none; color:var(--avn-bad) !important; font-weight:700 }
+.avm-msg { font-size:13px; color:var(--avn-muted); text-align:center; min-height:1em }
+body.avm-locked { overflow:hidden }
+@media (prefers-reduced-motion: reduce) {
+  .avm-sheet, .avm-scrim, .avm-thumb, body.avp .avn-gh svg { transition:none !important }
+}
+/* The sheet is a phone's: a wider screen has the sidebar. */
+@media (min-width: 640px) { .avm { display:none !important } }

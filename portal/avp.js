@@ -26,7 +26,8 @@
   var drawer = { open: function () {}, close: function () {}, isOpen: function () { return false; } };
   run('drawer', function () {
     var side = document.getElementById('avpSide'), scrim = document.getElementById('avpScrim');
-    var burger = document.getElementById('avpBurger'), more = document.getElementById('avpMore');
+    /* The tab bar's More opens the phone sheet now (portal/shell.js), not this drawer. */
+    var burger = document.getElementById('avpBurger'), more = null;
     if (!side) return;
     var opener = null;
     function setExpanded(on) {
@@ -150,10 +151,17 @@
   });
 
   /* ── theme ──────────────────────────────────────────────────────────── */
+  /* light, dark, or auto (follow the device), kept in the av_portal_theme
+     cookie. The sidebar's moon toggles light/dark; the More sheet's
+     Appearance switch sets any of the three through window.avpSetTheme. */
   run('theme', function () {
     var btn = document.getElementById('portalTheme');
+    var MQ = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    var mode = body.classList.contains('is-auto') ? 'auto' : (body.classList.contains('is-dark') ? 'dark' : 'light');
     function sync() {
-      var dark = body.classList.contains('is-dark');
+      var dark = mode === 'dark' || (mode === 'auto' && !!(MQ && MQ.matches));
+      body.classList.toggle('is-dark', dark);
+      body.classList.toggle('is-auto', mode === 'auto');
       /* The embedded Community keys off <html data-theme>. */
       root.setAttribute('data-theme', dark ? 'dark' : 'light');
       if (btn) {
@@ -161,12 +169,16 @@
         btn.setAttribute('aria-label', dark ? 'Light mode' : 'Dark mode');
         btn.setAttribute('title', dark ? 'Light mode' : 'Dark mode');
       }
+      try { document.dispatchEvent(new CustomEvent('portal:theme', { detail: { mode: mode, dark: dark } })); } catch (e) {}
     }
-    if (btn) btn.addEventListener('click', function () {
-      var dark = body.classList.toggle('is-dark');
-      document.cookie = 'av_portal_theme=' + (dark ? 'dark' : 'light') + ';path=/;max-age=31536000;samesite=Lax';
+    function set(m) {
+      mode = m === 'dark' || m === 'auto' ? m : 'light';
+      document.cookie = 'av_portal_theme=' + mode + ';path=/;max-age=31536000;samesite=Lax';
       sync();
-    });
+    }
+    window.avpSetTheme = set;
+    if (btn) btn.addEventListener('click', function () { set(body.classList.contains('is-dark') ? 'light' : 'dark'); });
+    if (MQ) { var onMq = function () { if (mode === 'auto') sync(); }; if (MQ.addEventListener) MQ.addEventListener('change', onMq); else if (MQ.addListener) MQ.addListener(onMq); }
     sync();
   });
 

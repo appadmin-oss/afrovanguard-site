@@ -46,7 +46,7 @@ ck('today: the online count is not repeated on Today',
 ck('today: mentorship hours are printed once, in the record',
    substr_count($today, '$mentorHoursLabel') === 1);
 ck('today: the date is said once, by the week line under the greeting',
-   !str_contains($today, "date('D, M j')") && substr_count($today, 'Greeting::subline(') === 1);
+   !str_contains($today, "date('D, M j')") && substr_count($today, 'Greeting::sublineParts(') === 1);
 
 /* An empty attention list is one line, not a list with nothing in it. */
 ck('today: nothing-needs-you is a line, not an empty list',

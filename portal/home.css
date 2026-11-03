@@ -98,7 +98,8 @@
 .hv .hv-hello img { width:40px; height:40px; display:block; flex-shrink:0 }
 .hv .hv-hello h1 { font-family:var(--hv-serif); font-size:52px; line-height:1; font-weight:500; letter-spacing:-.01em; color:#FFFFFF }
 .hv .hv-tags { display:flex; align-items:center; gap:10px; flex-wrap:wrap }
-.hv .hv-tag { display:inline-flex; align-items:center; height:26px; padding:0 12px; border-radius:999px; font-size:13px; font-weight:600; white-space:nowrap }
+/* inline-block, not flex: the long/short words are separate spans, and flex would drop the spaces between them. */
+.hv .hv-tag { display:inline-block; height:26px; line-height:26px; padding:0 12px; border-radius:999px; font-size:13px; font-weight:600; white-space:nowrap }
 .hv .hv-tag--you { background:var(--hv-gold); color:#111827 }
 .hv .hv-tag--ok { background:#1E3A2B; color:#A7E3BF }
 .hv .hv-tag--n { background:transparent; color:var(--hv-hero-muted); padding:0 }
@@ -110,6 +111,9 @@
 .hv .hv-plan-t b { font-size:38px; line-height:1; font-variant-numeric:tabular-nums }
 .hv .hv-plan-t span { font-size:13px; color:var(--hv-hero-muted) }
 .hv .hv-plan-row { display:none }
+/* The desktop board's longer words; the phone board says less. */
+.hv .hv-narrow { display:none }
+.hv .hv-hero-week .hv-sep { color:var(--hv-hero-dot); padding:0 6px }
 
 /* ── composer and quick access ────────────────────────────────────────── */
 .hv .hv-ask { width:100%; max-width:720px; display:flex; flex-direction:column; gap:14px; margin-top:28px }
@@ -146,7 +150,23 @@
 /* announcement */
 .hv .hv-notice { grid-column:1 / -1; display:flex; align-items:center; gap:14px; min-height:52px; padding:0 8px 0 18px; border-radius:12px;
   background:var(--hv-card); border:1px solid var(--hv-line) }
-.hv .hv-notice-t { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.hv .hv-notice-t { flex:1; min-width:0; overflow:hidden; white-space:nowrap; display:block; color:inherit; text-decoration:none;
+  -webkit-mask-image:linear-gradient(90deg,#000 92%,transparent); mask-image:linear-gradient(90deg,#000 92%,transparent) }
+.hv .hv-notice-t:hover { text-decoration:none }
+.hv .hv-notice-meta { white-space:nowrap; flex-shrink:0 }
+/* The marquee: still when it fits; when it does not, it slides at a reading pace
+   (home.js sets the duration from its length) and holds while hovered or focused. */
+.hv .hv-marq { display:inline-flex; gap:64px; will-change:transform }
+.hv .hv-marq-copy { display:none }
+.hv .hv-notice.is-long .hv-marq-copy { display:inline }
+.hv .hv-notice.is-long .hv-marq { animation:hv-marq var(--hv-marq-s, 18s) linear infinite }
+.hv .hv-notice.is-long:hover .hv-marq, .hv .hv-notice.is-long:focus-within .hv-marq { animation-play-state:paused }
+@keyframes hv-marq { from { transform:translateX(0) } to { transform:translateX(calc(-50% - 32px)) } }
+@media (prefers-reduced-motion: reduce) {
+  .hv .hv-notice.is-long .hv-marq { animation:none }
+  .hv .hv-notice.is-long .hv-marq-copy { display:none }
+  .hv .hv-notice-t { text-overflow:ellipsis }
+}
 .hv .hv-notice-ico { display:none }
 
 /* Needs you */
@@ -277,7 +297,7 @@
 @media (max-width: 720px) {
   .hv { font-size:15px; line-height:1.45 }
   .hv .hv-hero { display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; border-radius:0 0 36px 36px;
-    background:var(--hv-band); color:var(--hv-ink); padding:14px 20px 22px; margin:-16px -16px 0; width:calc(100% + 32px); max-width:none }
+    background:var(--hv-band); color:var(--hv-ink); padding:14px 20px 22px; margin:-24px -16px 0; /* up to the header: the page's own top padding */ width:calc(100% + 32px); max-width:none }
   .avp.is-dark .hv-hero { box-shadow:inset 0 -1px 0 var(--hv-band-line) }
   .hv .hv-hero-o { display:none }
   .hv .hv-hero-me { flex-direction:column; gap:12px }
@@ -288,6 +308,9 @@
   .hv .hv-level { position:absolute; right:4px; bottom:8px; width:38px; height:38px; border-radius:50%; background:#111827; color:#F6D77E; font-size:15px;
     font-weight:700; display:flex; align-items:center; justify-content:center; border:3px solid var(--hv-band) }
   .hv .hv-hero-t { align-items:center; gap:12px }
+  .hv .hv-wide { display:none }
+  .hv .hv-narrow { display:inline }
+  .hv .hv-hero-week .hv-sep { color:inherit; padding:0 }
   .hv .hv-hero-week { order:-1; font-size:13px; color:var(--hv-gold-deep); font-weight:600; letter-spacing:.02em }
   .hv .hv-hello img { display:none }
   .hv .hv-hello h1 { font-size:38px; color:var(--hv-ink) }
@@ -300,7 +323,8 @@
     text-align:left; box-shadow:0 6px 20px rgba(107,83,32,.08); margin-top:6px }
   .hv .hv-plan-row:hover { text-decoration:none }
   .hv .hv-plan-row > span:first-child { position:relative; width:44px; height:44px; flex-shrink:0; display:block }
-  .hv .hv-plan-row svg { position:absolute; inset:0 }
+  .hv .hv-plan-row > span:first-child svg { position:absolute; inset:0 }
+  .hv .hv-plan-row > svg { flex-shrink:0 }
   .hv .hv-plan-row b.n { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px }
   .hv .hv-plan-row .hv-stack { gap:0 }
   .hv .hv-plan-row .hv-ring-track { stroke:var(--hv-sand) }
@@ -321,7 +345,12 @@
   .hv .hv-notice .hv-lbl, .hv .hv-notice .hv-btn { display:none }
   .hv .hv-notice .hv-muted { color:#C9CCD3 }
   .hv .hv-notice-ico { display:flex; width:34px; height:34px; border-radius:11px; background:var(--hv-gold); color:#111827; align-items:center; justify-content:center; flex-shrink:0 }
-  .hv .hv-notice-t { white-space:normal }
+  /* One row — the seal of the notice, the scrolling line, Read — and who and when under the line. */
+  .hv .hv-notice { display:grid; grid-template-columns:34px minmax(0,1fr) auto; grid-template-areas:"ico t more" "ico meta more"; column-gap:12px; row-gap:0; min-height:0 }
+  .hv .hv-notice-ico { grid-area:ico; align-self:center }
+  .hv .hv-notice-t { grid-area:t; align-self:end }
+  .hv .hv-notice-meta { grid-area:meta; align-self:start }
+  .hv .hv-notice .hv-more { grid-area:more; align-self:center; min-height:44px }
   .hv .hv-notice .hv-more { color:#C9CCD3 }
   .hv .hv-card { border:0; border-radius:18px; box-shadow:0 0 0 1px var(--hv-line),0 6px 20px rgba(17,24,39,.05); padding:16px }
   .hv .hv-h2 { font-size:24px }
@@ -363,3 +392,12 @@
   .hv .hv-tile-n { font-size:44px }
 }
 @media print { .hv-pulse-acts { display:none } }
+
+/* ── portal/announcement.php: one announcement, whole ─────────────────── */
+.hv.hv-read { min-height:100vh; background:var(--hv-paper); padding:48px 16px; justify-content:flex-start }
+.hv .hv-read-card { width:100%; max-width:680px; background:var(--hv-card); border:1px solid var(--hv-line); border-radius:18px; padding:32px;
+  display:flex; flex-direction:column; gap:12px }
+.hv .hv-read-t { font-family:var(--hv-serif); font-size:36px; font-weight:600; line-height:1.1 }
+.hv .hv-read-body { font-size:16px; line-height:1.65; color:var(--hv-text-2); padding-top:8px; overflow-wrap:anywhere }
+.hv .hv-read-acts { display:flex; gap:8px; flex-wrap:wrap; padding-top:12px }
+@media (max-width: 720px) { .hv .hv-read-card { padding:22px } .hv .hv-read-t { font-size:28px } }

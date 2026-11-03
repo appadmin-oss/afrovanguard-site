@@ -34,9 +34,15 @@ $eve = []; for ($i = 0; $i < 200; $i++) $eve[] = Greeting::pick(['hour' => 9, 'd
 ck('greeting: "Evening" only after 18:00', !in_array('Evening, Adaeze', $eve, true));
 $mon = []; for ($i = 0; $i < 300; $i++) { $d = date('Y-m-d', strtotime('2026-01-01 +' . $i . ' days')); $g = Greeting::pick(['date' => $d] + $base)['text']; if ($g === 'Happy Monday, Adaeze') $mon[] = date('N', strtotime($d)); }
 ck('greeting: weekday names only on their day', !array_diff(array_unique($mon), ['1']));
-ck('greeting: the line under it is the ISO week, then the session and its week',
-   Greeting::subline('2026-11-03', ['live' => true, 'label' => 'DOMI 2026', 'week_of' => 9, 'total_weeks' => 14, 'days_left' => 41]) === 'Week 45 · DOMI 2026, week 9 of 14 · 41 days left'
-   && Greeting::subline('2026-11-03', null) === 'Week 45');
+$domi = ['live' => true, 'state' => 'live', 'label' => 'DOMI 2026', 'week_of' => 9, 'total_weeks' => 14, 'days_left' => 41];
+ck('greeting: in a session the line is the week, the session and its week, then days left — as the board writes it',
+   Greeting::sublineParts('2026-11-03', $domi) === ['main' => 'Week 45 · DOMI 2026, week 9 of 14', 'tail' => '41 days left']
+   && Greeting::subline('2026-11-03', $domi) === 'Week 45 · DOMI 2026, week 9 of 14 · 41 days left');
+ck('greeting: before a session it counts down to it', Greeting::subline('2026-11-03', ['live' => false, 'state' => 'upcoming', 'label' => 'Summer School 2027', 'days_to_start' => 12]) === 'Week 45 · Summer School 2027 starts in 12 days');
+ck('greeting: with no session it still says more than the week — the day', Greeting::subline('2026-11-03', null) === 'Week 45 · Tuesday 3 November');
+$tvH = (string) file_get_contents(AV_ROOT . '/portal/views/today.php'); $cssH = (string) file_get_contents(AV_ROOT . '/portal/home.css');
+ck('greeting: the phone leaves off the days left, the desktop keeps them', str_contains($tvH, "<span class=\"hv-wide\"><span class=\"hv-sep\"> · </span><?= e(\$hvWeekLine['tail']) ?>") && str_contains($cssH, '.hv .hv-wide { display:none }'));
+ck('hero: the chips say the desktop board\'s words, and the phone board\'s shorter ones', str_contains($tvH, '<span class="hv-wide">Vanguard </span>Level') && str_contains($tvH, 'Verified<span class="hv-wide"> member</span>') && str_contains($tvH, ' · ID <?= e($hvIdNo) ?>'));
 
 /* ── The growth signature (lib/GrowthSignature.php) ───────────────────── */
 ck('signature: nothing to count, nothing drawn', GrowthSignature::compute([]) === []);
@@ -99,3 +105,45 @@ ob_start(); require AV_ROOT . '/portal/_pulse-card.php'; $out = (string) ob_get_
 ck('pulse: renders the member\'s numbers', str_contains($out, '62% of the way to Level A') && str_contains($out, 'book read') && str_contains($out, 'meetings attended'));
 ck('pulse: a name or link cannot break out of the page', !str_contains($out, '<script>x</script>') && !str_contains($out, '"><i data-x=1>'));
 ck('pulse: the QR is in the card when the encoder is present', !class_exists(\chillerlan\QRCode\QRCode::class) || str_contains($out, 'aria-label="QR code: your invite link"'));
+
+/* ── The navigation (Home v4): sidebar, tab bar, More sheet ───────────── */
+$shJs = (string) file_get_contents(AV_ROOT . '/portal/shell.js');
+$shCss = (string) file_get_contents(AV_ROOT . '/portal/shell.css');
+$prefs = (string) file_get_contents(AV_ROOT . '/portal/prefs.php');
+$avpJs = (string) file_get_contents(AV_ROOT . '/portal/avp.js');
+ck('nav: its stylesheet and script are on the portal, the stylesheet last', str_contains($idx, "'/portal/home.css', '/portal/shell.css'],") && str_contains($idx, "av_asset('/portal/shell.js')"));
+ck('nav: Home sits at the top under no heading; every other group folds', PortalNav::UNTITLED === ['Home'] && str_contains($idx, 'class="avn-gh" aria-expanded="true" aria-controls='));
+ck('nav: a folded group still opens for the section on screen', str_contains($shJs, "document.addEventListener('portal:view'") && str_contains($shJs, "set(h, true, false)"));
+ck('nav: every section has an icon in the registry', !array_diff(array_keys(PortalNav::SECTIONS), array_keys(PortalNav::ICONS)));
+ck('nav: the Vanguard Quest is in the design\'s order', array_slice(array_keys(array_filter(PortalNav::SECTIONS, static fn($s) => $s['group'] === 'Vanguard Quest')), 0, 3) === ['quest', 'mentorship', 'bills']);
+ck('nav: status is a word — "1 late", "Due", owed money — and a count is quiet', str_contains($idx, "\$tasksOverdue ? \$tasksOverdue . ' late' : ''") && str_contains($idx, "? 'Due' : '', 'warn'") && str_contains($shCss, '.avn-chip--bad { background:var(--avn-bad-bg); color:var(--avn-bad) }'));
+ck('nav: the palette still strips a row\'s status from its label', str_contains($idx, '<span class="pnav-badge avn-end">'));
+ck('nav: the top bar has the online count, the bell and you', str_contains($idx, 'id="topOnline" href="/people/"') && str_contains($idx, 'id="notifBtn"') && str_contains($idx, 'class="avn-me" href="#membership"'));
+ck('nav: the view name is still announced, though the crumb is gone from sight', str_contains($idx, '<p class="avn-sr" aria-live="polite">Portal: <span id="crumbHere">'));
+
+ck('sheet: More opens the sheet, no longer the drawer', str_contains($idx, 'id="avpMore" aria-haspopup="dialog" aria-controls="avpSheet"') && str_contains($avpJs, "more = null;"));
+ck('sheet: a dialog that holds focus, closes on Esc and gives focus back', str_contains($idx, 'class="avm-sheet" role="dialog" aria-modal="true"') && str_contains($shJs, "e.key === 'Escape'") && str_contains($shJs, 'opener.focus()'));
+ck('sheet: the handle takes it from half to full and back, by tap or drag', str_contains($shJs, "setFull(!wrap.classList.contains('is-full'))") && str_contains($shJs, "addEventListener('pointermove'") && str_contains($shCss, '.avm.is-open.is-full .avm-sheet { transform:none }'));
+ck('sheet: every section the account has is in it, under the sidebar\'s groups', str_contains($idx, '<?php foreach ($nav as $group => $items): ?>' . "\n      <div class=\"avm-sec\">"));
+ck('sheet: it is a phone\'s only', str_contains($shCss, '@media (min-width: 640px) { .avm { display:none !important } }'));
+
+$g = ['org' => false, 'ngv' => false, 'vol' => false, 'gate' => false, 'inventory' => false, 'fines' => false, 'reading' => false];
+$o = ['org' => true] + $g;
+ck('shortcuts: eight by default, only sections the account can open', count(PortalNav::shortcuts($o)) === 8 && !array_diff(PortalNav::shortcuts($g), array_keys(array_filter(PortalNav::SECTIONS, static fn($s, $id) => PortalNav::visible($id, $g), ARRAY_FILTER_USE_BOTH))));
+ck('shortcuts: the member\'s own choice wins, but a stored id never opens a section they lack',
+   PortalNav::shortcuts($o, ['wallet', 'tasks']) === ['wallet', 'tasks'] && PortalNav::shortcuts($g, ['tasks', 'wallet']) === ['wallet']);
+ck('shortcuts: Today is never one — it is the first tab', !in_array('overview', PortalNav::shortcuts($o, ['overview', 'quest']), true));
+ck('shortcuts: saved through Prefs, CSRF and rate-limited, only real section ids', str_contains($prefs, "case 'set_shortcuts':") && str_contains($prefs, "av_require_write(\$uid, 'prefs', 30);") && str_contains($prefs, 'isset(PortalNav::SECTIONS[$id])'));
+ck('shortcuts: editing parks the links, because the router listens before anything can stop a tap', str_contains($shJs, 'function park(on)') && str_contains($shJs, "'data-goto-off'"));
+
+ck('appearance: light, dark, or follow the device', str_contains($idx, "['light' => 'Light', 'dark' => 'Dark', 'auto' => 'Auto']") && str_contains($avpJs, "window.avpSetTheme = set;") && str_contains($avpJs, "mode === 'auto' && !!(MQ && MQ.matches)"));
+ck('appearance: Auto never flashes light on a dark phone', str_contains($idx, "if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) document.body.classList.add('is-dark');"));
+
+/* ── The announcement: one line, and a page to read it ────────────────── */
+$ann = (string) file_get_contents(AV_ROOT . '/portal/announcement.php');
+ck('announcement: one line that scrolls when it is long, still when it fits', str_contains($css, '.hv .hv-notice.is-long .hv-marq { animation:hv-marq') && str_contains($js, "notice.classList.add('is-long')"));
+ck('announcement: it holds while hovered or focused, and does not move for reduced motion', str_contains($css, 'animation-play-state:paused') && str_contains($css, "@media (prefers-reduced-motion: reduce) {\n  .hv .hv-notice.is-long .hv-marq { animation:none }"));
+ck('announcement: "Read" opens it whole, on its own page', str_contains($tv, 'href="/portal/announcement.php?id=<?= (int) $hvNotice[\'id\'] ?>"'));
+ck('announcement page: only the Announcements space, at the reader\'s clearance', str_contains($ann, 'Community::post((int) ($_GET[\'id\'] ?? 0), (int) $u[\'id\'])') && str_contains($ann, "!== 'announcements') \$post = null;"));
+ck('announcement page: the body is escaped, line breaks kept', str_contains($ann, 'nl2br(e($rest))'));
+ck('announcement page: it loads Community itself — it is not in the bootstrap, and a missing class read as "not found"', str_contains($ann, "require_once AV_ROOT . '/lib/Community.php';"));
