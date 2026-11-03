@@ -81,7 +81,15 @@
       items.forEach(function (it) { groups[it.date <= TODAY ? 0 : (it.date <= WEEK_END ? 1 : 2)][1].push(it); });
       var html = '';
       groups.forEach(function (g) { if (g[1].length) html += '<li class="hv-day">' + esc(g[0]) + '</li>' + g[1].slice(0, 6).map(row).join(''); });
-      week.innerHTML = html || '<li class="hv-empty">Nothing in your calendar for the next three weeks. A clear run.</li>';
+      /* "A clear run" is about YOUR calendar, and it was being printed
+         directly above the programme's events — the card said nothing was
+         coming up and then listed something. When events follow, the feed
+         says only what it knows, and when nothing follows at all it can
+         still say the whole card is clear. */
+      var hasEvents = week.getAttribute('data-has-events') === '1';
+      week.innerHTML = html || '<li class="hv-empty">' + (hasEvents
+        ? 'Nothing in your own calendar for the next three weeks — the events below are the programme\u2019s.'
+        : 'Nothing in your calendar for the next three weeks. A clear run.') + '</li>';
     };
     var fail = function () { week.innerHTML = '<li class="hv-empty">Couldn’t load your calendar. <button type="button" class="hv-more" data-hv-retry>Try again</button></li>'; };
     var load = function () {

@@ -1064,3 +1064,45 @@ because `save()` re-reads it.
 it migrates — a fresh database is seeded with the NEW names, so asserting on
 one would prove nothing — by planting the shorthand rows exactly as `seed()`
 left them and running it over them. Five guards mutation-tested.
+
+---
+
+## "Your week": a card that measured the window (2026-11-03)
+
+The owner sent back a screenshot of the Today page's week card at 417px: the
+event's title rendered as **"C.."**, its date wrapping one word per line down
+ten rows, and the line **"Nothing in your calendar for the next three weeks.
+A clear run."** printed directly above an event.
+
+Three defects, one root cause and one of its own.
+
+**The card measured the window.** `.hv-ag` is a three-column grid — date,
+text, actions — and the phone rule that stacks it was a
+`@media (max-width: 720px)`. This card is one column of a grid that goes from
+four columns to one, so it is ~420px wide in a 1400px window: the media query
+said "wide", the `auto` actions column took what three buttons wanted, and
+`minmax(0,1fr)` collapsed to twenty pixels. Every `.hv-card` is now a
+container (`container:hvcard / inline-size`) and the row answers to the
+card's own width. The window-measuring copy had to be **deleted**, not left
+alongside — it is later in the file at equal specificity, so it won and the
+container rule did nothing. The tasks row on the neighbouring card had the
+identical rule and is converted too; one button squeezes less than three,
+which is the only reason it was not in the screenshot.
+
+**A one-line ellipsis in a narrow column names nothing.** `white-space:nowrap`
++ `text-overflow:ellipsis` is why the title was "C..". Two lines, then clip.
+
+**"A clear run" was about a different list.** `#hvWeek` is the member's own
+calendar feed; the Events list below it is the programme's, from another
+source entirely. Its empty line was printed whenever the feed was empty — so
+the card said nothing was coming up and then listed something. The feed now
+knows whether events follow (`data-has-events`) and says only what it knows.
+
+And one found while reproducing it: **`SiteEvents::where()` said the place
+twice** — "Online, Online, Africa". The guard asked only whether the location
+sat inside the venue, which is the rarer way round; the common one, a venue
+inside the location, went straight through.
+
+7,276 assertions across 176 files. Four guards mutation-tested. Verified in a
+browser at the reported size and, more to the point, at a **417px card in a
+1400px window** — the case a media query cannot see.

@@ -358,7 +358,12 @@ $hvRing = static function (int $size, int $r, int $w, int $pct, string $track = 
           <section class="hv-card hv-s5" aria-labelledby="hvWeekH">
             <div class="hv-card-hd"><h2 class="hv-h2" id="hvWeekH">Your week</h2><?php if ($isOrg): ?><a href="#meetings" data-goto="meetings" class="hv-more">Calendar →</a><?php endif; ?></div>
 <?php if ($isOrg): ?>
-            <ol id="hvWeek" data-today="<?= e($todayKey) ?>" aria-live="polite"><li class="hv-skel" aria-hidden="true"></li><li class="hv-skel" aria-hidden="true"></li><li class="hv-sr">Loading your calendar…</li></ol>
+            <?php /* The feed is YOUR calendar — meetings and sessions. The
+                     Events list below it is the programme's, and the two come
+                     from different places. The feed has to know whether
+                     events follow, or its empty line ("a clear run") prints
+                     directly above one. */ ?>
+            <ol id="hvWeek" data-today="<?= e($todayKey) ?>"<?= $todayEvents ? ' data-has-events="1"' : '' ?> aria-live="polite"><li class="hv-skel" aria-hidden="true"></li><li class="hv-skel" aria-hidden="true"></li><li class="hv-sr">Loading your calendar…</li></ol>
 <?php endif; ?>
 <?php if ($todayEvents): ?>
             <ol aria-label="Events">

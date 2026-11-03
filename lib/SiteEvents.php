@@ -312,9 +312,25 @@ final class SiteEvents
     }
 
     /** Where it is, in one line: the venue, and the place unless the venue already says it. */
+    /**
+     * Where it is, said once.
+     *
+     * A venue and a location overlap constantly — "Online" and "Online,
+     * Africa", "Ikeja" and "Ikeja, Lagos" — and joining them printed "Online,
+     * Online, Africa" on the card. The old guard only asked whether the
+     * LOCATION sat inside the venue, which is the rarer way round; the common
+     * one is the venue inside the location, and that went straight through.
+     * Either way, the fuller of the two says everything the other does.
+     */
     private static function where(array $r): string
     {
-        return $r['venue'] === '' ? $r['location'] : ($r['location'] === '' || stripos($r['venue'], $r['location']) !== false ? $r['venue'] : $r['venue'] . ', ' . $r['location']);
+        $venue = trim((string) $r['venue']);
+        $place = trim((string) $r['location']);
+        if ($venue === '') return $place;
+        if ($place === '') return $venue;
+        if (stripos($venue, $place) !== false) return $venue;
+        if (stripos($place, $venue) !== false) return $place;
+        return $venue . ', ' . $place;
     }
 
     /* ── Helpers ───────────────────────────────────────────────────────── */

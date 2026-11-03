@@ -139,7 +139,13 @@
 .hv .hv-zone { grid-column:1 / -1; display:flex; align-items:baseline; gap:12px; padding:8px 2px 0 }
 .hv .hv-zone h2 { font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--hv-text-2) }
 .hv .hv-zone::after { content:""; flex:1; height:1px; background:var(--hv-line); align-self:center }
-.hv .hv-card { background:var(--hv-card); border:1px solid var(--hv-line); border-radius:14px; padding:22px; display:flex; flex-direction:column; gap:14px; min-width:0 }
+/* A card is a CONTAINER, so a row inside it answers to the card's own width
+   and not the window's. These cards sit in a grid that goes from four columns
+   to one, so a @media query measuring the window says "wide" about a card
+   that is 370px across — which is how the week's events ended up with their
+   title in a 20px column, one letter and an ellipsis. */
+.hv .hv-card { background:var(--hv-card); border:1px solid var(--hv-line); border-radius:14px; padding:22px; display:flex; flex-direction:column; gap:14px; min-width:0;
+  container:hvcard / inline-size }
 .hv .hv-card-hd { display:flex; justify-content:space-between; align-items:baseline; gap:12px }
 .hv .hv-h2 { font-family:var(--hv-serif); font-size:23px; font-weight:600; line-height:1.1 }
 .hv .hv-h2 small { font-family:var(--hv-sans); font-size:13px; font-weight:400; color:var(--hv-muted) }
@@ -186,13 +192,37 @@
 .hv .hv-ag-art { width:54px; height:54px; border-radius:10px; overflow:hidden; display:block; background:var(--hv-stone) }
 .hv .hv-ag-art img { width:100%; height:100%; object-fit:cover; display:block }
 .hv .hv-ag-t { display:flex; flex-direction:column; min-width:0 }
-.hv .hv-ag-t b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+/* Two lines, then clip. A one-line ellipsis in a narrow column renders a
+   title as "C..", which names nothing. */
+.hv .hv-ag-t b { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; overflow-wrap:anywhere }
+.hv .hv-ag-t .hv-small { overflow-wrap:anywhere }
 .hv .hv-ag-acts { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end }
 .hv .hv-ag-acts .hv-btn { min-height:38px; padding:0 14px; font-size:13px }
 .hv .hv-ag.is-off .hv-ag-t b { text-decoration:line-through; color:var(--hv-muted) }
 .hv .hv-week-ft { display:flex; gap:8px; margin-top:auto; padding-top:12px; border-top:1px solid var(--hv-hair); align-items:center }
 .hv .hv-week-ft .hv-more { margin-left:auto }
 .hv .hv-skel { height:40px; border-radius:8px; background:var(--hv-hair); margin:8px 0 }
+/* Narrow card: the actions take a line of their own rather than squeezing the
+   event off the row. Three buttons beside a title need about 520px of card. */
+@container hvcard (max-width: 520px) {
+  .hv .hv-ag { grid-template-columns:56px minmax(0,1fr); row-gap:10px; align-items:start }
+  .hv .hv-ag-when, .hv .hv-ag-art { margin-top:2px }
+  /* Full width, not indented under the text: at this size the buttons are
+     the widest thing on the row and have nothing to line up with. */
+  .hv .hv-ag-acts { grid-column:1 / -1; justify-content:flex-start }
+}
+/* "What needs you" has the same shape and the same trap — icon, text, and an
+   action that was given the row's remaining width by a @media query reading
+   the window. One button squeezes less than three, which is the only reason
+   it was not in the screenshot. */
+@container hvcard (max-width: 460px) {
+  .hv .hv-task { grid-template-columns:40px minmax(0,1fr); row-gap:10px; align-items:start; padding:14px 0 }
+  .hv .hv-task > .hv-btn { grid-column:1 / -1; justify-self:start }
+}
+@container hvcard (max-width: 320px) {
+  .hv .hv-ag { grid-template-columns:minmax(0,1fr) }
+  .hv .hv-ag-when, .hv .hv-ag-art { grid-column:1 }
+}
 
 /* Your growth: its cards sit in the grid on a desktop, a carousel on a phone */
 .hv .hv-growth { display:contents }
@@ -349,11 +379,12 @@
   .hv .hv-card { border:0; border-radius:18px; box-shadow:0 0 0 1px var(--hv-line),0 6px 20px rgba(17,24,39,.05); padding:16px }
   .hv .hv-h2 { font-size:24px }
   .hv .hv-more { color:var(--hv-gold-text); font-size:13.5px; min-height:44px; display:inline-flex; align-items:center }
-  .hv .hv-task { grid-template-columns:40px minmax(0,1fr); padding:14px 0 }
-  .hv .hv-task > .hv-btn { grid-column:2; justify-self:start }
   .hv .hv-ico { border-radius:13px }
-  .hv .hv-ag { grid-template-columns:56px minmax(0,1fr) }
-  .hv .hv-ag-acts { grid-column:2; justify-content:flex-start }
+  /* The row's own stacking is a @container rule above — it is the CARD's
+     width that decides it, and this card is one column of a grid that goes
+     from four to one. Measuring the window said "wide" about a 370px card
+     and left the title in a 20px column. What stays here is phone chrome:
+     the date tile, which is about the device. */
   .hv .hv-ag-when { width:56px; height:56px; border-radius:16px; background:var(--hv-hair); align-items:center; justify-content:center; font-size:15px }
   .hv .hv-ag-when.is-live { background:var(--hv-ok-bg) }
   .hv .hv-ag-when .is-soon { font-size:11px }

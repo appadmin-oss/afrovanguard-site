@@ -161,3 +161,61 @@ ck('celebrations: the day\'s doodle logo dresses the portal\'s sidebar seal', st
    && (bool) preg_match('~<a class="avn-brand"[^>]*>\s*<img [^>]*>\s*<span class="avn-brand-t">Afrovanguard</span>~', $idx));
 ck('celebrations: the banner\'s anchor — the first <header> on the page — is the top bar', ($hp = strpos($idx, '<header')) !== false && str_contains(substr($idx, $hp, 60), 'class="avp-top avn-top"'));
 ck('celebrations: a member\'s birthday is Today\'s greeting too', str_contains($tv, "'birthday' => class_exists('Birthdays') && Birthdays::isOn((int) \$u['id'], \$todayKey)"));
+
+/* ── Your week: the card the owner sent back ─────────────────────────────
+   Three defects in one screenshot — a 417px card with the event's title in a
+   20px column reading "C..", its date wrapping one word per line, and the
+   line "Nothing in your calendar for the next three weeks. A clear run."
+   printed directly above an event. */
+$wkCss = (string) file_get_contents(AV_ROOT . '/portal/home.css');
+$wkJs  = (string) file_get_contents(AV_ROOT . '/portal/home.js');
+$wkTv  = (string) file_get_contents(AV_ROOT . '/portal/views/today.php');
+
+ck('your week: a card measures ITSELF, because it is one column of a grid that goes to one',
+   str_contains($wkCss, 'container:hvcard / inline-size') && str_contains($wkCss, '@container hvcard'));
+ck('your week: the event row stacks by the CARD\'s width, never the window\'s',
+   (bool) preg_match('~@container hvcard \(max-width: 520px\)\s*\{[^}]*\.hv-ag \{~s', $wkCss));
+ck('your week: …and the window-measuring copy of that rule is gone, or it wins and lies',
+   !preg_match('~@media[^{]*\{(?:[^{}]|\{[^{}]*\})*?\.hv \.hv-ag-acts \{[^}]*grid-column~s', $wkCss));
+$wkBlock = '';
+if (($wkAt = strpos($wkCss, '@container hvcard (max-width: 520px)')) !== false) {
+    $wkBlock = substr($wkCss, $wkAt, (int) strpos($wkCss, "\n}", $wkAt) - $wkAt);
+}
+ck('your week: the actions take the whole row, not a column under the title',
+   str_contains($wkBlock, '.hv-ag-acts') && str_contains($wkBlock, 'grid-column:1 / -1'));
+ck('your week: a title wraps to two lines rather than ellipsing to one letter',
+   str_contains($wkCss, '-webkit-line-clamp:2') && !preg_match('~\.hv-ag-t b \{[^}]*white-space:nowrap~', $wkCss));
+
+$wkTaskBlock = '';
+if (($wkAt2 = strpos($wkCss, '@container hvcard (max-width: 460px)')) !== false) {
+    $wkTaskBlock = substr($wkCss, $wkAt2, (int) strpos($wkCss, "\n}", $wkAt2) - $wkAt2);
+}
+ck('your week: the tasks row beside it measures the card too, not the window',
+   str_contains($wkTaskBlock, '.hv-task {') && str_contains($wkTaskBlock, 'grid-column:1 / -1')
+   && !str_contains($wkCss, '.hv .hv-task > .hv-btn { grid-column:2'));
+
+/* The contradiction. The feed is the member's OWN calendar; the Events list
+   below it is the programme's, from a different place entirely. */
+ck('your week: the feed knows whether the programme\'s events follow it',
+   str_contains($wkTv, "\$todayEvents ? ' data-has-events=\"1\"' : ''")
+   && str_contains($wkJs, "week.getAttribute('data-has-events') === '1'"));
+ck('your week: "a clear run" is never printed above an event',
+   (bool) preg_match('~hasEvents\s*\?\s*\'Nothing in your own calendar~', $wkJs)
+   && (bool) preg_match('~:\s*\'Nothing in your calendar for the next three weeks\. A clear run\.~', $wkJs));
+
+/* Where it is, said once. */
+$wkWhere = static function (string $venue, string $place): string {
+    $r = ['venue' => $venue, 'location' => $place];
+    $m = new ReflectionMethod('SiteEvents', 'where');
+    $m->setAccessible(true);
+    return (string) $m->invoke(null, $r);
+};
+ck('your week: a venue inside the location is not said twice',
+   $wkWhere('Online', 'Online, Africa') === 'Online, Africa'
+   && $wkWhere('Ikeja', 'Ikeja, Lagos') === 'Ikeja, Lagos');
+ck('your week: …nor a location inside the venue',
+   $wkWhere('Ikeja Hall, Lagos', 'Lagos') === 'Ikeja Hall, Lagos');
+ck('your week: and two different places are both named',
+   $wkWhere('The Dome', 'Abuja') === 'The Dome, Abuja');
+ck('your week: one on its own is enough',
+   $wkWhere('', 'Abuja') === 'Abuja' && $wkWhere('The Dome', '') === 'The Dome');
