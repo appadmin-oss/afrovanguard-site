@@ -36,9 +36,38 @@ of thing that makes somebody stop. `progress()` therefore counts the
 foundation separately (`foundation` / `foundation_total`), and the card marks
 only that group.
 
+Each course carries a **provider** and a one-line **note saying what it
+covers**, because eighteen bare titles tell somebody choosing between them
+nothing at all. Both are on the member's row and in the sheet.
+
 The office adds, renames, re-links, covers and retires courses from
 `/academy/ngv/courses.php`. Retire rather than delete: somebody who already
 took it keeps it.
+
+### The names are the programme's, not a brainstorm's
+
+The first version of this list shipped the shorthand the owner jotted down
+while thinking out loud — `Designs Colour`, `Acting / Music Instrument` (two
+courses on one line), and a course called `FreeCodeCamp`, which is a
+*provider*. It went on screen as the published curriculum.
+
+`SEED` is written properly now, and `fixSeedNames()` corrects a list that was
+already seeded, because `seed()` only ever fills an empty table. It runs once
+(`NAMES_FIXED_KEY`) from `ensure()`, and is idempotent. What it will and will
+not touch:
+
+- **Only a row the seed created** — `created_by = 0`. Every fresh row has
+  `created_at` equal to `updated_at`, so "unedited" on its own would have
+  renamed a course the office typed a minute earlier.
+- **Only a row nobody has edited** — `updated_at` still equal to `created_at`.
+  An office that has named a course keeps its name; the list is theirs.
+- It sets the **position** at the same moment, because the order changed with
+  the names: one row split in two and one was never a course.
+- `FreeCodeCamp` is **retired, not deleted** — somebody may already have
+  claimed it, and a claim has to keep resolving to a course.
+- **A claim is not rewritten.** A verified course keeps the title it was
+  verified under; that is the record. A draft picks the new title up by
+  itself, since `save()` re-reads it from the course row every time.
 
 ## What a course rests on
 

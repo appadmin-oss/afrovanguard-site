@@ -79,6 +79,11 @@ $rcHasTarget = (int) $rcProg['target'] > 0;
                         <span class="avng-shelf-t">
                           <span><?= e((string) $c['title']) ?></span>
                           <span><?= (string) $c['provider'] !== '' ? e((string) $c['provider']) : 'at the centre' ?><?= (int) $c['modules'] > 0 ? ' · ' . (int) $c['modules'] . ' modules' : '' ?><?= $sits ? ' · ' . count($sits) . ' sitting' . (count($sits) === 1 ? '' : 's') . ', ' . $min . ' min' : '' ?></span>
+<?php /* What the course actually covers. A list of eighteen titles tells
+         somebody choosing between them nothing at all. */
+      if ((string) $c['note'] !== ''): ?>
+                          <span class="avng-shelf-note"><?= e((string) $c['note']) ?></span>
+<?php endif; ?>
                         </span>
 <?php if ($st !== ''): ?>
                         <span class="avng-chip" data-tone="<?= e($rcTone[$st] ?? 'gray') ?>"><?= e($rcWord[$st] ?? $st) ?></span>

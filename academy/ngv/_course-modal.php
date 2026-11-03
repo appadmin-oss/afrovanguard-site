@@ -24,6 +24,7 @@
                   <img class="bk-cover" id="coCover" alt="" hidden width="54" height="76">
                   <div class="bk-picklabel">
                     <span class="co-where" id="coWhere"></span>
+                    <span class="co-note" id="coNote"></span>
                   </div>
                 </div>
                 <label class="bk-f"><span>Started</span><input id="coStarted" type="date"></label>

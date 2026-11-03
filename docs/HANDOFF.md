@@ -1025,3 +1025,42 @@ link, the EPUB byte check, the `.epub` extension, the failed-upload branch,
 and the reviewer naming. Verified in a browser: a real EPUB uploaded through
 the book list, served back as `application/epub+zip`, a Gutenberg link added
 with its note, and both reachable from the member's shelf and claim sheet.
+
+---
+
+## The course names were a brainstorm, not a curriculum (2026-11-03)
+
+The first version of the course list shipped the shorthand the owner wrote
+while thinking out loud, verbatim: `Designs Colour`, `Acting / Music
+Instrument` — two courses on one line — and a course called `FreeCodeCamp`,
+which is a provider, not a course. It went on screen as the programme's
+published curriculum. That was mine to catch and I did not.
+
+`SEED` is written as a curriculum now: a real title, a named provider, and a
+one-line note saying what each one covers (eighteen bare titles tell somebody
+choosing between them nothing). The note shows on the member's row and in the
+sheet.
+
+The interesting part is the correction, because `seed()` only ever fills an
+empty table — a list already seeded cannot be reseeded. `fixSeedNames()` runs
+once from `ensure()` and renames those rows in place, under two guards that
+are the whole point:
+
+- **`created_by = 0`** — ours. The first version checked only "has it been
+  edited", and every fresh row has `created_at` equal to `updated_at`, so a
+  course the office typed a minute earlier looked untouched and was renamed
+  under them. Its test caught that.
+- **`updated_at` still equal to `created_at`** — an office that has named a
+  course keeps its name.
+
+It also sets each row's position, because the order changed with the names;
+retires `FreeCodeCamp` rather than deleting it, since a claim has to keep
+resolving; and adds `Learning an Instrument` only where the row it was split
+from is actually present. Claims are not rewritten: a verified course keeps
+the title it was verified under, and a draft picks the new one up by itself
+because `save()` re-reads it.
+
+7,264 assertions across 176 files. The correction is tested against the state
+it migrates — a fresh database is seeded with the NEW names, so asserting on
+one would prove nothing — by planting the shorthand rows exactly as `seed()`
+left them and running it over them. Five guards mutation-tested.

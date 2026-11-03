@@ -28,7 +28,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var el = {
     close: $('coClose'), title: $('coTitle'), status: $('coStatus'),
-    cover: $('coCover'), where: $('coWhere'),
+    cover: $('coCover'), where: $('coWhere'), note: $('coNote'),
     started: $('coStarted'), finished: $('coFinished'),
     mods: $('coModules'), modList: $('coModuleList'),
     sitList: $('coSitList'), sitForm: $('coSitForm'), sitErr: $('coSitErr'),
@@ -205,6 +205,7 @@
       el.title.textContent = c.title || 'Course';
       el.where.innerHTML = (c.provider ? esc(c.provider) : 'Taught at the centre')
         + (c.url ? ' · <a href="' + esc(c.url) + '" target="_blank" rel="noopener noreferrer">open the course</a>' : '');
+      if (el.note) el.note.textContent = c.note || '';
       el.cover.hidden = !c.cover_url;
       if (c.cover_url) el.cover.src = c.cover_url;
 

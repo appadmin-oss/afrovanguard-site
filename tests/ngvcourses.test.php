@@ -14,6 +14,9 @@
  */
 declare(strict_types=1);
 
+/** The seed as declared, for the assertions that pin how it is WRITTEN. */
+function self_seed_titles(): array { return NgvCourses::SEED; }
+
 NgvCourses::ensure(); NgvReading::ensure(); MemberVerification::ensure();
 $ncDb = NgvDb::pdo();
 $ncWipe = static function () use ($ncDb) {
@@ -31,12 +34,97 @@ ck('courses: every group is answered even when empty, so the screen never has a 
    count($ncGroups) === 5 && array_key_exists('courses', $ncGroups['tech']));
 $ncTitles = array_column(NgvCourses::courses(), 'title');
 ck('courses: the programme\'s own progression is seeded',
-   in_array('Communication', $ncTitles, true) && in_array('Power BI', $ncTitles, true)
-   && in_array('FreeCodeCamp', $ncTitles, true) && in_array('Acting / Music Instrument', $ncTitles, true));
+   in_array('Communication Skills', $ncTitles, true) && in_array('Reporting with Power BI', $ncTitles, true)
+   && in_array('Web Pages with HTML', $ncTitles, true) && in_array('Acting and Stagecraft', $ncTitles, true));
 ck('courses: …and each sits in the group it was given',
-   in_array('Communication', array_column($ncGroups['foundation']['courses'], 'title'), true)
-   && in_array('Canva', array_column($ncGroups['media']['courses'], 'title'), true)
-   && in_array('Excel', array_column($ncGroups['business']['courses'], 'title'), true));
+   in_array('Communication Skills', array_column($ncGroups['foundation']['courses'], 'title'), true)
+   && in_array('Graphic Design with Canva', array_column($ncGroups['media']['courses'], 'title'), true)
+   && in_array('Microsoft Excel', array_column($ncGroups['business']['courses'], 'title'), true));
+
+/* ── The names are the programme's, not a brainstorm's ──────────────────
+   The first version of this list shipped the shorthand the owner jotted
+   down while thinking out loud — "Designs Colour", a slash inside a title,
+   and a course called "FreeCodeCamp", which is a provider. It went on
+   screen as the published curriculum. */
+foreach (['Designs Colour', 'Acting / Music Instrument', 'FreeCodeCamp', 'Excel', 'HTML', 'CSS',
+          'Canva', 'Power BI', 'Communication'] as $ncShorthand) {
+    ck('courses: "' . $ncShorthand . '" is not what a member reads',
+       !in_array($ncShorthand, array_column(NgvCourses::courses(), 'title'), true));
+}
+ck('courses: no title carries a slash, which is two courses written as one',
+   !array_filter(NgvCourses::courses(), static fn($c) => str_contains((string) $c['title'], '/')));
+ck('courses: every seeded course says what it covers',
+   !array_filter(self_seed_titles(), static fn($t) => trim((string) ($t['note'] ?? '')) === ''));
+ck('courses: a provider is named on every one, even the ones taught here',
+   !array_filter(self_seed_titles(), static fn($t) => trim((string) ($t['provider'] ?? '')) === ''));
+/* ── The correction, run against the state it was written for ──────────
+   A fresh database is seeded with the NEW names, so asserting on one proves
+   nothing about the installs that already carry the shorthand. This builds
+   those rows exactly as seed() left them — created_by 0, created_at equal to
+   updated_at — and runs the correction over them. */
+$ncStamp = '2026-01-01 00:00:00';
+$ncIns = NgvDb::pdo()->prepare("INSERT INTO ngv_courses (title, provider, url, grp, modules, hours, note, position, active, created_by, created_at, updated_at)
+                                VALUES (?, '', '', ?, 0, 0, '', 900, 1, 0, ?, ?)");
+/* A fresh database is already seeded with the CORRECTED names, so each
+   row's new title goes first — otherwise the correction renames the planted
+   row onto one that is already there and the list carries it twice. */
+foreach ([['Designs Colour', 'media', 'Colour Theory for Design'],
+          ['Acting / Music Instrument', 'art', 'Acting and Stagecraft'],
+          ['FreeCodeCamp', 'tech', ''],
+          ['Excel', 'business', 'Microsoft Excel'],
+          ['HTML', 'tech', 'Web Pages with HTML'],
+          ['Canva', 'media', 'Graphic Design with Canva']] as [$ncT, $ncG, $ncNew]) {
+    foreach (array_filter([$ncT, $ncNew]) as $ncDel) {
+        NgvDb::pdo()->prepare('DELETE FROM ngv_courses WHERE title = ?')->execute([$ncDel]);
+    }
+    $ncIns->execute([$ncT, $ncG, $ncStamp, $ncStamp]);
+}
+/* One of them the office has since edited. It must be left exactly as it is. */
+NgvDb::pdo()->prepare("UPDATE ngv_courses SET updated_at = '2026-02-02 00:00:00' WHERE title = 'Canva'")->execute();
+NgvDb::pdo()->prepare('DELETE FROM ngv_courses WHERE title = ?')->execute(['Learning an Instrument']);
+
+$ncFix = NgvCourses::fixSeedNames();
+$ncAfter = array_column(NgvCourses::courses(false), 'title');
+ck('courses: the correction renames the shorthand on a list already seeded',
+   !empty($ncFix['ok'])
+   && !in_array('Designs Colour', $ncAfter, true) && in_array('Colour Theory for Design', $ncAfter, true)
+   && !in_array('Excel', $ncAfter, true) && in_array('Microsoft Excel', $ncAfter, true)
+   && !in_array('HTML', $ncAfter, true) && in_array('Web Pages with HTML', $ncAfter, true));
+$ncExcel = array_values(array_filter(NgvCourses::courses(false), static fn($c) => (string) $c['title'] === 'Microsoft Excel'));
+ck('courses: …and gives each the wording the seed would have given it',
+   count($ncExcel) === 1 && (string) $ncExcel[0]['provider'] === 'Microsoft Learn'
+   && trim((string) $ncExcel[0]['note']) !== '');
+/* THE ROW THAT WAS A PROVIDER. Retired, never deleted: somebody may already
+   have claimed it, and a claim has to keep resolving to a course. */
+$ncGone = array_values(array_filter(NgvCourses::courses(false), static fn($c) => (string) $c['title'] === 'FreeCodeCamp'));
+ck('courses: the shorthand row that was really a provider is retired, never deleted',
+   count($ncGone) === 1 && (int) $ncGone[0]['active'] === 0
+   && !in_array('FreeCodeCamp', array_column(NgvCourses::courses(), 'title'), true));
+/* The order is the programme's, not wherever the old row happened to sit:
+   the list changed shape with the names — one row split in two, and one was
+   never a course. */
+$ncOrder = array_column(NgvCourses::byGroup()['business']['courses'], 'title');
+ck('courses: a corrected list reads in the order the programme teaches it',
+   array_slice($ncOrder, 0, 2) === ['Microsoft Excel', 'Data Analysis Foundations']);
+ck('courses: the two that shared one line become two, in the same group',
+   in_array('Acting and Stagecraft', $ncAfter, true) && in_array('Learning an Instrument', $ncAfter, true)
+   && count(array_filter(NgvCourses::byGroup()['art']['courses'],
+        static fn($c) => in_array((string) $c['title'], ['Acting and Stagecraft', 'Learning an Instrument'], true))) === 2);
+/* A course the OFFICE edited, or added under one of these names, is theirs.
+   Every fresh row has created_at equal to updated_at, so "unedited" on its
+   own would have renamed a course a minute after they typed it. */
+ck('courses: a course the office has edited is left exactly as they left it',
+   in_array('Canva', $ncAfter, true) && in_array('Canva', ($ncFix['kept'] ?? []), true));
+$ncOwn = NgvCourses::saveCourse(['title' => 'Designs Colour', 'grp' => 'media'], 7);
+ck('courses: and one the office added itself is never renamed under them',
+   !empty($ncOwn['ok']) && !empty(NgvCourses::fixSeedNames()['ok'])
+   && (string) NgvCourses::course((int) $ncOwn['course']['id'])['title'] === 'Designs Colour');
+NgvDb::pdo()->prepare('DELETE FROM ngv_courses WHERE id = ?')->execute([(int) ($ncOwn['course']['id'] ?? 0)]);
+NgvDb::pdo()->prepare('DELETE FROM ngv_courses WHERE title = ?')->execute(['Canva']);
+
+ck('courses: the correction runs once, and is safe to run again',
+   !empty(NgvCourses::fixSeedNames()['ok'])
+   && count(array_filter(NgvCourses::courses(), static fn($c) => (string) $c['title'] === 'Learning an Instrument')) === 1);
 
 /* ── Required vs chosen: the part the user corrected ─────────────────── */
 ck('courses: only the Foundation group is asked of everybody',

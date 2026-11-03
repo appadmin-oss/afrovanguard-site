@@ -75,6 +75,8 @@ final class NgvCourses
     public const TARGET_NGV = 12;
     public const TARGET_MAX = 200;
     public const SETTINGS_KEY = 'ngv_course_settings';
+    /** Set once the brainstorm shorthand has been corrected — see fixSeedNames(). */
+    public const NAMES_FIXED_KEY = 'ngv_course_names_fixed';
 
     public const STATUSES = ['draft', 'submitted', 'verified', 'resubmit', 'rejected'];
     /** What somebody writes about the whole course, and about each sitting. */
@@ -94,24 +96,96 @@ final class NgvCourses
      * renames, re-links, adds and retires from the book-list screen.
      */
     public const SEED = [
-        ['grp' => 'foundation', 'title' => 'Communication',          'provider' => ''],
-        ['grp' => 'foundation', 'title' => 'Google Workspace',       'provider' => 'Google'],
-        ['grp' => 'foundation', 'title' => 'AI and Automation',      'provider' => ''],
-        ['grp' => 'business',   'title' => 'Excel',                  'provider' => ''],
-        ['grp' => 'business',   'title' => 'Data Analysis',          'provider' => ''],
-        ['grp' => 'business',   'title' => 'Power BI',               'provider' => 'Microsoft'],
-        ['grp' => 'business',   'title' => 'Project Management',     'provider' => ''],
-        ['grp' => 'art',        'title' => 'Event Management',       'provider' => ''],
-        ['grp' => 'art',        'title' => 'Music Theory',           'provider' => ''],
-        ['grp' => 'art',        'title' => 'Acting / Music Instrument', 'provider' => ''],
-        ['grp' => 'media',      'title' => 'Canva',                  'provider' => 'Canva'],
-        ['grp' => 'media',      'title' => 'Designs Colour',         'provider' => ''],
-        ['grp' => 'media',      'title' => 'Product Design',         'provider' => ''],
-        ['grp' => 'tech',       'title' => 'FreeCodeCamp',           'provider' => 'freeCodeCamp'],
-        ['grp' => 'tech',       'title' => 'HTML',                   'provider' => 'freeCodeCamp'],
-        ['grp' => 'tech',       'title' => 'CSS',                    'provider' => 'freeCodeCamp'],
-        ['grp' => 'tech',       'title' => 'Python',                 'provider' => ''],
-        ['grp' => 'tech',       'title' => 'JavaScript',             'provider' => 'freeCodeCamp'],
+        /* Foundation — asked of every vanguard. */
+        ['grp' => 'foundation', 'title' => 'Communication Skills',             'provider' => 'At the centre',
+         'note' => 'Speaking, writing and listening well enough to be understood and to understand.'],
+        ['grp' => 'foundation', 'title' => 'Google Workspace Essentials',      'provider' => 'Google',
+         'note' => 'Docs, Sheets, Drive, Gmail and Calendar — the tools the work is done in.'],
+        ['grp' => 'foundation', 'title' => 'Working with AI and Automation',   'provider' => 'At the centre',
+         'note' => 'Using AI tools and simple automation honestly, and knowing where they fail.'],
+
+        /* Business */
+        ['grp' => 'business',   'title' => 'Microsoft Excel',                  'provider' => 'Microsoft Learn',
+         'note' => 'Formulas, tables and charts, to the point of doing real work in a spreadsheet.'],
+        ['grp' => 'business',   'title' => 'Data Analysis Foundations',        'provider' => 'At the centre',
+         'note' => 'Reading a dataset, asking a question of it, and saying what the answer does and does not show.'],
+        ['grp' => 'business',   'title' => 'Reporting with Power BI',          'provider' => 'Microsoft Learn',
+         'note' => 'Turning figures into a report somebody can act on.'],
+        ['grp' => 'business',   'title' => 'Project Management Essentials',    'provider' => 'At the centre',
+         'note' => 'Scope, schedule, people and risk, on projects the size we actually run.'],
+
+        /* Art */
+        ['grp' => 'art',        'title' => 'Event Planning and Management',    'provider' => 'At the centre',
+         'note' => 'Running an event end to end — the plan, the day itself, and what is owed afterwards.'],
+        ['grp' => 'art',        'title' => 'Music Theory Foundations',         'provider' => 'At the centre',
+         'note' => 'Notation, rhythm, key and harmony — enough to read and to write music down.'],
+        ['grp' => 'art',        'title' => 'Acting and Stagecraft',            'provider' => 'At the centre',
+         'note' => 'Performance, voice and movement, and what happens around a stage.'],
+        ['grp' => 'art',        'title' => 'Learning an Instrument',           'provider' => 'At the centre',
+         'note' => 'One instrument, taken far enough to play a piece through.'],
+
+        /* Media */
+        ['grp' => 'media',      'title' => 'Graphic Design with Canva',        'provider' => 'Canva Design School',
+         'note' => 'Layout, type and templates, to a standard the programme can publish.'],
+        ['grp' => 'media',      'title' => 'Colour Theory for Design',         'provider' => 'At the centre',
+         'note' => 'How colour carries meaning, and how to choose a palette that holds together.'],
+        ['grp' => 'media',      'title' => 'Product Design Foundations',       'provider' => 'At the centre',
+         'note' => 'Designing something for the person who has to use it, and testing whether it works.'],
+
+        /* Tech — freeCodeCamp is the PROVIDER of these, not a course. */
+        ['grp' => 'tech',       'title' => 'Web Pages with HTML',              'provider' => 'freeCodeCamp',
+         'note' => 'The structure of a page, written by hand and written correctly.'],
+        ['grp' => 'tech',       'title' => 'Styling and Layout with CSS',      'provider' => 'freeCodeCamp',
+         'note' => 'Type, colour and layout, including how a page behaves on a phone.'],
+        ['grp' => 'tech',       'title' => 'JavaScript Programming',           'provider' => 'freeCodeCamp',
+         'note' => 'Programming from first principles, and making a page do something.'],
+        ['grp' => 'tech',       'title' => 'Python Programming',               'provider' => 'freeCodeCamp',
+         'note' => 'Programming from first principles, through to working with data and files.'],
+    ];
+
+    /**
+     * The names the first version of this list shipped with, and what each
+     * should have said.
+     *
+     * Those came out of a brainstorm — shorthand for a conversation, never
+     * meant to be read by anybody. They went in verbatim and went on screen,
+     * where "Designs Colour" and a course called "FreeCodeCamp" (which is a
+     * provider, not a course) were the programme's published curriculum.
+     *
+     * A list already seeded cannot be reseeded — seed() only fills an empty
+     * table — so the correction has to find those rows and rename them. It
+     * runs ONCE and touches only a row that still carries the shorthand
+     * exactly AND that nobody has edited since it was created: an office that
+     * has already named a course keeps its name, which is the whole point of
+     * the list being theirs.
+     */
+    private const SEED_FIXES = [
+        'Communication'              => 'Communication Skills',
+        'Google Workspace'           => 'Google Workspace Essentials',
+        'AI and Automation'          => 'Working with AI and Automation',
+        'Excel'                      => 'Microsoft Excel',
+        'Data Analysis'              => 'Data Analysis Foundations',
+        'Power BI'                   => 'Reporting with Power BI',
+        'Project Management'         => 'Project Management Essentials',
+        'Event Management'           => 'Event Planning and Management',
+        'Music Theory'               => 'Music Theory Foundations',
+        'Acting / Music Instrument'  => 'Acting and Stagecraft',
+        'Canva'                      => 'Graphic Design with Canva',
+        'Designs Colour'             => 'Colour Theory for Design',
+        'Product Design'             => 'Product Design Foundations',
+        'HTML'                       => 'Web Pages with HTML',
+        'CSS'                        => 'Styling and Layout with CSS',
+        'JavaScript'                 => 'JavaScript Programming',
+        'Python'                     => 'Python Programming',
+    ];
+
+    /** The shorthand row that was never a course at all. */
+    private const SEED_RETIRE = ['FreeCodeCamp'];
+
+    /** What the correction adds, because the shorthand held two in one line. */
+    private const SEED_ADD = [
+        ['grp' => 'art', 'title' => 'Learning an Instrument', 'provider' => 'At the centre',
+         'note' => 'One instrument, taken far enough to play a piece through.', 'after' => 'Acting and Stagecraft'],
     ];
 
     private static bool $ready = false;
@@ -191,6 +265,16 @@ SQL;
             Database::execSchema($pdo, self::ddl());
             Database::syncTablesFromDdl($pdo, self::ddl(), null, 'ngvcourses');
             self::seed();
+            /* A list seeded before the names were written properly is
+               corrected here, once — seed() cannot do it, because it only
+               ever fills an empty table. */
+            if (Database::metaGet(self::NAMES_FIXED_KEY) === null) {
+                /* Marked AFTER it runs, so a correction that failed is tried
+                   again rather than silently left undone. It is idempotent:
+                   a row it has already renamed no longer matches. */
+                self::fixSeedNames();
+                Database::metaSet(self::NAMES_FIXED_KEY, self::now());
+            }
         } catch (Throwable $e) { error_log('[ngvcourses] ensure: ' . $e->getMessage()); }
     }
 
@@ -202,10 +286,93 @@ SQL;
             if ((int) $pdo->query('SELECT COUNT(*) FROM ngv_courses')->fetchColumn() > 0) return;
             $now = self::now();
             $st = $pdo->prepare('INSERT INTO ngv_courses (title, provider, url, grp, modules, hours, note, position, active, created_by, created_at, updated_at)
-                                 VALUES (?, ?, \'\', ?, 0, 0, \'\', ?, 1, 0, ?, ?)');
+                                 VALUES (?, ?, \'\', ?, 0, 0, ?, ?, 1, 0, ?, ?)');
             $i = 0;
-            foreach (self::SEED as $c) { $st->execute([$c['title'], $c['provider'], $c['grp'], $i += 10, $now, $now]); }
+            foreach (self::SEED as $c) {
+                $st->execute([$c['title'], $c['provider'], $c['grp'], (string) ($c['note'] ?? ''), $i += 10, $now, $now]);
+            }
         } catch (Throwable $e) { error_log('[ngvcourses] seed: ' . $e->getMessage()); }
+    }
+
+    /**
+     * Put the brainstorm shorthand right on a list that was already seeded.
+     *
+     * Runs once (NGV_COURSE_NAMES_FIXED in the settings blob) and only on a
+     * row that still carries the shorthand exactly and has not been edited
+     * since it was created — `updated_at` still equal to `created_at`. An
+     * office that has renamed a course keeps its name.
+     *
+     * What a member already CLAIMED is not rewritten: a verified course keeps
+     * the title it was verified under, because that is the record. A draft
+     * picks the new title up by itself, since save() re-reads it from the
+     * course row every time.
+     */
+    public static function fixSeedNames(): array
+    {
+        self::ensure();
+        $done = 0; $added = 0; $retired = 0; $skipped = [];
+        try {
+            $pdo = NgvDb::pdo();
+            $now = self::now();
+            /* created_by = 0 is OURS: seed() inserts with 0, saveCourse()
+               with the admin's id. Without it, a course the office added
+               under one of these names a minute ago looks "unedited" —
+               created_at and updated_at are equal on any fresh row — and
+               the correction renamed it under them. */
+            $sel = $pdo->prepare('SELECT id, title, note, provider, created_at, updated_at FROM ngv_courses WHERE title = ? AND created_by = 0');
+            $upd = $pdo->prepare('UPDATE ngv_courses SET title = ?, provider = ?, note = ?, position = ?, updated_at = ? WHERE id = ?');
+            /* The new wording AND the new place in the order, by the new
+               title, so the correction and the seed cannot say different
+               things. Position matters because the order changed with the
+               names: a row split in two, and one was never a course. */
+            $byTitle = []; $pos = [];
+            $i = 0;
+            foreach (self::SEED as $c) { $byTitle[$c['title']] = $c; $pos[$c['title']] = $i += 10; }
+
+            foreach (self::SEED_FIXES as $was => $now_title) {
+                $sel->execute([$was]);
+                $row = $sel->fetch(PDO::FETCH_ASSOC);
+                if (!$row) continue;
+                if ((string) $row['updated_at'] !== (string) $row['created_at']) { $skipped[] = $was; continue; }
+                $c = $byTitle[$now_title] ?? ['provider' => (string) $row['provider'], 'note' => ''];
+                $upd->execute([$now_title, (string) ($c['provider'] ?? ''), (string) ($c['note'] ?? ''),
+                               $pos[$now_title] ?? 900, $now, (int) $row['id']]);
+                $done++;
+            }
+
+            /* "FreeCodeCamp" was a provider on a row of its own. Retired, not
+               deleted: somebody may already have claimed it, and a claim must
+               keep resolving. */
+            foreach (self::SEED_RETIRE as $gone) {
+                $sel->execute([$gone]);
+                $row = $sel->fetch(PDO::FETCH_ASSOC);
+                if (!$row || (string) $row['updated_at'] !== (string) $row['created_at']) continue;
+                $pdo->prepare('UPDATE ngv_courses SET active = 0, updated_at = ? WHERE id = ?')
+                    ->execute([$now, (int) $row['id']]);
+                $retired++;
+            }
+
+            /* "Acting / Music Instrument" was two courses in one line. */
+            foreach (self::SEED_ADD as $add) {
+                $sel->execute([$add['title']]);
+                if ($sel->fetch(PDO::FETCH_ASSOC)) continue;
+                /* Only when the course it was split from is here — on a
+                   list that never had the shorthand there is nothing to
+                   split, and adding it would be inventing a course. */
+                $after = $pdo->prepare('SELECT 1 FROM ngv_courses WHERE title = ?');
+                $after->execute([(string) $add['after']]);
+                if (!$after->fetchColumn()) continue;
+                $pdo->prepare('INSERT INTO ngv_courses (title, provider, url, grp, modules, hours, note, position, active, created_by, created_at, updated_at)
+                               VALUES (?, ?, \'\', ?, 0, 0, ?, ?, 1, 0, ?, ?)')
+                    ->execute([$add['title'], $add['provider'], $add['grp'], $add['note'],
+                               $pos[$add['title']] ?? 900, $now, $now]);
+                $added++;
+            }
+        } catch (Throwable $e) {
+            error_log('[ngvcourses] fixSeedNames: ' . $e->getMessage());
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+        return ['ok' => true, 'renamed' => $done, 'added' => $added, 'retired' => $retired, 'kept' => $skipped];
     }
 
     private static function now(): string { return function_exists('av_now_tz') ? av_now_tz('Y-m-d H:i:s') : gmdate('Y-m-d H:i:s'); }
