@@ -37,6 +37,11 @@ body.avp .avn-side { width:256px; background:var(--avn-side); border-right:1px s
 body.avp .avn-brand { display:flex; align-items:center; gap:10px; padding:4px 8px 14px; text-decoration:none; color:var(--avn-ink) }
 body.avp .avn-brand img { width:32px; height:32px; display:block }
 body.avp .avn-brand-t { font-family:"Cormorant Garamond",Georgia,serif; font-size:20px; font-weight:700; letter-spacing:-.01em }
+/* On a celebration day (assets/site/celebrations.js dresses this logo) the seal
+   wears a ribbon or a hat that reaches past it: give it the room the site's nav
+   has, so it never runs into the search box. */
+body.avp .avn-brand.avcel-brand { padding-top:10px; padding-bottom:24px; overflow:visible }
+body.avp .avn-brand.avcel-brand img { width:36px; height:36px }
 body.avp .avn-search { display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding:0 12px; border:1px solid var(--avn-line-2);
   border-radius:10px; background:var(--avn-card); color:var(--avn-muted); text-align:left; font:inherit; font-size:14px; cursor:pointer }
 body.avp .avn-search:hover { border-color:var(--avn-muted) }
