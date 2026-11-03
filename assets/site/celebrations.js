@@ -353,7 +353,9 @@
 
 
   /* ── 3b · the nav logo for the day ────────────────────────────── */
-  function brand() { return D.querySelector('.avh-nav .avh-brand') || D.querySelector('.avh-brand') || D.querySelector('.nav-logo'); }
+  /* The site's nav logo, or the member portal's sidebar seal (portal/index.php
+     .avn-brand: the seal <img> and the wordmark <span>, the shape decorate() wants). */
+  function brand() { return D.querySelector('.avh-nav .avh-brand') || D.querySelector('.avh-brand') || D.querySelector('.avn-brand') || D.querySelector('.nav-logo'); }
   function dock(m, play) {
     if (m.img) return decorateImg(m.img);
     decorate(m.art || 'newyear', m.opts, play && !reduced(), m.cls === 'custom' ? m.p : null);

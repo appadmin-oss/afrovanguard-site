@@ -149,3 +149,15 @@ ck('announcement: "Read" opens it whole, on its own page', str_contains($tv, 'hr
 ck('announcement page: only the Announcements space, at the reader\'s clearance', str_contains($ann, 'Community::post((int) ($_GET[\'id\'] ?? 0), (int) $u[\'id\'])') && str_contains($ann, "!== 'announcements') \$post = null;"));
 ck('announcement page: the body is escaped, line breaks kept', str_contains($ann, 'nl2br(e($rest))'));
 ck('announcement page: it loads Community itself — it is not in the bootstrap, and a missing class read as "not found"', str_contains($ann, "require_once AV_ROOT . '/lib/Community.php';"));
+
+/* ── Celebrations, carried into the Home v4 shell ─────────────────────────
+   assets/site/celebrations.js finds the nav logo to dress it for the day, and
+   slides its banner in after the first <header>. The portal's sidebar seal is
+   one of the logos it knows now (it knew none of the portal's before), and the
+   top bar is still the page's first header, so the banner lands under it. */
+$celJs = (string) file_get_contents(AV_ROOT . '/assets/site/celebrations.js');
+ck('celebrations: the script is still on the portal', str_contains($idx, "av_asset('/assets/site/celebrations.js')"));
+ck('celebrations: the day\'s doodle logo dresses the portal\'s sidebar seal', str_contains($celJs, "D.querySelector('.avn-brand')")
+   && (bool) preg_match('~<a class="avn-brand"[^>]*>\s*<img [^>]*>\s*<span class="avn-brand-t">Afrovanguard</span>~', $idx));
+ck('celebrations: the banner\'s anchor — the first <header> on the page — is the top bar', ($hp = strpos($idx, '<header')) !== false && str_contains(substr($idx, $hp, 60), 'class="avp-top avn-top"'));
+ck('celebrations: a member\'s birthday is Today\'s greeting too', str_contains($tv, "'birthday' => class_exists('Birthdays') && Birthdays::isOn((int) \$u['id'], \$todayKey)"));
