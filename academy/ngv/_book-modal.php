@@ -11,8 +11,11 @@
             <div class="bkmodal-body">
               <p class="bk-status" id="bkStatus" hidden></p>
               <div class="bk-grid">
-                <label class="bk-f bk-f--wide" id="bkPick"><span>Book <em>from the book list</em></span>
-                  <select id="bkBook"><option value="">Choose a book…</option></select></label>
+                <div class="bk-f bk-f--wide bk-pickrow" id="bkPick">
+                  <img class="bk-cover" id="bkCover" alt="" hidden width="54" height="76">
+                  <label class="bk-picklabel"><span>Book <em>from the book list</em></span>
+                    <select id="bkBook"><option value="">Choose a book…</option></select></label>
+                </div>
                 <p class="bk-f bk-f--wide bk-legacy" id="bkLegacy" hidden></p>
                 <p class="bk-f bk-f--wide bk-none" id="bkNone" hidden>The book list is empty for now. The NGV office adds the books — check back soon.</p>
                 <label class="bk-f"><span>Started</span>

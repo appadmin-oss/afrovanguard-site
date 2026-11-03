@@ -303,3 +303,11 @@ details[open]>.pcard-summary::after{transform:rotate(-90deg)}
 .noff-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; }
 .noff-form input, .noff-form select { padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(0,0,0,.15); font: inherit; }
 .noff-form button { align-self: end; }
+
+/* The book picker, with the chosen book's cover beside it. A <select>
+   cannot carry an image, and the cover is how somebody confirms they
+   picked the book they meant. */
+.bk-pickrow { display: flex; gap: 12px; align-items: flex-end; }
+.bk-picklabel { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.bk-picklabel select { width: 100%; }
+.bk-cover { width: 54px; height: 76px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); flex: 0 0 auto; }

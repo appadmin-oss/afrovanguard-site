@@ -65,6 +65,10 @@ $rdRecorded = array_values(array_filter($rdShelf, static fn($b) => (string) ($b[
       $rdChW = count(array_filter((array) ($rdBc['chapter_notes_list'] ?? []), static fn($x) => trim((string) $x) !== ''));
       $rdSits = (array) ($rdBc['sessions'] ?? []); $rdMin = (int) ($rdBc['session_minutes'] ?? 0); ?>
                       <li>
+<?php $rdCov = (string) ($rdBc['cover_url'] ?? ''); ?>
+<?php if ($rdCov !== ''): ?>
+                        <img class="avng-shelf-cov" src="<?= e($rdCov) ?>" alt="" loading="lazy" width="34" height="48">
+<?php endif; ?>
                         <span class="avng-shelf-t"><span><?= e((string) $rdBc['title']) ?></span><span><?= e((string) ($rdBc['author'] ?? '')) ?><?= $rdChN ? ' · ' . $rdChW . ' of ' . $rdChN . ' chapters' : '' ?><?= $rdSits ? ' · ' . count($rdSits) . ' sitting' . (count($rdSits) === 1 ? '' : 's') . ', ' . $rdMin . ' min' : ' · no reading logged yet' ?></span></span>
                         <span class="avng-chip" data-tone="<?= e($rdStTone[$rdSt] ?? 'gray') ?>"><?= e($rdStWord[$rdSt] ?? $rdSt) ?></span>
                         <button type="button" class="avng-btn" data-slot="<?= (int) $rdBc['slot'] ?>"><?= $rdEd ? 'Continue' : 'View' ?></button>

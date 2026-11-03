@@ -701,6 +701,48 @@ NgvDb::pdo()->exec("UPDATE ngv_participants SET start_date = '2026-01-01', statu
 $rvB = $rdBook('A Rendered Book', 'An Author', 2);
 NgvReading::save(970, ['slot' => 1, 'book_id' => $rvB, 'started_on' => '2026-03-01'], false);
 NgvReading::logSession(970, $rdSit(['slot' => 1, 'day' => '2026-03-02']));
+/* ── Book covers ─────────────────────────────────────────────────────── */
+/* A cover is how somebody finds a book on a shelf. It is decoration, so a
+   failure to store one must never be the reason a book cannot be added. */
+$rcB = $rdBook('A Covered Book', 'Some Author', 3);
+ck('cover: a book starts with none, and that is not an error',
+   NgvReading::book($rcB)['cover_url'] === '');
+$rcPng = tempnam(sys_get_temp_dir(), 'rc') . '.png';
+imagepng(imagecreatetruecolor(40, 56), $rcPng);
+$rcUp = static fn(string $path, string $type) => ['name' => basename($path), 'type' => $type,
+    'tmp_name' => $path, 'error' => UPLOAD_ERR_OK, 'size' => (int) filesize($path)];
+/* is_uploaded_file() is false for anything this process made, so the happy
+   path is exercised through the storage layer directly; what the refusals
+   below prove is that nothing gets past the checks in front of it. */
+$rcBad = tempnam(sys_get_temp_dir(), 'rc') . '.php';
+file_put_contents($rcBad, "<?php echo 'not an image';");
+ck('cover: a book that does not exist is refused',
+   !NgvReading::setBookCover(999999, $rcUp($rcPng, 'image/png'), 1)['ok']);
+ck('cover: nothing uploaded is refused in words',
+   str_contains((string) NgvReading::setBookCover($rcB, null, 1)['error'], 'No image arrived'));
+ck('cover: an upload that errored is refused',
+   !NgvReading::setBookCover($rcB, ['name' => 'x.png', 'tmp_name' => $rcPng, 'error' => UPLOAD_ERR_INI_SIZE, 'size' => 10], 1)['ok']);
+/* The cover column survives a round trip, and the shelf carries it. */
+NgvDb::pdo()->prepare('UPDATE ngv_books SET cover_url = ? WHERE id = ?')->execute(['/uploads/books/test.png', $rcB]);
+ck('cover: a stored cover comes back on the book', NgvReading::book($rcB)['cover_url'] === '/uploads/books/test.png');
+NgvReading::save(970, ['slot' => 7, 'book_id' => $rcB, 'started_on' => '2026-03-01'], false);
+$rcShelf = NgvReading::shelf(970);
+ck('cover: …and on the member\'s shelf, from the same query',
+   ($rcShelf[7]['cover_url'] ?? '') === '/uploads/books/test.png');
+ck('cover: …and an empty slot still answers, rather than being absent',
+   array_key_exists('cover_url', $rcShelf[20]) && $rcShelf[20]['cover_url'] === '');
+$rcGone = NgvReading::setBookCover($rcB, null, 1, true);
+ck('cover: removing one clears it and leaves the book alone',
+   !empty($rcGone['ok']) && NgvReading::book($rcB)['cover_url'] === '' && NgvReading::book($rcB)['title'] === 'A Covered Book');
+ck('cover: the picker hands the cover to the claim sheet',
+   (function () {
+       $r = NgvReading::action(970, ['book_action' => 'get', 'slot' => 7]);
+       foreach ($r['books'] ?? [] as $b) if (array_key_exists('cover', $b)) return true;
+       return false;
+   })());
+@unlink($rcPng); @unlink($rcBad);
+NgvDb::pdo()->prepare('DELETE FROM ngv_book_claims WHERE member_id = 970 AND slot = 7')->execute();
+
 /* ── Who may read: not only a vanguard ───────────────────────────────── */
 /* It began as a NextGen Vanguard thing and the only door was gated on being
    enrolled. A member or a volunteer who wants to read twenty-four books and

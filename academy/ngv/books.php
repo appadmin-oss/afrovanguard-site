@@ -20,6 +20,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (!$isAdmin) json_out(['ok' => false, 'error' => 'Admin sign-in required.'], 403);
     require_same_origin();
     av_csrf_require();
+    /* A cover arrives as multipart, so it is handled before php://input is
+       read — that stream is empty on a multipart request, and parsing it
+       first would drop the upload on the floor. */
+    if ((string) ($_POST['action'] ?? '') === 'cover') {
+        json_out(NgvReading::setBookCover((int) ($_POST['id'] ?? 0), $_FILES['cover'] ?? null, $by,
+                                          (string) ($_POST['remove'] ?? '') === '1'));
+    }
     $in  = json_decode((string) file_get_contents('php://input'), true);
     if (!is_array($in)) $in = [];
     $act = (string) ($in['action'] ?? '');
@@ -109,10 +116,24 @@ $csrf  = av_csrf_token();
         <p class="sub">No books yet. Until there are, vanguards have nothing to choose from — add the first above.</p>
       <?php else: ?>
       <table>
-        <thead><tr><th>Title</th><th>Author</th><th>Values</th><th class="num">Chapters</th><th class="num">Recorded</th><th>On the list</th><th></th></tr></thead>
+        <thead><tr><th>Cover</th><th>Title</th><th>Author</th><th>Values</th><th class="num">Chapters</th><th class="num">Recorded</th><th>On the list</th><th></th></tr></thead>
         <tbody>
         <?php foreach ($books as $b): $use = NgvReading::bookUse((int) $b['id']); ?>
           <tr class="<?= $b['active'] ? '' : 'off' ?>">
+            <td class="bkcov-cell">
+              <?php if ((string) $b['cover_url'] !== ''): ?>
+                <img class="bkcov" src="<?= $e((string) $b['cover_url']) ?>" alt="Cover of <?= $e((string) $b['title']) ?>" loading="lazy" width="44" height="62">
+              <?php else: ?>
+                <span class="bkcov bkcov--none" aria-hidden="true"><?= $e(mb_strtoupper(mb_substr((string) $b['title'], 0, 1))) ?></span>
+              <?php endif; ?>
+              <label class="bkcov-pick">
+                <input type="file" class="b_cover" data-book="<?= (int) $b['id'] ?>" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+                <span class="btn sm"><?= (string) $b['cover_url'] !== '' ? 'Replace' : 'Add cover' ?></span>
+              </label>
+              <?php if ((string) $b['cover_url'] !== ''): ?>
+                <button class="btn sm" type="button" data-coverclear="<?= (int) $b['id'] ?>">Remove</button>
+              <?php endif; ?>
+            </td>
             <td><strong><?= $e((string) $b['title']) ?></strong><?= (string) $b['note'] !== '' ? '<div class="sub">' . $e((string) $b['note']) . '</div>' : '' ?></td>
             <td><?= $e((string) $b['author']) ?></td>
             <td><?= $b['value_labels'] ? implode(' · ', array_map($e, $b['value_labels'])) : '<span class="sub">none named</span>' ?></td>
@@ -225,6 +246,36 @@ $csrf  = av_csrf_token();
     });
   });
   $('b_cancel').addEventListener('click', reset);
+
+  /* Covers. Multipart, so it does not go through post() — and the file input
+     is inside a label, so the whole control is one keyboard-reachable
+     button rather than the browser's own "no file chosen" chrome. */
+  function coverSend(fd, said) {
+    return fetch(location.pathname, { method: 'POST', credentials: 'same-origin',
+      headers: { 'X-CSRF-Token': CSRF }, body: fd })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Unreadable reply.' }; }); })
+      .then(function (r) {
+        if (!r.ok) { toast(r.error || 'The cover was not saved.', false); return; }
+        toast(said, true); location.reload();
+      })
+      .catch(function () { toast('No connection.', false); });
+  }
+  document.addEventListener('change', function (ev) {
+    var inp = ev.target.closest ? ev.target.closest('.b_cover') : null;
+    if (!inp || !inp.files || !inp.files[0]) return;
+    var fd = new FormData();
+    fd.append('action', 'cover'); fd.append('id', inp.getAttribute('data-book')); fd.append('cover', inp.files[0]);
+    toast('Uploading the cover…', true);
+    coverSend(fd, 'Cover saved');
+  });
+  document.addEventListener('click', function (ev) {
+    var b = ev.target.closest ? ev.target.closest('[data-coverclear]') : null;
+    if (!b) return;
+    if (!confirm('Remove this cover? The book stays on the list.')) return;
+    var fd = new FormData();
+    fd.append('action', 'cover'); fd.append('id', b.getAttribute('data-coverclear')); fd.append('remove', '1');
+    coverSend(fd, 'Cover removed');
+  });
 
   /* Who checks the reading: the same people-search the fines desk uses. */
   (function () {

@@ -17,6 +17,16 @@
 
   var modal = document.getElementById('bkModal');
   var shelf = document.getElementById('books');
+  /* The cover is how somebody recognises the book they meant to choose. A
+     <select> cannot carry an image, so it sits beside the picker and follows
+     it; a book with no cover simply shows nothing rather than a broken icon. */
+  function drawCover() {
+    var img = document.getElementById('bkCover'); if (!img) return;
+    var b = bookById(el.book && el.book.value);
+    var src = b && b.cover ? b.cover : '';
+    img.hidden = !src;
+    if (src) { img.src = src; img.alt = 'Cover of ' + b.title; }
+  }
   if (!modal || !shelf) return;
 
   var el = {
@@ -159,7 +169,7 @@
     counts();
   }
 
-  el.book.addEventListener('change', drawChapters);
+  el.book.addEventListener('change', function () { drawChapters(); drawCover(); });
 
   /* Who checks this reader's books, in words they can act on. A vanguard has
      a track lead; a member or a volunteer does not, and sending them to one
@@ -308,6 +318,7 @@
         return o.outerHTML;
       }).join('');
       el.book.value = c.book_id > 0 ? String(c.book_id) : '';
+      drawCover();
       el.pick.hidden = !!legacy || (!books.length && !legacy);
       el.none.hidden = !!legacy || books.length > 0;
       el.legacy.hidden = !legacy;

@@ -80,5 +80,14 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
 .tabs a{font-size:.8rem;font-weight:700;padding:.25rem .65rem;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);background:#fff}
 .tabs a.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .cat{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+/* Book covers. A cover is how somebody finds a book on a shelf, so the
+   thumbnail keeps a book's proportions (roughly 1:1.4) and a book with none
+   shows its initial rather than a broken-image icon or an empty hole. */
+.bkcov-cell{white-space:nowrap}
+.bkcov{display:inline-block;vertical-align:middle;width:44px;height:62px;object-fit:cover;border-radius:4px;border:1px solid var(--line);background:#f5f6f8}
+.bkcov--none{display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;color:var(--muted)}
+.bkcov-pick{display:inline-block;margin-left:6px}
+.bkcov-pick .btn{cursor:pointer}
+.bkcov-pick input:focus-visible + .btn{outline:3px solid var(--ink);outline-offset:2px}
 @media (max-width:640px){.top{padding:10px 16px}.wrap{padding:0 12px}.card>.body{padding:12px}}
 </style>

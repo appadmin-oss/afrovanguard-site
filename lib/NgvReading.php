@@ -213,6 +213,7 @@ CREATE TABLE IF NOT EXISTS ngv_books (
   chapters    INTEGER NOT NULL DEFAULT 0,
   note        VARCHAR(300) NOT NULL DEFAULT '',
   value_keys  VARCHAR(200) NOT NULL DEFAULT '',
+  cover_url   VARCHAR(300) NOT NULL DEFAULT '',
   active      INTEGER NOT NULL DEFAULT 1,
   created_by  INTEGER NOT NULL DEFAULT 0,
   created_at  VARCHAR(32) NOT NULL DEFAULT '',
@@ -428,7 +429,74 @@ SQL;
         foreach (['id', 'chapters', 'active', 'created_by'] as $k) $b[$k] = (int) ($b[$k] ?? 0);
         $b['value_list'] = array_values(array_filter(explode(',', (string) ($b['value_keys'] ?? ''))));
         $b['value_labels'] = array_map([self::class, 'valueLabel'], $b['value_list']);
+        $b['cover_url'] = (string) ($b['cover_url'] ?? '');
         return $b;
+    }
+
+    /** What a cover may be, and how big. A cover is decoration: it must never
+     *  be the reason a book cannot be added. */
+    public const COVER_MAX_BYTES = 4 * 1024 * 1024;
+    public const COVER_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+    /**
+     * Put a cover on a book, or take it off.
+     *
+     * Stored through Storage::put — Cloudinary where it is configured, this
+     * server's own /uploads where it is not — the same path the ID card photo
+     * takes, so a deployment with no third-party storage still works.
+     *
+     * A book is a title and an author; the cover is how somebody finds it on a
+     * shelf. So a failure to store one is reported in words and changes
+     * nothing else about the book.
+     */
+    public static function setBookCover(int $id, ?array $file, int $by, bool $remove = false): array
+    {
+        self::ensure();
+        $book = self::book($id);
+        if (!$book) return ['ok' => false, 'error' => 'No such book.'];
+        if ($remove) {
+            try {
+                NgvDb::pdo()->prepare('UPDATE ngv_books SET cover_url = ?, updated_at = ? WHERE id = ?')
+                    ->execute(['', self::now(), $id]);
+            } catch (Throwable $e) { return ['ok' => false, 'error' => 'Could not remove the cover.']; }
+            self::auditBook('ngv_book_cover_clear', $id, (string) $book['title'], $by);
+            return ['ok' => true, 'cover_url' => '', 'said' => 'Cover removed.'];
+        }
+        if (!is_array($file) || (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file((string) ($file['tmp_name'] ?? ''))) {
+            return ['ok' => false, 'error' => 'No image arrived. Choose a file and try again.'];
+        }
+        if ((int) ($file['size'] ?? 0) > self::COVER_MAX_BYTES) {
+            return ['ok' => false, 'error' => 'That image is larger than ' . (int) (self::COVER_MAX_BYTES / 1048576) . 'MB.'];
+        }
+        $tmp = (string) $file['tmp_name'];
+        /* What the bytes ARE, not what the name says — /uploads is under the
+           web root, so a .php named .jpg is the thing to refuse here. */
+        $mime = class_exists('Storage') ? Storage::mime($tmp) : (string) (@getimagesize($tmp)['mime'] ?? '');
+        if (!in_array($mime, self::COVER_TYPES, true)) {
+            return ['ok' => false, 'error' => 'A cover must be a JPEG, PNG, WebP or GIF image.'];
+        }
+        $url = '';
+        try {
+            $put = Storage::put($tmp, 'book-' . $id . '-cover', 'image', 'books');
+            $url = (string) ($put['url'] ?? '');
+        } catch (Throwable $e) {
+            error_log('[ngvreading] cover: ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'The cover could not be stored: ' . $e->getMessage() . ' Check that uploads/ is writable, or the Cloudinary keys.'];
+        }
+        if ($url === '') return ['ok' => false, 'error' => 'The cover could not be stored — no storage answered.'];
+        if (mb_strlen($url) > 300) return ['ok' => false, 'error' => 'The image address is too long to keep.'];
+        try {
+            NgvDb::pdo()->prepare('UPDATE ngv_books SET cover_url = ?, updated_at = ? WHERE id = ?')
+                ->execute([$url, self::now(), $id]);
+        } catch (Throwable $e) { return ['ok' => false, 'error' => 'Could not record the cover.']; }
+        self::auditBook('ngv_book_cover', $id, (string) $book['title'], $by);
+        return ['ok' => true, 'cover_url' => $url, 'said' => 'Cover saved.'];
+    }
+
+    private static function auditBook(string $what, int $id, string $title, int $by): void
+    {
+        if (!class_exists('AdminAudit')) return;
+        try { AdminAudit::log('ngv', $what, 'ngv:book:' . $id, $title, null, $by > 0 ? 'admin' : 'system'); } catch (Throwable $e) {}
     }
 
     /** How many claims name a book — the list shows it, and it decides what an edit may change. */
@@ -993,7 +1061,8 @@ SQL;
                already names if it has since been retired. */
             $books = array_map(static fn($b) => ['id' => $b['id'], 'title' => $b['title'], 'author' => $b['author'],
                                                  'chapters' => $b['chapters'], 'note' => $b['note'],
-                                                 'values' => $b['value_labels']], self::books());
+                                                 'values' => $b['value_labels'],
+                                                 'cover' => $b['cover_url']], self::books());
             if ($c && (int) $c['book_id'] > 0 && !in_array((int) $c['book_id'], array_column($books, 'id'), true)
                 && ($old = self::book((int) $c['book_id']))) {
                 $books[] = ['id' => $old['id'], 'title' => $old['title'], 'author' => $old['author'],
@@ -1252,13 +1321,21 @@ SQL;
         self::ensure();
         $by = [];
         try {
-            $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_book_claims WHERE member_id = ? ORDER BY slot');
+            /* The cover comes along on the same query. A lookup per slot
+               would be 24 queries to draw one shelf. */
+            $st = NgvDb::pdo()->prepare('SELECT c.*, b.cover_url FROM ngv_book_claims c
+                                           LEFT JOIN ngv_books b ON b.id = c.book_id
+                                          WHERE c.member_id = ? ORDER BY c.slot');
             $st->execute([$memberId]);
-            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) $by[(int) $r['slot']] = self::shape($r);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                $row = self::shape($r);
+                $row['cover_url'] = (string) ($r['cover_url'] ?? '');
+                $by[(int) $r['slot']] = $row;
+            }
         } catch (Throwable $e) { }
         $out = [];
         for ($i = 1; $i <= self::TOTAL; $i++) {
-            $out[$i] = $by[$i] ?? ['slot' => $i, 'status' => 'empty', 'title' => '', 'flags_list' => []];
+            $out[$i] = $by[$i] ?? ['slot' => $i, 'status' => 'empty', 'title' => '', 'cover_url' => '', 'flags_list' => []];
         }
         return $out;
     }
