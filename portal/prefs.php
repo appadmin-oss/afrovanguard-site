@@ -4,6 +4,7 @@
  *
  *   GET  ?action=get              → { ok, tz }
  *   POST ?action=set_tz {tz}      → { ok, tz }
+ *   POST ?action=set_shortcuts {ids[]} → { ok, ids }   the phone More sheet's tiles
  *
  * Any signed-in user; writes are same-origin + CSRF + rate-limited.
  */
@@ -29,6 +30,18 @@ try {
             av_require_write($uid, 'prefs', 30);
             if (!Prefs::setTimezone($uid, (string) ($body['tz'] ?? ''))) json_out(['ok' => false, 'error' => 'Unknown timezone.'], 422);
             json_out(['ok' => true, 'tz' => av_user_tz($uid)]);
+
+        case 'set_shortcuts':
+            /* The More sheet's tiles. Only real section ids are kept, at most
+               eight; whether the member may OPEN one is decided when the sheet
+               is drawn (PortalNav::shortcuts), so a stored id never grants a section. */
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            av_require_write($uid, 'prefs', 30);
+            $ids = array_values(array_unique(array_filter(array_map('strval', (array) ($body['ids'] ?? [])),
+                static fn(string $id): bool => isset(PortalNav::SECTIONS[$id]) && $id !== 'overview')));
+            $ids = array_slice($ids, 0, PortalNav::SHORTCUT_MAX);
+            Prefs::set($uid, 'nav_shortcuts', implode(',', $ids));
+            json_out(['ok' => true, 'ids' => $ids]);
 
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);

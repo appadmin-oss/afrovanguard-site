@@ -26,7 +26,8 @@
   var drawer = { open: function () {}, close: function () {}, isOpen: function () { return false; } };
   run('drawer', function () {
     var side = document.getElementById('avpSide'), scrim = document.getElementById('avpScrim');
-    var burger = document.getElementById('avpBurger'), more = document.getElementById('avpMore');
+    /* The tab bar's More opens the phone sheet now (portal/shell.js), not this drawer. */
+    var burger = document.getElementById('avpBurger'), more = null;
     if (!side) return;
     var opener = null;
     function setExpanded(on) {
@@ -150,10 +151,17 @@
   });
 
   /* ── theme ──────────────────────────────────────────────────────────── */
+  /* light, dark, or auto (follow the device), kept in the av_portal_theme
+     cookie. The sidebar's moon toggles light/dark; the More sheet's
+     Appearance switch sets any of the three through window.avpSetTheme. */
   run('theme', function () {
     var btn = document.getElementById('portalTheme');
+    var MQ = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    var mode = body.classList.contains('is-auto') ? 'auto' : (body.classList.contains('is-dark') ? 'dark' : 'light');
     function sync() {
-      var dark = body.classList.contains('is-dark');
+      var dark = mode === 'dark' || (mode === 'auto' && !!(MQ && MQ.matches));
+      body.classList.toggle('is-dark', dark);
+      body.classList.toggle('is-auto', mode === 'auto');
       /* The embedded Community keys off <html data-theme>. */
       root.setAttribute('data-theme', dark ? 'dark' : 'light');
       if (btn) {
@@ -161,12 +169,16 @@
         btn.setAttribute('aria-label', dark ? 'Light mode' : 'Dark mode');
         btn.setAttribute('title', dark ? 'Light mode' : 'Dark mode');
       }
+      try { document.dispatchEvent(new CustomEvent('portal:theme', { detail: { mode: mode, dark: dark } })); } catch (e) {}
     }
-    if (btn) btn.addEventListener('click', function () {
-      var dark = body.classList.toggle('is-dark');
-      document.cookie = 'av_portal_theme=' + (dark ? 'dark' : 'light') + ';path=/;max-age=31536000;samesite=Lax';
+    function set(m) {
+      mode = m === 'dark' || m === 'auto' ? m : 'light';
+      document.cookie = 'av_portal_theme=' + mode + ';path=/;max-age=31536000;samesite=Lax';
       sync();
-    });
+    }
+    window.avpSetTheme = set;
+    if (btn) btn.addEventListener('click', function () { set(body.classList.contains('is-dark') ? 'light' : 'dark'); });
+    if (MQ) { var onMq = function () { if (mode === 'auto') sync(); }; if (MQ.addEventListener) MQ.addEventListener('change', onMq); else if (MQ.addListener) MQ.addListener(onMq); }
     sync();
   });
 
@@ -259,42 +271,4 @@
   run('pwa', function () {
     if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
   });
-})();
-
-/* ── "What are you working on?" (portal/views/today.php) ──────────────────
-   Posts through the SAME endpoint the task list uses — portal/collab.php,
-   action task_add — so the rate limit, the CSRF check and the ownership rule
-   live in one place, and CACENTRE reads the task over the bridge it already has. */
-(function () {
-  var card = document.getElementById('askTask'); if (!card) return;
-  var form = document.getElementById('askTaskForm');
-  var input = document.getElementById('askTaskTitle');
-  var msg = document.getElementById('askTaskMsg');
-  var csrf = card.getAttribute('data-csrf') || '';
-  var today = card.getAttribute('data-today') || '';
-  var busy = false;
-  function say(t, bad) { msg.hidden = false; msg.textContent = t; msg.classList.toggle('is-bad', !!bad); }
-  function add(when) {
-    var title = (input.value || '').trim();
-    if (!title) { say('Write the one thing first.', true); input.focus(); return; }
-    if (busy) return;
-    busy = true; say('Saving…');
-    /* "Next" carries no date on purpose: a made-up due date is overdue by tomorrow. */
-    fetch('/portal/collab.php?action=task_add', {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-      body: JSON.stringify({ title: title, due: when === 'today' ? today : '', priority: 'normal' })
-    }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, error: 'The network did not answer. Nothing was saved.' }; })
-      .then(function (r) {
-        busy = false;
-        if (!r || !r.ok) { say((r && r.error) || 'It was not saved.', true); return; }
-        card.hidden = true;
-        try { document.dispatchEvent(new CustomEvent('av:tasks-changed')); } catch (e) {}
-        var kpi = document.getElementById('kpiTasks');
-        if (kpi) kpi.textContent = String((parseInt(kpi.textContent, 10) || 0) + 1);
-      });
-  }
-  if (form) form.addEventListener('submit', function (ev) { ev.preventDefault(); add('today'); });
-  var next = document.getElementById('askTaskNext');
-  if (next) next.addEventListener('click', function () { add('next'); });
 })();

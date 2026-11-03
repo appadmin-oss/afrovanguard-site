@@ -38,6 +38,11 @@ $rfDb->exec("DELETE FROM lms_users WHERE email LIKE '%@rflow.test'");
 $rfDb->prepare("INSERT INTO lms_users (name, email, password_hash, role, status, email_verified) VALUES (?,?,?,?,?,1)")
      ->execute(['Rita Flow', 'rita@rflow.test', 'x', 'member', 'active']);
 $rfUid = (int) $rfDb->lastInsertId();
+/* The rate limiter keeps its counts in db/cache/rl, by user id and address —
+   outside this run's throwaway database. The test user gets the same id every
+   run, so its writes added up across runs and, inside ten minutes, the last
+   call here was refused with a 429 rather than answered with a 400. */
+foreach ((array) glob(AV_ROOT . '/db/cache/rl/*_' . $rfUid . '_127_0_0_1.json') as $rfRl) @unlink($rfRl);
 $rfTok = bin2hex(random_bytes(20));
 $rfDb->prepare('INSERT INTO lms_sessions (token_hash, user_id, ip, ua, expires_at) VALUES (?,?,?,?,?)')
      ->execute([hash('sha256', $rfTok), $rfUid, '', '', gmdate('Y-m-d H:i:s', time() + 3600)]);

@@ -1,0 +1,397 @@
+/*
+ * portal/home.css — Today, Home v4 (the hi-fi boards of "Afrovanguard Portal
+ * Redesign"). Its own components, prefixed hv-, so the home can be read and
+ * changed without the rest of the portal's stylesheets.
+ *
+ * Colour means something or it isn't there (the design's "Colour logic"):
+ *   surface & ink  everything by default; ink is the ONE primary per card
+ *   gold · you     the member and their progress — fills only; gold TEXT is --hv-gold-text
+ *   green          live / on track     amber   due, not late (never brand gold)
+ *   red            late / refused      indigo  learning and reading
+ * Status is a word first: every chip says it; colour only confirms.
+ *
+ * Desktop is the "Home v4 — desktop" board; at 720px and under it becomes the
+ * phone board (cream band, centred avatar, tiles, growth carousel); .is-dark
+ * on the shell swaps each role for its dark pair (the "phone, dark mode" board).
+ */
+.hv {
+  --hv-paper:#FAF9F6; --hv-card:#FFFFFF; --hv-stone:#F5F3EF; --hv-sand:#EFEDE8; --hv-hair:#F1F0EC;
+  --hv-line:#E8E6E1; --hv-line-2:#D6D3CC; --hv-ink:#111827; --hv-ink-hover:#22262D; --hv-on-ink:#FFFFFF;
+  --hv-text-2:#454A56; --hv-muted:#5F636D; --hv-focus:#2F6FDB;
+  --hv-gold:#F3B416; --hv-gold-text:#8A6406; --hv-gold-soft:#FBF4E0; --hv-gold-light:#F6D77E; --hv-gold-line:#F0E2B8; --hv-gold-deep:#6B5320;
+  --hv-ok:#17673D; --hv-ok-bg:#EAF5EE; --hv-warn:#8A4B00; --hv-warn-bg:#FBF0E0;
+  --hv-bad:#B0361C; --hv-bad-bg:#FBEAEA; --hv-info:#4338CA; --hv-info-bg:#EEF0FD;
+  --hv-band:#F5EDDA; --hv-band-line:#E8DCBD;
+  --hv-serif:"Cormorant Garamond",Georgia,serif; --hv-sans:"Source Sans 3",system-ui,sans-serif;
+  color:var(--hv-ink); font-family:var(--hv-sans); font-size:14px; line-height:1.5;
+  display:flex; flex-direction:column; align-items:center; -webkit-font-smoothing:antialiased;
+}
+.avp.is-dark .hv {
+  --hv-paper:#0E0F12; --hv-card:#17181C; --hv-stone:#1C1D22; --hv-sand:#2A2C32; --hv-hair:#222429;
+  --hv-line:#26282E; --hv-line-2:#33363D; --hv-ink:#ECECEC; --hv-ink-hover:#FFFFFF; --hv-on-ink:#0E0F12;
+  --hv-text-2:#C2C4CA; --hv-muted:#9A9DA4; --hv-focus:#7AA7F0;
+  --hv-gold-text:#F3C34A; --hv-gold-soft:rgba(243,180,22,.16); --hv-gold-line:#3A3220; --hv-gold-deep:#F6D77E;
+  --hv-ok:#4ADE80; --hv-ok-bg:rgba(34,197,94,.14); --hv-warn:#FBBF24; --hv-warn-bg:rgba(245,158,11,.14);
+  --hv-bad:#F87171; --hv-bad-bg:rgba(248,113,113,.12); --hv-info:#A5B4FC; --hv-info-bg:rgba(99,102,241,.16);
+  --hv-band:#19170F; --hv-band-line:#2A2617;
+}
+/* Resets in :where(), so they weigh nothing; every component is scoped under .hv, so it
+   outranks the shell's body.avp a { color: inherit } without !important. */
+:where(.hv) *, :where(.hv) *::before, :where(.hv) *::after { box-sizing:border-box }
+:where(.hv) :where(h1, h2, h3, p, ul, ol, dl, dd, dt) { margin:0; padding:0 }
+:where(.hv) :where(ul, ol) { list-style:none }
+:where(.hv) a { color:inherit; text-decoration:none }
+:where(.hv) a:hover { text-decoration:underline }
+:where(.hv) :where(button, input) { font:inherit; color:inherit }
+:where(.hv) button { cursor:pointer }
+.hv :focus-visible { outline:2px solid var(--hv-focus); outline-offset:2px }
+.hv .hv-sr { position:absolute !important; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap }
+.hv .hv-serif { font-family:var(--hv-serif); letter-spacing:-.01em }
+.hv .hv-muted { color:var(--hv-muted) } .hv-small { font-size:13px }
+.hv .hv-num { font-weight:700; font-size:30px; line-height:1.05; font-variant-numeric:tabular-nums; letter-spacing:-.01em }
+.hv .hv-lbl { font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--hv-muted) }
+
+/* ── buttons, chips, bars ─────────────────────────────────────────────── */
+.hv .hv-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:0 18px;
+  border:1px solid var(--hv-line-2); border-radius:999px; font-weight:600; font-size:14px; color:var(--hv-ink);
+  background:var(--hv-card); white-space:nowrap; flex-shrink:0 }
+.hv .hv-btn:hover { background:var(--hv-stone); text-decoration:none }
+.hv .hv-btn--sm { min-height:38px; padding:0 14px; font-size:13px }
+.hv .hv-btn--ink { background:var(--hv-ink); border-color:var(--hv-ink); color:var(--hv-on-ink) }
+.hv .hv-btn--ink:hover { background:var(--hv-ink-hover) }
+.hv .hv-btn--ghost { background:transparent; border-color:transparent }
+.hv .hv-btn--icon { width:44px; padding:0 }
+.hv .hv-more { font-size:13px; font-weight:600; color:var(--hv-text-2); background:none; border:0; padding:0 }
+.hv .hv-chip { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 9px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap }
+.hv .hv-chip--you { background:var(--hv-gold-soft); color:var(--hv-gold-text) }
+.hv .hv-chip--ok { background:var(--hv-ok-bg); color:var(--hv-ok) }
+.hv .hv-chip--warn { background:var(--hv-warn-bg); color:var(--hv-warn) }
+.hv .hv-chip--bad { background:var(--hv-bad-bg); color:var(--hv-bad) }
+.hv .hv-chip--info { background:var(--hv-info-bg); color:var(--hv-info) }
+.hv .hv-chip--n { background:var(--hv-hair); color:var(--hv-text-2) }
+.hv .hv-bar { height:8px; border-radius:999px; background:var(--hv-sand); display:block; position:relative; overflow:hidden; flex:1 }
+.hv .hv-bar > i { position:absolute; left:0; top:0; bottom:0; background:var(--hv-gold); border-radius:999px; display:block }
+.hv .hv-meter { display:flex; align-items:center; gap:10px }
+.hv .hv-ico { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0 }
+.hv .hv-ico--warn { background:var(--hv-warn-bg); color:var(--hv-warn) } .hv-ico--bad { background:var(--hv-bad-bg); color:var(--hv-bad) }
+.hv .hv-ico--ok { background:var(--hv-ok-bg); color:var(--hv-ok) } .hv-ico--info { background:var(--hv-info-bg); color:var(--hv-info) }
+.hv .hv-ico--n { background:var(--hv-stone); color:var(--hv-text-2) } .hv-ico--you { background:var(--hv-gold-soft); color:var(--hv-gold-text) }
+
+/* ── the hero: you ────────────────────────────────────────────────────── */
+/* The phone's cream band on every screen (it was ink on a desktop); dark mode swaps --hv-band. */
+.hv .hv-hero { width:100%; max-width:1120px; background:var(--hv-band); color:var(--hv-ink); border-radius:22px; padding:40px 48px;
+  display:grid; grid-template-columns:minmax(0,1fr) auto; gap:48px; align-items:center; position:relative; overflow:hidden }
+/* Cleaner: no decorative circles, no second seal — the sidebar has the seal — and one quiet chip at most. */
+.hv .hv-hero-me { display:flex; gap:28px; align-items:center; position:relative; min-width:0 }
+.hv .hv-ring { position:relative; display:block; flex-shrink:0; text-decoration:none }
+.hv .hv-ring:hover { text-decoration:none }
+.hv .hv-ring > svg { position:absolute; inset:0 }
+.hv .hv-ring-track { stroke:var(--hv-band-line) } .hv-ring-fill { stroke:var(--hv-gold) }
+.hv .hv-avatar { position:absolute; inset:11px; border-radius:50%; background:#F4ECDD; color:#6B5320; display:flex; align-items:center;
+  justify-content:center; font-family:var(--hv-serif); font-weight:600; font-size:40px; overflow:hidden }
+.hv .hv-avatar img { width:100%; height:100%; object-fit:cover; display:block }
+.hv .hv-hero .hv-avatar { background:var(--hv-card); color:var(--hv-gold-deep); box-shadow:0 6px 18px rgba(107,83,32,.18) }
+.hv .hv-level { display:none }
+.hv .hv-hero-t { display:flex; flex-direction:column; gap:12px; min-width:0 }
+.hv .hv-hero-week { font-size:13px; color:var(--hv-gold-deep); font-weight:600; letter-spacing:.03em }
+.hv .hv-hello { display:flex; align-items:center; gap:14px }
+.hv .hv-hello h1 { font-family:var(--hv-serif); font-size:52px; line-height:1; font-weight:500; letter-spacing:-.01em; color:var(--hv-ink) }
+.hv .hv-tags { display:flex; align-items:center; gap:8px; flex-wrap:wrap }
+/* inline-block, not flex: the long/short words are separate spans, and flex would drop the spaces between them. */
+.hv .hv-tag { display:inline-block; height:26px; line-height:26px; padding:0 12px; border-radius:999px; font-size:13px; font-weight:600; white-space:nowrap }
+.hv .hv-tag--you { background:var(--hv-gold); color:#111827 }
+.hv .hv-tag--ok { background:var(--hv-ok-bg); color:var(--hv-ok) }
+/* Programme and ID are facts, not a status: plain text beside the two chips. */
+.hv .hv-tag--n { background:none; color:var(--hv-muted); padding:0 4px; font-weight:500 }
+.hv .hv-motto { font-family:var(--hv-serif); font-size:18px; font-style:italic; color:var(--hv-gold-deep); opacity:.85; line-height:1.3; padding-top:2px }
+.hv .hv-plan { position:relative; width:156px; height:156px; display:block; flex-shrink:0; color:var(--hv-ink) }
+.hv .hv-plan:hover { text-decoration:none }
+.hv .hv-plan > svg { position:absolute; inset:0 }
+.hv .hv-plan-t { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center }
+.hv .hv-plan-t b { font-size:34px; line-height:1; font-variant-numeric:tabular-nums }
+.hv .hv-plan-t span { font-size:13px; color:var(--hv-muted) }
+.hv .hv-plan-row { display:none }
+/* The desktop board's longer words; the phone board says less. */
+.hv .hv-narrow { display:none }
+.hv .hv-hero-week .hv-sep { color:inherit; opacity:.6; padding:0 6px }
+
+/* ── composer and quick access ────────────────────────────────────────── */
+.hv .hv-ask { width:100%; max-width:720px; display:flex; flex-direction:column; gap:14px; margin-top:28px }
+.hv .hv-composer { background:var(--hv-card); border:1px solid var(--hv-line-2); border-radius:18px; padding:14px 14px 12px 22px;
+  display:flex; align-items:center; gap:12px; box-shadow:0 6px 24px rgba(17,24,39,.06); position:relative }
+.hv .hv-composer input { flex:1; min-width:0; border:0; outline:0; font-size:18px; padding:8px 0; background:transparent; color:var(--hv-ink) }
+.hv .hv-composer input::placeholder { color:var(--hv-muted) }
+.hv .hv-composer-hint { white-space:nowrap; font-size:13px; color:var(--hv-muted) }
+.hv .hv-composer .hv-btn--ink { width:44px; padding:0; border-radius:12px }
+.hv .hv-kbd { font-family:inherit; font-size:12px; border:1px solid var(--hv-line-2); border-radius:4px; padding:0 5px }
+.hv .hv-ask-msg { font-size:13px; color:var(--hv-muted); text-align:center }
+.hv .hv-ask-msg.is-bad { color:var(--hv-bad) }
+.hv .hv-quick { display:flex; gap:8px; flex-wrap:nowrap; justify-content:safe center; margin:0 -200px; padding:2px 4px; overflow-x:auto; scrollbar-width:none }
+.hv .hv-quick::-webkit-scrollbar { display:none }
+.hv .hv-mod { display:inline-flex; align-items:center; gap:7px; min-height:38px; padding:0 13px 0 6px; border:1px solid var(--hv-line);
+  border-radius:999px; background:var(--hv-card); font-size:13px; font-weight:600; color:var(--hv-text-2); flex-shrink:0; white-space:nowrap }
+.hv .hv-mod:hover { border-color:var(--hv-line-2); color:var(--hv-ink); text-decoration:none }
+.hv .hv-mod > i { width:28px; height:28px; border-radius:50%; background:var(--hv-gold-soft); color:var(--hv-gold-text); display:flex; align-items:center; justify-content:center }
+
+/* ── the grid, zones and cards ────────────────────────────────────────── */
+.hv .hv-grid { width:100%; max-width:1120px; display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:20px; align-items:stretch; margin-top:36px }
+.hv .hv-s7 { grid-column:span 7 } .hv-s6 { grid-column:span 6 } .hv-s5 { grid-column:span 5 } .hv-s4 { grid-column:span 4 } .hv-full { grid-column:1 / -1 }
+.hv .hv-zone { grid-column:1 / -1; display:flex; align-items:baseline; gap:12px; padding:8px 2px 0 }
+.hv .hv-zone h2 { font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--hv-text-2) }
+.hv .hv-zone::after { content:""; flex:1; height:1px; background:var(--hv-line); align-self:center }
+.hv .hv-card { background:var(--hv-card); border:1px solid var(--hv-line); border-radius:14px; padding:22px; display:flex; flex-direction:column; gap:14px; min-width:0 }
+.hv .hv-card-hd { display:flex; justify-content:space-between; align-items:baseline; gap:12px }
+.hv .hv-h2 { font-family:var(--hv-serif); font-size:23px; font-weight:600; line-height:1.1 }
+.hv .hv-h2 small { font-family:var(--hv-sans); font-size:13px; font-weight:400; color:var(--hv-muted) }
+.hv .hv-card-ft { display:flex; gap:8px; align-items:center; margin-top:auto }
+.hv .hv-card-ft .hv-more:last-child { margin-left:auto }
+.hv .hv-empty { color:var(--hv-muted); font-size:13px }
+
+/* announcement */
+.hv .hv-notice { grid-column:1 / -1; display:flex; align-items:center; gap:14px; min-height:52px; padding:0 8px 0 18px; border-radius:12px;
+  background:var(--hv-card); border:1px solid var(--hv-line) }
+.hv .hv-notice-t { flex:1; min-width:0; overflow:hidden; white-space:nowrap; display:block; color:inherit; text-decoration:none;
+  -webkit-mask-image:linear-gradient(90deg,#000 92%,transparent); mask-image:linear-gradient(90deg,#000 92%,transparent) }
+.hv .hv-notice-t:hover { text-decoration:none }
+/* The marquee: still when it fits; when it does not, it slides at a reading pace
+   (home.js sets the duration from its length) and holds while hovered or focused. */
+.hv .hv-marq { display:inline-flex; gap:64px; will-change:transform }
+.hv .hv-marq-copy { display:none }
+.hv .hv-notice.is-long .hv-marq-copy { display:inline }
+.hv .hv-notice.is-long .hv-marq { animation:hv-marq var(--hv-marq-s, 18s) linear infinite }
+.hv .hv-notice.is-long:hover .hv-marq, .hv .hv-notice.is-long:focus-within .hv-marq { animation-play-state:paused }
+@keyframes hv-marq { from { transform:translateX(0) } to { transform:translateX(calc(-50% - 32px)) } }
+@media (prefers-reduced-motion: reduce) {
+  .hv .hv-notice.is-long .hv-marq { animation:none }
+  .hv .hv-notice.is-long .hv-marq-copy { display:none }
+  .hv .hv-notice-t { text-overflow:ellipsis }
+}
+.hv .hv-notice-ico { display:none }
+
+/* Needs you */
+.hv .hv-task { display:grid; grid-template-columns:40px minmax(0,1fr) auto; gap:14px; align-items:center; padding:14px 0; border-top:1px solid var(--hv-hair) }
+.hv .hv-task:first-child { border-top:0; padding-top:4px }
+.hv .hv-task-t { display:flex; flex-direction:column; gap:3px; min-width:0 }
+.hv .hv-task-t b { font-size:15px }
+.hv .hv-task-t .hv-chip { height:20px; padding:0 8px; margin-right:6px }
+.hv .hv-clear { display:flex; align-items:center; gap:12px; color:var(--hv-muted) }
+
+/* Your week */
+.hv .hv-day { font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--hv-muted); padding:14px 0 2px }
+.hv .hv-day:first-child { padding-top:0 }
+.hv .hv-ag { display:grid; grid-template-columns:54px minmax(0,1fr) auto; gap:12px; align-items:center; padding:11px 0; border-top:1px solid var(--hv-hair) }
+.hv .hv-day + .hv-ag { border-top:0 }
+.hv .hv-ag-when { display:flex; flex-direction:column; gap:2px; font-variant-numeric:tabular-nums }
+.hv .hv-ag-when .is-soon { color:var(--hv-ok); font-weight:600; font-size:13px }
+.hv .hv-ag-art { width:54px; height:54px; border-radius:10px; overflow:hidden; display:block; background:var(--hv-stone) }
+.hv .hv-ag-art img { width:100%; height:100%; object-fit:cover; display:block }
+.hv .hv-ag-t { display:flex; flex-direction:column; min-width:0 }
+.hv .hv-ag-t b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.hv .hv-ag-acts { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end }
+.hv .hv-ag-acts .hv-btn { min-height:38px; padding:0 14px; font-size:13px }
+.hv .hv-ag.is-off .hv-ag-t b { text-decoration:line-through; color:var(--hv-muted) }
+.hv .hv-week-ft { display:flex; gap:8px; margin-top:auto; padding-top:12px; border-top:1px solid var(--hv-hair); align-items:center }
+.hv .hv-week-ft .hv-more { margin-left:auto }
+.hv .hv-skel { height:40px; border-radius:8px; background:var(--hv-hair); margin:8px 0 }
+
+/* Your growth: its cards sit in the grid on a desktop, a carousel on a phone */
+.hv .hv-growth { display:contents }
+.hv .hv-cover { width:64px; height:96px; border-radius:3px 8px 8px 3px; background:var(--hv-sand); border:1px solid var(--hv-line-2); flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-family:var(--hv-serif); font-size:28px; font-weight:600; color:var(--hv-muted) }
+.hv .hv-row { display:flex; gap:14px; align-items:center }
+.hv .hv-row + .hv-row { padding-top:14px; border-top:1px solid var(--hv-hair) }
+.hv .hv-stack { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px }
+.hv .hv-badge { width:64px; height:84px; border-radius:10px; background:#111827; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; flex-shrink:0 }
+.hv .hv-badge img { width:30px; height:30px; display:block }
+.hv .hv-badge i { width:32px; height:3px; border-radius:2px; background:var(--hv-gold); display:block }
+.hv .hv-sig { display:grid; grid-template-columns:34px 130px minmax(0,1fr) 44px; gap:12px; align-items:center; padding:9px 0 }
+.hv .hv-sig > i { width:30px; height:30px; border-radius:9px; background:var(--hv-gold-soft); color:var(--hv-gold-text); display:flex; align-items:center; justify-content:center }
+.hv .hv-sig-l { display:flex; flex-direction:column; line-height:1.2 }
+.hv .hv-sig .hv-bar { height:10px }
+.hv .hv-sig .hv-bar > i { background:#E19A0B }
+.hv .hv-sig > b { text-align:right; font-size:13px }
+.hv .hv-how summary { cursor:pointer; font-size:13px; font-weight:600; color:var(--hv-text-2); list-style:none }
+.hv .hv-how summary::-webkit-details-marker { display:none }
+.hv .hv-how dl { display:grid; grid-template-columns:auto 1fr; gap:6px 14px; margin-top:10px; font-size:13px; color:var(--hv-muted) }
+.hv .hv-how dt { font-weight:700; color:var(--hv-ink) }
+.hv .hv-journey { background:var(--hv-gold-soft); border:1px solid var(--hv-gold-line); border-radius:14px; padding:22px; display:flex; flex-direction:column; gap:18px; min-width:0 }
+.hv .hv-journey-hd span { color:var(--hv-gold-text); font-weight:600 }
+.hv .hv-journey dl { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px }
+.hv .hv-journey dl > div { background:var(--hv-card); border-radius:12px; padding:14px 16px; display:flex; flex-direction:column-reverse }
+.hv .hv-share { display:flex; align-items:center; justify-content:center; gap:10px; min-height:52px; border-radius:999px; border:0; background:#111827;
+  color:var(--hv-gold-light); font-weight:700; font-size:16px; margin-top:auto; width:100% }
+.hv .hv-share:hover { background:#22262D }
+.hv .hv-share-note { font-size:13px; color:var(--hv-gold-deep); text-align:center; margin-top:-8px }
+
+/* Your record */
+.hv .hv-record { grid-column:1 / -1; background:var(--hv-card); border:1px solid var(--hv-line); border-radius:14px; display:grid;
+  grid-template-columns:1.3fr 1fr 1fr auto; align-items:stretch }
+.hv .hv-rec { padding:20px 24px; display:flex; flex-direction:column; gap:8px; border-left:1px solid var(--hv-hair); min-width:0 }
+.hv .hv-rec:first-child { border-left:0 }
+.hv .hv-rec--end { justify-content:center }
+.hv .hv-rec-n { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap }
+.hv .hv-you-t { color:var(--hv-gold-text); font-weight:700; font-size:13px }
+.hv .hv-split { display:flex; flex-wrap:wrap; gap:2px 10px }
+.hv .hv-split b { color:var(--hv-ink) }
+.hv .hv-split .is-bad { color:var(--hv-bad) }
+.hv .hv-ok-t { color:var(--hv-ok); font-weight:600 }
+.hv .hv-motto-ft { display:none }
+
+/* Google, kept on Today for members who connect it */
+.hv .hv-g-kpis { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px }
+.hv .hv-g-kpis > div { background:var(--hv-stone); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; min-width:0 }
+.hv .hv-g-kpis b { font-size:18px } .hv-g-kpis span, .hv-g-kpis small { font-size:12px; color:var(--hv-muted) }
+.hv .hv-g-cols { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px }
+.hv .hv-g-cols h3 { font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--hv-muted); margin-bottom:6px }
+.hv .hv-g-cols li { padding:6px 0; border-top:1px solid var(--hv-hair); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.hv .hv-g-cols li:first-child { border-top:0 }
+.hv .hv-acts { display:flex; gap:8px; flex-wrap:wrap }
+
+/* ── Vanguard Pulse: the share card ───────────────────────────────────── */
+.hv .hv-pulse-dlg { border:0; padding:0; background:transparent; max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); overflow:auto }
+.hv .hv-pulse-dlg::backdrop { background:rgba(17,24,39,.55) }
+.hv .hv-pulse-wrap { display:flex; flex-direction:column; gap:12px; align-items:center }
+.hv .hv-pulse { width:432px; max-width:100%; background:#F3EFE6; border-radius:30px; overflow:hidden; padding:20px; color:#111827;
+  font-family:"Source Sans 3",system-ui,sans-serif; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px }
+.hv .hv-pulse h1, .hv .hv-pulse p, .hv .hv-pulse dl { margin:0 }
+.hv .hv-pulse-hd { grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between; min-height:40px }
+.hv .hv-pulse-hd > span:first-child { display:flex; align-items:center; gap:10px }
+.hv .hv-pulse-hd img { width:36px; height:36px; display:block }
+.hv .hv-pulse-brand { display:flex; flex-direction:column; line-height:1.1 }
+.hv .hv-pulse-brand b { font-size:15px; letter-spacing:-.01em } .hv-pulse-brand span { font-size:11.5px; color:#5F636D }
+.hv .hv-pulse-wk { font-size:12px; font-weight:700; background:#FFFFFF; border-radius:999px; padding:6px 12px; box-shadow:0 0 0 1px #E6DFCE }
+.hv .hv-tile { border-radius:22px; padding:16px 18px; display:flex; flex-direction:column; position:relative; overflow:hidden; min-height:132px }
+.hv .hv-tile-me { grid-column:1 / -1; background:#FFFFFF; flex-direction:row; align-items:center; gap:18px; box-shadow:0 8px 24px rgba(107,83,32,.08); min-height:196px }
+.hv .hv-tile-me .hv-ring { width:132px; height:132px }
+.hv .hv-tile-me .hv-avatar { inset:12px; background:#F1E7D2; font-size:42px }
+.hv .hv-tile-me h1 { font-family:"Cormorant Garamond",Georgia,serif; font-size:34px; font-weight:600; line-height:.98; letter-spacing:-.01em }
+.hv .hv-tile-lvl { align-self:flex-start; display:inline-flex; align-items:center; height:26px; padding:0 11px; border-radius:999px; background:#111827; color:#F6D77E; font-size:12px; font-weight:700 }
+.hv .hv-tile-bar { height:7px; border-radius:999px; background:#F1EADB; display:block; position:relative; overflow:hidden }
+.hv .hv-tile-bar i { position:absolute; left:0; top:0; bottom:0; border-radius:999px; background:#F3B416; display:block }
+.hv .hv-tile-pct { font-size:12px; font-weight:600; color:#6B5320 }
+.hv .hv-tile-n { font-size:54px; font-weight:800; line-height:.95; letter-spacing:-.03em; font-variant-numeric:tabular-nums }
+.hv .hv-tile-l { font-size:14px; font-weight:600; margin-top:4px }
+.hv .hv-tile-s { font-size:12px; font-weight:600; margin-top:auto }
+.hv .hv-tile-ic { position:absolute; top:14px; right:14px; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center }
+.hv .hv-tile--ink { background:#111827; color:#FFFFFF } .hv-tile--ink .hv-tile-ic { background:#2A2413; color:#F3B416 } .hv-tile--ink .hv-tile-s { color:#F6D77E }
+.hv .hv-tile--gold { background:#F3B416 } .hv-tile--gold .hv-tile-ic { background:rgba(255,255,255,.5) } .hv-tile--gold .hv-tile-s { color:#3B2E0A }
+.hv .hv-tile--white { background:#FFFFFF; box-shadow:0 0 0 1px #E6DFCE } .hv-tile--white .hv-tile-ic { background:#F3EFE6; color:#454A56 } .hv-tile--white .hv-tile-s { color:#17673D }
+.hv .hv-tile--green { background:#E3F0E7; color:#0F3D24 } .hv-tile--green .hv-tile-ic { background:rgba(255,255,255,.6) } .hv-tile--green .hv-tile-s { color:#17673D }
+.hv .hv-pulse-q { grid-column:1 / -1; font-family:"Cormorant Garamond",Georgia,serif; font-size:22px; font-style:italic; font-weight:500; line-height:1.22;
+  text-align:center; color:#2B2F36; padding:8px 10px }
+.hv .hv-pulse-ft { grid-column:1 / -1; background:#111827; color:#FFFFFF; border-radius:22px; display:flex; align-items:center; gap:14px; padding:12px 12px 12px 18px }
+.hv .hv-pulse-ft p { flex:1; font-size:13px; line-height:1.3; color:#C9CCD3 }
+.hv .hv-pulse-ft p b { display:block; color:#FFFFFF; font-size:15px; line-height:1.25 }
+.hv .hv-pulse-ft svg { display:block; background:#FFFFFF; border-radius:12px; flex-shrink:0 }
+.hv .hv-pulse-acts { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; background:var(--hv-card); padding:10px; border-radius:999px }
+.hv .hv-pulse-note { font-size:13px; color:#FFFFFF; text-align:center; max-width:432px }
+
+/* ── narrower desktops: one column ────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .hv .hv-s7, .hv .hv-s6, .hv .hv-s5, .hv .hv-s4 { grid-column:1 / -1 }
+  .hv .hv-quick { margin:0 }
+}
+
+/* ── phone: the "Home v4 — phone" board ───────────────────────────────── */
+@media (max-width: 720px) {
+  .hv { font-size:15px; line-height:1.45 }
+  .hv .hv-hero { display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; border-radius:0 0 36px 36px;
+    background:var(--hv-band); color:var(--hv-ink); padding:14px 20px 22px; margin:-24px -16px 0; /* up to the header: the page's own top padding */ width:calc(100% + 32px); max-width:none }
+  .avp.is-dark .hv-hero { box-shadow:inset 0 -1px 0 var(--hv-band-line) }
+  .hv .hv-hero-me { flex-direction:column; gap:12px }
+  .hv .hv-hero .hv-ring { width:148px !important; height:148px !important }
+  .hv .hv-hero .hv-ring > svg { width:100%; height:100% }
+  .hv .hv-hero .hv-ring-track { stroke:var(--hv-band-line) }
+  .hv .hv-hero .hv-avatar { inset:12px; background:var(--hv-card); color:var(--hv-gold-deep); font-size:48px; box-shadow:0 6px 18px rgba(107,83,32,.18) }
+  .hv .hv-level { position:absolute; right:4px; bottom:8px; width:38px; height:38px; border-radius:50%; background:#111827; color:#F6D77E; font-size:15px;
+    font-weight:700; display:flex; align-items:center; justify-content:center; border:3px solid var(--hv-band) }
+  .hv .hv-hero-t { align-items:center; gap:12px }
+  .hv .hv-wide { display:none }
+  .hv .hv-narrow { display:inline }
+  .hv .hv-hero-week .hv-sep { color:inherit; padding:0 }
+  .hv .hv-hero-week { order:-1; font-size:13px; color:var(--hv-gold-deep); font-weight:600; letter-spacing:.02em }
+  .hv .hv-hello h1 { font-size:38px; color:var(--hv-ink) }
+  .hv .hv-tags { justify-content:center; gap:6px }
+  .hv .hv-tag--ok { background:var(--hv-ok-bg); color:var(--hv-ok) }
+  .hv .hv-tag--n { background:var(--hv-card); color:var(--hv-text-2); padding:0 11px; box-shadow:0 0 0 1px #E8DFC9 }
+  .hv .hv-hero .hv-motto, .hv .hv-hero .hv-plan { display:none }
+  .hv .hv-plan-row { display:flex; align-items:center; gap:14px; background:var(--hv-card); border-radius:16px; padding:14px 16px; width:100%;
+    text-align:left; box-shadow:0 6px 20px rgba(107,83,32,.08); margin-top:6px }
+  .hv .hv-plan-row:hover { text-decoration:none }
+  .hv .hv-plan-row > span:first-child { position:relative; width:44px; height:44px; flex-shrink:0; display:block }
+  .hv .hv-plan-row > span:first-child svg { position:absolute; inset:0 }
+  .hv .hv-plan-row > svg { flex-shrink:0 }
+  .hv .hv-plan-row b.n { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px }
+  .hv .hv-plan-row .hv-stack { gap:0 }
+  .hv .hv-plan-row .hv-ring-track { stroke:var(--hv-sand) }
+
+  .hv .hv-ask { margin-top:22px; max-width:none }
+  .hv .hv-composer { border-radius:999px; padding:4px 4px 4px 20px; border:0; box-shadow:0 0 0 1px var(--hv-line-2),0 6px 20px rgba(17,24,39,.05) }
+  .hv .hv-composer input { font-size:16px; padding:11px 0 }
+  .hv .hv-composer-hint { display:none }
+  .hv .hv-composer .hv-btn--ink { width:46px; min-height:46px; border-radius:999px }
+  .hv .hv-quick { gap:2px; margin:-6px -16px 0; padding:4px 10px 8px; justify-content:flex-start }
+  .hv .hv-mod { flex:0 0 76px; flex-direction:column; gap:7px; font-size:12px; border:0; background:none; padding:0; min-height:0; text-align:center; white-space:normal }
+  .hv .hv-mod > i { width:56px; height:56px; border-radius:20px; background:var(--hv-card); box-shadow:0 0 0 1px var(--hv-line),0 4px 12px rgba(17,24,39,.05) }
+  .hv .hv-mod > i svg { width:24px; height:24px }
+
+  .hv .hv-grid { display:flex; flex-direction:column; gap:26px; margin-top:22px }
+  .hv .hv-zone { display:none }
+  .hv .hv-notice { background:#111827; color:#FFFFFF; border:0; border-radius:16px; padding:12px 14px; margin-top:-8px }
+  .hv .hv-notice .hv-lbl, .hv .hv-notice .hv-btn { display:none }
+  .hv .hv-notice .hv-muted { color:#C9CCD3 }
+  .hv .hv-notice-ico { display:flex; width:34px; height:34px; border-radius:11px; background:var(--hv-gold); color:#111827; align-items:center; justify-content:center; flex-shrink:0 }
+  /* One row: the notice's mark, the headline (scrolling if it is still too long), Read. */
+  .hv .hv-notice { flex-wrap:nowrap; gap:12px; min-height:0; padding:10px 6px 10px 12px }
+  .hv .hv-notice-ico { flex-shrink:0 }
+  .hv .hv-notice .hv-more { flex-shrink:0; min-height:44px }
+  .hv .hv-notice .hv-more { color:#C9CCD3 }
+  .hv .hv-card { border:0; border-radius:18px; box-shadow:0 0 0 1px var(--hv-line),0 6px 20px rgba(17,24,39,.05); padding:16px }
+  .hv .hv-h2 { font-size:24px }
+  .hv .hv-more { color:var(--hv-gold-text); font-size:13.5px; min-height:44px; display:inline-flex; align-items:center }
+  .hv .hv-task { grid-template-columns:40px minmax(0,1fr); padding:14px 0 }
+  .hv .hv-task > .hv-btn { grid-column:2; justify-self:start }
+  .hv .hv-ico { border-radius:13px }
+  .hv .hv-ag { grid-template-columns:56px minmax(0,1fr) }
+  .hv .hv-ag-acts { grid-column:2; justify-content:flex-start }
+  .hv .hv-ag-when { width:56px; height:56px; border-radius:16px; background:var(--hv-hair); align-items:center; justify-content:center; font-size:15px }
+  .hv .hv-ag-when.is-live { background:var(--hv-ok-bg) }
+  .hv .hv-ag-when .is-soon { font-size:11px }
+  .hv .hv-growth { display:flex; gap:12px; overflow-x:auto; margin:0 -16px; padding:2px 16px 10px; scrollbar-width:none }
+  .hv .hv-growth > .hv-card { flex:0 0 272px }
+  .hv .hv-sig { grid-template-columns:30px 1fr 40px; }
+  .hv .hv-sig .hv-sig-l { grid-column:2 } .hv-sig .hv-bar { grid-column:1 / -1; order:3 }
+  .hv .hv-journey { background:#111827; color:#FFFFFF; border:0; border-radius:20px; padding:20px }
+  .hv .hv-journey .hv-h2 { color:#FFFFFF } .hv-journey-hd span { color:#F6D77E }
+  .hv .hv-journey dl { grid-template-columns:repeat(2,minmax(0,1fr)) }
+  .hv .hv-journey dl > div { background:#1B2232; text-align:center }
+  .hv .hv-journey dl .hv-num { font-family:var(--hv-serif); font-weight:600 }
+  .hv .hv-journey dl .hv-muted { color:#C9CCD3 }
+  .hv .hv-share { background:var(--hv-gold); color:#111827; min-height:48px }
+  .hv .hv-share:hover { background:#F6C232 }
+  .hv .hv-share-note { color:#C9CCD3 }
+  .hv .hv-record { display:flex; flex-direction:column; border:0; border-radius:18px; box-shadow:0 0 0 1px var(--hv-line),0 6px 20px rgba(17,24,39,.05); padding:16px; gap:12px }
+  .hv .hv-rec { border-left:0; padding:0 }
+  .hv .hv-rec + .hv-rec { background:var(--hv-paper); border-radius:12px; padding:12px }
+  .hv .hv-rec--end { background:none !important; padding:0 !important }
+  .hv .hv-rec .hv-num { font-size:22px }
+  .hv .hv-g-kpis, .hv .hv-g-cols { grid-template-columns:1fr }
+  .hv .hv-motto-ft { display:block; font-family:var(--hv-serif); font-size:19px; font-style:italic; text-align:center; color:var(--hv-gold-deep); padding:4px 16px 0 }
+  .hv .hv-pulse { transform-origin:top center }
+}
+@media (max-width: 460px) {
+  .hv .hv-pulse { padding:14px; gap:8px; border-radius:24px }
+  .hv .hv-tile-me { flex-direction:column; text-align:center; min-height:0 }
+  .hv .hv-tile-me .hv-tile-lvl { align-self:center }
+  .hv .hv-tile-n { font-size:44px }
+}
+@media print { .hv-pulse-acts { display:none } }
+
+/* ── portal/announcement.php: one announcement, whole ─────────────────── */
+.hv.hv-read { min-height:100vh; background:var(--hv-paper); padding:48px 16px; justify-content:flex-start }
+.hv .hv-read-card { width:100%; max-width:680px; background:var(--hv-card); border:1px solid var(--hv-line); border-radius:18px; padding:32px;
+  display:flex; flex-direction:column; gap:12px }
+.hv .hv-read-t { font-family:var(--hv-serif); font-size:36px; font-weight:600; line-height:1.1 }
+.hv .hv-read-body { font-size:16px; line-height:1.65; color:var(--hv-text-2); padding-top:8px; overflow-wrap:anywhere }
+.hv .hv-read-acts { display:flex; gap:8px; flex-wrap:wrap; padding-top:12px }
+@media (max-width: 720px) { .hv .hv-read-card { padding:22px } .hv .hv-read-t { font-size:28px } }

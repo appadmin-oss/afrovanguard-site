@@ -84,7 +84,7 @@ ck('wallet view: everybody has it, from the one registry',
    PortalNav::visible('wallet', []) && PortalNav::SECTIONS['wallet']['view'] === 'wallet' && in_array('wallet', PortalNav::views([]), true));
 $wvIdx = (string) file_get_contents(AV_ROOT . '/portal/index.php');
 ck('wallet view: the shell reads the statement once, and the badge is what is owed',
-   substr_count($wvIdx, 'MemberStatement::for(') === 1 && str_contains($wvIdx, "'wallet'      => [\$walletOwed > 0"));
+   substr_count($wvIdx, 'MemberStatement::for(') === 1 && str_contains($wvIdx, "'wallet'      => ['', \$walletOwed > 0 ? MemberStatement::naira(\$walletOwed)"));
 ck('wallet view: no inline styles', !preg_match('~\bstyle\s*=~i', (string) file_get_contents(AV_ROOT . '/portal/views/wallet.php')));
 
 /* ── NGG volunteer pay, beside the statement (lib/NggPay.php) ────────────── */

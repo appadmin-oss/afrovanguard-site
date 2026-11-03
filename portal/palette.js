@@ -173,7 +173,7 @@
     var out = [
       { kind: 'Anywhere', label: 'Open this palette',    keys: MOD + ' K' },
       { kind: 'Anywhere', label: 'Show these shortcuts', keys: '?' },
-      { kind: 'Anywhere', label: 'Search this screen',   keys: '/' },
+      { kind: 'Anywhere', label: 'Search or jump',       keys: '/' },
       { kind: 'Anywhere', label: 'Close what is open',   keys: 'Esc' }
     ];
     NAV.forEach(function (n) {
@@ -355,6 +355,8 @@
     if (root && !root.hidden) return;
 
     if (e.key === '?') { e.preventDefault(); open('help'); return; }
+    /* The sidebar's "Search or jump  /" (Home v4): one key, from anywhere that is not a field. */
+    if (e.key === '/') { e.preventDefault(); open('cmd'); return; }
 
     /* `g` then a letter, the way Gmail and GitHub do it. Two seconds, then
        the g is forgotten — otherwise a g pressed by accident silently eats

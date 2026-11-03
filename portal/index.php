@@ -120,7 +120,8 @@ $tasksOverdue = count(array_filter($tasksDue, fn($t) => !empty($t['overdue'])));
 $nextSession = $upcoming[0] ?? null; // upcoming is ordered live-first, then soonest
 $cPulseToday = class_exists('Community') ? Community::pulse() : ['posts_today' => 0];
 
-$ptheme    = (($_COOKIE['av_portal_theme'] ?? 'light') === 'dark') ? 'dark' : 'light';
+/* Light, dark, or Auto (follow the phone) — the More sheet's Appearance switch. */
+$ptheme    = in_array($_COOKIE['av_portal_theme'] ?? 'light', ['light', 'dark', 'auto'], true) ? (string) $_COOKIE['av_portal_theme'] : 'light';
 $parts     = preg_split('/\s+/', trim((string) $u['name'])) ?: [];
 $pInitials = strtoupper(substr((string) ($parts[0] ?? 'A'), 0, 1) . substr((string) ($parts[1] ?? ''), 0, 1)) ?: 'A';
 
@@ -129,13 +130,15 @@ render_head([
     'desc'       => 'Your Afrovanguard portal — learning, and (for members) mentorship and members-only spaces.',
     'canonical'  => rtrim(SITE_URL, '/') . '/portal/',
     'robots'     => 'noindex, nofollow',
-    'body_class' => 'portal-app avp' . ($ptheme === 'dark' ? ' is-dark' : ''),
+    'body_class' => 'portal-app avp' . ($ptheme === 'dark' ? ' is-dark' : ($ptheme === 'auto' ? ' is-auto' : '')),
     'css'        => ['/assets/site/av-tokens.css', '/portal/portal.css', '/community/community.css', '/portal/community.css',
                      '/portal/avdy.css', '/academy/ngv/ngv-dashboard.css', '/portal/avng.css',
                      /* The member card (Membership → Your card) and its photo editor. */
                      '/assets/site/avc-card.css', '/assets/site/avc-photo.css',
                      /* Last, so the v2 shell wins over the panel stylesheet. */
-                     '/portal/avp.css', '/portal/volunteer.css', '/portal/todo-pop.css'],
+                     '/portal/avp.css', '/portal/volunteer.css', '/portal/todo-pop.css',
+                     /* Today, Home v4: its own components (hv-), after the shell's. */
+                     '/portal/home.css', '/portal/shell.css'],
     'manifest'   => '/manifest.webmanifest',
     'chrome'     => 'app', /* its own shell and theme; not the Home chrome */
 ]);
@@ -198,94 +201,107 @@ $billsClosing = array_values(array_filter($myBills, static function ($c): bool {
     $until = Conduct::appealOpenUntil($c);
     return $until !== '' && $until <= gmdate('Y-m-d', time() + 3 * 86400);
 }));
-/* id => [dot colour, badge]. A section not named here is a grey dot, no badge. */
-$navBadges = [
-    'overview'    => ['gold', ($tasksDue || $nextSession) ? (string) (count($tasksDue) + ($nextSession ? 1 : 0)) : ''],
-    'tools'       => ['indigo', ''],
-    'community'   => ['green', $postsToday > 0 ? (string) $postsToday : ''],
-    'tasks'       => ['gold', ($openTasks + $cacOpen) ? (string) ($openTasks + $cacOpen) : ''],
-    'chat'        => ['green', ''],
-    'meetings'    => ['indigo', ''],
-    'fines'       => [$myFines['owing'] > 0 ? 'gold' : 'gray', $myFines['owing'] > 0 ? '₦' . number_format((int) $myFines['owing']) : ''],
-    'quest'       => ['gold', $questMonth > 0 ? '+' . $questMonth : ''],
+/* ── What each section says beside its name (Home v4) ─────────────────
+   id => [count, chip, chip tone]. Status is a word first: the chip says it
+   ("1 late", "Due", "₦5,000"), and its colour only confirms — red late,
+   amber owing, gold yours, green fine. A count is quiet grey. */
+$hvMoney = static fn(int $n): string => '₦' . number_format($n);
+$navStatus = [
+    'overview'    => [($tasksDue || $nextSession) ? (string) (count($tasksDue) + ($nextSession ? 1 : 0)) : '', '', ''],
+    'community'   => [$postsToday > 0 ? (string) $postsToday : '', '', ''],
+    'tasks'       => [($openTasks + $cacOpen) ? (string) ($openTasks + $cacOpen) : '', $tasksOverdue ? $tasksOverdue . ' late' : '', 'bad'],
+    'quest'       => ['', $questMonth > 0 ? '+' . $questMonth : '', 'you'],
     /* A bill nobody has answered is the one thing on the Quest that waits on the member. */
-    'bills'       => [$billsWaiting ? 'gold' : 'gray', $billsWaiting ? (string) $billsWaiting : ''],
-    'mentorship'  => ['gray', $mentorStats['attended'] ? (string) (int) $mentorStats['attended'] : ''],
-    'attendance'  => ['gray', $gateSum && $gateSum['counted'] ? (int) $gateSum['rate'] . '%' : ''],
-    'learning'    => ['gray', $courses ? (string) count($courses) : ''],
-    'volunteer'   => [$volWaiting > 0 ? 'gold' : 'green', $volWaiting > 0 ? (string) $volWaiting : ''],
-    'diary'       => ['gray', $myEntries ? (string) count($myEntries) : ''],
-    'wallet'      => [$walletOwed > 0 ? 'gold' : 'gray', $walletOwed > 0 ? MemberStatement::naira($walletOwed) : ''],
-    'membership'  => [$mreqWaiting ? 'gold' : 'gray', $mreqWaiting ? (string) $mreqWaiting : ''],
+    'bills'       => ['', $billsWaiting ? $billsWaiting . ' to answer' : '', 'bad'],
+    'mentorship'  => [$mentorStats['attended'] ? (string) (int) $mentorStats['attended'] : '', '', ''],
+    'attendance'  => [$gateSum && $gateSum['counted'] ? (int) $gateSum['rate'] . '%' : '', $gateWhy !== '' ? 'Refused' : '', 'bad'],
+    'fines'       => ['', $myFines['owing'] > 0 ? $hvMoney((int) $myFines['owing']) : '', 'warn'],
+    'reading'     => [$mayRead ? NgvReading::verifiedCount((int) $u['id']) . ' / ' . NgvReading::TOTAL : '', '', ''],
+    'learning'    => [$courses ? (string) count($courses) : '', '', ''],
+    'volunteer'   => ['', $volWaiting > 0 ? $volWaiting . ' waiting' : '', 'info'],
+    'diary'       => [$myEntries ? (string) count($myEntries) : '', '', ''],
+    'wallet'      => ['', $walletOwed > 0 ? MemberStatement::naira($walletOwed) : '', 'warn'],
+    'membership'  => [$mreqWaiting ? (string) $mreqWaiting : '', $dues && ($dues['state'] ?? '') !== 'active' && empty($dues['lifetime']) ? 'Due' : '', 'warn'],
 ];
 if ($isNgv) {
-    $navBadges['ngv'] = ['gold', $ngvVars['booksRead'] . '/' . $ngvVars['BOOKS_TOTAL']];
-    $navBadges['ngv-account'] = [$ngvOwed > 0 ? 'gold' : 'green', $ngvOwed > 0 ? '₦' . number_format($ngvOwed) : ''];
+    $navStatus['ngv'] = [$ngvVars['booksRead'] . ' / ' . $ngvVars['BOOKS_TOTAL'], '', ''];
+    $navStatus['ngv-account'] = ['', $ngvOwed > 0 ? $hvMoney($ngvOwed) : 'Clear', $ngvOwed > 0 ? 'warn' : 'ok'];
     $fOwing = (int) $ngvVars['myFines']['owing'];
-    $navBadges['ngv-fines'] = [$fOwing > 0 ? 'gold' : 'gray', $fOwing > 0 ? '₦' . number_format($fOwing) : ''];
+    $navStatus['ngv-fines'] = ['', $fOwing > 0 ? $hvMoney($fOwing) : '', 'warn'];
 }
 $nav = [];
 foreach (PortalNav::groups($portalCtx) as $group => $items) {
-    foreach ($items as [$id, $label]) $nav[$group][] = [$id, $label, $navBadges[$id][0] ?? 'gray', $navBadges[$id][1] ?? ''];
+    foreach ($items as [$id, $label]) $nav[$group][] = [$id, $label] + [2 => $navStatus[$id] ?? ['', '', '']];
 }
 $tabs = PortalNav::tabs($portalCtx);
-$avpIcons = [
-    'overview'  => 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
-    'tasks'     => 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
-    'chat'      => 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
-    'community' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
-    'ngv'       => 'M4 22V4M4 4h13l-2 4 2 4H4',
-    'learning'  => 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5',
-    'diary'     => 'M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z',
-    'more'      => 'M5 12h.01M12 12h.01M19 12h.01',
-];
+$navLabels = [];
+foreach ($nav as $items) foreach ($items as [$id, $label]) $navLabels[$id] = $label;
+$navShort = PortalNav::shortcuts($portalCtx, array_filter(explode(',', class_exists('Prefs') ? Prefs::get((int) $u['id'], 'nav_shortcuts', '') : '')));
 $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner');
+/* The ring round the member in the sheet: the way to the next level, as on Today. */
+$navNeed = $journey['next_points'] ?? null;
+$navLevelPct = $journey['next'] === null ? 100 : ($navNeed !== null && (int) $navNeed > 0 ? min(100, (int) round(100 * max(0, (int) ($journey['quest_points'] ?? 0)) / (int) $navNeed)) : 0);
+$navPhoto = '';
+if (class_exists('CardPhoto')) { try { $navPhoto = CardPhoto::deliver((string) (CardPhoto::of((int) $u['id'])['photo'] ?? '')); } catch (Throwable $e) {} }
+/* One icon, stroked, from the registry. */
+$navIco = static fn(string $id, int $s = 18): string => '<svg width="' . $s . '" height="' . $s . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' . e(PortalNav::icon($id)) . '"/></svg>';
+/* The end of a row: a quiet count and/or a chip, both inside .pnav-badge so the
+   command palette strips them from the label it matches on. */
+$navEnd = static function (array $st): string {
+    [$n, $chip, $tone] = $st;
+    if ($n === '' && $chip === '') return '';
+    return '<span class="pnav-badge avn-end">' . ($n !== '' ? '<span class="avn-n">' . e($n) . '</span>' : '')
+        . ($chip !== '' ? '<span class="avn-chip avn-chip--' . e($tone ?: 'n') . '">' . e($chip) . '</span>' : '') . '</span>';
+};
 ?>
+<?php if ($ptheme === 'auto'): ?>
+<script>/* Auto: follow the device before the first paint, so a dark phone never flashes light. */
+if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) document.body.classList.add('is-dark');</script>
+<?php endif; ?>
 <div class="avp-app">
 
-  <aside class="avp-side" id="avpSide" aria-label="Portal navigation">
-    <a class="avp-brand" href="<?= e(rtrim(SITE_URL, '/')) ?>/" aria-label="Afrovanguard home">
-      <span class="avp-mark" aria-hidden="true">A</span>
-      <span class="avp-brand-t"><span class="avp-brand-n">Afrovanguard</span><span class="avp-brand-s"><?= e($tag) ?></span></span>
+  <aside class="avp-side avn-side" id="avpSide" aria-label="Portal navigation">
+    <a class="avn-brand" href="#overview" data-view="overview" aria-label="Afrovanguard — Today">
+      <img src="/assets/site/av-seal-96.png" alt="" width="32" height="32">
+      <span class="avn-brand-t">Afrovanguard</span>
     </a>
     <?php /* The way into the command palette (portal/palette.js). A button,
-             because it opens a dialog, and it says which key. */ ?>
-    <div class="avp-search-wrap">
-      <button class="avp-search" type="button" data-cmdk="cmd">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <span class="avp-search-t">Search anything</span>
-        <span class="avp-keys"><kbd class="cmdk-mod">Ctrl</kbd><kbd>K</kbd></span>
-      </button>
-    </div>
+             because it opens a dialog, and it says which key: "/" from
+             anywhere, or Ctrl/⌘ K, which the script names correctly on a Mac. */ ?>
+    <button class="avp-search avn-search" type="button" data-cmdk="cmd">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <span class="avn-search-t">Search or jump</span><kbd class="avn-kbd" title="or Ctrl K">/</kbd><span class="avn-sr">, or <kbd class="cmdk-mod">Ctrl</kbd> <kbd>K</kbd></span>
+    </button>
 
-    <nav class="avp-nav" aria-label="Sections">
-<?php foreach ($nav as $group => $items): ?>
-      <div class="avp-nav-group">
-        <div class="avp-nav-title"><?= e($group) ?></div>
-<?php foreach ($items as [$id, $label, $dot, $badge]): ?>
-        <a class="avp-nav-link pnav-link" href="#<?= e($id) ?>" data-view="<?= e($id) ?>">
-          <span class="avp-dot avp-dot--<?= e($dot) ?>" aria-hidden="true"></span>
-          <span class="avp-nav-label pnav-label"><?= e($label) ?></span>
-<?php if ($badge !== ''): ?>          <span class="avp-nav-badge pnav-badge"><?= e($badge) ?></span>
-<?php endif; ?>        </a>
+    <nav class="avp-nav avn-nav" aria-label="Sections">
+<?php foreach ($nav as $group => $items): $gid = 'avnG' . preg_replace('/[^a-z]/', '', strtolower($group)); $titled = !in_array($group, PortalNav::UNTITLED, true); ?>
+      <div class="avn-group" data-group="<?= e($group) ?>">
+<?php if ($titled): ?>
+        <button type="button" class="avn-gh" aria-expanded="true" aria-controls="<?= e($gid) ?>"><?= e($group) ?><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+<?php endif; ?>
+        <div class="avn-items" id="<?= e($gid) ?>">
+<?php foreach ($items as [$id, $label, $st]): ?>
+          <a class="avp-nav-link pnav-link avn-link" href="#<?= e($id) ?>" data-view="<?= e($id) ?>"><?= $navIco($id) ?><span class="avp-nav-label pnav-label"><?= e($label) ?></span><?= $navEnd($st) ?></a>
 <?php endforeach; ?>
+        </div>
       </div>
 <?php endforeach; ?>
-      <div class="avp-nav-group">
-        <div class="avp-nav-title">More</div>
-        <a class="avp-nav-link" href="/academy/"><span class="avp-dot avp-dot--gray" aria-hidden="true"></span><span class="avp-nav-label">Academy</span><span class="avp-ext" aria-hidden="true">↗</span></a>
-        <a class="avp-nav-link" href="<?= e(rtrim(SITE_URL, '/')) ?>/"><span class="avp-dot avp-dot--gray" aria-hidden="true"></span><span class="avp-nav-label">Main site</span><span class="avp-ext" aria-hidden="true">↗</span></a>
-        <a class="avp-nav-link" href="/diary/me/"><span class="avp-dot avp-dot--gray" aria-hidden="true"></span><span class="avp-nav-label">Your Diary page</span><span class="avp-ext" aria-hidden="true">↗</span></a>
+      <div class="avn-group" data-group="Elsewhere">
+        <button type="button" class="avn-gh" aria-expanded="false" aria-controls="avnGelsewhere" data-default-closed>Elsewhere<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="avn-items" id="avnGelsewhere" hidden>
+          <a class="avn-link" href="/academy/"><?= $navIco('learning') ?><span>Academy</span><span class="avn-ext" aria-hidden="true">↗</span></a>
+          <a class="avn-link" href="/diary/me/"><?= $navIco('diary') ?><span>Your Diary page</span><span class="avn-ext" aria-hidden="true">↗</span></a>
 <?php /* Shown to org members when the bridge is configured. A filter, not
          the gate: CACENTRE decides on every arrival who may use it. */ ?>
-<?php if ($isOrg && CacSso::ready()): ?>        <a class="avp-nav-link" href="<?= e(CacSso::DOOR) ?>"><span class="avp-dot avp-dot--gray" aria-hidden="true"></span><span class="avp-nav-label">CACENTRE workspace</span><span class="avp-ext" aria-hidden="true">↗</span></a>
+<?php if ($isOrg && CacSso::ready()): ?>          <a class="avn-link" href="<?= e(CacSso::DOOR) ?>"><?= $navIco('tools') ?><span>CACENTRE workspace</span><span class="avn-ext" aria-hidden="true">↗</span></a>
 <?php endif; ?>
+        </div>
       </div>
     </nav>
 
 <?php if ($google['oauth'] || ($google['admin'] && $google['problem'] !== '')): ?>
     <!-- The Google account this portal works with — connect, or who it is and a way out. -->
-    <div class="avp-google" id="avpGoogle">
+    <div class="avp-google avn-google" id="avpGoogle">
 <?php if ($google['connected']): ?>
       <span class="avp-g-dot" aria-hidden="true"></span>
       <span class="avp-g-t"><span class="avp-g-l"><?= $google['mode'] === 'delegated' ? 'Google Workspace' : 'Google connected' ?></span><span class="avp-g-e"><?= e($google['email']) ?></span></span>
@@ -300,29 +316,31 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
 <?php endif; ?>
     </div>
 <?php endif; ?>
-    <div class="avp-me">
-      <span class="avp-me-av" aria-hidden="true"><?= e($pInitials) ?></span>
-      <span class="avp-me-t"><span class="avp-me-n"><?= e(trim($first . ' ' . ($parts[1] ?? ''))) ?></span><span class="avp-me-r"><?= $roleName ?></span></span>
-      <button type="button" class="avp-icon-btn" id="portalTheme" aria-pressed="<?= $ptheme === 'dark' ? 'true' : 'false' ?>" aria-label="Dark mode" title="Dark mode">
+    <div class="avn-foot">
+      <a href="#membership" data-view="membership" class="avn-foot-a">Settings</a>
+      <a href="<?= e(rtrim(SITE_URL, '/')) ?>/" class="avn-foot-a">Main site ↗</a>
+      <button type="button" class="avn-icon" id="portalTheme" aria-pressed="<?= $ptheme === 'dark' ? 'true' : 'false' ?>" aria-label="Dark mode" title="Dark mode">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       </button>
-      <a class="avp-icon-btn" href="#" data-logout title="Sign out" aria-label="Sign out">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      <a class="avn-icon" href="#" data-logout title="Sign out" aria-label="Sign out">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
       </a>
     </div>
   </aside>
   <div class="avp-scrim" id="avpScrim" hidden></div>
 
   <main class="avp-main" id="main-content" tabindex="-1">
-    <header class="avp-top">
-      <button type="button" class="avp-icon-btn avp-burger" id="avpBurger" aria-label="Open navigation" aria-controls="avpSide" aria-expanded="false">
+    <header class="avp-top avn-top">
+      <button type="button" class="avp-icon-btn avp-burger avn-burger" id="avpBurger" aria-label="Open navigation" aria-controls="avpSide" aria-expanded="false">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
       </button>
-      <div class="avp-crumb"><span class="avp-crumb-root">Portal</span><span class="avp-crumb-sep" aria-hidden="true">/</span><span class="avp-crumb-here" id="crumbHere" aria-live="polite">Today</span></div>
-      <div class="avp-top-actions">
-<?php if ($isOrg): ?>        <span class="avp-online" id="topOnline"<?= $onlineNow > 0 ? '' : ' hidden' ?>><span class="avp-online-dot" aria-hidden="true"></span><span><span class="av-num" id="tbCount"><?= (int) $onlineNow ?></span> online</span></span>
+      <a class="avn-top-seal" href="#overview" data-goto="overview" aria-label="Afrovanguard — Today"><img src="/assets/site/av-seal-96.png" alt="" width="36" height="36"></a>
+      <?php /* Which view is showing, said to a screen reader as it changes; the sidebar shows it to everyone else. */ ?>
+      <p class="avn-sr" aria-live="polite">Portal: <span id="crumbHere">Today</span></p>
+      <div class="avp-top-actions avn-top-actions">
+<?php if ($isOrg): ?>        <a class="avp-online avn-online" id="topOnline" href="/people/"<?= $onlineNow > 0 ? '' : ' hidden' ?>><span class="avn-dot" aria-hidden="true"></span><span><span class="av-num" id="tbCount"><?= (int) $onlineNow ?></span> online</span></a>
 <?php endif; ?>        <div class="avp-notif" id="notifWrap" data-csrf="<?= e($collabCsrf) ?>">
-          <button type="button" class="avp-bell" id="notifBtn" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notifPanel">
+          <button type="button" class="avp-bell avn-bell" id="notifBtn" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notifPanel">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg>
             <span class="avp-bell-n" id="notifBadge" hidden>0</span>
           </button>
@@ -331,6 +349,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
             <div class="avp-notif-list notif-list" id="notifList"><p class="notif-empty">Loading…</p></div>
           </div>
         </div>
+        <a class="avn-me" href="#membership" data-goto="membership" aria-label="Your profile — <?= e(trim((string) $u['name'])) ?>"><?php if ($navPhoto !== ''): ?><img src="<?= e($navPhoto) ?>" alt=""><?php else: ?><?= e($pInitials) ?><?php endif; ?></a>
       </div>
     </header>
 
@@ -357,18 +376,77 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
     </div>
   </main>
 
-  <nav class="avp-tabs" aria-label="Primary">
+  <nav class="avp-tabs avn-tabs" aria-label="Primary">
 <?php foreach ($tabs as [$id, $label]): ?>
-    <a class="avp-tab" href="#<?= e($id) ?>" data-view="<?= e($id) ?>">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="<?= e($avpIcons[$id]) ?>"/></svg>
-      <span><?= e($label) ?></span>
-    </a>
+    <a class="avp-tab avn-tab" href="#<?= e($id) ?>" data-view="<?= e($id) ?>"><span class="avn-tab-i"><?= $navIco($id, 21) ?></span><span><?= e($label) ?></span></a>
 <?php endforeach; ?>
-    <button type="button" class="avp-tab" id="avpMore" aria-controls="avpSide" aria-expanded="false">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="<?= e($avpIcons['more']) ?>"/></svg>
+    <button type="button" class="avp-tab avn-tab" id="avpMore" aria-haspopup="dialog" aria-controls="avpSheet" aria-expanded="false">
+      <span class="avn-tab-i"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.8"/></svg></span>
       <span>More</span>
     </button>
   </nav>
+</div>
+
+<?php /* ── The phone's More sheet (Home v4, "Phone — More sheet") ───────────
+   Opens at half height from the tab bar's More; the handle (tap, or drag)
+   takes it to full height and back; drag it down, Esc, or the scrim closes
+   it. Every section the account has is here, under the sidebar's groups,
+   with the same words beside it; the eight shortcuts at the top are the
+   member's own (Edit), kept in Prefs. portal/shell.js. */ ?>
+<div class="avm" id="avpSheet" hidden data-csrf="<?= e($collabCsrf) ?>">
+  <div class="avm-scrim" data-avm-close></div>
+  <section class="avm-sheet" role="dialog" aria-modal="true" aria-label="More" tabindex="-1">
+    <button type="button" class="avm-handle" aria-label="Open fully" aria-expanded="false"><span aria-hidden="true"></span></button>
+    <div class="avm-body">
+      <div class="avm-me">
+        <a href="#membership" data-goto="membership" class="avm-me-a">
+          <span class="avm-ring" aria-hidden="true"><svg width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" fill="none" stroke-width="3" class="avm-ring-t"/><?php if ($navLevelPct > 0): ?><circle cx="26" cy="26" r="24" fill="none" stroke-width="3" class="avm-ring-f" stroke-dasharray="<?= round(2 * M_PI * 24 * $navLevelPct / 100, 1) ?> <?= round(2 * M_PI * 24, 1) ?>" stroke-linecap="round" transform="rotate(-90 26 26)"/><?php endif; ?></svg><span class="avm-av"><?php if ($navPhoto !== ''): ?><img src="<?= e($navPhoto) ?>" alt=""><?php else: ?><?= e($pInitials) ?><?php endif; ?></span></span>
+          <span class="avm-me-t"><b><?= e(trim((string) $u['name'])) ?></b><span>Level <?= e((string) ($journey['level'] ?? 'O')) ?><?= $journey['next'] !== null ? ' · ' . $navLevelPct . '% to ' . e((string) $journey['next']) : '' ?> · view profile</span></span>
+        </a>
+        <button type="button" class="avm-x" data-avm-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+
+      <button type="button" class="avm-search" data-cmdk="cmd"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span>Search people, tasks, pages…</span></button>
+
+      <div class="avm-sec">
+        <div class="avm-lab"><h2 id="avmShortH">Shortcuts</h2><button type="button" class="avm-edit" aria-pressed="false">Edit</button></div>
+        <p class="avm-edit-note" hidden>Tap a shortcut to take it off, or a section below to add it — up to <?= PortalNav::SHORTCUT_MAX ?>.</p>
+        <nav class="avm-tiles" aria-labelledby="avmShortH" id="avmTiles">
+<?php foreach ($navShort as $id): $st = $navStatus[$id] ?? ['', '', '']; $badge = $st[1] !== '' ? $st[1] : $st[0]; ?>
+          <a href="#<?= e($id) ?>" data-goto="<?= e($id) ?>" data-id="<?= e($id) ?>" class="avm-tile avm-tile--<?= e(PortalNav::SECTIONS[$id]['group'] === 'Learn' ? 'learn' : ($st[2] === 'warn' && $st[1] !== '' ? 'warn' : 'you')) ?>"><span class="avm-tile-i"><?= $navIco($id, 20) ?></span><?= e($navLabels[$id] ?? PortalNav::label($id, $portalCtx)) ?><?php if ($badge !== ''): ?><b class="avm-badge avm-badge--<?= e($st[1] !== '' ? ($st[2] ?: 'n') : 'n') ?>"><?= e($badge) ?></b><?php endif; ?></a>
+<?php endforeach; ?>
+        </nav>
+      </div>
+
+      <button type="button" class="avm-all"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>All sections</button>
+
+<?php foreach ($nav as $group => $items): ?>
+      <div class="avm-sec">
+        <div class="avm-lab"><h2><?= e($group === 'Home' ? 'Home' : $group) ?></h2></div>
+        <ul class="avm-grp">
+<?php foreach ($items as [$id, $label, $st]): ?>
+          <li><a href="#<?= e($id) ?>" data-goto="<?= e($id) ?>" data-id="<?= e($id) ?>" class="avm-it"><span class="avm-ico avm-ico--<?= e(PortalNav::SECTIONS[$id]['group'] === 'Learn' ? 'learn' : (in_array(PortalNav::SECTIONS[$id]['group'], ['Vanguard Quest', 'NextGen Vanguard'], true) ? 'you' : 'n')) ?>"><?= $navIco($id, 17) ?></span><?= e($label) ?><span class="avm-end"><?= $navEnd($st) ?><svg class="avm-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a></li>
+<?php endforeach; ?>
+        </ul>
+      </div>
+<?php endforeach; ?>
+
+      <div class="avm-sec">
+        <div class="avm-lab"><h2>Account</h2></div>
+        <ul class="avm-grp">
+          <li class="avm-it avm-it--static"><span class="avm-ico avm-ico--n"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>Appearance
+            <span class="avm-end avm-segs" role="radiogroup" aria-label="Appearance" data-mode="<?= e($ptheme) ?>"><span class="avm-thumb" aria-hidden="true"></span><?php foreach (['light' => 'Light', 'dark' => 'Dark', 'auto' => 'Auto'] as $mv => $ml): ?><button type="button" class="avm-seg" role="radio" data-mode="<?= $mv ?>" aria-checked="<?= $ptheme === $mv ? 'true' : 'false' ?>"><?= $ml ?></button><?php endforeach; ?></span></li>
+          <li><a href="mailto:cacentre@afrovanguard.org.ng" class="avm-it"><span class="avm-ico avm-ico--n"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6M12 17h.01"/></svg></span>Help &amp; support<span class="avm-end"><svg class="avm-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></a></li>
+        </ul>
+      </div>
+
+      <div class="avm-foot">
+        <a href="<?= e(rtrim(SITE_URL, '/')) ?>/" class="avm-foot-a">Main site ↗</a>
+        <a href="#" data-logout class="avm-foot-a avm-out">Sign out</a>
+      </div>
+      <p class="avm-msg" role="status" aria-live="polite"></p>
+    </div>
+  </section>
 </div>
 <?php if ($isOrg) require __DIR__ . '/views/meet-modal.php'; ?>
 <?php if (class_exists('Todo') && Todo::enabled()): /* the to-do pop-up: one list across both sites (lib/Todo.php) */ ?>
@@ -376,6 +454,8 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
 <?php endif; ?>
 
   <script src="<?= e(av_asset('/portal/avp.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/portal/home.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/portal/shell.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/tasks.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/todo-pop.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/chat-panel.js')) ?>" defer></script>
