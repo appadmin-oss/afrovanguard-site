@@ -270,7 +270,6 @@ $hvRing = static function (int $size, int $r, int $w, int $pct, string $track = 
       <section class="pview avp-view hv" id="view-overview" data-view="overview" aria-labelledby="hvHello">
 
         <section class="hv-hero" aria-label="You">
-          <span class="hv-hero-o hv-hero-o--a" aria-hidden="true"></span><span class="hv-hero-o hv-hero-o--b" aria-hidden="true"></span>
           <div class="hv-hero-me">
             <a href="#membership" data-goto="membership" class="hv-ring" style="width:120px;height:120px" aria-label="Your profile. Level <?= e($stageCode) ?>, <?= e($hvLevelLabel) ?>.<?= $journey['next'] !== null ? ' ' . $hvLevelPct . '% of the way to ' . e($jNextLabel) . '.' : '' ?>">
               <?= $hvRing(120, 56, 5, $hvLevelPct) ?>
@@ -279,7 +278,7 @@ $hvRing = static function (int $size, int $r, int $w, int $pct, string $track = 
             </a>
             <div class="hv-hero-t">
               <p class="hv-hero-week" id="hvWeekLine"><?= str_replace(' · ', '<span class="hv-sep"> · </span>', e($hvWeekLine['main'])) ?><?php if ($hvWeekLine['tail'] !== ''): ?><span class="hv-wide"><span class="hv-sep"> · </span><?= e($hvWeekLine['tail']) ?></span><?php endif; ?></p>
-              <div class="hv-hello"><img src="/assets/site/av-seal-96.png" alt="" width="40" height="40"><h1 id="hvHello" data-kind="<?= e($hvGreet['kind']) ?>"><?= e($hvGreet['text']) ?></h1></div>
+              <div class="hv-hello"><h1 id="hvHello" data-kind="<?= e($hvGreet['kind']) ?>"><?= e($hvGreet['text']) ?></h1></div>
               <p class="hv-tags">
                 <span class="hv-tag hv-tag--you"><span class="hv-wide">Vanguard </span>Level <?= e($stageCode) ?><span class="hv-wide"> —</span><span class="hv-narrow"> ·</span> <?= e($hvLevelLabel) ?></span>
 <?php if ($hvVerified): ?>                <span class="hv-tag hv-tag--ok">Verified<span class="hv-wide"> member</span></span>
@@ -290,7 +289,7 @@ $hvRing = static function (int $size, int $r, int $w, int $pct, string $track = 
           </div>
 <?php if ($hvPlanAll): ?>
           <a href="#tasks" data-goto="tasks" class="hv-plan" aria-label="Today: <?= $hvPlanDone ?> of <?= $hvPlanAll ?> done, <?= $hvPlanPct ?>% of today’s plan">
-            <svg width="156" height="156" viewBox="0 0 156 156" aria-hidden="true"><circle cx="78" cy="78" r="70" fill="none" stroke="#2C3342" stroke-width="10"/><?php if ($hvPlanPct > 0): ?><circle cx="78" cy="78" r="70" fill="none" stroke="#F3B416" stroke-width="10" stroke-dasharray="<?= round(2 * M_PI * 70 * $hvPlanPct / 100, 1) ?> <?= round(2 * M_PI * 70, 1) ?>" stroke-linecap="round" transform="rotate(-90 78 78)"/><?php endif; ?></svg>
+            <svg width="156" height="156" viewBox="0 0 156 156" aria-hidden="true"><circle class="hv-ring-track" cx="78" cy="78" r="70" fill="none" stroke-width="6"/><?php if ($hvPlanPct > 0): ?><circle class="hv-ring-fill" cx="78" cy="78" r="70" fill="none" stroke-width="6" stroke-dasharray="<?= round(2 * M_PI * 70 * $hvPlanPct / 100, 1) ?> <?= round(2 * M_PI * 70, 1) ?>" stroke-linecap="round" transform="rotate(-90 78 78)"/><?php endif; ?></svg>
             <span class="hv-plan-t"><b><?= $hvPlanPct ?>%</b><span>of today’s plan</span></span>
           </a>
           <a href="#tasks" data-goto="tasks" class="hv-plan-row">

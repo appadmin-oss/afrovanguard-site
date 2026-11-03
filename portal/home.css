@@ -22,7 +22,6 @@
   --hv-ok:#17673D; --hv-ok-bg:#EAF5EE; --hv-warn:#8A4B00; --hv-warn-bg:#FBF0E0;
   --hv-bad:#B0361C; --hv-bad-bg:#FBEAEA; --hv-info:#4338CA; --hv-info-bg:#EEF0FD;
   --hv-band:#F5EDDA; --hv-band-line:#E8DCBD;
-  --hv-hero:#111827; --hv-hero-line:#3A3220; --hv-hero-track:#2C3342; --hv-hero-muted:#C9CCD3; --hv-hero-dot:#4B5566;
   --hv-serif:"Cormorant Garamond",Georgia,serif; --hv-sans:"Source Sans 3",system-ui,sans-serif;
   color:var(--hv-ink); font-family:var(--hv-sans); font-size:14px; line-height:1.5;
   display:flex; flex-direction:column; align-items:center; -webkit-font-smoothing:antialiased;
@@ -34,7 +33,7 @@
   --hv-gold-text:#F3C34A; --hv-gold-soft:rgba(243,180,22,.16); --hv-gold-line:#3A3220; --hv-gold-deep:#F6D77E;
   --hv-ok:#4ADE80; --hv-ok-bg:rgba(34,197,94,.14); --hv-warn:#FBBF24; --hv-warn-bg:rgba(245,158,11,.14);
   --hv-bad:#F87171; --hv-bad-bg:rgba(248,113,113,.12); --hv-info:#A5B4FC; --hv-info-bg:rgba(99,102,241,.16);
-  --hv-band:#19170F; --hv-band-line:#2A2617; --hv-hero:#1D1A10;
+  --hv-band:#19170F; --hv-band-line:#2A2617;
 }
 /* Resets in :where(), so they weigh nothing; every component is scoped under .hv, so it
    outranks the shell's body.avp a { color: inherit } without !important. */
@@ -79,41 +78,42 @@
 .hv .hv-ico--n { background:var(--hv-stone); color:var(--hv-text-2) } .hv-ico--you { background:var(--hv-gold-soft); color:var(--hv-gold-text) }
 
 /* ── the hero: you ────────────────────────────────────────────────────── */
-.hv .hv-hero { width:100%; max-width:1120px; background:var(--hv-hero); color:#FFFFFF; border-radius:22px; padding:36px 40px;
-  display:grid; grid-template-columns:minmax(0,1fr) auto; gap:40px; align-items:center; position:relative; overflow:hidden }
-.hv .hv-hero-o { position:absolute; border-radius:50%; border:1px solid var(--hv-hero-line); display:block; pointer-events:none }
-.hv .hv-hero-o--a { right:-60px; top:-80px; width:320px; height:320px } .hv-hero-o--b { right:10px; top:-10px; width:180px; height:180px }
+/* The phone's cream band on every screen (it was ink on a desktop); dark mode swaps --hv-band. */
+.hv .hv-hero { width:100%; max-width:1120px; background:var(--hv-band); color:var(--hv-ink); border-radius:22px; padding:40px 48px;
+  display:grid; grid-template-columns:minmax(0,1fr) auto; gap:48px; align-items:center; position:relative; overflow:hidden }
+/* Cleaner: no decorative circles, no second seal — the sidebar has the seal — and one quiet chip at most. */
 .hv .hv-hero-me { display:flex; gap:28px; align-items:center; position:relative; min-width:0 }
 .hv .hv-ring { position:relative; display:block; flex-shrink:0; text-decoration:none }
 .hv .hv-ring:hover { text-decoration:none }
 .hv .hv-ring > svg { position:absolute; inset:0 }
-.hv .hv-ring-track { stroke:var(--hv-hero-track) } .hv-ring-fill { stroke:var(--hv-gold) }
+.hv .hv-ring-track { stroke:var(--hv-band-line) } .hv-ring-fill { stroke:var(--hv-gold) }
 .hv .hv-avatar { position:absolute; inset:11px; border-radius:50%; background:#F4ECDD; color:#6B5320; display:flex; align-items:center;
   justify-content:center; font-family:var(--hv-serif); font-weight:600; font-size:40px; overflow:hidden }
 .hv .hv-avatar img { width:100%; height:100%; object-fit:cover; display:block }
+.hv .hv-hero .hv-avatar { background:var(--hv-card); color:var(--hv-gold-deep); box-shadow:0 6px 18px rgba(107,83,32,.18) }
 .hv .hv-level { display:none }
-.hv .hv-hero-t { display:flex; flex-direction:column; gap:10px; min-width:0 }
-.hv .hv-hero-week { font-size:14px; color:var(--hv-hero-muted) }
+.hv .hv-hero-t { display:flex; flex-direction:column; gap:12px; min-width:0 }
+.hv .hv-hero-week { font-size:13px; color:var(--hv-gold-deep); font-weight:600; letter-spacing:.03em }
 .hv .hv-hello { display:flex; align-items:center; gap:14px }
-.hv .hv-hello img { width:40px; height:40px; display:block; flex-shrink:0 }
-.hv .hv-hello h1 { font-family:var(--hv-serif); font-size:52px; line-height:1; font-weight:500; letter-spacing:-.01em; color:#FFFFFF }
-.hv .hv-tags { display:flex; align-items:center; gap:10px; flex-wrap:wrap }
+.hv .hv-hello h1 { font-family:var(--hv-serif); font-size:52px; line-height:1; font-weight:500; letter-spacing:-.01em; color:var(--hv-ink) }
+.hv .hv-tags { display:flex; align-items:center; gap:8px; flex-wrap:wrap }
 /* inline-block, not flex: the long/short words are separate spans, and flex would drop the spaces between them. */
 .hv .hv-tag { display:inline-block; height:26px; line-height:26px; padding:0 12px; border-radius:999px; font-size:13px; font-weight:600; white-space:nowrap }
 .hv .hv-tag--you { background:var(--hv-gold); color:#111827 }
-.hv .hv-tag--ok { background:#1E3A2B; color:#A7E3BF }
-.hv .hv-tag--n { background:transparent; color:var(--hv-hero-muted); padding:0 }
-.hv .hv-motto { font-family:var(--hv-serif); font-size:21px; font-style:italic; color:var(--hv-gold-light); line-height:1.3; padding-top:4px }
-.hv .hv-plan { position:relative; width:156px; height:156px; display:block; flex-shrink:0; color:#FFFFFF }
+.hv .hv-tag--ok { background:var(--hv-ok-bg); color:var(--hv-ok) }
+/* Programme and ID are facts, not a status: plain text beside the two chips. */
+.hv .hv-tag--n { background:none; color:var(--hv-muted); padding:0 4px; font-weight:500 }
+.hv .hv-motto { font-family:var(--hv-serif); font-size:18px; font-style:italic; color:var(--hv-gold-deep); opacity:.85; line-height:1.3; padding-top:2px }
+.hv .hv-plan { position:relative; width:156px; height:156px; display:block; flex-shrink:0; color:var(--hv-ink) }
 .hv .hv-plan:hover { text-decoration:none }
 .hv .hv-plan > svg { position:absolute; inset:0 }
 .hv .hv-plan-t { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center }
-.hv .hv-plan-t b { font-size:38px; line-height:1; font-variant-numeric:tabular-nums }
-.hv .hv-plan-t span { font-size:13px; color:var(--hv-hero-muted) }
+.hv .hv-plan-t b { font-size:34px; line-height:1; font-variant-numeric:tabular-nums }
+.hv .hv-plan-t span { font-size:13px; color:var(--hv-muted) }
 .hv .hv-plan-row { display:none }
 /* The desktop board's longer words; the phone board says less. */
 .hv .hv-narrow { display:none }
-.hv .hv-hero-week .hv-sep { color:var(--hv-hero-dot); padding:0 6px }
+.hv .hv-hero-week .hv-sep { color:inherit; opacity:.6; padding:0 6px }
 
 /* ── composer and quick access ────────────────────────────────────────── */
 .hv .hv-ask { width:100%; max-width:720px; display:flex; flex-direction:column; gap:14px; margin-top:28px }
@@ -298,7 +298,6 @@
   .hv .hv-hero { display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; border-radius:0 0 36px 36px;
     background:var(--hv-band); color:var(--hv-ink); padding:14px 20px 22px; margin:-24px -16px 0; /* up to the header: the page's own top padding */ width:calc(100% + 32px); max-width:none }
   .avp.is-dark .hv-hero { box-shadow:inset 0 -1px 0 var(--hv-band-line) }
-  .hv .hv-hero-o { display:none }
   .hv .hv-hero-me { flex-direction:column; gap:12px }
   .hv .hv-hero .hv-ring { width:148px !important; height:148px !important }
   .hv .hv-hero .hv-ring > svg { width:100%; height:100% }
@@ -311,12 +310,10 @@
   .hv .hv-narrow { display:inline }
   .hv .hv-hero-week .hv-sep { color:inherit; padding:0 }
   .hv .hv-hero-week { order:-1; font-size:13px; color:var(--hv-gold-deep); font-weight:600; letter-spacing:.02em }
-  .hv .hv-hello img { display:none }
   .hv .hv-hello h1 { font-size:38px; color:var(--hv-ink) }
   .hv .hv-tags { justify-content:center; gap:6px }
   .hv .hv-tag--ok { background:var(--hv-ok-bg); color:var(--hv-ok) }
   .hv .hv-tag--n { background:var(--hv-card); color:var(--hv-text-2); padding:0 11px; box-shadow:0 0 0 1px #E8DFC9 }
-  .avp.is-dark .hv-tag--n { box-shadow:0 0 0 1px var(--hv-line-2) }
   .hv .hv-hero .hv-motto, .hv .hv-hero .hv-plan { display:none }
   .hv .hv-plan-row { display:flex; align-items:center; gap:14px; background:var(--hv-card); border-radius:16px; padding:14px 16px; width:100%;
     text-align:left; box-shadow:0 6px 20px rgba(107,83,32,.08); margin-top:6px }
