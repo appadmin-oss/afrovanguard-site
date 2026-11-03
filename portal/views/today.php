@@ -320,8 +320,11 @@ $hvRing = static function (int $size, int $r, int $w, int $pct, string $track = 
 
         <div class="hv-grid">
 <?php if ($hvNotice):
+    /* The headline only: the post's first line, cut at its first sentence. The rest,
+       and who wrote it, are on the reading page. */
     $hvNTitle = trim((string) strtok(trim((string) $hvNotice['body']), "\n"));
-    $hvNTitle = mb_strlen($hvNTitle) > 240 ? mb_substr($hvNTitle, 0, 238) . '…' : $hvNTitle; ?>
+    if (preg_match('/^(.{12,}?[.!?])(?:\s|$)/u', $hvNTitle, $hvNm)) $hvNTitle = rtrim($hvNm[1], '.');
+    $hvNTitle = mb_strlen($hvNTitle) > 120 ? rtrim(mb_substr($hvNTitle, 0, 118)) . '…' : $hvNTitle; ?>
           <aside class="hv-notice" id="hvNotice" data-id="<?= (int) $hvNotice['id'] ?>" aria-label="Announcement">
             <span class="hv-notice-ico" aria-hidden="true"><?= $hvSvg('megaphone', 17) ?></span>
             <span class="hv-lbl">Announcement</span>
@@ -329,7 +332,6 @@ $hvRing = static function (int $size, int $r, int $w, int $pct, string $track = 
             <a class="hv-notice-t" href="/portal/announcement.php?id=<?= (int) $hvNotice['id'] ?>" title="<?= e($hvNTitle) ?>">
               <span class="hv-marq"><b><?= e($hvNTitle) ?></b><b class="hv-marq-copy" aria-hidden="true"><?= e($hvNTitle) ?></b></span>
             </a>
-            <span class="hv-notice-meta hv-muted hv-small"><?= e((string) $hvNotice['author']) ?> · <?= e((string) $hvNotice['ago']) ?></span>
             <a href="/portal/announcement.php?id=<?= (int) $hvNotice['id'] ?>" class="hv-more" style="padding:0 10px">Read<span class="hv-sr"> the announcement</span></a>
             <button type="button" class="hv-btn hv-btn--sm hv-btn--ghost hv-btn--icon" data-hv-dismiss aria-label="Dismiss announcement"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           </aside>

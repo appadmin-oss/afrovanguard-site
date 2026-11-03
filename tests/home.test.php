@@ -143,6 +143,8 @@ ck('appearance: Auto never flashes light on a dark phone', str_contains($idx, "i
 $ann = (string) file_get_contents(AV_ROOT . '/portal/announcement.php');
 ck('announcement: one line that scrolls when it is long, still when it fits', str_contains($css, '.hv .hv-notice.is-long .hv-marq { animation:hv-marq') && str_contains($js, "notice.classList.add('is-long')"));
 ck('announcement: it holds while hovered or focused, and does not move for reduced motion', str_contains($css, 'animation-play-state:paused') && str_contains($css, "@media (prefers-reduced-motion: reduce) {\n  .hv .hv-notice.is-long .hv-marq { animation:none }"));
+ck('announcement: only the headline shows — the first sentence, no byline — on one line',
+   str_contains($tv, "preg_match('/^(.{12,}?[.!?])(?:\\s|$)/u', \$hvNTitle, \$hvNm)") && !str_contains($tv, 'hv-notice-meta') && str_contains($css, '.hv .hv-notice { flex-wrap:nowrap;'));
 ck('announcement: "Read" opens it whole, on its own page', str_contains($tv, 'href="/portal/announcement.php?id=<?= (int) $hvNotice[\'id\'] ?>"'));
 ck('announcement page: only the Announcements space, at the reader\'s clearance', str_contains($ann, 'Community::post((int) ($_GET[\'id\'] ?? 0), (int) $u[\'id\'])') && str_contains($ann, "!== 'announcements') \$post = null;"));
 ck('announcement page: the body is escaped, line breaks kept', str_contains($ann, 'nl2br(e($rest))'));

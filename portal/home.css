@@ -153,7 +153,6 @@
 .hv .hv-notice-t { flex:1; min-width:0; overflow:hidden; white-space:nowrap; display:block; color:inherit; text-decoration:none;
   -webkit-mask-image:linear-gradient(90deg,#000 92%,transparent); mask-image:linear-gradient(90deg,#000 92%,transparent) }
 .hv .hv-notice-t:hover { text-decoration:none }
-.hv .hv-notice-meta { white-space:nowrap; flex-shrink:0 }
 /* The marquee: still when it fits; when it does not, it slides at a reading pace
    (home.js sets the duration from its length) and holds while hovered or focused. */
 .hv .hv-marq { display:inline-flex; gap:64px; will-change:transform }
@@ -345,12 +344,10 @@
   .hv .hv-notice .hv-lbl, .hv .hv-notice .hv-btn { display:none }
   .hv .hv-notice .hv-muted { color:#C9CCD3 }
   .hv .hv-notice-ico { display:flex; width:34px; height:34px; border-radius:11px; background:var(--hv-gold); color:#111827; align-items:center; justify-content:center; flex-shrink:0 }
-  /* One row — the seal of the notice, the scrolling line, Read — and who and when under the line. */
-  .hv .hv-notice { display:grid; grid-template-columns:34px minmax(0,1fr) auto; grid-template-areas:"ico t more" "ico meta more"; column-gap:12px; row-gap:0; min-height:0 }
-  .hv .hv-notice-ico { grid-area:ico; align-self:center }
-  .hv .hv-notice-t { grid-area:t; align-self:end }
-  .hv .hv-notice-meta { grid-area:meta; align-self:start }
-  .hv .hv-notice .hv-more { grid-area:more; align-self:center; min-height:44px }
+  /* One row: the notice's mark, the headline (scrolling if it is still too long), Read. */
+  .hv .hv-notice { flex-wrap:nowrap; gap:12px; min-height:0; padding:10px 6px 10px 12px }
+  .hv .hv-notice-ico { flex-shrink:0 }
+  .hv .hv-notice .hv-more { flex-shrink:0; min-height:44px }
   .hv .hv-notice .hv-more { color:#C9CCD3 }
   .hv .hv-card { border:0; border-radius:18px; box-shadow:0 0 0 1px var(--hv-line),0 6px 20px rgba(17,24,39,.05); padding:16px }
   .hv .hv-h2 { font-size:24px }
