@@ -159,7 +159,10 @@ try {
         'card_formats', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_get', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake', 'ngv_intake_email', 'ngv_intake_consent',
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
-        'ngv_reset', 'ngv_restore',
+        /* ngv_save too: NgvLedger::amounts() reads the membership fee, the commitment
+           fee and every plan's programme fee off the page it writes, so saving it
+           sets what members are charged (docs/audits/2026-11-02-studio, S1). */
+        'ngv_save', 'ngv_reset', 'ngv_restore',
         // The homepage is the organisation's front door: editors draft it, an admin publishes.
         // Content goes live only through an admin: publishing, scheduling and approving.
         'media_delete', 'cms_publish', 'cms_schedule', 'cms_unschedule', 'cms_reject',

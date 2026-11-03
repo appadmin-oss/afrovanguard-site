@@ -81,7 +81,9 @@ ck('Email: a change of email is put to a second admin, in words', is_string($sum
 /* ── The Studio: editors don't reach member data ─────────────────────────── */
 $asApi = (string) file_get_contents(AV_ROOT . '/admin/api.php');
 preg_match('/\$managementOnly = \[(.*?)\];/s', $asApi, $mo);
-foreach (['ac_roster', 'ac_export', 'ac_grants', 'roster_enrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'ngv_intake_consent'] as $act) {
+/* ngv_save sets the NGV fees (NgvLedger::amounts reads them off the page it
+   writes): Studio audit S1. Its reset and restore were already management's. */
+foreach (['ac_roster', 'ac_export', 'ac_grants', 'roster_enrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'ngv_intake_consent', 'ngv_save', 'ngv_reset', 'ngv_restore'] as $act) {
     ck("Studio: $act is not an editor's", str_contains($mo[1] ?? '', "'$act'"));
 }
 ck('Studio: the moderation queues show editors no email addresses', str_contains($asApi, '$noEmails(') && substr_count($asApi, '$noEmails(') >= 2);
