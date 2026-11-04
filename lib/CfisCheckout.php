@@ -171,6 +171,8 @@ final class CfisCheckout
             'description' => $description,
             'return_url' => $returnUrl,
             'metadata' => $meta,
+            /* The door this is for. One key signs every request to CFIS. */
+            'typ' => 'cfis.checkout',
         ]);
 
         if (empty($res['ok'])) {
@@ -204,7 +206,7 @@ final class CfisCheckout
 
         $res = self::post(
             '/api/checkout/' . rawurlencode(self::source()) . '/' . rawurlencode($reference) . '/status',
-            []
+            ['typ' => 'cfis.checkout.status']
         );
 
         if (empty($res['ok'])) {
