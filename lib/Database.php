@@ -103,7 +103,12 @@ final class Database
             // WAL lets readers and a writer work concurrently (SQLite's default
             // rollback journal locks the whole DB on every write); busy_timeout
             // makes a blocked write wait briefly instead of failing outright.
-            try { $pdo->exec('PRAGMA journal_mode = WAL'); $pdo->exec('PRAGMA busy_timeout = 5000'); $pdo->exec('PRAGMA synchronous = NORMAL'); } catch (\Throwable $e) {}
+            // Each on its own: WAL can be refused (a network filesystem, a read-only
+            // directory), and when it was, the busy_timeout after it in the same try
+            // never ran, so every concurrent write failed at once with "database is locked".
+            try { $pdo->exec('PRAGMA busy_timeout = 5000'); } catch (\Throwable $e) {}
+            try { $pdo->exec('PRAGMA journal_mode = WAL'); } catch (\Throwable $e) { error_log('[db] WAL refused: ' . $e->getMessage()); }
+            try { $pdo->exec('PRAGMA synchronous = NORMAL'); } catch (\Throwable $e) {}
             return $pdo;
         };
 
@@ -121,6 +126,8 @@ final class Database
             }
             try {
                 $pdo = new PDO($dsn, getenv('AV_DB_USER') ?: null, getenv('AV_DB_PASS') ?: null, $opts);
+                // NOW() and CURRENT_TIMESTAMP in UTC, like SQLite and PHP (see bootstrap).
+                try { $pdo->exec($driver === 'mysql' ? "SET time_zone = '+00:00'" : "SET TIME ZONE 'UTC'"); } catch (\Throwable $e) {}
             } catch (Throwable $e) {
                 // Configured MySQL/Postgres unreachable. By default we fall back to
                 // SQLite so the public site stays up (logged + surfaced in System
@@ -203,9 +210,20 @@ final class Database
     private static function ensureLmsVerify(): void
     {
         if (!self::tableExists('lms_users')) return;
+        /* Accounts that existed before verification are verified. The backfill
+           used to run once, right after the ALTER: if it failed, the column was
+           there, this branch never ran again, and every existing account stayed
+           unverified for good. The intent is written down first (the highest id
+           it covers), so a failed backfill is finished on the next run, and an
+           account made in between is never swept in with them. */
         if (!self::columnExists('lms_users', 'email_verified')) {
+            self::metaSet('lms_verify_backfill_upto', (string) (int) self::$pdo->query('SELECT COALESCE(MAX(id), 0) FROM lms_users')->fetchColumn());
             self::$pdo->exec("ALTER TABLE lms_users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0");
-            self::$pdo->exec("UPDATE lms_users SET email_verified = 1");
+        }
+        $upto = self::metaGet('lms_verify_backfill_upto');
+        if ($upto !== null && $upto !== '') {
+            self::$pdo->prepare('UPDATE lms_users SET email_verified = 1 WHERE id <= ?')->execute([(int) $upto]);
+            self::metaSet('lms_verify_backfill_upto', '');
         }
         if (!self::columnExists('lms_users', 'verify_hash'))    self::$pdo->exec("ALTER TABLE lms_users ADD COLUMN verify_hash TEXT");
         if (!self::columnExists('lms_users', 'verify_expires')) self::$pdo->exec("ALTER TABLE lms_users ADD COLUMN verify_expires TEXT");
@@ -409,11 +427,72 @@ final class Database
         // series_id, series_part and cover_is_dark were never created on a
         // server database, on a fresh install or an old one. That is the exact
         // bug class tests/drift.test.php exists to catch, and it caught it.
+        /* db/schema.sql is the canonical schema; the hand-written server files
+           fall behind it (has_password, lms_audit.ip and the diary tables were
+           missing from both). So a server database is brought up to schema.sql
+           itself, translated, on every schema change, the same way SQLite is. */
+        self::$syncErrors = 0;
+        try { $ddl = @file_get_contents(AV_ROOT . '/db/schema.sql'); if ($ddl) self::syncTablesFromDdl(self::$pdo, (string) $ddl, self::driver(), 'db'); }
+        catch (Throwable $e) { self::$syncErrors++; error_log('[db] server schema sync: ' . $e->getMessage()); }
+        $failed = self::$syncErrors > 0;
         foreach (['ensureColumns', 'ensureAcademy', 'ensureLmsVerify', 'ensureDiaryEntries'] as $step) {
-            try { self::$step(); } catch (Throwable $e) { error_log('[db] server migration ' . $step . ': ' . $e->getMessage()); }
+            try { self::$step(); } catch (Throwable $e) { $failed = true; error_log('[db] server migration ' . $step . ': ' . $e->getMessage()); }
         }
-        try { self::metaSet('schema_state', $stamp); self::metaSet('schema_migrated_at', gmdate('c')); }
-        catch (Throwable $e) { error_log('[db] record server schema_state: ' . $e->getMessage()); }
+        if (self::driver() === 'mysql') { try { self::ensureMysqlForeignKeys(); } catch (Throwable $e) { error_log('[db] foreign keys: ' . $e->getMessage()); } }
+        self::stampOrRetry($stamp, $failed);
+    }
+
+    /**
+     * Give an existing MySQL database the foreign keys schema.sql declares.
+     *
+     * A database built before mysqlForeignKeys() has none (MySQL ignored the
+     * inline form). Each is added only where no row already breaks it: adding
+     * one over orphans fails, and deleting the orphans to make room would be
+     * this code deciding to destroy data. Those that are held back are written
+     * to app_meta (`mysql_fk_held`) with their orphan counts, for a person.
+     */
+    private static function ensureMysqlForeignKeys(): void
+    {
+        $ddl = (string) @file_get_contents(AV_ROOT . '/db/schema.sql');
+        $ddl = (string) preg_replace(['~/\*.*?\*/~s', '~--[^\n]*~'], '', $ddl);
+        if (!preg_match_all('/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`]?(\w+)["`]?\s*\((.*?)\)\s*;/is', $ddl, $mm, PREG_SET_ORDER)) return;
+        $have = self::$pdo->prepare('SELECT 1 FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME = ? LIMIT 1');
+        $held = [];
+        foreach ($mm as $m) {
+            foreach (self::splitTopLevel($m[2]) as $def) {
+                if (!preg_match('/^\s*["`]?(\w+)["`]?\s+.*?\bREFERENCES\s+["`]?(\w+)["`]?\s*\(\s*["`]?(\w+)["`]?\s*\)((?:\s+ON\s+(?:DELETE|UPDATE)\s+(?:CASCADE|SET\s+NULL|RESTRICT|NO\s+ACTION))*)/is', $def, $f)) continue;
+                [$all, $col, $rt, $rc, $on] = $f;
+                $t = $m[1];
+                if (!self::tableExists($t) || !self::tableExists($rt)) continue;
+                $have->execute([$t, $col, $rt]);
+                if ($have->fetchColumn()) continue;
+                $orph = (int) self::$pdo->query("SELECT COUNT(*) FROM `$t` c LEFT JOIN `$rt` p ON p.`$rc` = c.`$col` WHERE c.`$col` IS NOT NULL AND p.`$rc` IS NULL")->fetchColumn();
+                if ($orph > 0) { $held[] = "$t.$col → $rt ($orph rows point at nothing)"; continue; }
+                try { self::$pdo->exec("ALTER TABLE `$t` ADD FOREIGN KEY (`$col`) REFERENCES `$rt`(`$rc`)" . $on); }
+                catch (Throwable $e) { $held[] = "$t.$col → $rt: " . $e->getMessage(); }
+            }
+        }
+        self::metaSet('mysql_fk_held', $held ? (string) json_encode($held) : '');
+    }
+
+    /** Failures in the current schema sync (a create or an add that threw). */
+    private static int $syncErrors = 0;
+
+    /**
+     * Record the schema as current, or leave it to be tried again.
+     *
+     * The stamp used to be written whatever happened, so a step that failed
+     * once — the email-verification backfill on a locked table, say — was never
+     * run again, and every account it should have marked verified stayed
+     * unverified for good. A failed run now leaves the stamp alone, so the next
+     * request retries; the failure is recorded where Health can show it.
+     */
+    private static function stampOrRetry(string $stamp, bool $failed): void
+    {
+        try {
+            if ($failed) { self::metaSet('schema_failed_at', gmdate('c')); return; }
+            self::metaSet('schema_state', $stamp); self::metaSet('schema_migrated_at', gmdate('c'));
+        } catch (Throwable $e) { error_log('[db] record schema_state: ' . $e->getMessage()); }
     }
 
     /** Add columns introduced after the first release (idempotent). */
@@ -433,13 +512,14 @@ final class Database
 
         // Generic sync first — create any missing tables/columns from schema.sql so
         // the schema is complete before the bespoke grandfathering/seed steps run.
-        try { self::syncSchemaFromFile(); } catch (Throwable $e) { error_log('[db] schema sync: ' . $e->getMessage()); }
+        self::$syncErrors = 0;
+        try { self::syncSchemaFromFile(); } catch (Throwable $e) { self::$syncErrors++; error_log('[db] schema sync: ' . $e->getMessage()); }
+        $failed = self::$syncErrors > 0;
         foreach (['ensureColumns', 'ensureAcademy', 'ensureDiaryEntries', 'ensureLmsVerify'] as $step) {
-            try { self::$step(); } catch (Throwable $e) { error_log('[db] migration step ' . $step . ': ' . $e->getMessage()); }
+            try { self::$step(); } catch (Throwable $e) { $failed = true; error_log('[db] migration step ' . $step . ': ' . $e->getMessage()); }
         }
         self::maybePurgeDemo();
-        try { self::metaSet('schema_state', $stamp); self::metaSet('schema_migrated_at', gmdate('c')); }
-        catch (Throwable $e) { error_log('[db] record schema_state: ' . $e->getMessage()); }
+        self::stampOrRetry($stamp, $failed);
     }
 
     /**
@@ -493,7 +573,7 @@ final class Database
             $exists = self::tableExistsOn($pdo, $table, $drv);
             if ($exists !== true) {
                 try { $pdo->exec(self::translateDDL($m[0] . "\n", $drv)); }
-                catch (Throwable $e) { error_log('[' . $tag . '] create ' . $table . ': ' . $e->getMessage()); }
+                catch (Throwable $e) { self::$syncErrors++; error_log('[' . $tag . '] create ' . $table . ': ' . $e->getMessage()); }
                 // Definitely absent means it was just created with every column, so
                 // there is nothing to diff. When the probe could not tell, the CREATE
                 // was an IF NOT EXISTS no-op and the diff below is still worth running
@@ -513,7 +593,7 @@ final class Database
                 if (preg_match('/\bDEFAULT\s+(\x27[^\x27]*\x27|"[^"]*"|-?[0-9.]+)/i', $rest, $dm)) $dflt = ' DEFAULT ' . $dm[1];
                 // A bare TEXT cannot carry a DEFAULT on several MySQL builds — the same
                 // reason ensureAcademy() declares short string columns as VARCHAR there.
-                if ($drv !== 'sqlite' && $dflt !== '' && strcasecmp($type, 'TEXT') === 0) $type = 'VARCHAR(191)';
+                if ($drv === 'mysql' && $dflt !== '' && strcasecmp($type, 'TEXT') === 0) $dflt = ' DEFAULT (' . substr($dflt, 9) . ')';
                 // `(datetime('now'))` is a non-constant default, so the rule above drops
                 // it — but translateDDL PROMOTES that column to a real timestamp type
                 // when it creates the table. A repaired column has to match, or the same
@@ -529,7 +609,7 @@ final class Database
                 // the MAIN connection's driver — wrong when syncing a second database.
                 $ident = $drv === 'mysql' ? '`' . $col . '`' : $col;
                 try { $pdo->exec('ALTER TABLE ' . $table . ' ADD COLUMN ' . $ident . ' ' . $type . $dflt); $added++; }
-                catch (Throwable $e) { error_log('[' . $tag . '] add ' . $table . '.' . $col . ': ' . $e->getMessage()); }
+                catch (Throwable $e) { self::$syncErrors++; error_log('[' . $tag . '] add ' . $table . '.' . $col . ': ' . $e->getMessage()); }
             }
         }
         return $added;
@@ -816,8 +896,55 @@ final class Database
             $sql = preg_replace('/\n([ \t]*)\);/', "\n\$1) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", $sql);
             // MySQL lacks IF NOT EXISTS on indexes — strip it for both plain and UNIQUE indexes.
             $sql = preg_replace('/CREATE\s+(UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS/i', 'CREATE $1INDEX', $sql);
+            $sql = self::mysqlDdl((string) $sql);
         }
         return $sql;
+    }
+
+    /** Everything MySQL needs said differently: TEXT defaults, and foreign keys. */
+    public static function mysqlDdl(string $sql): string
+    {
+        return self::mysqlForeignKeys(self::mysqlTextDefaults($sql));
+    }
+
+    /**
+     * Inline `col INTEGER REFERENCES t(id) ON DELETE CASCADE` as a table-level
+     * FOREIGN KEY clause, the only form MySQL enforces.
+     *
+     * MySQL parses a REFERENCES written inside a column definition and then
+     * ignores it, without a warning. So on MySQL nothing cascaded: deleting a
+     * course left its modules, lessons and progress rows behind, and deleting
+     * an article its tags and reactions. SQLite and Postgres enforce the inline
+     * form, which is why only MySQL had orphans.
+     */
+    public static function mysqlForeignKeys(string $sql): string
+    {
+        return (string) preg_replace_callback('/(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"]?\w+[`"]?\s*\()(.*?)(\n[ \t]*\)\s*(?:ENGINE[^;]*)?;)/is', static function ($m) {
+            if (stripos($m[2], 'REFERENCES') === false) return $m[0];
+            $body = (string) preg_replace('/--[^\n]*/', '', $m[2]);
+            $parts = self::splitTopLevel($body); $fks = [];
+            foreach ($parts as $i => $p) {
+                if (preg_match('/^\s*(?:FOREIGN|CONSTRAINT)\b/i', $p)) continue;
+                if (!preg_match('/^(\s*[`"]?(\w+)[`"]?\s+.*?)\s+REFERENCES\s+[`"]?(\w+)[`"]?\s*\(\s*[`"]?(\w+)[`"]?\s*\)((?:\s+ON\s+(?:DELETE|UPDATE)\s+(?:CASCADE|SET\s+NULL|RESTRICT|NO\s+ACTION))*)(.*)$/is', $p, $mm)) continue;
+                $parts[$i] = $mm[1] . $mm[6];
+                $fks[] = "\n  FOREIGN KEY (`{$mm[2]}`) REFERENCES `{$mm[3]}`(`{$mm[4]}`)" . $mm[5];
+            }
+            return $m[1] . implode(',', array_merge($parts, $fks)) . $m[3];
+        }, $sql);
+    }
+
+    /**
+     * `TEXT … DEFAULT 'x'` as MySQL accepts it: `DEFAULT ('x')`.
+     *
+     * Strict MySQL 8 refuses a literal default on a TEXT column (error 1101),
+     * so the very first CREATE TABLE of a fresh install failed and every request
+     * after it was a 500. MariaDB accepts the literal, which is why it worked
+     * there. An expression default is accepted by MySQL 8.0.13+ and MariaDB
+     * 10.2+ alike, and behaves exactly as the literal did.
+     */
+    public static function mysqlTextDefaults(string $sql): string
+    {
+        return (string) preg_replace("/\b((?:TINY|MEDIUM|LONG)?TEXT)(\s+NOT\s+NULL)?\s+DEFAULT\s+('(?:[^']|'')*'|-?[0-9.]+)/i", '$1$2 DEFAULT ($3)', $sql);
     }
 
     public static function migrate(): void
@@ -842,6 +969,7 @@ final class Database
         if ($sql === false || trim((string) $sql) === '') throw new RuntimeException("Cannot read {$file}");
         // Strip comments (some contain ';') before splitting on the statement terminator.
         $sql = (string) preg_replace('/--[^\n]*/', '', $sql);
+        if ($driver === 'mysql') $sql = self::mysqlDdl($sql);
         foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
             self::$pdo->exec($stmt);
         }

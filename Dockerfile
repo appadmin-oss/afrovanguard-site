@@ -3,7 +3,8 @@
 # Fly.io, a plain VM, or local Docker). PHP + Apache with the app's .htaccess
 # routing intact. All configuration is via environment variables (see DEPLOY.md)
 # — no code changes needed to move between hosts.
-FROM php:8.2-apache
+# PHP 8.4, the version the code and its tests are written against.
+FROM php:8.4-apache
 
 # Apache: rewrite + headers for the app's .htaccess (routing + CSP).
 RUN a2enmod rewrite headers \
@@ -28,8 +29,8 @@ COPY . /var/www/html/
 # Writable paths: the SQLite dir (default DB) and local uploads fallback. On
 # read-only/ephemeral hosts (Cloud Run) point AV_DB_* at a managed DB instead —
 # see DEPLOY.md. Never bake secrets into the image; pass them as env vars.
-RUN mkdir -p /var/www/html/db /var/www/html/uploads /var/www/html/data \
- && chown -R www-data:www-data /var/www/html/db /var/www/html/uploads /var/www/html/data
+RUN mkdir -p /var/www/html/db/private /var/www/html/db/cache /var/www/html/uploads /var/www/html/data /var/lib/afrovanguard \
+ && chown -R www-data:www-data /var/www/html/db /var/www/html/uploads /var/www/html/data /var/lib/afrovanguard
 
 # Listen on $PORT (Cloud Run/App Runner inject it; defaults to 8080).
 ENV PORT=8080

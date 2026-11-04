@@ -77,7 +77,12 @@ final class NgvDb
             if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
             $pdo = new PDO('sqlite:' . $path, null, null, $opts);
             $pdo->exec('PRAGMA foreign_keys = ON');
-            try { $pdo->exec('PRAGMA journal_mode = WAL'); $pdo->exec('PRAGMA busy_timeout = 5000'); $pdo->exec('PRAGMA synchronous = NORMAL'); } catch (Throwable $e) {}
+            // Each on its own: WAL can be refused (a network filesystem, a read-only
+            // directory), and when it was, the busy_timeout after it in the same try
+            // never ran, so every concurrent write failed at once with "database is locked".
+            try { $pdo->exec('PRAGMA busy_timeout = 5000'); } catch (\Throwable $e) {}
+            try { $pdo->exec('PRAGMA journal_mode = WAL'); } catch (\Throwable $e) { error_log('[db] WAL refused: ' . $e->getMessage()); }
+            try { $pdo->exec('PRAGMA synchronous = NORMAL'); } catch (\Throwable $e) {}
             return $pdo;
         };
 
@@ -95,6 +100,7 @@ final class NgvDb
             }
             try {
                 $pdo = new PDO($dsn, self::cfg('AV_NGV_DB_USER') ?: null, self::cfg('AV_NGV_DB_PASS') ?: null, $opts);
+                try { $pdo->exec(str_starts_with($dsn, 'mysql') ? "SET time_zone = '+00:00'" : "SET TIME ZONE 'UTC'"); } catch (Throwable $e) {}   // UTC, like everything else that stamps a row
             } catch (Throwable $e) {
                 $strict = class_exists('Database') ? Database::dbStrict() : false;
                 error_log('[ngvdb] ' . $driver . ' connect failed (' . $e->getMessage() . ')'

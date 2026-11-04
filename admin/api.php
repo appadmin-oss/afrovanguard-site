@@ -1044,6 +1044,14 @@ try {
                 json_out(['ok' => false, 'error' => 'This site is already running on '
                     . strtoupper(Database::driver()) . '. There is nothing to move.'], 422);
             }
+            /* Running on SQLite because the configured server database is DOWN is
+               not running on SQLite: the file is a stale fallback, and a replace
+               copy from it would empty the live database and refill it with old
+               rows. Never move data out of a fallback. */
+            if (Database::fellBack() !== null) {
+                json_out(['ok' => false, 'error' => 'The site is on its fallback copy because ' . strtoupper((string) Database::fellBack())
+                    . ' could not be reached. Nothing is moved from a fallback: fix the connection first.'], 409);
+            }
             try { $dst = DbMigrateJob::connect($conf); }
             catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Could not connect: ' . $e->getMessage()], 502); }
             $src = Database::pdo();
@@ -1081,6 +1089,10 @@ try {
             require_once AV_ROOT . '/lib/Migrator.php';
             $to   = strtolower(trim((string) ($body['driver'] ?? '')));
             if (!in_array($to, ['mysql', 'pgsql'], true)) json_out(['ok' => false, 'error' => 'Choose a MySQL or PostgreSQL target.'], 422);
+            if ($action === 'db_migrate' && Database::fellBack() !== null) {
+                json_out(['ok' => false, 'error' => 'The site is on its fallback copy because ' . strtoupper((string) Database::fellBack())
+                    . ' could not be reached. Nothing is moved from a fallback: fix the connection first.'], 409);
+            }
             $host = trim((string) ($body['host'] ?? '')) ?: '127.0.0.1';
             $port = trim((string) ($body['port'] ?? '')) ?: ($to === 'pgsql' ? '5432' : '3306');
             $name = trim((string) ($body['name'] ?? ''));
@@ -1115,6 +1127,7 @@ try {
                 $file = AV_ROOT . "/db/schema.$to.sql";
                 if (!is_file($file)) json_out(['ok' => false, 'error' => "Schema file missing: db/schema.$to.sql"], 500);
                 $sql = preg_replace('/--[^\n]*/', '', (string) file_get_contents($file));
+                if ($to === 'mysql') $sql = Database::mysqlDdl((string) $sql);   // strict MySQL 8 refuses a literal TEXT default
                 /* "Already there" is not a failure. MySQL has no
                    CREATE INDEX IF NOT EXISTS, so re-applying this schema always
                    raises 1061 Duplicate key name on the first index — and this

@@ -194,6 +194,12 @@ if (!defined('AV_DB_PATH'))       define('AV_DB_PATH', getenv('AV_DB_PATH') ?: (
 // Organisation timezone. Data is stored UTC; this is the wall-clock members
 // live in (Nigeria = WAT, UTC+1, no DST). Per-user overrides via Prefs.
 if (!defined('AV_TZ'))            define('AV_TZ', getenv('AV_TZ') ?: 'Africa/Lagos');
+/* Stored timestamps are UTC, and so is everything that writes one. date() used
+   whatever the host's php.ini said, SQLite's datetime('now') is UTC and MySQL's
+   NOW() is the server's own zone, so one table could hold three clocks and a
+   "last 24 hours" query compared across them. The wall clock people read is
+   AV_TZ, applied when a time is shown (av_now_tz, av_today_tz). */
+date_default_timezone_set('UTC');
 
 // Admin token (config.php or AV_ADMIN_TOKEN env). Absent ⇒ admin disabled.
 if (!defined('ADMIN_TOKEN')) {

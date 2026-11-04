@@ -144,6 +144,16 @@ final class Config
                 ? (int) $pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")->fetchColumn()
                 : (int) $pdo->query('SELECT COUNT(*) FROM information_schema.tables' . ($drv === 'mysql' ? ' WHERE table_schema = DATABASE()' : " WHERE table_schema='public'"))->fetchColumn();
             $db[] = self::chk('Tables', 'info', (string) $tables);
+            /* A schema step that failed is retried on the next request rather than
+               recorded as done; say so here, or it fails quietly for ever. */
+            $sf = (string) (Database::metaGet('schema_failed_at') ?? '');
+            $sm = (string) (Database::metaGet('schema_migrated_at') ?? '');
+            $db[] = $sf !== '' && $sf > $sm
+                ? self::chk('Schema', 'warn', 'a schema step failed at ' . $sf . ' and is being retried; see the error log')
+                : self::chk('Schema', 'ok', $sm !== '' ? 'current since ' . $sm : 'current');
+            if (Database::driver() === 'mysql' && ($held = json_decode((string) (Database::metaGet('mysql_fk_held') ?? ''), true))) {
+                $db[] = self::chk('Foreign keys', 'warn', count($held) . ' held back because rows already break them: ' . implode('; ', array_slice($held, 0, 3)));
+            }
             $arts = (int) $pdo->query('SELECT COUNT(*) FROM articles')->fetchColumn();
             $users = (int) $pdo->query('SELECT COUNT(*) FROM lms_users')->fetchColumn();
             $db[] = self::chk('Content', 'info', $arts . ' articles · ' . $users . ' accounts');

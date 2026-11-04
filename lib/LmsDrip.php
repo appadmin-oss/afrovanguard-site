@@ -220,8 +220,9 @@ final class LmsDrip
                 self::send((string) $r['email'], 'academy_live_class', [
                     'first_name'   => self::first((string) $r['name']),
                     'class_title'  => (string) $r['title'],
-                    'class_date'   => date('l j F Y', $ts),
-                    'class_time'   => date('g:ia', $ts) . ' WAT',
+                    // The class is at a Lagos time; the server's clock is UTC.
+                    'class_date'   => (new DateTimeImmutable('@' . $ts))->setTimezone(new DateTimeZone(AV_TZ))->format('l j F Y'),
+                    'class_time'   => (new DateTimeImmutable('@' . $ts))->setTimezone(new DateTimeZone(AV_TZ))->format('g:ia') . ' WAT',
                     'host_name'    => (string) $r['host_name'],
                     'join_url'     => (string) $r['join_url'],
                     'calendar_url' => self::url(self::classPath((int) $r['id'], (int) $r['user_id'])),

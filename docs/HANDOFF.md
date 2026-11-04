@@ -1106,3 +1106,38 @@ inside the location, went straight through.
 7,276 assertions across 176 files. Four guards mutation-tested. Verified in a
 browser at the reported size and, more to the point, at a **417px card in a
 1400px window** — the case a media query cannot see.
+
+## 2026-11-04 — November audit: Academy, NGV, database layer
+
+Every finding of the audit is fixed; `tests/audit-2026-11.test.php` holds one
+case per finding. The database half was run for real against MySQL 8.0.46
+(strict mode) and PostgreSQL 16, not only read.
+
+- **Academy.** Pass codes never leave the server (`AcademyRepository::publicView`,
+  `PUBLIC_COLS`); learners act on published courses only; a quiz lesson is
+  completed by passing it and a certificate needs every quiz passed; an
+  instructor teaches their own courses (`LmsRepository::teaches`); links are read
+  as a browser reads them; a lesson video frames only `Embeds::iframeSrc()`;
+  JSON-LD is `JSON_HEX_TAG`; a live class's calendar entry is signed per
+  recipient (`LmsDrip::classSig`).
+- **Why edits took days to show.** The host stamps every response with
+  `max-age=604800`, and API answers carried no header of their own. `json_out`
+  is `no-store`, `.htaccess` gives HTML and JSON no lifetime, and the admin and
+  Studio fetch with `cache: 'no-store'`.
+- **NGV.** A new training fee releases a voided month (`NgvLedger::VOID_SLOT`);
+  a declined leave is fined; nobody changes their own enrolment, fee or fines;
+  the desk records the membership fee, not any sum.
+- **MySQL 8.** `Database::mysqlDdl()`: TEXT defaults as `DEFAULT ('…')`, inline
+  REFERENCES as table-level FOREIGN KEYs. An existing MySQL database gets its
+  keys where no row breaks them; the rest are listed on Health.
+- **Schema.** Server databases sync from `db/schema.sql` itself; a failed step
+  is retried, never stamped; the verification backfill finishes on a later run.
+- **Migration.** Every source table is created or named; progress saved per
+  slice under a lock with a 20s cap; Postgres serials reset; nothing is moved
+  out of a fallback database.
+- **Ops.** Docker data lives on volumes, never over `db/`; APP_KEY required;
+  PHP 8.4; nginx deny rules in DEPLOY.md; Postgres backups; busy_timeout
+  independent of WAL; timestamps UTC throughout; the one-time superadmin
+  password sealed and expiring after a week.
+- **Rotate the pass codes.** Every restricted course's pass code was readable
+  by anyone before this change. Set new ones in the Studio.

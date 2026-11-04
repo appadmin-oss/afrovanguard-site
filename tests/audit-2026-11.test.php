@@ -120,6 +120,58 @@ ck('audit: the admin and the Studio ask past any copy the browser already holds'
    && str_contains((string) file_get_contents("$auRoot/academy/studio/studio.js"), "cache: 'no-store'"));
 ck('audit: pages and JSON are not given the host\'s week-long default', str_contains((string) file_get_contents("$auRoot/.htaccess"), 'ExpiresByType application/json "access plus 0 seconds"'));
 
+/* ══ 3. MySQL 8: TEXT defaults as expressions, foreign keys MySQL enforces ══ */
+$auDdl = "CREATE TABLE IF NOT EXISTS t (\n  id INTEGER PRIMARY KEY AUTO_INCREMENT,\n  a TEXT NOT NULL DEFAULT 'x',\n  course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,\n  b TEXT NOT NULL DEFAULT ''\n);";
+$auMy = Database::mysqlDdl($auDdl);
+ck('audit: a TEXT default is written as an expression, the last column too', str_contains($auMy, "a TEXT NOT NULL DEFAULT ('x')") && str_contains($auMy, "b TEXT NOT NULL DEFAULT ('')"));
+ck('audit: …and an already-wrapped one is left alone', Database::mysqlTextDefaults("c TEXT DEFAULT ('y')") === "c TEXT DEFAULT ('y')");
+ck('audit: an inline REFERENCES becomes a table-level FOREIGN KEY', str_contains($auMy, 'FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE CASCADE')
+   && !preg_match('/course_id INTEGER NOT NULL REFERENCES/', $auMy));
+ck('audit: translateDDL applies both for MySQL', str_contains(Database::translateDDL($auDdl, 'mysql'), "DEFAULT ('x')") && str_contains(Database::translateDDL($auDdl, 'mysql'), 'FOREIGN KEY (`course_id`)'));
+ck('audit: the MySQL schema file has no literal TEXT default left', !preg_match("/\\bTEXT(\\s+NOT\\s+NULL)?\\s+DEFAULT\\s+'/i", (string) file_get_contents("$auRoot/db/schema.mysql.sql")));
+
+/* ══ 4. A migration names every table it cannot move ═════════════════════ */
+require_once "$auRoot/lib/Migrator.php"; require_once "$auRoot/lib/DbMigrateJob.php";
+$auSrc = new PDO('sqlite::memory:'); $auDst = new PDO('sqlite::memory:');
+foreach ([$auSrc, $auDst] as $auP) $auP->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$auSrc->exec('CREATE TABLE keep (id INTEGER PRIMARY KEY, v TEXT)'); $auSrc->exec("INSERT INTO keep (v) VALUES ('a')");
+$auSrc->exec('CREATE TABLE secrets (id INTEGER PRIMARY KEY, v TEXT)'); $auSrc->exec("INSERT INTO secrets (v) VALUES ('s')");
+$auDst->exec('CREATE TABLE keep (id INTEGER PRIMARY KEY, v TEXT)');
+$auRep = Migrator::migrate($auSrc, $auDst, []);
+ck('audit: a table missing on the target is a failure in the report, not left out', isset($auRep['secrets']) && $auRep['secrets']['ok'] === false && $auRep['keep']['ok'] === true);
+$auThrew = '';
+try { DbMigrateJob::reset(); DbMigrateJob::begin($auSrc, $auDst, ['driver' => 'sqlite', 'host' => 'x', 'name' => 'y'], true); } catch (Throwable $e) { $auThrew = $e->getMessage(); }
+DbMigrateJob::reset();
+ck('audit: the resumable job will not start while a table has no home', str_contains($auThrew, 'The target has no table for: secrets'));
+$auJob = (string) file_get_contents("$auRoot/lib/DbMigrateJob.php");
+ck('audit: progress is saved after every slice, one step at a time, under a server cap', str_contains($auJob, 'self::put($s);   // after EVERY slice')
+   && str_contains($auJob, 'flock($lock, LOCK_EX | LOCK_NB)') && str_contains($auJob, 'min(self::BUDGET_MAX'));
+ck('audit: Postgres serials are moved past the copied ids', str_contains($auJob, "pg_get_serial_sequence('\" . \$t . \"','id')"));
+ck('audit: nothing is moved out of a fallback database', substr_count((string) file_get_contents("$auRoot/admin/api.php"), 'Nothing is moved from a fallback') === 2);
+
+/* ══ 5/6. Schema: kept current, retried when it fails; data off the code ═══ */
+$auDb2 = (string) file_get_contents("$auRoot/lib/Database.php");
+ck('audit: a server database is synced from schema.sql itself', str_contains($auDb2, "self::syncTablesFromDdl(self::\$pdo, (string) \$ddl, self::driver(), 'db')"));
+ck('audit: a failed schema step is not stamped as done', str_contains($auDb2, "if (\$failed) { self::metaSet('schema_failed_at'") && substr_count($auDb2, 'self::stampOrRetry($stamp, $failed);') === 2);
+ck('audit: the verification backfill is finished on a later run if it failed', str_contains($auDb2, "lms_verify_backfill_upto"));
+ck('audit: busy_timeout no longer rides on WAL', str_contains($auDb2, "try { \$pdo->exec('PRAGMA busy_timeout = 5000'); } catch"));
+$auComp = (string) file_get_contents("$auRoot/docker-compose.yml");
+ck('audit: Docker never mounts a volume over db/', !preg_match('~-\s*app-db:/var/www/html/db\s~', $auComp) && str_contains($auComp, 'AV_DB_PATH: "/var/lib/afrovanguard/diary.sqlite"'));
+ck('audit: Docker needs a real APP_KEY and runs PHP 8.4', str_contains($auComp, 'APP_KEY: "${APP_KEY:?') && str_contains((string) file_get_contents("$auRoot/Dockerfile"), 'FROM php:8.4-apache'));
+ck('audit: the nginx guide denies db/', str_contains((string) file_get_contents("$auRoot/DEPLOY.md"), 'location ~ ^/(lib|db|data|'));
+ck('audit: Postgres backups have their own dump', str_contains((string) file_get_contents("$auRoot/lib/Backups.php"), "if (\$drv === 'pgsql') return [self::dumpPg(\$pdo), 'sql'];"));
+ck('audit: every stored timestamp is UTC', date_default_timezone_get() === 'UTC');
+
+/* ══ The one-time superadmin password is sealed, and expires ══════════════ */
+$auPwWas = Database::metaGet('superadmin_initial_password');
+Database::metaSet('superadmin_initial_password', 'legacy-plain-pw'); Database::metaSet('superadmin_initial_password_at', (string) time());
+ck('audit: a password stored in the clear by an older version is still revealed once', SuperAdmin::pendingPassword() === 'legacy-plain-pw');
+ck('audit: …and is sealed the moment it is read', str_starts_with((string) Database::metaGet('superadmin_initial_password'), 'sp1:') && SuperAdmin::pendingPassword() === 'legacy-plain-pw');
+Database::metaSet('superadmin_initial_password_at', (string) (time() - 8 * 86400));
+ck('audit: …and it is gone after a week', SuperAdmin::pendingPassword() === '');
+Database::metaSet('superadmin_initial_password', (string) ($auPwWas ?? '')); Database::metaSet('superadmin_initial_password_at', '');
+ck('audit: seed_admin checks the account exists before saying it was made', str_contains((string) file_get_contents("$auRoot/db/seed_admin.php"), 'could NOT be created'));
+
 /* tidy */
 $auDb->exec("DELETE FROM lms_users WHERE email = 'audit.learner@example.test'");
 foreach (['ngv_charges', 'ngv_participants'] as $auT) { try { $auN->exec("DELETE FROM $auT WHERE member_id = 7101"); } catch (Throwable $e) {} }

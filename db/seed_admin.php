@@ -33,6 +33,14 @@ if ($revealOnly) {
 
 $res   = SuperAdmin::ensure();
 $email = $res['email'];
+/* ensure() swallows its own failures (a page must never go down for it), so
+   check the account is really there before telling anybody it is. */
+$chk = Database::pdo()->prepare("SELECT 1 FROM lms_users WHERE email = ? AND role = 'admin' AND status = 'active'");
+$chk->execute([$email]);
+if (!$chk->fetchColumn() || AdminRoles::roleForEmail($email) !== 'superadmin') {
+    fwrite(STDERR, "\nThe Super Admin could NOT be created for {$email}. See the PHP error log for [superadmin].\n\n");
+    exit(1);
+}
 $envPw = (string) (getenv('AV_SUPERADMIN_PASSWORD') ?: '');
 $pw    = $res['password'] ?? SuperAdmin::pendingPassword();
 

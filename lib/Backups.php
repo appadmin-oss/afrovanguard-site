@@ -91,6 +91,7 @@ final class Backups
             @unlink($tmp);
             return [$bytes, 'sqlite'];
         }
+        if ($drv === 'pgsql') return [self::dumpPg($pdo), 'sql'];
         $sql = "-- Afrovanguard backup " . gmdate('c') . "\nSET FOREIGN_KEY_CHECKS=0;\n";
         foreach ($pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN) as $t) {
             $q = '`' . str_replace('`', '``', (string) $t) . '`';
@@ -102,6 +103,48 @@ final class Backups
             }
         }
         return [$sql . "SET FOREIGN_KEY_CHECKS=1;\n", 'sql'];
+    }
+
+    /**
+     * A Postgres dump in plain SQL. The MySQL path above asks SHOW TABLES and
+     * SHOW CREATE TABLE, which Postgres does not have, so every Postgres backup
+     * failed and the status page said so only as an error line. Each table of
+     * the current schema is written as CREATE TABLE from information_schema,
+     * its rows as INSERTs, and its serial set back to where it was, so a
+     * restore with psql gives the same ids and the next insert does not
+     * collide.
+     */
+    private static function dumpPg(PDO $pdo): string
+    {
+        $qi = static fn(string $i): string => '"' . str_replace('"', '""', $i) . '"';
+        $out = "-- Afrovanguard backup " . gmdate('c') . " (PostgreSQL)\nBEGIN;\n";
+        $tables = $pdo->query("SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE' ORDER BY table_name")->fetchAll(PDO::FETCH_COLUMN);
+        $colsQ = $pdo->prepare("SELECT column_name, data_type, character_maximum_length, is_nullable, column_default FROM information_schema.columns
+                                WHERE table_schema = current_schema() AND table_name = ? ORDER BY ordinal_position");
+        $pkQ = $pdo->prepare("SELECT kcu.column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu
+                              ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+                              WHERE tc.table_schema = current_schema() AND tc.table_name = ? AND tc.constraint_type = 'PRIMARY KEY' ORDER BY kcu.ordinal_position");
+        foreach ($tables as $t) {
+            $colsQ->execute([$t]); $cols = $colsQ->fetchAll(PDO::FETCH_ASSOC);
+            $pkQ->execute([$t]); $pk = $pkQ->fetchAll(PDO::FETCH_COLUMN);
+            $defs = []; $serials = [];
+            foreach ($cols as $c) {
+                $type = (string) $c['data_type'] . ($c['character_maximum_length'] ? '(' . (int) $c['character_maximum_length'] . ')' : '');
+                $def = (string) ($c['column_default'] ?? '');
+                if (str_starts_with($def, 'nextval(')) { $serials[] = (string) $c['column_name']; $type = $type === 'bigint' ? 'BIGSERIAL' : 'SERIAL'; $def = ''; }
+                $defs[] = $qi((string) $c['column_name']) . ' ' . $type . ($c['is_nullable'] === 'NO' ? ' NOT NULL' : '') . ($def !== '' ? ' DEFAULT ' . $def : '');
+            }
+            if ($pk) $defs[] = 'PRIMARY KEY (' . implode(', ', array_map($qi, $pk)) . ')';
+            $out .= "\nDROP TABLE IF EXISTS " . $qi($t) . " CASCADE;\nCREATE TABLE " . $qi($t) . " (\n  " . implode(",\n  ", $defs) . "\n);\n";
+            $st = $pdo->query('SELECT * FROM ' . $qi($t));
+            while ($row = $st->fetch(PDO::FETCH_NUM)) {
+                $out .= 'INSERT INTO ' . $qi($t) . ' VALUES (' . implode(',', array_map(static fn($v) => $v === null ? 'NULL' : (is_bool($v) ? ($v ? 'TRUE' : 'FALSE') : $pdo->quote((string) $v)), $row)) . ");\n";
+            }
+            foreach ($serials as $col) {
+                $out .= "SELECT setval(pg_get_serial_sequence('" . str_replace("'", "''", $qi($t)) . "', '" . str_replace("'", "''", $col) . "'), COALESCE((SELECT MAX(" . $qi($col) . ") FROM " . $qi($t) . "), 0) + 1, false);\n";
+            }
+        }
+        return $out . "COMMIT;\n";
     }
 
     public static function encrypt(string $plain, string $key): string
