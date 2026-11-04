@@ -1141,3 +1141,27 @@ case per finding. The database half was run for real against MySQL 8.0.46
   password sealed and expiring after a week.
 - **Rotate the pass codes.** Every restricted course's pass code was readable
   by anyone before this change. Set new ones in the Studio.
+
+### Deeper pass (same day)
+
+Traced what the first pass did not: every upload path, the payment
+confirmations, sign-in (password, code, Google, reset, verification),
+ownership checks on member and mentor records, server-side fetches, the
+admin role lists, webhooks and integrations, exports, redirects, API tokens.
+Seven defects, all fixed and pinned in `tests/audit-2026-11.test.php`:
+
+- `Otp::check` claims a try in the WHERE of its UPDATE and spends a code once.
+  Proven on MySQL 8 with 19 simultaneous guesses: the counter stops at the cap
+  and the right code is refused afterwards.
+- A password reset spends its link before setting the password, retires live
+  sign-in codes, and emails the owner afterwards.
+- A verification link no longer signs in a suspended account.
+- `finalizePayment` refuses a non-naira payment for a course or membership.
+- `AvWeb` pins cURL to the address it checked (`CURLOPT_RESOLVE`), closing DNS
+  rebinding past the private-address check.
+
+Checked and sound: uploads (bytes decide the extension, /uploads cannot run
+code, scans under data/), payment idempotency and ownership, Google state and
+nonce, account email changes, mentor and mentorship ownership, the editor
+deny-list (content only), XML parsing, CSV formula escaping, redirects,
+integration signatures and expiry, API token hashing and scopes.

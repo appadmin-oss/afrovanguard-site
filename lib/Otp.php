@@ -87,15 +87,24 @@ final class Otp
         $row = $st->fetch(PDO::FETCH_ASSOC);
         if (!$row) return false;
 
-        $db->prepare('UPDATE lms_otps SET attempts = attempts + 1 WHERE id = ?')->execute([$row['id']]);
-        if ((int) $row['attempts'] + 1 >= AuthPolicy::otpMaxAttempts() + 1) {
-            // too many tries on this code — burn it.
-            $db->prepare('UPDATE lms_otps SET consumed = 1 WHERE id = ?')->execute([$row['id']]);
+        /* The guess is CLAIMED before it is compared: the increment carries the
+           cap in its WHERE, so it either takes one of the remaining tries or
+           changes nothing. Reading `attempts`, adding one and comparing the
+           snapshot let every guess fired at once read 0 and all be compared —
+           the cap only ever held for guesses made one after another. */
+        $claim = $db->prepare('UPDATE lms_otps SET attempts = attempts + 1 WHERE id = ? AND consumed = 0 AND attempts < ?');
+        $claim->execute([$row['id'], AuthPolicy::otpMaxAttempts()]);
+        if ($claim->rowCount() !== 1) {
+            $db->prepare('UPDATE lms_otps SET consumed = 1 WHERE id = ?')->execute([$row['id']]);   // tries spent: burn it
+            return false;
         }
         if (!hash_equals((string) $row['code_hash'], self::hash($email, $purpose, $code))) return false;
 
-        $db->prepare('UPDATE lms_otps SET consumed = 1 WHERE id = ?')->execute([$row['id']]);
-        return true;
+        /* Spent once: of two requests carrying the right code at the same time,
+           only the one whose update changed the row signs in. */
+        $spend = $db->prepare('UPDATE lms_otps SET consumed = 1 WHERE id = ? AND consumed = 0');
+        $spend->execute([$row['id']]);
+        return $spend->rowCount() === 1;
     }
 
     private static function email(string $to, string $code, int $ttl): void

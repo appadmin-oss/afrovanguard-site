@@ -172,6 +172,40 @@ ck('audit: …and it is gone after a week', SuperAdmin::pendingPassword() === ''
 Database::metaSet('superadmin_initial_password', (string) ($auPwWas ?? '')); Database::metaSet('superadmin_initial_password_at', '');
 ck('audit: seed_admin checks the account exists before saying it was made', str_contains((string) file_get_contents("$auRoot/db/seed_admin.php"), 'could NOT be created'));
 
+/* ══ Deeper pass ══════════════════════════════════════════════════════════ */
+// The sign-in code: its tries are claimed, not counted after the fact, and it is spent once.
+$auMail = 'audit.otp@example.test';
+Otp::ensure();
+$auDb->prepare('DELETE FROM lms_otps WHERE email = ?')->execute([$auMail]);
+$auDb->prepare('INSERT INTO lms_otps (email, purpose, code_hash, ip, expires_at, created_at) VALUES (?,?,?,?,?,?)')
+     ->execute([$auMail, 'login', (new ReflectionMethod('Otp', 'hash'))->invoke(null, $auMail, 'login', '123456'), '', gmdate('Y-m-d H:i:s', time() + 600), gmdate('Y-m-d H:i:s')]);
+$auMax = AuthPolicy::otpMaxAttempts();
+$auDb->prepare('UPDATE lms_otps SET attempts = ? WHERE email = ?')->execute([$auMax, $auMail]);   // as if the last tries had just been claimed by guesses in flight
+ck('audit: a code whose tries are spent refuses even the right code', Otp::check($auMail, '123456', 'login') === false);
+$auDb->prepare('UPDATE lms_otps SET attempts = 0, consumed = 0 WHERE email = ?')->execute([$auMail]);
+ck('audit: the right code signs in once', Otp::check($auMail, '123456', 'login') === true && Otp::check($auMail, '123456', 'login') === false);
+$auOtp = (string) file_get_contents("$auRoot/lib/Otp.php");
+ck('audit: the claim carries the cap in its WHERE', str_contains($auOtp, 'WHERE id = ? AND consumed = 0 AND attempts < ?') && str_contains($auOtp, 'WHERE id = ? AND consumed = 0'));
+$auDb->prepare('DELETE FROM lms_otps WHERE email = ?')->execute([$auMail]);
+
+// A reset ends every way in through the inbox, is spent once, and is announced afterwards.
+$auA = (string) file_get_contents("$auRoot/lib/LmsAuth.php");
+ck('audit: a password reset retires live sign-in codes', str_contains($auA, "UPDATE lms_otps SET consumed = 1 WHERE email = ? AND consumed = 0"));
+ck('audit: a reset link is spent before the password is set, and only once', str_contains($auA, "UPDATE lms_password_resets SET used_at = ? WHERE id = ? AND used_at = ''") && strpos($auA, "AND used_at = ''\");\n        \$spend->execute") < strpos($auA, "SET password_hash = ?, has_password = 1, email_verified = 1"));
+ck('audit: the owner is told after a reset', str_contains($auA, "'Your Afrovanguard password was changed'"));
+ck('audit: a verification link does not sign in a suspended account', str_contains($auA, "if ((\$u['status'] ?? 'active') !== 'active') return null;\n        self::startSession"));
+
+// Money is in naira.
+$auLmsSrc = (string) file_get_contents("$auRoot/lib/LmsRepository.php");
+ck('audit: a course or membership is granted only for a naira payment', str_contains($auLmsSrc, "if (\$currency !== null && !in_array(strtoupper(\$currency), ['NGN', ''], true))")
+   && str_contains((string) file_get_contents("$auRoot/academy/pay.php"), "(string) (\$v['currency'] ?? ''))")
+   && substr_count((string) file_get_contents("$auRoot/lib/PaymentWebhook.php"), 'finalizePayment($ref,') === 2 && !str_contains((string) file_get_contents("$auRoot/lib/PaymentWebhook.php"), "finalizePayment(\$ref, \$paidKobo);"));
+
+// The assistant's fetcher connects to the address it checked.
+$auG = AvWeb::guard('https://8.8.8.8/');
+ck('audit: an IP address needs no pin; the fetch is pinned for a name', ($auG['pin'] ?? 'x') === '' && str_contains((string) file_get_contents("$auRoot/lib/AvWeb.php"), 'CURLOPT_RESOLVE        => $pin !== \'\' ? [$pin] : []'));
+ck('audit: a private address is still refused', isset(AvWeb::guard('http://127.0.0.1/')['error']) && isset(AvWeb::guard('http://[::1]/')['error']));
+
 /* tidy */
 $auDb->exec("DELETE FROM lms_users WHERE email = 'audit.learner@example.test'");
 foreach (['ngv_charges', 'ngv_participants'] as $auT) { try { $auN->exec("DELETE FROM $auT WHERE member_id = 7101"); } catch (Throwable $e) {} }

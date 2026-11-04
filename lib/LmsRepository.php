@@ -551,11 +551,21 @@ final class LmsRepository
      * the caller) closes the underpayment bypass where the webhook granted access
      * without checking the amount.
      */
-    public function finalizePayment(string $reference, ?int $paidKobo = null): bool
+    public function finalizePayment(string $reference, ?int $paidKobo = null, ?string $currency = null): bool
     {
         $p = $this->paymentByRef($reference);
         if (!$p) return false;
         if ($p['status'] === 'paid') return true;       // already granted (idempotent)
+        /* An amount is only an amount in its currency. Every price here is in
+           kobo; 5,000,000 of some other currency's minor units is not ₦50,000.
+           The NGV fee paths always refused non-NGN; the course and membership
+           grant did not. An empty currency is a gateway that did not say (the
+           CACENTRE checkout reports none on some routes), which is not a
+           different currency. */
+        if ($currency !== null && !in_array(strtoupper($currency), ['NGN', ''], true)) {
+            error_log('[lms] finalizePayment refused for ' . $reference . ': paid in ' . $currency . ', priced in NGN');
+            return false;
+        }
         /* ONLY WHAT THIS METHOD CAN ACTUALLY GRANT.
            Without the allow-list, a kind with no branch below — an NGV fee,
            say — was marked paid and granted nothing: the row is consumed, so
@@ -785,7 +795,7 @@ final class LmsRepository
                 continue;
             }
 
-            if ($this->finalizePayment($ref, $minor)) {
+            if ($this->finalizePayment($ref, $minor, (string) ($v['currency'] ?? ''))) {
                 $out['settled']++;
             } else {
                 $out['pending']++;

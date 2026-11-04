@@ -208,7 +208,7 @@ final class PaymentWebhook
             error_log('[webhook] lms: ' . $ref . ' did not verify as paid');
             return ['ok' => false, 'status' => 200, 'error' => 'not verified'];
         }
-        $granted = (new LmsRepository())->finalizePayment($ref, (int) ($v['amount'] ?? 0));
+        $granted = (new LmsRepository())->finalizePayment($ref, (int) ($v['amount'] ?? 0), (string) ($v['currency'] ?? ''));
         return ['ok' => true, 'status' => 200, 'granted' => $granted];
     }
 
@@ -267,7 +267,7 @@ final class PaymentWebhook
             }
         }
 
-        $granted = (new LmsRepository())->finalizePayment($ref, $paidKobo);
+        $granted = (new LmsRepository())->finalizePayment($ref, $paidKobo, $cur);
         if (!$granted && $paidKobo < $priceKobo) {
             /* Short, so no month — and said out loud rather than left in the
                error log, because a subscription locked at last year's price
