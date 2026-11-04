@@ -110,7 +110,7 @@ render_nav('');
 
             <section class="legal-section" id="cookies">
               <h2><span class="legal-num">6</span> Cookies</h2>
-              <p data-cms="privacy-policy-p-6">We use a small number of cookies that are essential to the Site: keeping you signed in, remembering your light or dark theme choice, and protecting forms against cross-site abuse. We don&rsquo;t use third-party advertising or tracking cookies, and we don&rsquo;t need a cookie banner because we set only what the Site requires to function.</p>
+              <p data-cms="privacy-policy-p-6">We use a small number of cookies that are essential to the Site: keeping you signed in, remembering your light or dark theme choice, and protecting forms against cross-site abuse. We also use Google Analytics to count visits and see which pages help people, which sets its own cookies (named <code>_ga</code>). We send it the address of the page without any codes or links in it, and we never send your name, email or account details. If your browser sends Global Privacy Control or Do Not Track, Google Analytics is not loaded at all. You can also opt out with Google&rsquo;s browser add-on at <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener" data-cms="privacy-policy-a-13">tools.google.com/dlpage/gaoptout</a>. We don&rsquo;t use advertising cookies.</p>
             </section>
 
             <section class="legal-section" id="retention">

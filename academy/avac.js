@@ -124,12 +124,15 @@
     };
     const sync = () => {
       if (!form || !history.replaceState) return;
-      const p = new URLSearchParams();
-      if (q && q.value.trim()) p.set('q', q.value.trim());
-      if (cat !== 'all') p.set('track', cat);
-      if (level && level.value) p.set('level', level.value);
-      if (price && price.value) p.set('price', price.value);
-      if (sort && sort.value !== 'recommended') p.set('sort', sort.value);
+      /* Only the filter's own keys change; anything else in the address
+         (a campaign tag, a payment flag) is left exactly where it was. */
+      const p = new URLSearchParams(location.search);
+      const put = (k, v) => { if (v) p.set(k, v); else p.delete(k); };
+      put('q', q ? q.value.trim() : '');
+      put('track', cat !== 'all' ? cat : '');
+      put('level', level ? level.value : '');
+      put('price', price ? price.value : '');
+      put('sort', sort && sort.value !== 'recommended' ? sort.value : '');
       const s = p.toString();
       history.replaceState(null, '', location.pathname + (s ? '?' + s : '') + '#catalogue');
     };
