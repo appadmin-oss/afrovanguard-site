@@ -87,7 +87,8 @@
     opts = opts || {};
     var headers = opts.headers || {};
     if (opts.method === 'POST') headers['X-CSRF-Token'] = csrf;
-    return fetch(API + '?action=' + action, { method: opts.method || 'GET', headers: headers, body: opts.body, credentials: 'same-origin' })
+    // no-store: a copy the browser already holds under the host's week-long default must not answer for the database.
+    return fetch(API + '?action=' + action, { method: opts.method || 'GET', headers: headers, body: opts.body, credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) {
         /* A host error page (a PHP fatal, a firewall, a timeout) is not JSON: say what came back
            instead of failing silently, so "it does not work" always has a reason on screen. */
@@ -1469,20 +1470,20 @@
     mtBadges();
   }
   function mtBadges() {
-    fetch(API + '?action=mentorship_mentors&approval=pending&segment=' + mtSeg, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+    fetch(API + '?action=mentorship_mentors&approval=pending&segment=' + mtSeg, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       var n = (d.mentors || []).length, b = $('#mtApprBadge'); if (b) { b.textContent = n; b.hidden = !n; }
     }).catch(function () {});
-    fetch(API + '?action=mentorship_inactive', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+    fetch(API + '?action=mentorship_inactive', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       var n = (d.pairs || []).length, b = $('#mtInactBadge'); if (b) { b.textContent = n; b.hidden = !n; }
     }).catch(function () {});
     // The badge counts only Red — Amber is worth reading, Red is worth acting on,
     // and a badge that counts both trains people to ignore it.
-    fetch(API + '?action=mentorship_health', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+    fetch(API + '?action=mentorship_health', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       var n = ((d.counts || {}).red) || 0, b = $('#mtHealthBadge'); if (b) { b.textContent = n; b.hidden = !n; }
     }).catch(function () {});
     // Counts only those who MEET the criteria — someone merely approaching is
     // worth reading, not worth a badge demanding attention.
-    fetch(API + '?action=promotion_queue', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+    fetch(API + '?action=promotion_queue', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       var n = (d.queue || []).filter(function (p) { return p.ready; }).length, b = $('#mtPromoBadge');
       if (b) { b.textContent = n; b.hidden = !n; }
     }).catch(function () {});
@@ -1500,7 +1501,7 @@
   function statusPill(s) { return '<span class="badge ' + (s === 'active' ? 'published' : (s === 'pending' ? 'draft' : 'draft')) + '">' + escapeHtml(s) + '</span>'; }
   function mtPairings() {
     var box = $('#mtPairings'); box.innerHTML = '<p class="muted">Loading…</p>';
-    fetch(API + '?action=mentorship_pairings&segment=' + mtSeg, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+    fetch(API + '?action=mentorship_pairings&segment=' + mtSeg, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       var rows = (d.pairings) || [];
       if (!rows.length) { box.innerHTML = '<p class="muted">No pairings in this pool yet. Use “Assign a pairing”, or members can request a mentor.</p>'; return; }
       box.innerHTML = rows.map(function (p) {
@@ -1518,7 +1519,7 @@
   }
   function mtApprovals() {
     var box = $('#mtApprovals'); box.innerHTML = '<p class="muted">Loading…</p>';
-    fetch(API + '?action=mentorship_mentors&approval=pending&segment=' + mtSeg, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+    fetch(API + '?action=mentorship_mentors&approval=pending&segment=' + mtSeg, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       var rows = d.mentors || [];
       if (!rows.length) { box.innerHTML = '<p class="muted">No mentors awaiting approval in this pool. 🎉</p>'; return; }
       box.innerHTML = rows.map(function (m) {
@@ -1530,7 +1531,7 @@
   }
   function mtCohorts() {
     var box = $('#mtCohorts'); box.innerHTML = '<p class="muted">Loading…</p>';
-    fetch(API + '?action=mentorship_cohorts&segment=' + mtSeg, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+    fetch(API + '?action=mentorship_cohorts&segment=' + mtSeg, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       var rows = d.cohorts || [];
       var form = '<div class="side-card" style="max-width:680px;margin-bottom:18px"><h3>New cohort (' + mtSeg + ')</h3>'
         + '<div class="grid2"><label class="fld"><span>Name</span><input id="coName" placeholder="e.g. 2026 Leadership Round 1"></label><label class="fld"><span>Programme (optional)</span><input id="coProg" placeholder="e.g. Academy"></label></div>'
@@ -1546,7 +1547,7 @@
   }
   function mtInactive() {
     var box = $('#mtInactive'); box.innerHTML = '<p class="muted">Loading…</p>';
-    fetch(API + '?action=mentorship_inactive', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+    fetch(API + '?action=mentorship_inactive', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       var rows = (d.pairs || []).filter(function (p) { return p.segment === mtSeg; });
       if (!rows.length) { box.innerHTML = '<p class="muted">No inactive pairings — everyone’s meeting. 🎉</p>'; return; }
       box.innerHTML = '<p class="muted tiny">Active pairings with no session in the last 3 weeks:</p>' + rows.map(function (p) {
@@ -1562,7 +1563,7 @@
   // produced its grade — §3A wants evidence a human can weigh, not a verdict.
   function mtHealth() {
     var box = $('#mtHealth'); box.innerHTML = '<p class="muted">Loading…</p>';
-    fetch(API + '?action=mentorship_health', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+    fetch(API + '?action=mentorship_health', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       if (!d.ok) { box.innerHTML = '<p class="muted">Could not load relationship health.</p>'; return; }
       var rows = (d.pairs || []).filter(function (p) { return p.segment === mtSeg; });
       var c = { red: 0, amber: 0, green: 0 };
@@ -1683,7 +1684,7 @@
   });
 
   function mtLoadCohortOptions() {
-    fetch(API + '?action=mentorship_cohorts&segment=' + mtSeg, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+    fetch(API + '?action=mentorship_cohorts&segment=' + mtSeg, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       var sel = $('#mtCohort'); if (!sel) return;
       sel.innerHTML = '<option value="0">— Ongoing (no cohort) —</option>' + (d.cohorts || []).filter(function (c) { return c.status === 'open'; }).map(function (c) { return '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; }).join('');
     });
@@ -1697,7 +1698,7 @@
         var url = action === 'mentor'
           ? (API + '?action=mentorship_mentors&approval=approved&segment=' + mtSeg + '&q=' + encodeURIComponent(q))
           : (API + '?action=mentorship_find_users&segment=' + mtSeg + '&q=' + encodeURIComponent(q));
-        fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+        fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
           var rows = action === 'mentor' ? (d.mentors || []) : (d.users || []);
           pick.innerHTML = rows.slice(0, 8).map(function (u) {
             var id = action === 'mentor' ? u.user_id : u.id;
@@ -1752,7 +1753,7 @@
       else if (act === 'cohort_open') go('mentorship_cohort_status', { id: +id, status: 'open' });
       else if (act === 'reassign') {
         var em = prompt('Reassign to which approved mentor? Enter their email (same pool):'); if (!em) return;
-        fetch(API + '?action=mentorship_mentors&approval=approved&segment=' + mtSeg + '&q=' + encodeURIComponent(em.trim()), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+        fetch(API + '?action=mentorship_mentors&approval=approved&segment=' + mtSeg + '&q=' + encodeURIComponent(em.trim()), { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
           var m = (d.mentors || []).filter(function (x) { return x.email.toLowerCase() === em.trim().toLowerCase(); })[0] || (d.mentors || [])[0];
           if (!m) { toast('No approved mentor matches that email in this pool.'); return; }
           go('mentorship_reassign', { id: +id, mentor_id: m.user_id });

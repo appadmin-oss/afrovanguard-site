@@ -81,6 +81,14 @@ if ($method === 'POST') {
     }
 
     $mid = (int) ($in['member_id'] ?? 0);
+    /* Nobody decides their own enrolment or money. The ledger already refused a
+       waiver, a write-off or a void on your own account; an admin who is also a
+       participant could still set their own status and plan, agree or stop
+       their own training fee, mute their own reminders or fine themselves. */
+    if ($mid > 0 && in_array($act, ['admin', 'training', 'training_stop', 'remind_off', 'charge', 'damage'], true)
+        && ($no = NgvLedger::selfDealing($mid, $adminUid, 'makes this change'))) {
+        json_out(['ok' => false, 'code' => 'own_account', 'error' => $no], 403);
+    }
     if ($act === 'admin') {
         if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
         $patch = ['status' => $in['status'] ?? null, 'cohort' => $in['cohort'] ?? null,

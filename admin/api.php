@@ -2142,6 +2142,9 @@ try {
                 }
                 if ($qs) $quizJson = json_encode(['pass' => max(1, min(100, (int) ($body['quiz']['pass'] ?? 70))), 'questions' => $qs]);
             }
+            $vurl = trim((string) ($body['video_url'] ?? ''));
+            if ($vurl !== '' && Embeds::iframeSrc($vurl) === null)
+                json_out(['ok' => false, 'error' => 'That video link can’t be shown. Use a YouTube or Vimeo link, or another https player we embed.'], 422);
             $id = $lms->saveLesson([
                 'id' => (int) ($body['id'] ?? 0), 'module_id' => (int) ($body['module_id'] ?? 0),
                 'slug' => trim((string) ($body['slug'] ?? '')), 'title' => trim((string) $body['title']),

@@ -535,6 +535,13 @@ SQL;
         }
     }
 
+    /** Portable string join of SQL expressions (MySQL has no || unless PIPES_AS_CONCAT). */
+    public static function concat(string ...$parts): string
+    {
+        return self::driver() === 'mysql' ? 'CONCAT(' . implode(', ', $parts) . ')'
+            : implode(' || ', array_map(static fn($p) => self::driver() === 'pgsql' && preg_match('/^[a-z_]+$/', $p) ? 'CAST(' . $p . ' AS TEXT)' : $p, $parts));
+    }
+
     /** Portable "current timestamp" expression for runtime inserts. */
     public static function nowExpr(): string
     {

@@ -39,6 +39,8 @@ $r    = NgvLedger::receiptForVerify($id, $code);
  * and locking somebody out of their own proof of payment to slow an attacker
  * down would be protecting the wrong person. */
 $throttled = false;
+// A client already past the limit is refused even a matching code: otherwise the limit throttles the misses and serves the hit.
+if (function_exists('av_rate_spent') && av_rate_spent('ngv_receipt', 20, 600)) $r = null;
 if (!$r && function_exists('av_rate_ok') && !av_rate_ok('ngv_receipt', 20, 600)) {
     $throttled = true;
     http_response_code(429);

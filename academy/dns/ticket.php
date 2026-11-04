@@ -24,10 +24,19 @@ require_once dirname(__DIR__, 2) . '/lib/bootstrap.php';
 
 $code = strtoupper(trim((string) ($_GET['t'] ?? '')));
 $fmt  = strtolower(trim((string) ($_GET['f'] ?? '')));
+/* Every lookup counts and the answer is obeyed: the limit used to be called
+   only on a miss, and its result was thrown away, so it limited nothing. */
+if (function_exists('av_rate_ok') && !av_rate_ok('summit_ticket', 60, 600)) {
+    http_response_code(429);
+    header('Retry-After: 600');
+    header('Content-Type: text/plain; charset=utf-8');
+    echo "Too many ticket lookups from here. Try again in a few minutes.\n";
+    exit;
+}
 $reg  = Summit::byTicket($code);
 
 if (!$reg) {
-    if (function_exists('av_rate_ok')) av_rate_ok('summit_ticket_miss', 40, 600);
+    if (function_exists('av_rate_ok') && !av_rate_ok('summit_ticket_miss', 40, 600)) { http_response_code(429); exit; }
     http_response_code(404);
     if ($fmt === 'png') { header('Content-Type: image/png'); readfile(AV_ROOT . '/assets/site/icon-192.png'); exit; }
     header('Content-Type: text/plain; charset=utf-8');

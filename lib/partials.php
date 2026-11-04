@@ -166,7 +166,7 @@ function render_head(array $o): void {
 
   <link rel="alternate" type="application/rss+xml" title="The Afrovanguard Diary" href="<?= e(diary_url('feed.xml')) ?>" />
   <link rel="sitemap" type="application/xml" href="<?= e(diary_url('sitemap.xml')) ?>" />
-<?php if ($jsonld): ?>  <script type="application/ld+json"><?= json_encode(count($jsonld) === 1 ? $jsonld[0] : ['@context' => 'https://schema.org', '@graph' => $jsonld], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
+<?php if ($jsonld): ?>  <script type="application/ld+json"><?= json_encode(count($jsonld) === 1 ? $jsonld[0] : ['@context' => 'https://schema.org', '@graph' => $jsonld], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 <?php endif; ?>  <?= $site ? THEME_BOOT_SITE : THEME_BOOT ?>
 
 <?php /* G-06: Cormorant Garamond and Source Sans 3, self-hosted. The old

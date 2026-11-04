@@ -306,7 +306,7 @@ final class ChiomaTools
         /* An Academy course. */
         if (preg_match('~^/academy/([a-z0-9][a-z0-9\-]*)/?$~i', $path, $m)) {
             try {
-                $c = (new AcademyRepository())->bySlug($m[1], true);
+                $c = (new AcademyRepository())->bySlug($m[1]);
                 if ($c) {
                     $meta = 'Category: ' . (string) ($c['category'] ?? '—') . ' · Level: ' . (string) ($c['level'] ?? '—');
                     $body = (string) ($c['summary'] ?? '') . "\n\n" . (string) ($c['body_html'] ?? '');
@@ -575,7 +575,7 @@ final class ChiomaTools
         if ($slug === '') return ['error' => 'Which course? Check course_list for the slug.'];
         $title = $slug;
         try {
-            $c = (new AcademyRepository())->bySlug($slug, true);
+            $c = (new AcademyRepository())->bySlug($slug);
             if (!$c) return ['error' => 'No course has the slug "' . $slug . '". Call course_list and use one of those.'];
             $title = (string) ($c['title'] ?? $slug);
         } catch (\Throwable $e) { error_log('[chioma-tool] enrol check: ' . $e->getMessage()); }

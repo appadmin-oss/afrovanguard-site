@@ -9,7 +9,12 @@ final class AcademyRepository
     private PDO $db;
     public function __construct(?PDO $pdo = null) { $this->db = $pdo ?? Database::pdo(); }
 
+    /* `pass_code` is the key to a restricted course, so it is never in a public
+       read: the catalogue (`all`, `featured`, `others`) selects PUBLIC_COLS, and
+       a single course leaves this class through publicView(). Only the Studio's
+       allForAdmin() and the server's own access check see it. */
     private const COLS = 'id, slug, title, summary, cover_url, category, level, format, duration, price, location, gradient, featured, status, sort, outcomes, access_type, price_ngn, pass_code, cover_is_dark';
+    private const SECRET = ['pass_code'];
 
     private bool $ready = false;
     private ?array $colSet = null;
@@ -60,11 +65,20 @@ final class AcademyRepository
      * the academy still works with the columns that are there instead of returning
      * a 500 for every read.
      */
-    private function cols(): string
+    private function cols(bool $admin = false): string
     {
         $have = $this->courseCols();
-        $keep = array_filter(array_map('trim', explode(',', self::COLS)), fn($c) => isset($have[$c]));
+        $keep = array_filter(array_map('trim', explode(',', self::COLS)), fn($c) => isset($have[$c]) && ($admin || !in_array($c, self::SECRET, true)));
         return implode(', ', $keep);
+    }
+
+    /** A course as anybody may see it: without the key to a restricted course. */
+    public static function publicView(?array $c): ?array
+    {
+        if ($c === null) return null;
+        $c['has_pass'] = trim((string) ($c['pass_code'] ?? '')) !== '';
+        foreach (self::SECRET as $k) unset($c[$k]);
+        return $c;
     }
 
     /** Drop any field whose column is absent, so a write cannot name one. */
@@ -80,7 +94,7 @@ final class AcademyRepository
     }
     public function allForAdmin(): array
     {
-        return $this->db->query("SELECT " . $this->cols() . ", updated_at FROM courses ORDER BY sort ASC, updated_at DESC")->fetchAll();
+        return $this->db->query("SELECT " . $this->cols(true) . ", updated_at FROM courses ORDER BY sort ASC, updated_at DESC")->fetchAll();
     }
     public function featured(): ?array
     {

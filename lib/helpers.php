@@ -271,6 +271,11 @@ function json_out($data, int $status = 200): void {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     header('X-Content-Type-Options: nosniff');
+    /* An API answer is the state of the database NOW. Without a header of its
+       own it took the host's default (max-age=604800), so the Studio and the
+       admin course list showed a week-old answer after an edit: "changes take
+       forever to reflect" was the browser's cache, not the save. */
+    if (!headers_sent()) { header('Cache-Control: no-store, private'); header_remove('Expires'); }
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
@@ -329,6 +334,14 @@ function require_same_origin(): void {
        "afrovanguard.org.ng.evil.example" passed as this site — and the public
        registration form relies on this check alone. */
     $h = strtolower((string) preg_replace('/:\d+$/', '', $host));
+    /* An Origin that names no host is not "no origin". Browsers send the literal
+       `Origin: null` from a sandboxed iframe, a data: page or some redirects:
+       exactly the contexts a cross-site forgery is launched from. It used to
+       parse to an empty host and pass. A browser that says the request is
+       cross-site is believed too. */
+    if ((isset($_SERVER['HTTP_ORIGIN']) && $oh === '') || strtolower((string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '')) === 'cross-site') {
+        json_out(['ok' => false, 'error' => 'Cross-origin request rejected.'], 403);
+    }
     if ($oh !== '' && $h !== '' && $oh !== $h) {
         json_out(['ok' => false, 'error' => 'Cross-origin request rejected.'], 403);
     }

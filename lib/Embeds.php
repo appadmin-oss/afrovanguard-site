@@ -10,6 +10,25 @@ declare(strict_types=1);
 
 final class Embeds
 {
+    /**
+     * A URL that may be an iframe's src: https, on a host we embed, nothing
+     * else. A lesson's video_url used to go into the frame as typed, so
+     * `javascript:` ran in the learner's page and any site could be framed
+     * inside ours. Returns null for anything that is not one.
+     */
+    public static function iframeSrc(string $url): ?string
+    {
+        $url = trim($url, "\x00..\x20\x7f");
+        if ($url === '' || preg_match('/[\x00-\x1f\x7f]/', $url)) return null;
+        // A page link to a video is turned into its player, as a pasted link in an article is.
+        if (preg_match('~^https?://(?:www\.|m\.)?(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/)|youtu\.be/)([A-Za-z0-9_-]{6,})~', $url, $m)) return 'https://www.youtube-nocookie.com/embed/' . $m[1];
+        if (preg_match('~^https?://(?:www\.)?vimeo\.com/(?:video/)?(\d+)~', $url, $m)) return 'https://player.vimeo.com/video/' . $m[1];
+        $p = parse_url($url);
+        if (!is_array($p) || strtolower((string) ($p['scheme'] ?? '')) !== 'https') return null;
+        $host = strtolower((string) ($p['host'] ?? ''));
+        return $host !== '' && in_array($host, av_embed_hosts(), true) ? $url : null;
+    }
+
     /** Convert provider URLs (on their own line / in <p>) into iframes. */
     public static function embedify(string $html): string
     {
@@ -156,7 +175,14 @@ final class Embeds
                 $name = strtolower($attr->name); $val = $attr->value;
                 if (str_starts_with($name, 'on') || !in_array($name, $allowed, true)) { $child->removeAttribute($attr->name); continue; }
                 if (in_array($name, ['href','src'], true)) {
-                    $scheme = strtolower((string) parse_url($val, PHP_URL_SCHEME));
+                    /* Read the URL as a browser does: leading spaces and control
+                       characters are stripped and a tab or newline inside the
+                       scheme is dropped, so " javascript:" and "java\tscript:"
+                       both run. parse_url() sees no scheme in either. */
+                    $val = trim($val, "\x00..\x20\x7f");
+                    $child->setAttribute($attr->name, $val);
+                    $probe = preg_replace('/[\x00-\x20\x7f]+/', '', $val);
+                    $scheme = preg_match('/^([a-z][a-z0-9+.\-]*):/i', $probe, $sm) ? strtolower($sm[1]) : '';
                     if ($name === 'src' && $tag === 'iframe') {
                         $host = strtolower((string) parse_url($val, PHP_URL_HOST));
                         if (!in_array($host, av_embed_hosts(), true)) { $child->parentNode->removeChild($child); continue 2; }

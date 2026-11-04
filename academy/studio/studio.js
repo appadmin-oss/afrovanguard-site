@@ -24,7 +24,7 @@
     var headers = opts.headers || {};
     if (opts.method === 'POST') headers['X-CSRF-Token'] = csrf;
     return fetch(API + '?action=' + action + (opts.qs || ''), {
-      method: opts.method || 'GET', headers: headers, body: opts.body, credentials: 'same-origin'
+      method: opts.method || 'GET', headers: headers, body: opts.body, credentials: 'same-origin', cache: 'no-store'
     }).then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Bad server response.' }; }); });
   }
   function get(action, qs) { return api(action, { qs: qs ? '&' + qs : '' }); }

@@ -224,7 +224,7 @@ final class LmsDrip
                     'class_time'   => date('g:ia', $ts) . ' WAT',
                     'host_name'    => (string) $r['host_name'],
                     'join_url'     => (string) $r['join_url'],
-                    'calendar_url' => self::url('/academy/class.php?id=' . (int) $r['id'] . '&f=ics'),
+                    'calendar_url' => self::url(self::classPath((int) $r['id'], (int) $r['user_id'])),
                 ]);
                 $sent++;
             }
@@ -257,5 +257,20 @@ final class LmsDrip
     private static function url(string $path): string
     {
         return (defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '') . $path;
+    }
+
+    /**
+     * The calendar link a reminder carries: signed for its recipient, because
+     * the class id is sequential and the calendar entry holds the join link.
+     * class.php serves it to that signature or to a signed-in learner who may
+     * take the course, and to nobody else.
+     */
+    public static function classSig(int $classId, int $userId): string
+    {
+        return substr(hash_hmac('sha256', 'liveclass|' . $classId . '|' . $userId, av_secret()), 0, 32);
+    }
+    public static function classPath(int $classId, int $userId): string
+    {
+        return '/academy/class.php?id=' . $classId . '&u=' . $userId . '&t=' . self::classSig($classId, $userId) . '&f=ics';
     }
 }

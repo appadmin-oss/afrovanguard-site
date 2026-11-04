@@ -543,6 +543,17 @@ final class NgvRegistration
         $fees = NgvLedger::enabled();
         if ($fees && !in_array($how, ['paid', 'waived'], true)) return ['ok' => false, 'error' => 'Record the membership fee as paid, or waived.'];
         if ($fees && $how === 'paid' && NgvLedger::money($fee['amount'] ?? 0) <= 0) return ['ok' => false, 'error' => 'Enter the amount of the membership fee received.'];
+        /* The desk records the membership fee, not any sum somebody types: up to
+           ₦10M used to be credited as "paid" and receipted with nothing to show
+           for it. The amount is the fee at most, and a transfer or POS payment
+           carries the reference that finds it on the statement. */
+        if ($fees && $how === 'paid') {
+            $feeAmt = (int) (NgvLedger::amounts()['membership']['amount'] ?? 0);
+            if ($feeAmt > 0 && NgvLedger::money($fee['amount'] ?? 0) > $feeAmt)
+                return ['ok' => false, 'error' => 'That is more than the membership fee (₦' . number_format($feeAmt) . '). Record the fee; anything else goes through Payments with its receipt.'];
+            if ((string) ($fee['method'] ?? 'cash') !== 'cash' && mb_strlen(trim((string) ($fee['reference'] ?? ''))) < 4)
+                return ['ok' => false, 'error' => 'Give the transfer or POS reference, so the payment can be found on the statement.'];
+        }
         if ($fees && $how === 'waived' && trim((string) ($fee['reason'] ?? '')) === '') return ['ok' => false, 'error' => 'A waiver needs a reason.'];
 
         if ($state['minor'] && !NgvMember::guardianConfirmed($app)) {

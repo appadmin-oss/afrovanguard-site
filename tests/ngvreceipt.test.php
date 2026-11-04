@@ -212,9 +212,9 @@ ck('ngv receipt page: so does a bare, argument-free hit',
 
 /* ── Guessing is throttled; reading is not ─────────────────────────────────
  * The code is 40 bits of HMAC, but this endpoint is unauthenticated and what
- * sits behind it is somebody's financial record. Only FAILURES consume a token:
- * throttling a valid code would lock somebody out of their own proof of payment
- * to slow an attacker down, which protects the wrong person. */
+ * sits behind it is somebody's financial record. Only FAILURES consume a token,
+ * so opening your own receipt is never throttled; but a client that has spent the
+ * limit on misses is refused even a hit, or the limit would serve the guess. */
 $rlDir = AV_ROOT . '/db/cache/rl';
 $rlClear = static function () use ($rlDir): void {
     foreach ((array) @glob($rlDir . '/ngv_receipt_*.json') as $f) @unlink($f);
@@ -225,8 +225,15 @@ for ($i = 0; $i < 25; $i++) {
     if (strpos($render((int) $good['id'], 'NGVR-000000000' . ($i % 10)), 'Too many attempts') !== false) { $hits++; }
 }
 ck('ngv receipt page: repeated guessing is throttled', $hits > 0);
-ck('ngv receipt page: …but a valid code is never throttled, even right after',
-   strpos($render((int) $good['id'], $goodRc['code']), 'Verified receipt') !== false);
+/* A client past the limit is refused even a matching code: otherwise the limit
+   slowed the misses and still served the hit, so it bought an attacker nothing
+   but time. Valid reads alone never spend the limit (below). */
+ck('ngv receipt page: …and a client past the limit is refused even a valid code',
+   strpos($render((int) $good['id'], $goodRc['code']), 'Verified receipt') === false);
+$rlClear();
+$ok = 0;
+for ($i = 0; $i < 25; $i++) if (strpos($render((int) $good['id'], $goodRc['code']), 'Verified receipt') !== false) $ok++;
+ck('ngv receipt page: …but opening a valid receipt again and again is never throttled', $ok === 25);
 $rlClear();
 
 /* ══ The statement quotes them ═════════════════════════════════════════════ */

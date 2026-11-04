@@ -555,7 +555,10 @@ final class GateAttendance
                 $status = $ex && (string) $ex['status'] === 'approved' ? 'excused' : 'absent';
                 $pdo->prepare(Database::insertIgnore('gate_attendance', ['member_id', 'day', 'status', 'note', 'created_at', 'updated_at']))
                     ->execute([$mid, $d, $status, $status === 'excused' ? 'Excused' : 'No passage on a programme day', self::now(), self::now()]);
-                if ($status === 'absent') { $n++; if (!$ex) self::fineAbsent($mid, $d); }
+                /* No request, or one already declined: fined now. A request still
+                   pending waits for its decision, and decideExcuse() fines on a
+                   decline. A declined request used to count as "notice given". */
+                if ($status === 'absent') { $n++; if (!$ex || (string) $ex['status'] === 'declined') self::fineAbsent($mid, $d); }
             }
         }
         Database::metaSet(self::SWEPT_META, end($days));

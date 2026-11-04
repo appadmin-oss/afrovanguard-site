@@ -25,6 +25,8 @@ $rec  = NgvMember::certForVerify($id, $code);
  * a rate-limit token — a certificate is meant to be opened by strangers, and
  * throttling the valid reads would break the one thing it exists for. */
 $throttled = false;
+// A client already past the limit is refused even a matching code: otherwise the limit throttles the misses and serves the hit.
+if (function_exists('av_rate_spent') && av_rate_spent('ngv_cert', 20, 600)) $rec = null;
 if (!$rec && function_exists('av_rate_ok') && !av_rate_ok('ngv_cert', 20, 600)) {
     $throttled = true;
     http_response_code(429);

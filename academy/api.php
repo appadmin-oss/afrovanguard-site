@@ -39,7 +39,7 @@ try {
         case 'course':
             $c = $slug ? $ac->bySlug($slug) : null;
             if (!$c) json_out(['ok' => false, 'error' => 'Not found.'], 404);
-            json_out(['ok' => true, 'course' => $c]);
+            json_out(['ok' => true, 'course' => AcademyRepository::publicView($c)]);
 
         case 'enroll': // lead-capture form (non-account)
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
@@ -134,7 +134,7 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
             $u = LmsAuth::require();
-            $c = $ac->bySlug($slug, true);
+            $c = $ac->bySlug($slug);
             if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
             if (($c['access_type'] ?? 'open') === 'paid' && !($lms->isMember((int) $u['id']) || LmsAuth::isOrgMember($u)))
                 json_out(['ok' => false, 'error' => 'This course requires payment or membership.'], 402);
@@ -147,11 +147,12 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
             $u = LmsAuth::require();
-            $c = $ac->bySlug($slug, true);
+            $c = $ac->bySlug($slug);
             $lesson = $c ? $lms->lesson((int) $c['id'], preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['lesson'] ?? '')))) : null;
             if (!$lesson) json_out(['ok' => false, 'error' => 'Lesson not found.'], 404);
             if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access to this lesson.'], 403);
             if ($action === 'lesson_complete') {
+                if ($lms->needsQuiz($lesson)) json_out(['ok' => false, 'error' => 'Pass this lesson’s quiz to complete it.'], 409);
                 $lms->markComplete((int) $u['id'], $lesson);
                 $done = $lms->completeIfDone((int) $u['id'], (int) $c['id']);
                 if (!empty($done['newly'])) Notify::completed($u, $c, academy_url($c['slug'] . '/certificate'));
@@ -163,7 +164,7 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
             $u = LmsAuth::require();
-            $c = $ac->bySlug($slug, true);
+            $c = $ac->bySlug($slug);
             $lesson = $c ? $lms->lesson((int) $c['id'], preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['lesson'] ?? '')))) : null;
             if (!$lesson) json_out(['ok' => false, 'error' => 'Lesson not found.'], 404);
             if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access.'], 403);
@@ -182,7 +183,7 @@ try {
 
         case 'progress':
             $u = LmsAuth::user();
-            $c = $slug ? $ac->bySlug($slug, true) : null;
+            $c = $slug ? $ac->bySlug($slug) : null;
             if (!$u || !$c) json_out(['ok' => true, 'progress' => null]);
             json_out(['ok' => true, 'progress' => $lms->progress((int) $u['id'], (int) $c['id'])]);
 
@@ -192,7 +193,7 @@ try {
             require_same_origin();
             if (!av_rate_ok('pass_redeem', 10, 900)) json_out(['ok' => false, 'error' => 'Too many attempts — try again later.'], 429);
             $u = LmsAuth::require();
-            $c = $slug ? $ac->bySlug($slug, true) : null;
+            $c = $slug ? $ac->bySlug($slug) : null;
             if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
             if (($c['access_type'] ?? 'open') !== 'restricted') json_out(['ok' => false, 'error' => 'This course is not pass-restricted.'], 400);
             $code = slugify((string) ($body['code'] ?? ''));
@@ -207,7 +208,7 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
             $u = LmsAuth::require();
-            $c = $slug ? $ac->bySlug($slug, true) : null;
+            $c = $slug ? $ac->bySlug($slug) : null;
             $lesson = $c ? $lms->lesson((int) $c['id'], preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['lesson'] ?? '')))) : null;
             if (!$lesson) json_out(['ok' => false, 'error' => 'Lesson not found.'], 404);
             if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access to this lesson.'], 403);
@@ -215,7 +216,7 @@ try {
             json_out(['ok' => true]);
         case 'notes_all':
             $u = LmsAuth::require();
-            $c = $slug ? $ac->bySlug($slug, true) : null;
+            $c = $slug ? $ac->bySlug($slug) : null;
             if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
             json_out(['ok' => true, 'course' => $c['title'], 'notes' => $lms->notesForCourse((int) $u['id'], (int) $c['id'])]);
 
@@ -245,7 +246,7 @@ try {
                 $amountNgn = (int) AV_MEMBERSHIP_NGN;
                 $meta['purpose'] = 'Afrovanguard Academy — annual membership';
             } else {
-                $c = $slug ? $ac->bySlug($slug, true) : null;
+                $c = $slug ? $ac->bySlug($slug) : null;
                 if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
                 if (($c['access_type'] ?? 'open') !== 'paid') json_out(['ok' => false, 'error' => 'This course does not require payment.'], 400);
                 if ($lms->isEnrolled((int) $u['id'], (int) $c['id']) || $lms->isMember((int) $u['id']) || LmsAuth::isOrgMember($u))

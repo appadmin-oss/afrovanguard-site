@@ -117,6 +117,8 @@ final class NgvLedger
     /** Charge kinds. `programme` is the training fee; the page calls the monthly
      *  one a "commitment" rather than "dues", and so does this. */
     public const CHARGE_KINDS = ['membership', 'commitment', 'programme', 'fine', 'adjustment'];
+    /** Marks a voided charge's period once its month is released to a new agreement: "2026-03#void17". */
+    public const VOID_SLOT = '#void';
     /** The two a human posts, as opposed to the three the accrual posts. Each
      *  needs a REASON on the row and is audited with the reason in it: "who
      *  decided this, and why" is the first question asked about any charge, and
@@ -804,6 +806,16 @@ final class NgvLedger
         }
         $months = max(1, min(self::TRAINING_MONTHS_MAX, $months));
         $from = self::periodKey($asOf ?: self::today('Y-m-d'), 'month');
+        /* A new agreement is a new commitment. The old one's VOIDED instalments
+           still hold their months under the unique (member, kind, period) index,
+           so this agreement's March would silently not post — the call said ok,
+           the account showed nothing and the screen said "due" for ever. Their
+           slot is released (the void stays on the record, with its reason);
+           a void inside a schedule that is still running is left alone, so it is
+           never re-charged by the next accrual. */
+        NgvDb::pdo()->prepare("UPDATE ngv_charges SET period = " . NgvDb::concat('period', "'" . self::VOID_SLOT . "'", 'id')
+            . " WHERE member_id = ? AND kind = 'programme' AND voided = 1 AND period NOT LIKE ?")
+            ->execute([$memberId, '%' . self::VOID_SLOT . '%']);
         $each = (int) floor($total / $months);
         NgvDb::pdo()->prepare('UPDATE ngv_participants SET training_from = ?, training_months = ?, training_each = ?,
                                training_total = ?, updated_at = ' . NgvDb::nowExpr() . ' WHERE member_id = ?')
@@ -1703,7 +1715,7 @@ final class NgvLedger
                    so two in one month do not collide under the unique index.
                    That token is plumbing — the date is on the row — so it never
                    reaches a screen. */
-                'period' => in_array((string) $c['kind'], self::MANUAL_CHARGE_KINDS, true) ? '' : (string) $c['period'],
+                'period' => in_array((string) $c['kind'], self::MANUAL_CHARGE_KINDS, true) ? '' : explode(self::VOID_SLOT, (string) $c['period'])[0],
                 'note' => (string) $c['note'],
                 'reason' => (string) ($c['reason'] ?? ''),
                 'reasonLabel' => self::FINE_REASONS[(string) ($c['reason'] ?? '')] ?? '',

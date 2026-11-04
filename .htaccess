@@ -178,6 +178,16 @@ RewriteRule ^([a-z0-9_-]+)/?$ /$1.php [L,QSA]
   ExpiresByType application/javascript "access plus 0 seconds"
   ExpiresByType text/javascript "access plus 0 seconds"
   ExpiresByType text/css "access plus 0 seconds"
+  # Pages and API answers are built per request. The host's week-long default
+  # kept an edited course looking unedited on the admin, the Studio and the
+  # public course page (see json_out in lib/helpers.php).
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType application/json "access plus 0 seconds"
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "\.php$">
+    Header setifempty Cache-Control "no-cache"
+  </FilesMatch>
 </IfModule>
 <IfModule mod_headers.c>
   <FilesMatch "\.(js|mjs|css)$">

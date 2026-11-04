@@ -3,6 +3,7 @@
  * lib/LmsRepository.php — modules, lessons, progress, access & membership.
  */
 declare(strict_types=1);
+require_once __DIR__ . '/Embeds.php';   // a lesson's video goes into a frame only through Embeds::iframeSrc()
 
 final class LmsRepository
 {
@@ -153,12 +154,12 @@ final class LmsRepository
            are exempt below, because somebody has to check it before it
            opens. */
         if (class_exists('LmsDrip') && !LmsDrip::lessonOpen($lesson)
-            && !($user && LmsAuth::canTeach($user))) return false;
+            && !($user && $this->teaches($user, $course))) return false;
         if (!empty($lesson['is_preview'])) return true;             // previews always open
         $access = $course['access_type'] ?? 'open';
         if ($access === 'open') return true;                        // open courses: all lessons free
         if (!$user) return false;                                   // tracked/membership/paid need an account
-        if (LmsAuth::canTeach($user)) return true;                  // instructor / coordinator / admin: full access
+        if ($this->teaches($user, $course)) return true;            // its own instructor, a coordinator or an admin
         if ($access === 'tracked') return true;                     // free but account-gated for tracking
         // A "member" is a paid Academy member OR an Afrovanguard org account (@afrovanguard.org.ng).
         $member = $this->isMember((int) $user['id']) || LmsAuth::isOrgMember($user);
@@ -171,6 +172,33 @@ final class LmsRepository
             return $pass !== '' && $this->hasActivePass((int) $user['id'], $pass);
         }
         return false;
+    }
+
+    /**
+     * May this person see the whole course as its teacher? Coordinators and
+     * admins run the Academy, so yes. An instructor teaches their OWN courses:
+     * the role is not a pass to every paid or restricted course on the site.
+     */
+    public function teaches(array $user, array $course): bool
+    {
+        if (LmsAuth::atLeast($user, 'coordinator')) return true;
+        return LmsAuth::canTeach($user) && (int) ($course['instructor_id'] ?? 0) > 0 && (int) $course['instructor_id'] === (int) ($user['id'] ?? 0);
+    }
+
+    /** A lesson with a quiz is completed by passing it, never by ticking it. */
+    public function needsQuiz(array $lesson): bool { return $this->quiz($lesson) !== null; }
+
+    /** Quiz lessons in a course this learner has not passed yet. */
+    public function unpassedQuizzes(int $userId, int $courseId): int
+    {
+        $n = 0;
+        foreach ($this->orderedLessons($courseId) as $l) {
+            if (!$this->needsQuiz($l)) continue;
+            $s = $this->db->prepare('SELECT 1 FROM quiz_attempts WHERE user_id = ? AND lesson_id = ? AND passed = 1 LIMIT 1');
+            $s->execute([$userId, (int) $l['id']]);
+            if (!$s->fetchColumn()) $n++;
+        }
+        return $n;
     }
 
     /* ── Restricted courses: per-member allowlist + named passes ──────────── */
@@ -415,7 +443,7 @@ final class LmsRepository
         while (true) { $chk->execute([$courseId, $slug, (int) ($d['id'] ?? 0)]); if (!$chk->fetchColumn()) break; $slug = $base . '-' . $i++; }
         $fields = [
             'module_id' => (int) $d['module_id'], 'course_id' => $courseId, 'slug' => $slug,
-            'title' => $d['title'], 'body_html' => $d['body_html'] ?? '', 'video_url' => $d['video_url'] ?: null,
+            'title' => $d['title'], 'body_html' => $d['body_html'] ?? '', 'video_url' => (($v = trim((string) ($d['video_url'] ?? ''))) !== '' ? (Embeds::iframeSrc($v) ?? null) : null),
             'duration_min' => (int) ($d['duration_min'] ?? 0), 'is_preview' => !empty($d['is_preview']) ? 1 : 0,
             'quiz_json' => isset($d['quiz_json']) && $d['quiz_json'] !== '' ? $d['quiz_json'] : null,
             'position' => (int) ($d['position'] ?? 0), 'updated_at' => date('Y-m-d H:i:s'),
@@ -778,7 +806,11 @@ final class LmsRepository
      */
     public function completeIfDone(int $userId, int $courseId): array
     {
-        if (!$this->progress($userId, $courseId)['complete']) return ['complete' => false, 'newly' => false, 'cert' => null];
+        /* Every lesson ticked AND every quiz passed: a certificate says the
+           learner was assessed, so a progress row written for a quiz lesson
+           without a pass (an old tick, a direct request) does not earn one. */
+        if (!$this->progress($userId, $courseId)['complete'] || $this->unpassedQuizzes($userId, $courseId) > 0)
+            return ['complete' => false, 'newly' => false, 'cert' => null];
         $newly = !$this->getCertificate($userId, $courseId);
         $cert = $this->issueCertificate($userId, $courseId);
         return ['complete' => true, 'newly' => (bool) ($newly && $cert), 'cert' => $cert];

@@ -181,7 +181,7 @@ avac_head([
 <?php else: ?>
 <?php if ($lType === 'video'): ?>
   <div class="avle-stage">
-    <div class="avle-video"><iframe src="<?= e((string) $lesson['video_url']) ?>" title="<?= e((string) $lesson['title']) ?>" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
+    <div class="avle-video"><?php $vsrc = Embeds::iframeSrc((string) $lesson['video_url']); if ($vsrc !== null): ?><iframe src="<?= e($vsrc) ?>" title="<?= e((string) $lesson['title']) ?>" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe><?php else: ?><p class="avle-video-off">This video can’t be shown here.</p><?php endif; ?></div>
   </div>
 <?php endif; ?>
   <div class="avle-col<?= $lType === 'video' ? ' avle-col--video' : '' ?>">

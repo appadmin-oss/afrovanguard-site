@@ -372,6 +372,20 @@ function av_rate_ok(string $bucket, int $max, int $window): bool {
 }
 
 /**
+ * Is this bucket already full for this client? Reads, never counts. For pages
+ * that count only FAILED guesses (a receipt, a certificate): without this, a
+ * client past the limit still got a matching guess served, so the limit slowed
+ * the misses and let the hit through — the opposite of what it is for.
+ */
+function av_rate_spent(string $bucket, int $max, int $window): bool {
+    $key = AV_ROOT . '/db/cache/rl/' . preg_replace('/[^a-z0-9_]/i', '_', $bucket . '_' . av_client_ip()) . '.json';
+    if (!is_file($key)) return false;
+    $now = time();
+    $hits = array_filter(json_decode((string) @file_get_contents($key), true) ?: [], fn($t) => $t > $now - $window);
+    return count($hits) >= $max;
+}
+
+/**
  * The token a Diary unsubscribe link carries for $email. Unsubscribing used to
  * need only the address, so anybody could take anybody off the list; a link a
  * mailing puts in an email should be built with this.
