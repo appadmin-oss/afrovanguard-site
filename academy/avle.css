@@ -277,3 +277,9 @@ body.avle{margin:0;background:var(--av-white);color:var(--av-ink);font-family:va
 .avle-body .embed-card-label{font-weight:700;font-size:17px}
 .avle-body video,.avle-body audio{max-width:100%}
 .avle-body img{max-width:100%;height:auto;border-radius:var(--av-r-10)}
+
+.avle-modintro{margin:0 0 28px;padding:22px 24px;border-radius:var(--av-r-14);background:var(--av-paper);border:1px solid var(--av-line)}
+.avle-modintro-k{font-size:13px;font-weight:700;color:var(--av-gold-text);margin-bottom:4px}
+.avle-modintro p{margin:6px 0 0;font-size:16px;line-height:1.6}
+.avle-modintro h3{margin:16px 0 6px;font-size:15px}
+.avle-modintro ul{margin:0;padding-left:20px;line-height:1.6}

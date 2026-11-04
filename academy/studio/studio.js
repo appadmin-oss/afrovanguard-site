@@ -53,7 +53,7 @@
     var btn = e.target.querySelector('button'); btn.disabled = true;
     post('login', { token: $('#token').value }).then(function (d) {
       btn.disabled = false;
-      if (d && d.ok) { csrf = d.csrf || ''; showApp(true); route('overview'); }
+      if (d && d.ok) { csrf = d.csrf || ''; showApp(true); var hm = /^#curriculum=([a-z0-9-]+)$/.exec(location.hash); if (hm) route('curriculum', hm[1]); else route('overview'); }
       else $('#loginMsg').textContent = (d && d.error) || 'Could not sign in.';
     }).catch(function () { btn.disabled = false; $('#loginMsg').textContent = 'Network error.'; });
   });
@@ -197,6 +197,7 @@
       $('#c_access').value = c.access_type || 'open';
       $('#c_gradient').value = c.gradient || 'g-gold';
       $('#c_featured').checked = !!(c.featured && c.featured != '0');
+      $('#c_sequential').checked = !!(c.sequential && c.sequential != '0');
       $('#c_instructor').value = c.instructor_email || '';
       toggledPrice();
       VIEWS.course.title = slug ? 'Edit course' : 'New course';
@@ -209,7 +210,7 @@
     var payload = {};
     Object.keys(CF).forEach(function (k) { var el = $('#' + CF[k]); if (el) payload[k] = el.value; });
     payload.status = $('#c_status').value; payload.access_type = $('#c_access').value;
-    payload.gradient = $('#c_gradient').value; payload.featured = $('#c_featured').checked;
+    payload.gradient = $('#c_gradient').value; payload.featured = $('#c_featured').checked; payload.sequential = $('#c_sequential').checked ? 1 : 0;
     if (editingSlug && !payload.slug) payload.slug = editingSlug;
     if (!payload.title.trim()) { toast('A title is required', 'err'); return; }
     var btn = $('#courseSave'); if (btn) btn.disabled = true;
@@ -241,6 +242,30 @@
     var x = m[t] || m.reading;
     return '<span class="les-type t-' + x[2] + '" title="' + x[1] + '">' + x[0] + ' ' + x[1] + '</span>';
   }
+  /* ── Course outline editor ──
+     Drag an item or a module by its handle to move it (an item may move to
+     another module), or focus the handle and use Alt+↑ / Alt+↓. Every move
+     saves the whole outline in one request (outline_save), so the order on
+     screen is the order learners get. "+ Add item" asks what kind first. */
+  var curMods = [];
+  var KINDS = [
+    { k: 'reading', label: 'Reading', hint: 'Text, images, embeds' },
+    { k: 'video', label: 'Video', hint: 'Upload or paste a link' },
+    { k: 'quiz', label: 'Quiz', hint: 'Graded or practice' },
+    { k: 'assignment', label: 'Assignment', hint: 'Instructor-graded' },
+    { k: 'discussion', label: 'Discussion', hint: 'Learners reply to a prompt' }
+  ];
+  function saveOutline(slug) {
+    var payload = { course: slug, modules: curMods.map(function (m) { return { id: m.id, lessons: (m.lessons || []).map(function (l) { return l.id; }) }; }) };
+    return post('outline_save', payload).then(function (d) {
+      if (d && d.ok) { toast('Order saved', 'ok'); return true; }
+      toast((d && d.error) || 'Could not save the order', 'err'); renderCurriculum(slug); return false;
+    });
+  }
+  function findItem(id) {
+    for (var i = 0; i < curMods.length; i++) { var ls = curMods[i].lessons || []; for (var j = 0; j < ls.length; j++) if (ls[j].id === id) return { mi: i, li: j }; }
+    return null;
+  }
   function renderCurriculum(slug) {
     curCourseSlug = slug;
     var wrap = $('#curriculum');
@@ -248,51 +273,110 @@
     wrap.innerHTML = '<p class="empty">Loading…</p>';
     get('ac_curriculum', 'slug=' + encodeURIComponent(slug)).then(function (d) {
       if (!d || !d.ok) { wrap.innerHTML = '<p class="empty">' + esc((d && d.error) || 'Could not load.') + '</p>'; return; }
-      var mods = (d.modules || []).map(function (m) { m.id = +m.id; (m.lessons || []).forEach(function (l) { l.id = +l.id; }); return m; });
-      $('#curHint').textContent = mods.length + ' module' + (mods.length === 1 ? '' : 's');
-      // Curriculum summary (author overview): modules · lessons · runtime
-      var totalLessons = 0, totalMin = 0;
-      mods.forEach(function (m) { (m.lessons || []).forEach(function (l) { totalLessons++; totalMin += (+l.duration_min || 0); }); });
-      $('#curHint').textContent = mods.length + ' module' + (mods.length === 1 ? '' : 's')
-        + ' · ' + totalLessons + ' lesson' + (totalLessons === 1 ? '' : 's') + (totalMin ? ' · ' + totalMin + ' min' : '');
-      var html = mods.map(function (m, mi) {
-        var lessons = (m.lessons || []).map(function (l, li) {
-          return '<li class="les">'
-            + '<button class="btn btn-ghost btn-sm les-mv" data-lup="' + l.id + '" data-mod="' + m.id + '" title="Move up"' + (li === 0 ? ' disabled' : '') + '>▲</button>'
-            + '<button class="btn btn-ghost btn-sm les-mv" data-ldn="' + l.id + '" data-mod="' + m.id + '" title="Move down"' + (li === m.lessons.length - 1 ? ' disabled' : '') + '>▼</button>'
-            + lesTypeBadge(l.type)
-            + '<span class="les-title">' + esc(l.title) + '</span>'
-            + '<span class="les-tags">' + (l.is_preview && l.is_preview != '0' ? '<span class="badge cert">preview</span>' : '')
-            + '<span class="badge access">' + esc(l.duration_min || 0) + ' min</span></span>'
-            + '<button class="btn btn-outline btn-sm" data-led="' + l.id + '">Edit</button>'
-            + '<button class="btn btn-ghost btn-sm" data-ldel="' + l.id + '">✕</button></li>';
-        }).join('') || '<li class="les-empty">No lessons yet.</li>';
-        return '<div class="mod"><div class="mod-head"><span class="mod-title">' + esc(m.title) + (m.summary ? '<span class="muted mod-sum">' + esc(m.summary) + '</span>' : '') + '</span>'
-          + '<button class="btn btn-ghost btn-sm" data-mup="' + m.id + '" title="Move up"' + (mi === 0 ? ' disabled' : '') + '>▲</button>'
-          + '<button class="btn btn-ghost btn-sm" data-mdn="' + m.id + '" title="Move down"' + (mi === mods.length - 1 ? ' disabled' : '') + '>▼</button>'
-          + '<button class="btn btn-ghost btn-sm" data-mren="' + m.id + '">Edit</button>'
-          + '<button class="btn btn-ghost btn-sm" data-mdel="' + m.id + '">Delete</button></div>'
-          + '<ul class="mod-lessons">' + lessons + '</ul>'
-          + '<div class="mod-foot"><button class="btn btn-outline btn-sm" data-ladd="' + m.id + '">+ Add item</button></div></div>';
+      curMods = (d.modules || []).map(function (m) { m.id = +m.id; (m.lessons || []).forEach(function (l) { l.id = +l.id; }); return m; });
+      draw(slug);
+    });
+  }
+  function draw(slug, focusSel) {
+    var wrap = $('#curriculum');
+    var totalLessons = 0, totalMin = 0;
+    curMods.forEach(function (m) { (m.lessons || []).forEach(function (l) { totalLessons++; totalMin += (+l.duration_min || 0); }); });
+    $('#curHint').textContent = curMods.length + ' module' + (curMods.length === 1 ? '' : 's') + ' · ' + totalLessons + ' item' + (totalLessons === 1 ? '' : 's') + (totalMin ? ' · ' + totalMin + ' min' : '');
+    var html = curMods.map(function (m, mi) {
+      var items = (m.lessons || []).map(function (l) {
+        var tags = (l.is_preview && l.is_preview != '0' ? '<span class="badge cert">preview</span>' : '')
+          + (l.available_at ? '<span class="badge access">opens ' + esc(String(l.available_at).slice(0, 10)) + '</span>' : '')
+          + ((+l.weight || 1) > 1 ? '<span class="badge access">weight ' + esc(l.weight) + '</span>' : '')
+          + '<span class="badge access">' + esc(l.duration_min || 0) + ' min</span>';
+        return '<li class="les" draggable="true" data-item="' + l.id + '">'
+          + '<button type="button" class="drag" data-handle="item" data-id="' + l.id + '" aria-label="Move ' + esc(l.title) + ' (drag, or Alt+arrow keys)">⠿</button>'
+          + lesTypeBadge(l.type)
+          + '<button type="button" class="les-title les-open" data-led="' + l.id + '">' + esc(l.title) + '</button>'
+          + '<span class="les-tags">' + tags + '</span>'
+          + '<span class="row-actions"><button class="btn btn-ghost btn-sm" data-ldup="' + l.id + '" aria-label="Duplicate ' + esc(l.title) + '">Duplicate</button>'
+          + '<button class="btn btn-ghost btn-sm" data-ldel="' + l.id + '" aria-label="Delete ' + esc(l.title) + '">✕</button></span></li>';
       }).join('');
-      wrap.innerHTML = html + '<button class="btn btn-primary btn-sm" id="addMod">+ Add module</button>';
-      function swapAndSave(action, payloadKey, payloadVal, ids, i, j) {
-        if (i < 0 || j < 0 || j >= ids.length) return;
-        var t = ids[i]; ids[i] = ids[j]; ids[j] = t; var p = { ids: ids }; p[payloadKey] = payloadVal;
-        post(action, p).then(function () { renderCurriculum(slug); });
-      }
-      function moveModule(id, dir) { var ids = mods.map(function (m) { return m.id; }); var i = ids.indexOf(id); swapAndSave('mod_reorder', 'course', slug, ids, i, i + dir); }
-      function moveLesson(modId, id, dir) { var m = mods.filter(function (x) { return x.id === modId; })[0]; if (!m) return; var ids = (m.lessons || []).map(function (l) { return l.id; }); var i = ids.indexOf(id); swapAndSave('lesson_reorder', 'module_id', modId, ids, i, i + dir); }
-      $('#addMod').onclick = function () { openModule(null); };
-      $$('[data-mup]', wrap).forEach(function (b) { b.onclick = function () { moveModule(+b.getAttribute('data-mup'), -1); }; });
-      $$('[data-mdn]', wrap).forEach(function (b) { b.onclick = function () { moveModule(+b.getAttribute('data-mdn'), 1); }; });
-      $$('[data-lup]', wrap).forEach(function (b) { b.onclick = function () { moveLesson(+b.getAttribute('data-mod'), +b.getAttribute('data-lup'), -1); }; });
-      $$('[data-ldn]', wrap).forEach(function (b) { b.onclick = function () { moveLesson(+b.getAttribute('data-mod'), +b.getAttribute('data-ldn'), 1); }; });
-      $$('[data-mren]', wrap).forEach(function (b) { b.onclick = function () { var id = +b.getAttribute('data-mren'); openModule(mods.filter(function (x) { return x.id === id; })[0] || null); }; });
-      $$('[data-mdel]', wrap).forEach(function (b) { b.onclick = function () { if (confirm('Delete this module and its lessons?')) post('mod_delete', { id: +b.getAttribute('data-mdel') }).then(function () { renderCurriculum(slug); }); }; });
-      $$('[data-ladd]', wrap).forEach(function (b) { b.onclick = function () { openLesson(null, +b.getAttribute('data-ladd')); }; });
-      $$('[data-led]', wrap).forEach(function (b) { b.onclick = function () { openLesson(+b.getAttribute('data-led'), null); }; });
-      $$('[data-ldel]', wrap).forEach(function (b) { b.onclick = function () { if (confirm('Delete this lesson?')) post('lesson_delete', { id: +b.getAttribute('data-ldel') }).then(function () { renderCurriculum(slug); }); }; });
+      var objs = (m.objectives || '').split('\n').filter(Boolean).length;
+      return '<section class="mod" data-mod="' + m.id + '" draggable="true">'
+        + '<div class="mod-head"><button type="button" class="drag" data-handle="mod" data-id="' + m.id + '" aria-label="Move module ' + esc(m.title) + ' (drag, or Alt+arrow keys)">⠿</button>'
+        + '<span class="mod-title"><span class="mod-k">Module ' + (mi + 1) + '</span>' + esc(m.title)
+        + '<span class="muted mod-sum">' + (m.summary ? esc(m.summary) : '<em>No introduction yet — learners see it at the start of the module.</em>') + (objs ? ' · ' + objs + ' objective' + (objs === 1 ? '' : 's') : '') + '</span></span>'
+        + '<button class="btn btn-outline btn-sm" data-mren="' + m.id + '">Edit introduction</button>'
+        + '<button class="btn btn-ghost btn-sm" data-mdel="' + m.id + '">Delete</button></div>'
+        + '<ul class="mod-lessons" data-drop="' + m.id + '">' + (items || '<li class="les-empty">No items yet — drop one here or add one.</li>') + '</ul>'
+        + '<div class="mod-foot add-kinds" role="group" aria-label="Add an item to ' + esc(m.title) + '"><span class="muted">Add:</span>'
+        + KINDS.map(function (k) { return '<button class="btn btn-outline btn-sm" data-ladd="' + m.id + '" data-kind="' + k.k + '" title="' + esc(k.hint) + '">+ ' + k.label + '</button>'; }).join('')
+        + '</div></section>';
+    }).join('');
+    wrap.innerHTML = (html || '<p class="empty">Start with a module — a week or a topic — then add items to it.</p>')
+      + '<button class="btn btn-primary btn-sm" id="addMod">+ Add module</button>';
+    if (focusSel) { var f = $(focusSel, wrap); if (f) f.focus(); }
+
+    $('#addMod').onclick = function () { openModule(null); };
+    $$('[data-mren]', wrap).forEach(function (b) { b.onclick = function () { var id = +b.getAttribute('data-mren'); openModule(curMods.filter(function (x) { return x.id === id; })[0] || null); }; });
+    $$('[data-mdel]', wrap).forEach(function (b) { b.onclick = function () { if (confirm('Delete this module and its items?')) post('mod_delete', { id: +b.getAttribute('data-mdel') }).then(function () { renderCurriculum(slug); }); }; });
+    $$('[data-ladd]', wrap).forEach(function (b) { b.onclick = function () { openLesson(null, +b.getAttribute('data-ladd'), b.getAttribute('data-kind')); }; });
+    $$('[data-led]', wrap).forEach(function (b) { b.onclick = function () { openLesson(+b.getAttribute('data-led'), null); }; });
+    $$('[data-ldup]', wrap).forEach(function (b) { b.onclick = function () { post('lesson_duplicate', { id: +b.getAttribute('data-ldup') }).then(function (r) { if (r && r.ok) { toast('Duplicated', 'ok'); renderCurriculum(slug); } else toast((r && r.error) || 'Failed', 'err'); }); }; });
+    $$('[data-ldel]', wrap).forEach(function (b) { b.onclick = function () { if (confirm('Delete this item?')) post('lesson_delete', { id: +b.getAttribute('data-ldel') }).then(function () { renderCurriculum(slug); }); }; });
+
+    /* Keyboard: Alt+↑/↓ on a handle moves it; an item crosses into the next/previous module at the ends. */
+    $$('[data-handle]', wrap).forEach(function (h) {
+      h.addEventListener('keydown', function (e) {
+        if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+        e.preventDefault();
+        var dir = e.key === 'ArrowUp' ? -1 : 1, id = +h.getAttribute('data-id');
+        if (h.getAttribute('data-handle') === 'mod') {
+          var i = curMods.map(function (m) { return m.id; }).indexOf(id), j = i + dir;
+          if (j < 0 || j >= curMods.length) return;
+          var t = curMods[i]; curMods[i] = curMods[j]; curMods[j] = t;
+        } else {
+          var p = findItem(id); if (!p) return;
+          var list = curMods[p.mi].lessons, it = list[p.li], nj = p.li + dir;
+          if (nj >= 0 && nj < list.length) { list[p.li] = list[nj]; list[nj] = it; }
+          else {
+            var nm = p.mi + dir; if (nm < 0 || nm >= curMods.length) return;
+            list.splice(p.li, 1); curMods[nm].lessons = curMods[nm].lessons || [];
+            if (dir < 0) curMods[nm].lessons.push(it); else curMods[nm].lessons.unshift(it);
+          }
+        }
+        draw(slug, '[data-handle="' + h.getAttribute('data-handle') + '"][data-id="' + id + '"]');
+        saveOutline(slug);
+      });
+    });
+
+    /* Drag and drop. */
+    var dragging = null;
+    $$('[data-item]', wrap).forEach(function (li) {
+      li.addEventListener('dragstart', function (e) { dragging = { kind: 'item', id: +li.getAttribute('data-item') }; li.classList.add('is-drag'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'item'); e.stopPropagation(); });
+      li.addEventListener('dragend', function () { li.classList.remove('is-drag'); });
+    });
+    $$('[data-mod]', wrap).forEach(function (sec) {
+      sec.addEventListener('dragstart', function (e) { if (dragging) return; dragging = { kind: 'mod', id: +sec.getAttribute('data-mod') }; sec.classList.add('is-drag'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'mod'); });
+      sec.addEventListener('dragend', function () { sec.classList.remove('is-drag'); dragging = null; });
+      sec.addEventListener('dragover', function (e) { if (dragging) { e.preventDefault(); sec.classList.add('is-over'); } });
+      sec.addEventListener('dragleave', function () { sec.classList.remove('is-over'); });
+      sec.addEventListener('drop', function (e) {
+        e.preventDefault(); sec.classList.remove('is-over');
+        if (!dragging) return;
+        var toMod = +sec.getAttribute('data-mod');
+        if (dragging.kind === 'mod') {
+          var ids = curMods.map(function (m) { return m.id; }), from = ids.indexOf(dragging.id), to = ids.indexOf(toMod);
+          if (from < 0 || to < 0 || from === to) { dragging = null; return; }
+          var mv = curMods.splice(from, 1)[0]; curMods.splice(to, 0, mv);
+        } else {
+          var p = findItem(dragging.id); if (!p) { dragging = null; return; }
+          var it = curMods[p.mi].lessons.splice(p.li, 1)[0];
+          var target = curMods.filter(function (m) { return m.id === toMod; })[0];
+          target.lessons = target.lessons || [];
+          /* Dropped on an item: go before it; on the module itself: go last. */
+          var over = e.target.closest && e.target.closest('[data-item]');
+          var at = over ? target.lessons.map(function (l) { return l.id; }).indexOf(+over.getAttribute('data-item')) : -1;
+          if (at < 0) target.lessons.push(it); else target.lessons.splice(at, 0, it);
+        }
+        dragging = null;
+        draw(slug); saveOutline(slug);
+      });
     });
   }
 
@@ -366,7 +450,7 @@
     $('#resList').appendChild(row);
   }
   $('#addRes').onclick = function () { resRow(); };
-  function openLesson(id, moduleId) {
+  function openLesson(id, moduleId, preset) {
     lessonOpener = document.activeElement;
     lessonId = id || 0; lessonModuleId = moduleId || 0;
     $('#lessonMsg').textContent = '';
@@ -393,7 +477,13 @@
       $('#lessonModal').hidden = false;
       setTimeout(function () { var f = $('#l_title'); if (f) f.focus(); }, 30);
     }
-    if (!id) { fill({}); return; }
+    if (!id) {
+      var pre = { kind: preset === 'assignment' || preset === 'discussion' ? preset : '' };
+      fill(pre);
+      if (preset === 'quiz') $('#quizQuestions').appendChild(qCard());
+      if (preset === 'video') setTimeout(function () { $('#l_video').focus(); }, 40);
+      return;
+    }
     get('lesson_get', 'id=' + id).then(function (d) { fill((d && d.lesson) || {}); });
   }
   var lessonOpener = null;  // element to restore focus to on close

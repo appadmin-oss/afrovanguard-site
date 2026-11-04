@@ -140,6 +140,7 @@ declare(strict_types=1);
               </div>
               <p class="muted fld-help">Pass mark: the weighted grade a learner needs, with every graded item passed. Weeks: 0 = one week per module.</p>
               <label class="fld"><span>Language</span><input id="c_language" placeholder="English" /></label>
+              <label class="chk"><input type="checkbox" id="c_sequential" /> <span>Items open in order (finish one to unlock the next)</span></label>
             </div>
             <div class="card">
               <h3>Details</h3>

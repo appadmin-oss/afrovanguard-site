@@ -2060,7 +2060,7 @@ try {
                 'pass_code' => (string) ($body['pass_code'] ?? ''),
             ];
             // Course details and grading, only when the Studio sends them.
-            foreach (['language', 'skills', 'prerequisites', 'pass_mark', 'pace_weeks'] as $k) {
+            foreach (['language', 'skills', 'prerequisites', 'pass_mark', 'pace_weeks', 'sequential'] as $k) {
                 if (array_key_exists($k, $body)) $fields[$k] = $body[$k];
             }
             // Resolve an instructor by email (must already have an Academy account).
@@ -2184,17 +2184,29 @@ try {
             $capUrl = trim((string) ($body['captions_url'] ?? ''));
             if ($capUrl !== '' && Embeds::captionsFile($capUrl) === null)
                 json_out(['ok' => false, 'error' => 'Captions must be a .vtt file.'], 422);
-            $id = $lms->saveLesson([
-                'id' => (int) ($body['id'] ?? 0), 'module_id' => (int) ($body['module_id'] ?? 0),
-                'slug' => trim((string) ($body['slug'] ?? '')), 'title' => trim((string) $body['title']),
-                'body_html' => $lbody, 'video_url' => trim((string) ($body['video_url'] ?? '')),
-                'duration_min' => (int) ($body['duration_min'] ?? 0), 'is_preview' => !empty($body['is_preview']),
-                'quiz_json' => $quizJson,
-                'kind' => $kind, 'weight' => (int) ($body['weight'] ?? 1), 'assignment_pass' => (int) ($body['assignment_pass'] ?? 70),
-                'transcript' => (string) ($body['transcript'] ?? ''), 'captions_url' => $capUrl,
-                'resources' => is_array($body['resources'] ?? null) ? $body['resources'] : [],
-            ]);
+            /* Only what the editor sent: a field it does not send is kept (saveLesson). */
+            $ld = ['id' => (int) ($body['id'] ?? 0), 'module_id' => (int) ($body['module_id'] ?? 0)];
+            foreach (['slug', 'title', 'video_url', 'duration_min', 'is_preview', 'kind', 'weight', 'assignment_pass', 'transcript'] as $k)
+                if (array_key_exists($k, $body)) $ld[$k] = is_string($body[$k]) ? trim($body[$k]) : $body[$k];
+            if (array_key_exists('body_html', $body)) $ld['body_html'] = $lbody;
+            if (array_key_exists('captions_url', $body)) $ld['captions_url'] = $capUrl;
+            if (array_key_exists('resources', $body)) $ld['resources'] = is_array($body['resources']) ? $body['resources'] : [];
+            if (array_key_exists('quiz', $body) || array_key_exists('kind', $body)) $ld['quiz_json'] = $quizJson;
+            $id = $lms->saveLesson($ld);
             json_out(['ok' => true, 'id' => $id]);
+        case 'outline_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            if (!$lms->saveOutline((int) $cs['id'], (array) ($body['modules'] ?? [])))
+                json_out(['ok' => false, 'error' => 'The outline changed in another tab. Reload and try again.'], 409);
+            json_out(['ok' => true, 'modules' => $lms->curriculum((int) $cs['id'])]);
+        }
+        case 'lesson_duplicate': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $nid = $lms->duplicateLesson((int) ($body['id'] ?? 0));
+            json_out($nid ? ['ok' => true, 'id' => $nid] : ['ok' => false, 'error' => 'Not found.'], $nid ? 200 : 404);
+        }
         case 'lesson_delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $lms->deleteLesson((int) ($body['id'] ?? 0)); json_out(['ok' => true]);

@@ -13,7 +13,7 @@ final class AcademyRepository
        read: the catalogue (`all`, `featured`, `others`) selects PUBLIC_COLS, and
        a single course leaves this class through publicView(). Only the Studio's
        allForAdmin() and the server's own access check see it. */
-    private const COLS = 'id, slug, title, summary, cover_url, category, level, format, duration, price, location, gradient, featured, status, sort, outcomes, access_type, price_ngn, pass_code, cover_is_dark, language, skills, prerequisites, pass_mark, pace_weeks, created_at';
+    private const COLS = 'id, slug, title, summary, cover_url, category, level, format, duration, price, location, gradient, featured, status, sort, outcomes, access_type, price_ngn, pass_code, cover_is_dark, language, skills, prerequisites, pass_mark, pace_weeks, sequential, created_at';
     private const SECRET = ['pass_code'];
 
     private bool $ready = false;
@@ -51,7 +51,7 @@ final class AcademyRepository
             foreach (['id', 'slug', 'title', 'summary', 'body_html', 'cover_url', 'og_image', 'category', 'level',
                       'format', 'duration', 'price', 'location', 'gradient', 'featured', 'status', 'sort', 'outcomes',
                       'cta_url', 'access_type', 'price_ngn', 'pass_code', 'cover_is_dark', 'instructor_id',
-                      'language', 'skills', 'prerequisites', 'pass_mark', 'pace_weeks',
+                      'language', 'skills', 'prerequisites', 'pass_mark', 'pace_weeks', 'sequential',
                       'created_at', 'updated_at'] as $c) {
                 if (Database::columnExists('courses', $c)) $set[$c] = true;
             }
@@ -166,6 +166,7 @@ final class AcademyRepository
         if (isset($f['language']) && $f['language'] === '') $f['language'] = 'English';
         if (array_key_exists('pass_mark', $d)) $f['pass_mark'] = max(0, min(100, (int) $d['pass_mark']));
         if (array_key_exists('pace_weeks', $d)) $f['pace_weeks'] = max(0, min(104, (int) $d['pace_weeks']));
+        if (array_key_exists('sequential', $d)) $f['sequential'] = !empty($d['sequential']) && $d['sequential'] !== '0' ? 1 : 0;
         if (array_key_exists('instructor_id', $d)) { $f['instructor_id'] = $d['instructor_id'] !== null ? (int) $d['instructor_id'] : null; }
         // Colour-aware cover: precompute luminance of the chip region (top) so the
         // catalogue overlay text picks a legible colour with no client work.
@@ -210,7 +211,7 @@ final class AcademyRepository
         $cols = array_filter(
             ['slug', 'title', 'summary', 'body_html', 'cover_url', 'og_image', 'category', 'level', 'format', 'duration',
              'price', 'location', 'gradient', 'outcomes', 'cta_url', 'access_type', 'price_ngn', 'instructor_id',
-             'language', 'skills', 'prerequisites', 'pass_mark', 'pace_weeks'],
+             'language', 'skills', 'prerequisites', 'pass_mark', 'pace_weeks', 'sequential'],
             fn($c) => isset($have[$c])
         );
         $vals = [];

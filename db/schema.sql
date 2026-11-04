@@ -107,7 +107,8 @@ CREATE TABLE IF NOT EXISTS courses (
   skills        TEXT NOT NULL DEFAULT '',        -- newline-separated: "Skills you'll gain"
   prerequisites TEXT NOT NULL DEFAULT '',        -- newline-separated; empty = none
   pass_mark     INTEGER NOT NULL DEFAULT 70,     -- overall weighted grade needed to pass (0-100)
-  pace_weeks    INTEGER NOT NULL DEFAULT 0       -- suggested weeks to finish; 0 = one week per module
+  pace_weeks    INTEGER NOT NULL DEFAULT 0,      -- suggested weeks to finish; 0 = one week per module
+  sequential    INTEGER NOT NULL DEFAULT 0       -- 1 = items open in order, each once the one before is done
 );
 CREATE INDEX IF NOT EXISTS idx_courses_status ON courses(status);
 

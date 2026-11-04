@@ -156,7 +156,11 @@ avac_head([
     <section class="avle-gate" aria-labelledby="avle-gate-h" data-avac-paycard>
       <div class="avle-gate-k">Locked</div>
       <h2 id="avle-gate-h">This lesson is locked</h2>
-<?php if (!$user): ?>
+<?php if (!empty($course['sequential']) && $user && $lms->canAccess($user, $course, ['is_preview' => 0]) && !$lms->sequenceOpen($user, (int) $course['id'], (int) $lesson['id'])): $nx = $lms->nextLesson((int) $course['id'], $doneIds); ?>
+      <p>This course opens items in order. Finish the one before to unlock this.</p>
+<?php if ($nx): ?>      <div class="avle-gate-btns"><a class="avle-btn avle-btn--lg" href="<?= e($learnUrl((string) $nx['slug'])) ?>">Go to your next item →</a></div>
+<?php endif; ?>
+<?php elseif (!$user): ?>
       <p>Create a free account or sign in to start learning <strong><?= e((string) $course['title']) ?></strong> and track your progress.</p>
       <div class="avle-gate-btns">
         <a class="avle-btn avle-btn--lg" href="/login?mode=register" data-avac-auth="register">Create free account</a>
@@ -260,6 +264,18 @@ avac_head([
     </section>
 <?php endif; ?>
 
+<?php $curMod = null; foreach ($curriculum as $mi => $mm) { if (($mm['lessons'][0]['slug'] ?? '') === $lessonSlug) { $curMod = $mm + ['n' => $mi + 1]; break; } }
+if ($curMod && (trim((string) ($curMod['summary'] ?? '')) !== '' || LmsCourseware::objectives($curMod))): $mMins = array_sum(array_map(static fn($x) => (int) $x['duration_min'], $curMod['lessons'])); ?>
+    <section class="avle-modintro" aria-labelledby="avle-modintro-h">
+      <div class="avle-modintro-k av-num">Module <?= (int) $curMod['n'] ?> · <?= e(avac_plural(count($curMod['lessons']), 'item')) ?><?= $mMins ? ' · ' . $mMins . ' min' : '' ?></div>
+      <h2 class="avle-h2" id="avle-modintro-h"><?= e((string) $curMod['title']) ?></h2>
+<?php if (trim((string) ($curMod['summary'] ?? '')) !== ''): ?>      <p><?= e((string) $curMod['summary']) ?></p>
+<?php endif; ?>
+<?php if ($objs = LmsCourseware::objectives($curMod)): ?>      <h3>By the end of this module you will be able to</h3>
+      <ul><?php foreach ($objs as $ob): ?><li><?= e($ob) ?></li><?php endforeach; ?></ul>
+<?php endif; ?>
+    </section>
+<?php endif; ?>
 <?php if ($quiz): $qn = count($quiz['questions']); $outOfTries = $attemptsLeft === 0; ?>
     <form class="avle-quiz" data-avle-quiz data-course="<?= e($courseSlug) ?>" data-lesson="<?= e($lessonSlug) ?>" data-graded="<?= $quiz['graded'] ? '1' : '0' ?>">
       <p class="avle-quiz-intro"><?php if ($quiz['graded']): ?>Graded quiz · pass mark <?= (int) $quiz['pass'] ?>%<?= (int) ($lesson['weight'] ?? 1) > 1 ? ' · weight ' . (int) $lesson['weight'] : '' ?><?php else: ?>Practice quiz · doesn’t count toward your grade<?php endif; ?><?= $quiz['attempts'] > 0 ? ' · ' . e(avac_plural((int) $quiz['attempts'], 'attempt')) . ' allowed' : '' ?></p>

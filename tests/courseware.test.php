@@ -320,3 +320,33 @@ ck('media: a Loom lesson frames Loom’s player, with no speed bar', str_contain
 $dup = $ac->duplicate($slug);
 $dv = array_values(array_filter($lms->orderedLessons((int) $ac->bySlug($dup, true)['id']), static fn($l) => $l['title'] === 'Watch: running a meeting'))[0] ?? null;
 ck('media: a duplicated course keeps its captions and resources', $dv && ($full = $lms->lessonById((int) $dv['id'])) && $full['captions_url'] === '/uploads/media/meeting.vtt' && count(LmsRepository::resources($full)) === 1);
+
+/* ══ Authoring: partial saves, reordering, duplicating, in-order courses ═ */
+
+$lms->saveLesson(['id' => $lAsg, 'title' => 'Write a plan, renamed']);
+$after = $L($lAsg);
+ck('authoring: a save that sends only a title keeps the item kind, weight and pass mark',
+   $after['title'] === 'Write a plan, renamed' && $after['kind'] === 'assignment' && (int) $after['weight'] === 3 && LmsCourseware::assignmentPass($after) === 60);
+$o = $lms->curriculum($cid);
+$moved = array_map(static fn($m) => ['id' => (int) $m['id'], 'lessons' => array_map(static fn($l) => (int) $l['id'], $m['lessons'])], $o);
+$moved = array_reverse($moved);                                    // modules swapped
+$x = array_shift($moved[0]['lessons']); $moved[1]['lessons'][] = $x; // an item crosses modules
+ck('authoring: a whole outline saves in one go', $lms->saveOutline($cid, $moved));
+$o2 = $lms->curriculum($cid);
+ck('authoring: modules and items land in the new order', (int) $o2[0]['id'] === $moved[0]['id'] && in_array($x, array_map(static fn($l) => (int) $l['id'], $o2[1]['lessons']), true));
+ck('authoring: an outline missing an item is refused', !$lms->saveOutline($cid, [['id' => $moved[0]['id'], 'lessons' => []]]));
+ck('authoring: an item from another course is refused', !$lms->saveOutline($cid, array_merge($moved, [['id' => $pm, 'lessons' => [$pl]]])));
+$dupId = $lms->duplicateLesson($lAsg);
+ck('authoring: duplicating keeps the kind and grading', $dupId && $L($dupId)['kind'] === 'assignment' && str_ends_with($L($dupId)['title'], '(copy)') && LmsCourseware::assignmentPass($L($dupId)) === 60);
+$lms->deleteLesson($dupId);
+
+$seqC = $ac->bySlug($ac->save(['title' => 'Courseware In Order', 'summary' => 's', 'status' => 'published', 'access_type' => 'open', 'sequential' => 1]));
+$sm = $lms->addModule((int) $seqC['id'], 'Only');
+$s1 = $lms->saveLesson(['module_id' => $sm, 'title' => 'First', 'slug' => '', 'body_html' => '']);
+$s2 = $lms->saveLesson(['module_id' => $sm, 'title' => 'Second', 'slug' => '', 'body_html' => '']);
+ck('order: the course is in-order', (int) $seqC['sequential'] === 1);
+ck('order: the first item is open', $lms->canAccess($u3, $seqC, $L($s1)));
+ck('order: the second is shut until the first is done', !$lms->canAccess($u3, $seqC, $L($s2)) && ($lms->canAccessMany($u3, $seqC, [$L($s2)])[$s2] ?? true) === false);
+$lms->markComplete((int) $u3['id'], $L($s1));
+ck('order: and opens once it is', $lms->canAccess($u3, $seqC, $L($s2)) && $lms->canAccessMany($u3, $seqC, [$L($s2)])[$s2] === true);
+ck('order: an ordinary course is not in order', $lms->canAccess($u3, $plain, $lms->lessonById($pl)));

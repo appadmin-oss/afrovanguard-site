@@ -195,12 +195,30 @@ final class LmsRepository
     {
         $teach = $user !== null && $this->teaches($user, $course);
         $whole = $this->canAccess($user, $course, ['is_preview' => 0]);
-        $out = [];
+        $seq = !empty($course['sequential']) && !$teach;
+        $done = ($seq && $user) ? array_flip($this->progress((int) $user['id'], (int) $course['id'])['ids']) : [];
+        $out = []; $prevDone = true;
+        foreach ($this->orderedLessons((int) $course['id']) as $ol) {
+            $inOrder[(int) $ol['id']] = $prevDone;
+            $prevDone = $prevDone && isset($done[(int) $ol['id']]);
+        }
         foreach ($lessons as $l) {
             $open = !class_exists('LmsDrip') || LmsDrip::lessonOpen($l) || $teach;
-            $out[(int) $l['id']] = $open && (!empty($l['is_preview']) || $whole);
+            $seqOk = !$seq || ($inOrder[(int) $l['id']] ?? true);
+            $out[(int) $l['id']] = $open && (!empty($l['is_preview']) || ($whole && $seqOk));
         }
         return $out;
+    }
+
+    /** On an in-order course: is everything before this item done? (A visitor gets the first item only.) */
+    public function sequenceOpen(?array $user, int $courseId, int $lessonId): bool
+    {
+        $done = $user ? array_flip($this->progress((int) $user['id'], $courseId)['ids']) : [];
+        foreach ($this->orderedLessons($courseId) as $l) {
+            if ((int) $l['id'] === $lessonId) return true;
+            if (!isset($done[(int) $l['id']])) return false;
+        }
+        return true;
     }
 
     public function canAccess(?array $user, array $course, array $lesson): bool
@@ -213,6 +231,9 @@ final class LmsRepository
         if (class_exists('LmsDrip') && !LmsDrip::lessonOpen($lesson)
             && !($user && $this->teaches($user, $course))) return false;
         if (!empty($lesson['is_preview'])) return true;             // previews always open
+        /* An in-order course opens each item once everything before it is done. */
+        if (!empty($course['sequential']) && !empty($lesson['id']) && !($user && $this->teaches($user, $course))
+            && !$this->sequenceOpen($user, (int) $course['id'], (int) $lesson['id'])) return false;
         $access = $course['access_type'] ?? 'open';
         if ($access === 'open') return true;                        // open courses: all lessons free
         if (!$user) return false;                                   // tracked/membership/paid need an account
@@ -574,41 +595,117 @@ final class LmsRepository
     /* ── Authoring: lessons ── */
     public function lessonById(int $id): ?array { $s = $this->db->prepare('SELECT * FROM lessons WHERE id = ?'); $s->execute([$id]); return $s->fetch() ?: null; }
 
+    /**
+     * Create or update an item. On an UPDATE only the fields the caller sent
+     * are written: an editor that does not know a field (an old cached page,
+     * the API) must never wipe it. That is how a lesson saved from the old
+     * console editor lost its item type, grading, captions and resources.
+     */
     public function saveLesson(array $d): int
     {
         $this->outline = [];
-        $module = $this->lessonModule((int) $d['module_id']);
+        $id = (int) ($d['id'] ?? 0);
+        $cur = $id ? $this->lessonById($id) : null;
+        if ($id && !$cur) throw new RuntimeException('Lesson not found');
+        $moduleId = (int) ($d['module_id'] ?? 0) ?: (int) ($cur['module_id'] ?? 0);
+        $module = $this->lessonModule($moduleId);
         if (!$module) throw new RuntimeException('Module not found');
         $courseId = (int) $module['course_id'];
-        $slug = slugify($d['slug'] ?: $d['title']);
-        // ensure unique slug within the course
-        $chk = $this->db->prepare('SELECT id FROM lessons WHERE course_id = ? AND slug = ? AND id <> ?');
-        $base = $slug; $i = 2;
-        while (true) { $chk->execute([$courseId, $slug, (int) ($d['id'] ?? 0)]); if (!$chk->fetchColumn()) break; $slug = $base . '-' . $i++; }
-        $fields = [
-            'module_id' => (int) $d['module_id'], 'course_id' => $courseId, 'slug' => $slug,
-            'title' => $d['title'], 'body_html' => $d['body_html'] ?? '', 'video_url' => (($v = trim((string) ($d['video_url'] ?? ''))) !== '' ? (Embeds::lessonVideo($v)['src'] ?? null) : null),
-            'transcript' => mb_substr(trim((string) ($d['transcript'] ?? '')), 0, 60000),
-            'captions_url' => ($cap = trim((string) ($d['captions_url'] ?? ''))) !== '' ? Embeds::captionsFile($cap) : null,
-            'resources_json' => self::normaliseResources((array) ($d['resources'] ?? [])),
-            'duration_min' => (int) ($d['duration_min'] ?? 0), 'is_preview' => !empty($d['is_preview']) ? 1 : 0,
-            'quiz_json' => isset($d['quiz_json']) && $d['quiz_json'] !== '' ? $d['quiz_json'] : null,
-            'kind' => in_array($d['kind'] ?? '', ['assignment', 'discussion'], true) ? $d['kind'] : '',
-            'weight' => max(1, min(100, (int) ($d['weight'] ?? 1))),
-            'assignment_json' => ($d['kind'] ?? '') === 'assignment'
-                ? json_encode(['pass' => max(1, min(100, (int) ($d['assignment_pass'] ?? 70)))]) : null,
-            'position' => (int) ($d['position'] ?? 0), 'updated_at' => date('Y-m-d H:i:s'),
-        ];
-        if (!empty($d['id'])) {
-            $set = implode(', ', array_map(fn($k) => "$k=:$k", array_keys($fields)));
-            $this->db->prepare("UPDATE lessons SET $set WHERE id = :id")->execute($fields + ['id' => (int) $d['id']]);
-            return (int) $d['id'];
+        $has = static fn(string $k): bool => !$cur || array_key_exists($k, $d);
+        $f = ['module_id' => $moduleId, 'course_id' => $courseId, 'updated_at' => date('Y-m-d H:i:s')];
+        if ($has('title')) $f['title'] = (string) $d['title'];
+        if ($has('slug') || $has('title')) {
+            $slug = slugify((string) (($d['slug'] ?? '') ?: ($d['title'] ?? ($cur['title'] ?? 'item'))));
+            if ($cur && !array_key_exists('slug', $d)) $slug = (string) $cur['slug'];
+            $chk = $this->db->prepare('SELECT id FROM lessons WHERE course_id = ? AND slug = ? AND id <> ?');
+            $base = $slug; $i = 2;
+            while (true) { $chk->execute([$courseId, $slug, $id]); if (!$chk->fetchColumn()) break; $slug = $base . '-' . $i++; }
+            $f['slug'] = $slug;
         }
-        $fields['position'] = (int) $this->db->query('SELECT COALESCE(MAX(position),-1)+1 FROM lessons WHERE module_id = ' . (int) $d['module_id'])->fetchColumn();
-        $cols = implode(',', array_keys($fields)); $ph = implode(',', array_map(fn($k) => ":$k", array_keys($fields)));
-        $this->db->prepare("INSERT INTO lessons ($cols) VALUES ($ph)")->execute($fields);
+        if ($has('body_html')) $f['body_html'] = (string) ($d['body_html'] ?? '');
+        if ($has('video_url')) $f['video_url'] = ($v = trim((string) ($d['video_url'] ?? ''))) !== '' ? (Embeds::lessonVideo($v)['src'] ?? null) : null;
+        if ($has('transcript')) $f['transcript'] = mb_substr(trim((string) ($d['transcript'] ?? '')), 0, 60000);
+        if ($has('captions_url')) $f['captions_url'] = ($cap = trim((string) ($d['captions_url'] ?? ''))) !== '' ? Embeds::captionsFile($cap) : null;
+        if ($has('resources')) $f['resources_json'] = self::normaliseResources((array) ($d['resources'] ?? []));
+        if ($has('duration_min')) $f['duration_min'] = (int) ($d['duration_min'] ?? 0);
+        if ($has('is_preview')) $f['is_preview'] = !empty($d['is_preview']) ? 1 : 0;
+        if ($has('quiz_json')) $f['quiz_json'] = isset($d['quiz_json']) && $d['quiz_json'] !== '' ? $d['quiz_json'] : null;
+        if ($has('kind')) $f['kind'] = in_array($d['kind'] ?? '', ['assignment', 'discussion'], true) ? $d['kind'] : '';
+        if ($has('weight')) $f['weight'] = max(1, min(100, (int) ($d['weight'] ?? 1)));
+        if ($has('kind') || array_key_exists('assignment_pass', $d)) {
+            $kind = $f['kind'] ?? (string) ($cur['kind'] ?? '');
+            $f['assignment_json'] = $kind === 'assignment' ? json_encode(['pass' => max(1, min(100, (int) ($d['assignment_pass'] ?? 70)))]) : null;
+        }
+        if ($cur) {
+            if ($moduleId !== (int) $cur['module_id']) $f['position'] = $this->nextPosition($moduleId);
+            $set = implode(', ', array_map(fn($k) => "$k=:$k", array_keys($f)));
+            $this->db->prepare("UPDATE lessons SET $set WHERE id = :id")->execute($f + ['id' => $id]);
+            return $id;
+        }
+        $f['position'] = $this->nextPosition($moduleId);
+        $f['created_at'] = $f['updated_at'];
+        $cols = implode(',', array_keys($f)); $ph = implode(',', array_map(fn($k) => ":$k", array_keys($f)));
+        $this->db->prepare("INSERT INTO lessons ($cols) VALUES ($ph)")->execute($f);
         return (int) $this->db->lastInsertId();
     }
+
+    private function nextPosition(int $moduleId): int
+    {
+        $s = $this->db->prepare('SELECT COALESCE(MAX(position),-1)+1 FROM lessons WHERE module_id = ?');
+        $s->execute([$moduleId]);
+        return (int) $s->fetchColumn();
+    }
+
+    /**
+     * Save a whole outline's order in one go: modules in order, each with its
+     * items in order — an item may have moved to another module. Every id must
+     * belong to this course, or nothing is written.
+     *   $outline = [['id' => moduleId, 'lessons' => [lessonId, …]], …]
+     */
+    public function saveOutline(int $courseId, array $outline): bool
+    {
+        $mods = []; $les = [];
+        foreach ($this->db->query('SELECT id FROM modules WHERE course_id = ' . $courseId) as $r) $mods[(int) $r['id']] = true;
+        foreach ($this->db->query('SELECT id FROM lessons WHERE course_id = ' . $courseId) as $r) $les[(int) $r['id']] = true;
+        $seenM = []; $seenL = [];
+        foreach ($outline as $m) {
+            $mid = (int) ($m['id'] ?? 0);
+            if (!isset($mods[$mid]) || isset($seenM[$mid])) return false;
+            $seenM[$mid] = true;
+            foreach ((array) ($m['lessons'] ?? []) as $lid) {
+                $lid = (int) $lid;
+                if (!isset($les[$lid]) || isset($seenL[$lid])) return false;
+                $seenL[$lid] = true;
+            }
+        }
+        if (count($seenM) !== count($mods) || count($seenL) !== count($les)) return false;   // nothing may go missing
+        $this->outline = [];
+        $this->db->beginTransaction();
+        try {
+            $um = $this->db->prepare('UPDATE modules SET position = ? WHERE id = ?');
+            $ul = $this->db->prepare('UPDATE lessons SET module_id = ?, position = ? WHERE id = ?');
+            foreach (array_values($outline) as $mp => $m) {
+                $um->execute([$mp, (int) $m['id']]);
+                foreach (array_values((array) ($m['lessons'] ?? [])) as $lp => $lid) $ul->execute([(int) $m['id'], $lp, (int) $lid]);
+            }
+            $this->db->commit();
+        } catch (Throwable $e) { $this->db->rollBack(); throw $e; }
+        return true;
+    }
+
+    /** Copy an item into the same module, at the end, as "(copy)". Returns the new id. */
+    public function duplicateLesson(int $id): ?int
+    {
+        $l = $this->lessonById($id);
+        if (!$l) return null;
+        $copy = array_intersect_key($l, array_flip(['module_id', 'body_html', 'video_url', 'duration_min', 'quiz_json', 'kind', 'weight', 'transcript', 'captions_url']));
+        $copy['title'] = $l['title'] . ' (copy)';
+        $copy['slug'] = '';
+        $copy['resources'] = self::resources($l);
+        if (($l['kind'] ?? '') === 'assignment') $copy['assignment_pass'] = LmsCourseware::assignmentPass($l);
+        return $this->saveLesson($copy);
+    }
+
     /** Up to 20 resources, each a title and a link we allow; JSON, or null for none. */
     public static function normaliseResources(array $list): ?string
     {

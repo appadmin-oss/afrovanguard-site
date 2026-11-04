@@ -459,7 +459,10 @@
 
   /* ---- Curriculum manager ---- */
   var curSlug = '', curLessonModule = 0, curLessonId = 0;
-  function openCurriculum(slug) { curSlug = slug; show('curriculum'); loadCurriculum(); }
+  /* One curriculum editor: the Academy Studio's (reorder, item kinds, grading,
+     media). The console's own copy had none of that, and saving from it wiped
+     what it did not know about. */
+  function openCurriculum(slug) { location.href = '/academy/studio/#curriculum=' + encodeURIComponent(slug); }
   $('#curBackBtn').addEventListener('click', function () { show('academy'); loadCourses(); });
   function loadCurriculum() {
     return api('ac_curriculum&slug=' + encodeURIComponent(curSlug)).then(function (r) {
