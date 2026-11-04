@@ -42,7 +42,39 @@ preg_match("/function row\\(.*?return \\[(.*?)\\];/s", $src, $m);
 preg_match_all("/'(\\w+)'\\s*=>/", $m[1] ?? '', $keys);
 ck('the roster carries id, kind, name, email, the verdict and its reason — nothing else', $keys[1] === ['id', 'kind', 'name', 'email', 'printedId', 'homeSite', 'verdict', 'why']);
 ck('an account that is not active goes as off, with the reason', str_contains($src, "'verdict'   => \$active ? 'on' : 'off'"));
-ck('a list over CACENTRE’s cap is not cut and called full', str_contains($src, "count(\$people) > self::ROSTER_MAX"));
+/* ── A roster bigger than the host lets through ─────────────────────────── */
+putenv('AV_SSO_SECRET=' . str_repeat('k', 40));
+$mk = static fn(int $n) => array_map(static fn($i) => ['id' => (string) $i, 'kind' => 'member', 'name' => 'Member ' . $i, 'email' => "m{$i}@example.test", 'printedId' => 'NGV-25-' . str_pad((string) $i, 4, '0', STR_PAD_LEFT), 'homeSite' => '', 'verdict' => 'on', 'why' => ''], range(1, $n));
+$claimsOf = static function (?array $body) use ($unb): array { [, $b] = explode('.', (string) ($body['token'] ?? '..')); return json_decode($unb($b), true) ?: []; };
+$big = $mk(1500);
+$sent = [];
+CacWifi::$sendHook = static function ($url, $body) use (&$sent, $claimsOf) {
+    $c = $claimsOf($body); $sent[] = ['bytes' => strlen(json_encode($body)), 'c' => $c];
+    if (strlen(json_encode($body)) > 131072) return [406, '<html>Not Acceptable</html>'];   // CACENTRE's host firewall
+    return [200, json_encode(['ok' => true, 'applied' => count($c['people']), 'refused' => 0, 'gone' => 0, 'sync' => ['complete' => !empty($c['sync']['last'])]])];
+};
+$r = CacWifi::push($big);
+ck('1,500 members go in parts that each fit under the host’s 128KB limit (one request used to be refused with a 406)', $r['ok'] && $r['parts'] > 1 && max(array_column($sent, 'bytes')) <= 131072 && $r['applied'] === 1500);
+$ids = array_unique(array_map(static fn($x) => $x['c']['sync']['id'] ?? '', $sent));
+ck('…under one sync id, numbered in order, the last one marked, none called full', count($ids) === 1 && array_map(static fn($x) => $x['c']['sync']['part'], $sent) === range(1, count($sent))
+   && end($sent)['c']['sync']['last'] === true && !in_array(true, array_map(static fn($x) => $x['c']['full'], $sent), true));
+ck('…and CACENTRE confirming the set complete is reported (it withdraws who was not listed)', $r['synced'] === true && !isset($r['note']));
+$sent = [];
+$bad = '7';
+CacWifi::$sendHook = static function ($url, $body) use (&$sent, $claimsOf, $bad) {
+    $c = $claimsOf($body);
+    if (strlen(json_encode($body)) > 40000 || in_array($bad, array_column($c['people'], 'id'), true)) return [406, '<html>Not Acceptable</html>'];
+    $sent[] = $c; return [200, json_encode(['ok' => true, 'applied' => count($c['people']), 'refused' => 0, 'gone' => 0, 'sync' => ['complete' => !empty($c['sync']['last'])]])];
+};
+$r = CacWifi::push($mk(400));
+ck('a part the host still refuses is halved until it goes; the one member refused alone is named, everybody else arrives', $r['ok'] && $r['applied'] === 399 && $r['firewalled'] === [$bad]);
+ck('…and with somebody missing, the set is never called complete (nobody withdrawn)', !$r['synced'] && !in_array(true, array_map(static fn($c) => $c['sync']['last'], $sent), true) && str_contains((string) $r['note'], 'nobody was withdrawn'));
+$sent = [];
+CacWifi::$sendHook = static function ($url, $body) use (&$sent, $claimsOf) { $c = $claimsOf($body); $sent[] = $c; return [200, json_encode(['ok' => true, 'applied' => count($c['people']), 'refused' => 0, 'gone' => 0])]; };
+$r = CacWifi::push($mk(20));
+ck('a small roster still goes whole, in one request, as `full`', $r['ok'] && count($sent) === 1 && $sent[0]['full'] === true && $r['full'] === true);
+CacWifi::$sendHook = null;
+putenv('AV_SSO_SECRET');
 
 /* ── On the member's own dashboard ───────────────────────────────────────── */
 $nav  = (string) file_get_contents(dirname(__DIR__) . '/lib/PortalNav.php');
@@ -56,7 +88,7 @@ ck('the password travels in the body, never in a URL', str_contains($src, "['act
 ck('a member CACENTRE has not been sent yet is added at once: the card token carries their own roster row', str_contains($src, "\$claims['me'] = \$me"));
 ck('a member CACENTRE has not been sent is sent at once, alone, and asked for again — never told to wait for the roster',
    str_contains($src, "self::sendRoster([\$me], false)") && str_contains($src, '$again = self::ask($memberId, null)'));
-ck('a partial roster never withdraws anybody', str_contains($src, "'full' => \$full") && str_contains($src, 'self::sendRoster($people, true)'));
+ck('a member sent alone is a partial roster: not full, no sync set, so it never withdraws anybody', str_contains($src, "'full' => \$full") && str_contains($src, "self::sendRoster([\$me], false)") && !str_contains($src, "self::sendRoster([\$me], false, "));
 ck('the old PIN is gone from what the portal draws', !str_contains($src, "'pin'        =>") && str_contains($src, "'hasPassword' =>"));
 ck('loading, an empty card and an honest error with a retry are all said', str_contains($js, 'Loading your Wi-Fi details') && str_contains($js, 'not on the Wi-Fi list yet') && str_contains($js, 'retry.hidden = false'));
 ck('the roster goes from the cron, under the heartbeat', str_contains($cron, "AiOps::run('wifi'") && str_contains($cron, 'CacWifi::push()'));
