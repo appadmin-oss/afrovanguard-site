@@ -96,40 +96,66 @@
     }));
   });
 
+  /* Catalogue: the filter is a real GET form (works without script, and a
+     filtered view is a link you can share). With script it filters live and
+     keeps the address bar in step. */
   run('catalogue', () => {
     const grid = $('[data-avac-grid]');
     if (!grid) return;
+    const form = $('[data-avac-filter]');
     const cards = $$('.avac-card', grid);
     const tracks = $$('[data-avac-track]');
     const q = $('[data-avac-q]'), sort = $('[data-avac-sort]'), count = $('[data-avac-count]');
+    const level = $('[data-avac-level]'), price = $('[data-avac-price]'), trackIn = $('[data-avac-track-in]');
     const none = $('[data-avac-none]'), clear = $('[data-avac-clear]');
     const total = cards.length;
-    let cat = 'all';
-    const num = (c, k) => parseInt(c.dataset[k] || '0', 10) || 0;
+    let cat = (trackIn && trackIn.value) || 'all';
+    const num = (c, k) => parseFloat(c.dataset[k] || '0') || 0;
     const order = () => {
-      const key = sort ? sort.value : 'featured';
+      const key = sort ? sort.value : 'recommended';
       cards.slice().sort((a, b) => {
         if (key === 'title') return (a.dataset.title || '').localeCompare(b.dataset.title || '');
-        if (key === 'lessons') return num(b, 'lessons') - num(a, 'lessons');
+        if (key === 'popular') return num(b, 'enrolled') - num(a, 'enrolled');
+        if (key === 'rating') return num(b, 'rating') - num(a, 'rating') || num(b, 'ratings') - num(a, 'ratings');
+        if (key === 'newest') return (b.dataset.created || '').localeCompare(a.dataset.created || '');
+        if (key === 'shortest') return (num(a, 'minutes') || 1e9) - (num(b, 'minutes') || 1e9);
         return num(b, 'featured') - num(a, 'featured') || cards.indexOf(a) - cards.indexOf(b);
       }).forEach(c => grid.appendChild(c));
     };
+    const sync = () => {
+      if (!form || !history.replaceState) return;
+      const p = new URLSearchParams();
+      if (q && q.value.trim()) p.set('q', q.value.trim());
+      if (cat !== 'all') p.set('track', cat);
+      if (level && level.value) p.set('level', level.value);
+      if (price && price.value) p.set('price', price.value);
+      if (sort && sort.value !== 'recommended') p.set('sort', sort.value);
+      const s = p.toString();
+      history.replaceState(null, '', location.pathname + (s ? '?' + s : '') + '#catalogue');
+    };
     const apply = () => {
-      const term = (q && q.value || '').trim().toLowerCase();
+      const words = (q && q.value || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const lv = level ? level.value : '', pr = price ? price.value : '';
       let shown = 0;
       cards.forEach(c => {
-        const on = (cat === 'all' || c.dataset.cat === cat) && (!term || (c.dataset.search || '').includes(term));
+        const hay = c.dataset.search || '';
+        const on = (cat === 'all' || c.dataset.cat === cat) && (!lv || c.dataset.level === lv)
+          && (!pr || c.dataset.price === pr) && words.every(w => hay.includes(w));
         c.hidden = !on; if (on) shown++;
       });
+      const all = shown === total && cat === 'all' && !words.length && !lv && !pr;
       if (none) none.hidden = shown !== 0;
-      if (count) count.textContent = shown === total && cat === 'all' && !term ? 'Showing all ' + total : 'Showing ' + shown + ' of ' + total;
+      if (count) count.textContent = all ? 'Showing all ' + total : 'Showing ' + shown + ' of ' + total;
+      sync();
     };
-    const setCat = k => { cat = k; tracks.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.avacTrack === k))); apply(); };
+    const setCat = k => { cat = k; if (trackIn) trackIn.value = k === 'all' ? '' : k; tracks.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.avacTrack === k))); apply(); };
     tracks.forEach(b => b.addEventListener('click', () => setCat(b.dataset.avacTrack || 'all')));
     let t = 0;
     if (q) { q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(apply, 150); }); q.addEventListener('search', apply); }
+    [level, price].forEach(el => { if (el) el.addEventListener('change', apply); });
     if (sort) sort.addEventListener('change', () => { order(); apply(); });
-    if (clear) clear.addEventListener('click', () => { if (q) q.value = ''; setCat('all'); if (q) q.focus(); });
+    if (form) form.addEventListener('submit', e => { e.preventDefault(); apply(); });
+    if (clear) clear.addEventListener('click', () => { if (q) q.value = ''; if (level) level.value = ''; if (price) price.value = ''; setCat('all'); if (q) q.focus(); });
     order(); apply();
   });
 })();

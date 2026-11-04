@@ -289,6 +289,7 @@ if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) doc
       <div class="avn-group" data-group="Elsewhere">
         <button type="button" class="avn-gh" aria-expanded="false" aria-controls="avnGelsewhere" data-default-closed>Elsewhere<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
         <div class="avn-items" id="avnGelsewhere" hidden>
+          <a class="avn-link" href="/academy/my"><?= $navIco('learning') ?><span>My learning</span><span class="avn-ext" aria-hidden="true">↗</span></a>
           <a class="avn-link" href="/academy/"><?= $navIco('learning') ?><span>Academy</span><span class="avn-ext" aria-hidden="true">↗</span></a>
           <a class="avn-link" href="/diary/me/"><?= $navIco('diary') ?><span>Your Diary page</span><span class="avn-ext" aria-hidden="true">↗</span></a>
 <?php /* Shown to org members when the bridge is configured. A filter, not

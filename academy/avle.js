@@ -193,8 +193,10 @@
       const mc = mod && $('[data-avle-modcount]', mod);
       if (mc) mc.textContent = $$('.avle-item.is-done', mod).length + '/' + $$('.avle-item', mod).length + ' complete';
     }
-    const fin = $('[data-avle-done]'); if (fin) fin.hidden = !p.complete;
-    if (p.complete) toast('Course complete. Claim your certificate.');
+    const won = p.certified === undefined ? p.complete : p.certified;
+    const fin = $('[data-avle-done]'); if (fin) fin.hidden = !won;
+    if (won) toast('Course complete. Claim your certificate.');
+    else if (p.complete) toast('Every item done. Check your grades to see what’s left to pass.');
   };
 
   /* Up next: counts down, then moves on; Cancel keeps the learner here. */
@@ -247,24 +249,95 @@
     const form = $('[data-avle-quiz]'); if (!form) return;
     const out = $('[data-avle-quiz-out]', form);
     const say = (m, ok) => { if (!out) return; out.textContent = m; out.classList.toggle('is-ok', !!ok); out.classList.toggle('is-err', !ok); };
+    const graded = form.dataset.graded === '1';
     form.addEventListener('submit', e => {
       e.preventDefault();
       const qs = $$('fieldset.avle-q', form);
-      const answers = qs.map((fs, i) => { const s = $('input[name="q' + i + '"]:checked', fs); return s ? parseInt(s.value, 10) : -1; });
-      const missing = answers.indexOf(-1);
+      const answers = qs.map(fs => {
+        const picked = $$('input:checked', fs).map(i => parseInt(i.value, 10));
+        return fs.dataset.type === 'multi' ? picked : (picked.length ? picked[0] : -1);
+      });
+      const missing = answers.findIndex(a => (Array.isArray(a) ? a.length === 0 : a === -1));
       if (missing > -1) { say('Please answer every question.', false); const f = $('input', qs[missing]); if (f) f.focus(); return; }
       const b = $('button[type=submit]', form); if (b) b.disabled = true;
       post('quiz_submit', { course, lesson, answers })
         .then(d => {
           if (!d || !d.ok) { say((d && d.error) || 'Please sign in.', false); if (d && /sign in/i.test(d.error || '')) goLogin(); return; }
-          say('You scored ' + d.score + '%. ' + (d.passed ? 'Passed — lesson complete.' : 'You need ' + d.pass + '% to pass. Try again.'), d.passed);
+          (d.marks || []).forEach((m, i) => {
+            const fs = qs[i]; if (!fs) return;
+            fs.classList.toggle('is-right', m.correct); fs.classList.toggle('is-wrong', !m.correct);
+            $$('.avle-opt', fs).forEach(l => l.classList.toggle('is-key', false));
+            if (m.answer !== null && m.answer !== undefined) {
+              [].concat(m.answer).forEach(k => { const l = $('.avle-opt[data-opt="' + k + '"]', fs); if (l) l.classList.add('is-key'); });
+            }
+            const fb = $('[data-avle-qfb]', fs);
+            if (fb) { fb.hidden = false; fb.textContent = (m.correct ? 'Correct.' : 'Not quite.') + (m.explain ? ' ' + m.explain : ''); }
+          });
+          const left = d.attempts_left === null || d.attempts_left === undefined ? '' : ' ' + d.attempts_left + ' attempt' + (d.attempts_left === 1 ? '' : 's') + ' left.';
+          if (!graded) say('You scored ' + d.score + '%. Practice complete.' + left, true);
+          else say('You scored ' + d.score + '%. ' + (d.passed ? 'Passed.' : 'You need ' + d.pass + '% to pass.') + left, d.passed);
           const st = $('[data-avle-qstatus]');
-          if (st && d.passed) { st.textContent = 'Completed ✓'; st.classList.add('is-done'); }
-          if (b) b.textContent = 'Retake quiz';
-          paint(d.progress, d.passed ? true : undefined);
-          if (d.passed && d.progress && !d.progress.complete) showUp();
+          const doneNow = d.passed || !graded;
+          if (st && doneNow) { st.textContent = 'Completed ✓'; st.classList.add('is-done'); }
+          if (b) { b.textContent = 'Try again'; if (d.attempts_left === 0) b.hidden = true; }
+          paint(d.progress, doneNow ? true : undefined);
+          if (doneNow && d.progress && !d.progress.complete) showUp();
         })
         .catch(() => say('Network error — please try again.', false))
+        .finally(() => { if (b) b.disabled = false; });
+    });
+  });
+
+  /* Assignment: submit or resubmit; the instructor grades it. */
+  run('assignment', () => {
+    const form = $('[data-avle-asg]'); if (!form) return;
+    const out = $('[data-avle-asg-out]', form);
+    const tell = (m, ok) => { if (out) { out.textContent = m; out.className = 'avle-quiz-out ' + (ok ? 'is-ok' : 'is-err'); } };
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const b = $('button[type=submit]', form); if (b) b.disabled = true;
+      post('assignment_submit', { course, lesson, body: form.elements.body.value, url: form.elements.url.value })
+        .then(d => {
+          if (!d || !d.ok) { tell((d && d.error) || 'Could not submit.', false); return; }
+          tell('Submitted — your instructor will grade it.', true);
+          if (b) b.textContent = 'Resubmit';
+          const st = $('[data-avle-asg-state]');
+          if (st) { st.className = 'avle-asg-state is-submitted'; st.textContent = ''; const k = document.createElement('b'); k.textContent = 'Submitted'; st.append(k, ' Waiting for your instructor to grade it.'); }
+        })
+        .catch(() => tell('Network error — please try again.', false))
+        .finally(() => { if (b) b.disabled = false; });
+    });
+  });
+
+  /* Discussion item: posting a response completes it. */
+  run('discussion', () => {
+    const form = $('[data-avle-disc]'); if (!form) return;
+    const out = $('[data-avle-disc-out]', form);
+    const tell = (m, ok) => { if (out) { out.textContent = m; out.className = 'avle-quiz-out ' + (ok ? 'is-ok' : 'is-err'); } };
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const ta = form.elements.body; const text = ta.value.trim(); if (!text) return;
+      const b = $('button[type=submit]', form); if (b) b.disabled = true;
+      post('forum_reply', { course, lesson, body: text })
+        .then(d => {
+          if (!d || !d.ok) { tell((d && d.error) || 'Could not post.', false); return; }
+          const list = $('.avle-posts');
+          const none = list && $('.avle-posts-none', list); if (none) none.hidden = true;
+          if (list) {
+            const li = document.createElement('li');
+            const h = document.createElement('div'); h.className = 'avle-post-h';
+            const who = document.createElement('b'); who.textContent = 'You';
+            const when = document.createElement('span'); when.className = 'av-num'; when.textContent = 'Just now';
+            h.append(who, when);
+            const bd = document.createElement('div'); bd.className = 'avle-post-b'; bd.textContent = text;
+            li.append(h, bd); list.prepend(li);
+          }
+          ta.value = '';
+          tell('Posted.', true);
+          const st = $('[data-avle-qstatus]'); if (st) { st.textContent = 'Completed ✓'; st.classList.add('is-done'); }
+          if (d.progress) { paint(d.progress, true); if (!d.progress.complete) showUp(); }
+        })
+        .catch(() => tell('Network error — please try again.', false))
         .finally(() => { if (b) b.disabled = false; });
     });
   });

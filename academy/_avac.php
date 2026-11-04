@@ -50,33 +50,54 @@ function avac_plural(int $n, string $word): string
  * As v1's catalogue: anyone with access to a gated course counts as enrolled,
  * anyone who has started counts as "continue".
  */
-function avac_state(array $c, LmsRepository $lms, ?array $user, int $lessons): array
+function avac_state(array $c, LmsRepository $lms, ?array $user, int $lessons, ?array $pre = null): array
 {
     if (!$user || !$lessons) return ['state' => '', 'pct' => 0];
     $id = (int) $c['id'];
     $access = (string) ($c['access_type'] ?? 'open');
-    $pr = $lms->progress((int) $user['id'], $id);
-    $enrolled = $lms->isEnrolled((int) $user['id'], $id);
-    // Access is the LMS's own answer (v1 counted any member as enrolled, which
-    // showed "In progress" on a restricted course a member cannot open).
-    $hasAccess = $lms->canAccess($user, $c, ['is_preview' => 0]);
+    /* $pre carries figures the caller already fetched for a whole grid
+       (done count, enrolled) so a catalogue is not four queries a course. */
+    if ($pre !== null) {
+        $done = (int) ($pre['done'] ?? 0);
+        $pr = ['completed' => $done, 'pct' => (int) round(min($done, $lessons) / $lessons * 100), 'complete' => $done >= $lessons];
+        $enrolled = !empty($pre['enrolled']);
+    } else {
+        $pr = $lms->progress((int) $user['id'], $id);
+        $enrolled = $lms->isEnrolled((int) $user['id'], $id);
+    }
     $state = '';
     if (!empty($pr['complete'])) $state = 'done';
     elseif (($pr['completed'] ?? 0) > 0 || ($enrolled && $access === 'paid')) $state = 'continue';
-    elseif ($hasAccess && $access !== 'open' && $access !== 'tracked') $state = 'enrolled';
+    // Access is the LMS's own answer (v1 counted any member as enrolled, which
+    // showed "In progress" on a restricted course a member cannot open).
+    elseif ($access !== 'open' && $access !== 'tracked' && $lms->canAccess($user, $c, ['is_preview' => 0])) $state = 'enrolled';
     return ['state' => $state, 'pct' => (int) ($pr['pct'] ?? 0)];
 }
 
-/** Courses + lesson counts + enrolment counts + the learner's state, for a grid. */
+/** Courses + lesson, enrolment and rating figures + the learner's state, for a grid. Grouped queries. */
 function avac_decorate(array $courses, LmsRepository $lms, ?array $user): array
 {
+    $cw = new LmsCourseware(null, $lms);
+    $st = $cw->stats(array_column($courses, 'id'));
+    $done = $user ? $cw->doneCounts((int) $user['id']) : [];
+    $mine = $user ? $cw->enrolledIds((int) $user['id']) : [];
     $out = [];
     foreach ($courses as $c) {
-        $lessons = $lms->lessonCount((int) $c['id']);
-        $out[] = ['course' => $c, 'lessons' => $lessons, 'enrolled' => $lms->enrolledCount((int) $c['id'])]
-               + avac_state($c, $lms, $user, $lessons);
+        $id = (int) $c['id'];
+        $f = $st[$id] ?? ['lessons' => 0, 'minutes' => 0, 'enrolled' => 0, 'rating' => 0.0, 'ratings' => 0];
+        $out[] = ['course' => $c, 'lessons' => $f['lessons'], 'enrolled' => $f['enrolled'], 'minutes' => $f['minutes'],
+                  'rating' => $f['rating'], 'ratings' => $f['ratings']]
+               + avac_state($c, $lms, $user, $f['lessons'], ['done' => $done[$id] ?? 0, 'enrolled' => isset($mine[$id])]);
     }
     return $out;
+}
+
+/** "4.6 ★ (12)" as accessible markup, or '' with no ratings. */
+function avac_stars(float $avg, int $n): string
+{
+    if ($n < 1) return '';
+    return '<span class="avac-rate"><b class="av-num">' . e(number_format($avg, 1)) . '</b><span aria-hidden="true">★</span>'
+         . '<span class="av-num">(' . e(number_format($n)) . ')</span><span class="av-sr"> — rated ' . e(number_format($avg, 1)) . ' out of 5 by ' . e(avac_plural($n, 'learner')) . '</span></span>';
 }
 
 /** CTA label for a learner state. */
@@ -96,7 +117,7 @@ function avac_cover(array $c, string $cls, bool $mark = true): string
 }
 
 /** One catalogue / "Keep learning" card. $row is an avac_decorate() row. */
-function avac_card(array $row): void
+function avac_card(array $row, bool $hidden = false): void
 {
     $c = $row['course'];
     $url = '/academy/' . rawurlencode((string) $c['slug']) . '/';
@@ -105,11 +126,15 @@ function avac_card(array $row): void
     $pct = max(0, min(100, (int) ($row['pct'] ?? 0)));
     $tone = avac_access((string) ($c['access_type'] ?? 'open'))['tone'];
     $meta = array_filter([(string) ($c['level'] ?? ''), (string) ($c['duration'] ?? ''), $lessons ? avac_plural($lessons, 'lesson') : '']);
-    $search = strtolower(($c['title'] ?? '') . ' ' . ($c['summary'] ?? '') . ' ' . ($c['category'] ?? '') . ' ' . ($c['level'] ?? ''));
+    $search = strtolower(($c['title'] ?? '') . ' ' . ($c['summary'] ?? '') . ' ' . ($c['category'] ?? '') . ' ' . ($c['level'] ?? '') . ' ' . str_replace("\n", ' ', (string) ($c['skills'] ?? '')));
     $enrolled = (int) ($row['enrolled'] ?? 0);
+    $stars = avac_stars((float) ($row['rating'] ?? 0), (int) ($row['ratings'] ?? 0));
     ?>
-      <li class="avac-card" data-cat="<?= e(slugify((string) $c['category'])) ?>" data-search="<?= e($search) ?>"
-          data-title="<?= e(strtolower((string) $c['title'])) ?>" data-featured="<?= (int) ($c['featured'] ?? 0) ?>" data-lessons="<?= $lessons ?>">
+      <li class="avac-card"<?= $hidden ? ' hidden' : '' ?> data-cat="<?= e(slugify((string) $c['category'])) ?>" data-search="<?= e($search) ?>"
+          data-title="<?= e(strtolower((string) $c['title'])) ?>" data-featured="<?= (int) ($c['featured'] ?? 0) ?>" data-lessons="<?= $lessons ?>"
+          data-level="<?= e(slugify((string) ($c['level'] ?? ''))) ?>" data-price="<?= e(LmsCourseware::priceTone((string) ($c['access_type'] ?? 'open'))) ?>"
+          data-enrolled="<?= $enrolled ?>" data-rating="<?= e((string) ($row['rating'] ?? 0)) ?>" data-ratings="<?= (int) ($row['ratings'] ?? 0) ?>"
+          data-minutes="<?= (int) ($row['minutes'] ?? 0) ?>" data-created="<?= e((string) ($c['created_at'] ?? '')) ?>">
         <a class="avac-card-a" href="<?= e($url) ?>">
           <span class="avac-card-media"><?= avac_cover($c, 'avac-card-img') ?>
             <span class="avac-chip avac-chip--<?= e($tone) ?>"><?= e(avac_price($c)) ?></span>
@@ -122,6 +147,8 @@ function avac_card(array $row): void
             <span class="avac-card-t"><?= e((string) $c['title']) ?></span>
             <span class="avac-card-d"><?= e((string) $c['summary']) ?></span>
 <?php if ($meta): ?>            <span class="avac-card-meta"><?= e(implode(' · ', $meta)) ?></span>
+<?php endif; ?>
+<?php if ($stars !== ''): ?>            <?= $stars ?>
 <?php endif; ?>
 <?php if ($state !== '' && $lessons): ?>
             <span class="avac-prog"><span class="avac-bar"><span style="width:<?= $pct ?>%"></span></span><span class="av-num"><?= $pct ?>%</span><span class="av-sr"> complete</span></span>

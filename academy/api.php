@@ -6,6 +6,9 @@
  *  Accounts:   GET me | POST register | POST login | POST logout
  *  Learning:   POST join {slug} | POST lesson_complete {course,lesson}
  *              POST lesson_uncomplete | GET progress&course=slug
+ *  Courseware: POST quiz_submit · assignment_submit · assignment_grade (teacher)
+ *              POST forum_thread · forum_reply · forum_moderate (teacher)
+ *              POST review_save · GET grades&course=slug
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
@@ -33,6 +36,18 @@ function av_require_google_for_org(string $email): void {
 try {
     $ac = new AcademyRepository();
     $lms = new LmsRepository();
+    $cw = new LmsCourseware(null, $lms);
+    /* Progress as the player paints it: `certified` says whether the certificate
+       is actually earned — finishing every item is not passing the course. */
+    $prog = fn(int $uid, int $cid): array => $lms->progress($uid, $cid) + ['certified' => (bool) $lms->getCertificate($uid, $cid)];
+    /** The course + lesson named in the request, with access checked, or a JSON refusal. */
+    $item = function (array $u) use ($ac, $lms, $slug, $body): array {
+        $c = $slug ? $ac->bySlug($slug) : null;
+        $l = $c ? $lms->lesson((int) $c['id'], preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['lesson'] ?? '')))) : null;
+        if (!$l) json_out(['ok' => false, 'error' => 'Lesson not found.'], 404);
+        if (!$lms->canAccess($u, $c, $l)) json_out(['ok' => false, 'error' => 'No access to this lesson.'], 403);
+        return [$c, $l];
+    };
 
     switch ($action) {
         case 'list':    json_out(['ok' => true, 'courses' => $ac->all()]);
@@ -152,14 +167,17 @@ try {
             if (!$lesson) json_out(['ok' => false, 'error' => 'Lesson not found.'], 404);
             if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access to this lesson.'], 403);
             if ($action === 'lesson_complete') {
-                if ($lms->needsQuiz($lesson)) json_out(['ok' => false, 'error' => 'Pass this lesson’s quiz to complete it.'], 409);
+                $lt = LmsRepository::lessonType($lesson);
+                if ($lt === 'assignment') json_out(['ok' => false, 'error' => 'Submit this assignment to complete it.'], 409);
+                if ($lt === 'discussion') json_out(['ok' => false, 'error' => 'Post your reply to complete this discussion.'], 409);
+                if ($lms->needsQuiz($lesson)) json_out(['ok' => false, 'error' => 'Submit this lesson’s quiz to complete it.'], 409);
                 $lms->markComplete((int) $u['id'], $lesson);
                 $done = $lms->completeIfDone((int) $u['id'], (int) $c['id']);
                 if (!empty($done['newly'])) Notify::completed($u, $c, academy_url($c['slug'] . '/certificate'));
             } else {
                 $lms->unmark((int) $u['id'], (int) $lesson['id']);
             }
-            json_out(['ok' => true, 'progress' => $lms->progress((int) $u['id'], (int) $c['id'])]);
+            json_out(['ok' => true, 'progress' => $prog((int) $u['id'], (int) $c['id'])]);
         case 'quiz_submit':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
@@ -168,24 +186,126 @@ try {
             $lesson = $c ? $lms->lesson((int) $c['id'], preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['lesson'] ?? '')))) : null;
             if (!$lesson) json_out(['ok' => false, 'error' => 'Lesson not found.'], 404);
             if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access.'], 403);
-            $res = $lms->gradeQuiz((int) $u['id'], $lesson, array_map('intval', (array) ($body['answers'] ?? [])));
-            if (empty($res['ok'])) json_out(['ok' => false, 'error' => 'This lesson has no quiz.'], 400);
-            if (!empty($res['passed'])) {
+            /* An answer is an option index, or a list of them for a multi-select. */
+            $answers = array_map(static fn($a) => is_array($a) ? array_map('intval', $a) : (int) $a, array_values((array) ($body['answers'] ?? [])));
+            $res = $lms->gradeQuiz((int) $u['id'], $lesson, $answers);
+            if (empty($res['ok'])) json_out(['ok' => false, 'error' => (string) ($res['error'] ?? 'This lesson has no quiz.'), 'code' => $res['code'] ?? null], ($res['code'] ?? '') === 'no_attempts' ? 409 : 400);
+            if (!empty($res['passed']) || empty($res['graded'])) {
                 $done = $lms->completeIfDone((int) $u['id'], (int) $c['id']);
                 /* Finishing the course is the bigger news, so when the quiz
                    that passed is also the last thing outstanding, only the
                    certificate email goes — not both in the same minute. */
                 if (!empty($done['newly'])) Notify::completed($u, $c, academy_url($c['slug'] . '/certificate'));
-                else Notify::quizPassed($u, $lesson, $res, academy_url($c['slug'] . '/learn/'));
+                elseif (!empty($res['graded'])) Notify::quizPassed($u, $lesson, $res, academy_url($c['slug'] . '/learn/'));
             }
-            $res['progress'] = $lms->progress((int) $u['id'], (int) $c['id']);
+            $res['progress'] = $prog((int) $u['id'], (int) $c['id']);
             json_out($res);
+
+        /* ── Assignments ── */
+        case 'assignment_submit': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            if (!av_rate_ok('asg_submit', 20, 600)) json_out(['ok' => false, 'error' => 'Too many submissions — try again shortly.'], 429);
+            $u = LmsAuth::require();
+            [$c, $l] = $item($u);
+            $r = $cw->submit((int) $u['id'], $l, (string) ($body['body'] ?? ''), (string) ($body['url'] ?? ''));
+            json_out($r, $r['ok'] ? 200 : 422);
+        }
+        case 'assignment_grade': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            $sub = $cw->submissionById((int) ($body['id'] ?? 0));
+            $gc = null;
+            if ($sub) { $q = Database::pdo()->prepare('SELECT * FROM courses WHERE id = ?'); $q->execute([(int) $sub['course_id']]); $gc = $q->fetch() ?: null; }
+            if (!$sub || !$gc) json_out(['ok' => false, 'error' => 'Submission not found.'], 404);
+            if (!$lms->teaches($u, $gc)) json_out(['ok' => false, 'error' => 'Only this course’s instructor can grade it.'], 403);
+            $ret = !empty($body['return']);
+            $score = isset($body['score']) && $body['score'] !== '' ? (int) $body['score'] : null;
+            $r = $cw->grade((int) $sub['id'], $score, (string) ($body['feedback'] ?? ''), (int) $u['id'], $ret);
+            if (!empty($r['newly'])) {
+                $learner = $lms->memberById((int) $sub['user_id']);
+                if ($learner) Notify::completed($learner, $gc, academy_url($gc['slug'] . '/certificate'));
+            }
+            $lms->audit($ret ? 'assignment_return' : 'assignment_grade', (string) $gc['slug'], 'submission ' . (int) $sub['id'] . ($ret ? '' : ' · ' . (int) $score), (string) $u['email']);
+            json_out($r, $r['ok'] ? 200 : 422);
+        }
+        case 'grades': {
+            $u = LmsAuth::require();
+            $c = $slug ? $ac->bySlug($slug) : null;
+            if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            json_out(['ok' => true, 'grades' => $cw->grades((int) $u['id'], $c)]);
+        }
+
+        /* ── Discussions ── */
+        case 'forum_thread':
+        case 'forum_reply': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            if (!av_rate_ok('forum_post', 20, 600)) json_out(['ok' => false, 'error' => 'You’re posting quickly — wait a few minutes.'], 429);
+            $u = LmsAuth::require();
+            $c = $slug ? $ac->bySlug($slug) : null;
+            if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            /* The forum is for the people taking the course. */
+            if (!$lms->canAccess($u, $c, ['is_preview' => 0]) && !$lms->teaches($u, $c)) json_out(['ok' => false, 'error' => 'Join this course to take part in its discussions.'], 403);
+            if ($action === 'forum_thread') {
+                $r = $cw->createThread((int) $u['id'], (int) $c['id'], (string) ($body['title'] ?? ''), (string) ($body['body'] ?? ''));
+                json_out($r, $r['ok'] ? 200 : 422);
+            }
+            if (!empty($body['lesson'])) {          // a discussion item: reply to its prompt
+                [, $l] = $item($u);
+                if (LmsRepository::lessonType($l) !== 'discussion') json_out(['ok' => false, 'error' => 'This item is not a discussion.'], 400);
+                $t = $cw->promptThread($l);
+            } else {
+                $t = $cw->thread((int) ($body['thread'] ?? 0));
+            }
+            if (!$t || (int) $t['course_id'] !== (int) $c['id']) json_out(['ok' => false, 'error' => 'Discussion not found.'], 404);
+            $r = $cw->reply((int) $u['id'], (int) $t['id'], (string) ($body['body'] ?? ''));
+            if (!empty($r['completed_item'])) {
+                $done = $lms->completeIfDone((int) $u['id'], (int) $c['id']);
+                if (!empty($done['newly'])) Notify::completed($u, $c, academy_url($c['slug'] . '/certificate'));
+                $r['progress'] = $prog((int) $u['id'], (int) $c['id']);
+            }
+            json_out($r, $r['ok'] ? 200 : 422);
+        }
+        case 'forum_moderate': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            $c = $slug ? $ac->bySlug($slug) : null;
+            if (!$c || !$lms->teaches($u, $c)) json_out(['ok' => false, 'error' => 'Only this course’s instructor can moderate.'], 403);
+            $what = ($body['what'] ?? '') === 'post' ? 'post' : 'thread';
+            $id = (int) ($body['id'] ?? 0);
+            $own = $what === 'post' ? $cw->postById($id) : $cw->thread($id);
+            if (!$own || (int) $own['course_id'] !== (int) $c['id']) json_out(['ok' => false, 'error' => 'Not found.'], 404);
+            json_out(['ok' => $cw->moderate($what, $id, (string) ($body['op'] ?? ''))]);
+        }
+
+        /* ── Ratings and reviews ── */
+        case 'review_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            if (!av_rate_ok('review_save', 10, 600)) json_out(['ok' => false, 'error' => 'Too many attempts — try again shortly.'], 429);
+            $u = LmsAuth::require();
+            $c = $slug ? $ac->bySlug($slug) : null;
+            if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            $r = $cw->saveReview((int) $u['id'], (int) $c['id'], (int) ($body['rating'] ?? 0), (string) ($body['body'] ?? ''));
+            json_out($r, $r['ok'] ? 200 : 422);
+        }
+        case 'review_hide': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            $c = $slug ? $ac->bySlug($slug) : null;
+            if (!$c || !$lms->teaches($u, $c)) json_out(['ok' => false, 'error' => 'Only this course’s instructor can moderate.'], 403);
+            json_out(['ok' => $cw->hideReview((int) ($body['id'] ?? 0), empty($body['show']))]);
+        }
 
         case 'progress':
             $u = LmsAuth::user();
             $c = $slug ? $ac->bySlug($slug) : null;
             if (!$u || !$c) json_out(['ok' => true, 'progress' => null]);
-            json_out(['ok' => true, 'progress' => $lms->progress((int) $u['id'], (int) $c['id'])]);
+            json_out(['ok' => true, 'progress' => $prog((int) $u['id'], (int) $c['id'])]);
 
         /* ── Restricted-course pass redemption ── */
         case 'pass_redeem':

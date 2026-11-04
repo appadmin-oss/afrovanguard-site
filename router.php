@@ -127,6 +127,14 @@ if ($uri === '/academy/dns/og.png') { require __DIR__ . '/academy/dns/og.php'; r
 if ($uri === '/academy/dns/summit.ics') { require __DIR__ . '/academy/dns/summit.ics.php'; return true; }
 if (preg_match('~^/academy/og/([a-z0-9-]+)\.png$~', $uri, $m)) { $_GET['slug'] = $m[1]; require __DIR__ . '/academy/og.php'; return true; }
 if (preg_match('~^/academy/?$~', $uri)) { require __DIR__ . '/academy/index.php'; return true; }
+if (preg_match('~^/academy/my/?$~', $uri)) { require __DIR__ . '/academy/my.php'; return true; }
+if (preg_match('~^/academy/programmes/?$~', $uri)) { require __DIR__ . '/academy/programme.php'; return true; }
+if (preg_match('~^/academy/programmes/([a-z0-9-]+)/?$~', $uri, $m)) { $_GET['slug'] = $m[1]; require __DIR__ . '/academy/programme.php'; return true; }
+if (preg_match('~^/academy/programmes/([a-z0-9-]+)/certificate/?$~', $uri, $m)) { $_GET['slug'] = $m[1]; $_GET['cert'] = '1'; require __DIR__ . '/academy/programme.php'; return true; }
+if (preg_match('~^/academy/teach/grading/?$~', $uri)) { require __DIR__ . '/academy/grading.php'; return true; }
+if (preg_match('~^/academy/([a-z0-9-]+)/grades/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/grades.php'; return true; }
+if (preg_match('~^/academy/([a-z0-9-]+)/discussions/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/forum.php'; return true; }
+if (preg_match('~^/academy/([a-z0-9-]+)/discussions/([0-9]+)/?$~', $uri, $m)) { $_GET['course'] = $m[1]; $_GET['thread'] = $m[2]; require __DIR__ . '/academy/forum.php'; return true; }
 if (preg_match('~^/academy/teach/?$~', $uri)) { require __DIR__ . '/academy/teach.php'; return true; }
 if (preg_match('~^/academy/teach/([a-z0-9-]+)/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/teach.php'; return true; }
 if (preg_match('~^/academy/([a-z0-9-]+)/certificate/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/certificate.php'; return true; }

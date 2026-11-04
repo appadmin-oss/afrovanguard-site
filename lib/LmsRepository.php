@@ -18,7 +18,7 @@ final class LmsRepository
         $modules = $mods->fetchAll();
         // Also fetch video_url / quiz_json so the UI can label each lesson's type
         // (video · reading · quiz) with an icon — a cheap read; both are small.
-        $ls = $this->db->prepare('SELECT id, slug, title, duration_min, is_preview, position, video_url, quiz_json FROM lessons WHERE module_id = ? ORDER BY position, id');
+        $ls = $this->db->prepare('SELECT id, slug, title, duration_min, is_preview, position, video_url, quiz_json, kind, weight, assignment_json FROM lessons WHERE module_id = ? ORDER BY position, id');
         foreach ($modules as &$m) {
             $ls->execute([$m['id']]);
             $lessons = $ls->fetchAll();
@@ -45,7 +45,7 @@ final class LmsRepository
     public function orderedLessons(int $courseId): array
     {
         $s = $this->db->prepare(
-            'SELECT l.id, l.slug, l.title, l.is_preview, l.duration_min, l.video_url, l.quiz_json
+            'SELECT l.id, l.slug, l.title, l.is_preview, l.duration_min, l.video_url, l.quiz_json, l.kind, l.weight, l.assignment_json, l.module_id
              FROM lessons l JOIN modules m ON m.id = l.module_id
              WHERE l.course_id = ? ORDER BY m.position, m.id, l.position, l.id'
         );
@@ -55,11 +55,21 @@ final class LmsRepository
         return $rows;
     }
 
-    /** Classify a lesson row as 'video' | 'quiz' | 'reading' from its content. */
+    /**
+     * Classify an item: video | reading | quiz | practice | assignment | discussion.
+     * An explicit `kind` wins (an assignment or a discussion prompt is not
+     * something the content can tell you); otherwise the content decides, and a
+     * quiz marked ungraded is a practice quiz.
+     */
     public static function lessonType(array $l): string
     {
+        $k = (string) ($l['kind'] ?? '');
+        if ($k === 'assignment' || $k === 'discussion') return $k;
         if (!empty($l['video_url'])) return 'video';
-        if (!empty($l['quiz_json']) && trim((string) $l['quiz_json']) !== '') return 'quiz';
+        if (!empty($l['quiz_json']) && trim((string) $l['quiz_json']) !== '') {
+            $q = json_decode((string) $l['quiz_json'], true);
+            return (is_array($q) && array_key_exists('graded', $q) && !$q['graded']) ? 'practice' : 'quiz';
+        }
         return 'reading';
     }
 
@@ -188,12 +198,13 @@ final class LmsRepository
     /** A lesson with a quiz is completed by passing it, never by ticking it. */
     public function needsQuiz(array $lesson): bool { return $this->quiz($lesson) !== null; }
 
-    /** Quiz lessons in a course this learner has not passed yet. */
+    /** GRADED quiz lessons in a course this learner has not passed yet (practice quizzes never block). */
     public function unpassedQuizzes(int $userId, int $courseId): int
     {
         $n = 0;
         foreach ($this->orderedLessons($courseId) as $l) {
-            if (!$this->needsQuiz($l)) continue;
+            $q = $this->quiz($l);
+            if (!$q || !$q['graded']) continue;
             $s = $this->db->prepare('SELECT 1 FROM quiz_attempts WHERE user_id = ? AND lesson_id = ? AND passed = 1 LIMIT 1');
             $s->execute([$userId, (int) $l['id']]);
             if (!$s->fetchColumn()) $n++;
@@ -298,30 +309,106 @@ final class LmsRepository
     }
 
     /** Decode a lesson's quiz, or null. Shape: {pass:int, questions:[{q,options[],answer}]} */
+    /**
+     * The quiz on a lesson, normalised, or null.
+     *
+     *   pass      1-100, the score that passes (default 70)
+     *   graded    true = counts toward the grade and must be passed; false = practice
+     *   attempts  0 = unlimited, else the most a learner may submit
+     *   questions [{type: single|multi|truefalse, q, options[], answer: int|int[], explain}]
+     *
+     * Older quizzes carry none of the new keys: they read as graded, unlimited,
+     * single-answer — exactly what they were.
+     */
     public function quiz(array $lesson): ?array
     {
         if (empty($lesson['quiz_json'])) return null;
         $q = json_decode((string) $lesson['quiz_json'], true);
-        if (!is_array($q) || empty($q['questions'])) return null;
-        $q['pass'] = max(1, min(100, (int) ($q['pass'] ?? 70)));
-        return $q;
+        if (!is_array($q) || empty($q['questions']) || !is_array($q['questions'])) return null;
+        $qs = [];
+        foreach ($q['questions'] as $item) {
+            $n = self::normaliseQuestion(is_array($item) ? $item : []);
+            if ($n) $qs[] = $n;
+        }
+        if (!$qs) return null;
+        return [
+            'pass'      => max(1, min(100, (int) ($q['pass'] ?? 70))),
+            'graded'    => !array_key_exists('graded', $q) || (bool) $q['graded'],
+            'attempts'  => max(0, min(99, (int) ($q['attempts'] ?? 0))),
+            'questions' => $qs,
+        ];
     }
 
-    /** Grade submitted answers (array of chosen option indexes). Records the attempt. */
+    /** One question, made valid, or null when it cannot be. Shared with the Studio's save. */
+    public static function normaliseQuestion(array $q): ?array
+    {
+        $type = in_array($q['type'] ?? '', ['single', 'multi', 'truefalse'], true) ? $q['type'] : 'single';
+        $prompt = trim((string) ($q['q'] ?? ''));
+        if ($prompt === '') return null;
+        $opts = $type === 'truefalse' ? ['True', 'False']
+              : array_values(array_filter(array_map(static fn($o) => trim((string) $o), (array) ($q['options'] ?? [])), static fn($o) => $o !== ''));
+        if (count($opts) < 2) return null;
+        $max = count($opts) - 1;
+        if ($type === 'multi') {
+            $ans = array_values(array_unique(array_filter(array_map('intval', (array) ($q['answer'] ?? [])), static fn($i) => $i >= 0 && $i <= $max)));
+            sort($ans);
+            if (!$ans) return null;
+        } else {
+            $ans = max(0, min($max, (int) (is_array($q['answer'] ?? null) ? ($q['answer'][0] ?? 0) : ($q['answer'] ?? 0))));
+        }
+        return ['type' => $type, 'q' => $prompt, 'options' => $opts, 'answer' => $ans, 'explain' => trim((string) ($q['explain'] ?? ''))];
+    }
+
+    /** How many times this learner has submitted this quiz, and their best score. */
+    public function quizStats(int $userId, int $lessonId): array
+    {
+        $s = $this->db->prepare('SELECT COUNT(*) AS n, MAX(score) AS best, MAX(passed) AS passed FROM quiz_attempts WHERE user_id = ? AND lesson_id = ?');
+        $s->execute([$userId, $lessonId]);
+        $r = $s->fetch() ?: [];
+        return ['used' => (int) ($r['n'] ?? 0), 'best' => $r['best'] !== null && ($r['n'] ?? 0) > 0 ? (int) $r['best'] : null, 'passed' => (int) ($r['passed'] ?? 0) === 1];
+    }
+
+    /**
+     * Grade a submission. $answers[i] is an option index, or a list of them for
+     * a multi-select question. Records the attempt.
+     *
+     * Feedback is per question (right or wrong, with the explanation); the right
+     * ANSWER is only revealed on a practice quiz, once passed, or once the
+     * attempts are spent — otherwise a retake is just copying the key out.
+     * A practice quiz completes the item on any score; a graded one on a pass.
+     */
     public function gradeQuiz(int $userId, array $lesson, array $answers): array
     {
         $quiz = $this->quiz($lesson);
-        if (!$quiz) return ['ok' => false];
-        $total = count($quiz['questions']); $correct = 0;
+        if (!$quiz) return ['ok' => false, 'error' => 'This lesson has no quiz.'];
+        $stats = $this->quizStats($userId, (int) $lesson['id']);
+        if ($quiz['attempts'] > 0 && $stats['used'] >= $quiz['attempts'])
+            return ['ok' => false, 'code' => 'no_attempts', 'error' => 'You have used all ' . $quiz['attempts'] . ' attempts on this quiz.'];
+        $total = count($quiz['questions']); $correct = 0; $marks = [];
         foreach ($quiz['questions'] as $i => $q) {
-            if (isset($answers[$i]) && (int) $answers[$i] === (int) $q['answer']) $correct++;
+            $given = $answers[$i] ?? null;
+            if ($q['type'] === 'multi') {
+                $g = array_values(array_unique(array_map('intval', (array) ($given ?? []))));
+                sort($g);
+                $ok = $g === $q['answer'];
+            } else {
+                $ok = $given !== null && !is_array($given) && (int) $given === (int) $q['answer'];
+            }
+            if ($ok) $correct++;
+            $marks[] = ['correct' => $ok, 'explain' => $q['explain']];
         }
         $score = $total ? (int) round($correct / $total * 100) : 0;
         $passed = $score >= (int) $quiz['pass'];
         $this->db->prepare('INSERT INTO quiz_attempts (user_id, lesson_id, score, passed) VALUES (?,?,?,?)')
             ->execute([$userId, (int) $lesson['id'], $score, $passed ? 1 : 0]);
-        if ($passed) $this->markComplete($userId, $lesson);
-        return ['ok' => true, 'score' => $score, 'passed' => $passed, 'correct' => $correct, 'total' => $total, 'pass' => (int) $quiz['pass']];
+        if ($passed || !$quiz['graded']) $this->markComplete($userId, $lesson);
+        $used = $stats['used'] + 1;
+        $left = $quiz['attempts'] > 0 ? max(0, $quiz['attempts'] - $used) : null;
+        $reveal = !$quiz['graded'] || $passed || $stats['passed'] || $left === 0;
+        foreach ($quiz['questions'] as $i => $q) $marks[$i]['answer'] = $reveal ? $q['answer'] : null;
+        return ['ok' => true, 'score' => $score, 'passed' => $passed, 'correct' => $correct, 'total' => $total,
+                'pass' => (int) $quiz['pass'], 'graded' => $quiz['graded'], 'attempts_used' => $used,
+                'attempts_left' => $left, 'best' => max($score, (int) ($stats['best'] ?? 0)), 'marks' => $marks];
     }
 
     public function markComplete(int $userId, array $lesson): void
@@ -417,6 +504,12 @@ final class LmsRepository
         return (int) $this->db->lastInsertId();
     }
     public function renameModule(int $id, string $title): void { $this->db->prepare('UPDATE modules SET title = ? WHERE id = ?')->execute([$title, $id]); }
+    /** A module's overview: what it covers and its learning objectives (newline-separated). */
+    public function describeModule(int $id, string $summary, string $objectives): void
+    {
+        $obj = implode("\n", array_slice(array_values(array_filter(array_map('trim', preg_split('/\r?\n/', $objectives) ?: []))), 0, 12));
+        $this->db->prepare('UPDATE modules SET summary = ?, objectives = ? WHERE id = ?')->execute([mb_substr(trim($summary), 0, 1000), $obj, $id]);
+    }
     public function deleteModule(int $id): void
     {
         $this->db->prepare('DELETE FROM lessons WHERE module_id = ?')->execute([$id]);
@@ -446,6 +539,10 @@ final class LmsRepository
             'title' => $d['title'], 'body_html' => $d['body_html'] ?? '', 'video_url' => (($v = trim((string) ($d['video_url'] ?? ''))) !== '' ? (Embeds::iframeSrc($v) ?? null) : null),
             'duration_min' => (int) ($d['duration_min'] ?? 0), 'is_preview' => !empty($d['is_preview']) ? 1 : 0,
             'quiz_json' => isset($d['quiz_json']) && $d['quiz_json'] !== '' ? $d['quiz_json'] : null,
+            'kind' => in_array($d['kind'] ?? '', ['assignment', 'discussion'], true) ? $d['kind'] : '',
+            'weight' => max(1, min(100, (int) ($d['weight'] ?? 1))),
+            'assignment_json' => ($d['kind'] ?? '') === 'assignment'
+                ? json_encode(['pass' => max(1, min(100, (int) ($d['assignment_pass'] ?? 70)))]) : null,
             'position' => (int) ($d['position'] ?? 0), 'updated_at' => date('Y-m-d H:i:s'),
         ];
         if (!empty($d['id'])) {
@@ -483,6 +580,7 @@ final class LmsRepository
     {
         $this->db->prepare('DELETE FROM lesson_progress WHERE user_id = ? AND course_id = ?')->execute([$userId, $courseId]);
         $this->db->prepare('DELETE FROM quiz_attempts WHERE user_id = ? AND lesson_id IN (SELECT id FROM lessons WHERE course_id = ?)')->execute([$userId, $courseId]);
+        $this->db->prepare('DELETE FROM assignment_submissions WHERE user_id = ? AND course_id = ?')->execute([$userId, $courseId]);
     }
     public function revokeCertificate(int $userId, int $courseId): void
     {
@@ -509,7 +607,7 @@ final class LmsRepository
     /* ── Certificates ── */
     public function issueCertificate(int $userId, int $courseId): ?array
     {
-        if (!$this->progress($userId, $courseId)['complete']) return null;
+        if (!$this->requirementsMet($userId, $courseId)) return null;
         $cur = $this->getCertificate($userId, $courseId);
         if ($cur) return $cur;
         // Unguessable serial (48 random bits) — public verify.php must not be brute-forceable.
@@ -819,11 +917,24 @@ final class LmsRepository
         /* Every lesson ticked AND every quiz passed: a certificate says the
            learner was assessed, so a progress row written for a quiz lesson
            without a pass (an old tick, a direct request) does not earn one. */
-        if (!$this->progress($userId, $courseId)['complete'] || $this->unpassedQuizzes($userId, $courseId) > 0)
+        if (!$this->requirementsMet($userId, $courseId))
             return ['complete' => false, 'newly' => false, 'cert' => null];
         $newly = !$this->getCertificate($userId, $courseId);
         $cert = $this->issueCertificate($userId, $courseId);
         return ['complete' => true, 'newly' => (bool) ($newly && $cert), 'cert' => $cert];
+    }
+
+    /**
+     * What a certificate certifies: every item done, and a passing grade —
+     * every graded quiz and assignment passed and the weighted grade at or
+     * above the course's pass mark. One answer, used by the issue path, the
+     * completion check and the grades page alike.
+     */
+    public function requirementsMet(int $userId, int $courseId): bool
+    {
+        if (!$this->progress($userId, $courseId)['complete']) return false;
+        $course = $this->courseRow($courseId);
+        return $course !== null && (new LmsCourseware($this->db, $this))->grades($userId, $course)['passed'];
     }
 
     /* ── Instructors ── */

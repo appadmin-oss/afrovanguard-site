@@ -13,7 +13,7 @@ final class AcademyRepository
        read: the catalogue (`all`, `featured`, `others`) selects PUBLIC_COLS, and
        a single course leaves this class through publicView(). Only the Studio's
        allForAdmin() and the server's own access check see it. */
-    private const COLS = 'id, slug, title, summary, cover_url, category, level, format, duration, price, location, gradient, featured, status, sort, outcomes, access_type, price_ngn, pass_code, cover_is_dark';
+    private const COLS = 'id, slug, title, summary, cover_url, category, level, format, duration, price, location, gradient, featured, status, sort, outcomes, access_type, price_ngn, pass_code, cover_is_dark, language, skills, prerequisites, pass_mark, pace_weeks, created_at';
     private const SECRET = ['pass_code'];
 
     private bool $ready = false;
@@ -51,6 +51,7 @@ final class AcademyRepository
             foreach (['id', 'slug', 'title', 'summary', 'body_html', 'cover_url', 'og_image', 'category', 'level',
                       'format', 'duration', 'price', 'location', 'gradient', 'featured', 'status', 'sort', 'outcomes',
                       'cta_url', 'access_type', 'price_ngn', 'pass_code', 'cover_is_dark', 'instructor_id',
+                      'language', 'skills', 'prerequisites', 'pass_mark', 'pace_weeks',
                       'created_at', 'updated_at'] as $c) {
                 if (Database::columnExists('courses', $c)) $set[$c] = true;
             }
@@ -132,6 +133,9 @@ final class AcademyRepository
     {
         $this->ensure();
         $slug = slugify(($d['slug'] ?? '') ?: ($d['title'] ?? ''));
+        // /academy/my, /academy/programmes, /academy/teach … are pages. A course
+        // given one of those slugs would be unreachable behind them.
+        if (in_array($slug, LmsCourseware::RESERVED_SLUGS, true)) $slug .= '-course';
         $now = date('Y-m-d H:i:s');
         // Null-coalesce every read so a partial save (e.g. just title + status) is safe.
         $f = [
@@ -155,6 +159,13 @@ final class AcademyRepository
                 $f['pass_code'] = $at === 'restricted' ? slugify((string) ($d['pass_code'] ?? '')) : '';
             }
         }
+        // Course details shown on the course page (only when sent, so partial saves are safe).
+        foreach (['language' => 64, 'skills' => 2000, 'prerequisites' => 2000] as $k => $max) {
+            if (array_key_exists($k, $d)) $f[$k] = mb_substr(trim((string) $d[$k]), 0, $max);
+        }
+        if (isset($f['language']) && $f['language'] === '') $f['language'] = 'English';
+        if (array_key_exists('pass_mark', $d)) $f['pass_mark'] = max(0, min(100, (int) $d['pass_mark']));
+        if (array_key_exists('pace_weeks', $d)) $f['pace_weeks'] = max(0, min(104, (int) $d['pace_weeks']));
         if (array_key_exists('instructor_id', $d)) { $f['instructor_id'] = $d['instructor_id'] !== null ? (int) $d['instructor_id'] : null; }
         // Colour-aware cover: precompute luminance of the chip region (top) so the
         // catalogue overlay text picks a legible colour with no client work.
@@ -198,7 +209,8 @@ final class AcademyRepository
         $have = $this->courseCols();
         $cols = array_filter(
             ['slug', 'title', 'summary', 'body_html', 'cover_url', 'og_image', 'category', 'level', 'format', 'duration',
-             'price', 'location', 'gradient', 'outcomes', 'cta_url', 'access_type', 'price_ngn', 'instructor_id'],
+             'price', 'location', 'gradient', 'outcomes', 'cta_url', 'access_type', 'price_ngn', 'instructor_id',
+             'language', 'skills', 'prerequisites', 'pass_mark', 'pace_weeks'],
             fn($c) => isset($have[$c])
         );
         $vals = [];
@@ -209,15 +221,15 @@ final class AcademyRepository
         $this->db->prepare('INSERT INTO courses (' . implode(',', array_keys($vals)) . ') VALUES (' . implode(',', array_map(fn($k) => ":$k", array_keys($vals))) . ')')->execute($vals);
         $newId = (int) $this->db->lastInsertId();
         $mods = $this->db->prepare('SELECT * FROM modules WHERE course_id = ? ORDER BY position, id'); $mods->execute([(int) $src['id']]);
-        $insMod = $this->db->prepare('INSERT INTO modules (course_id, title, position) VALUES (?,?,?)');
+        $insMod = $this->db->prepare('INSERT INTO modules (course_id, title, position, summary, objectives) VALUES (?,?,?,?,?)');
         $lq = $this->db->prepare('SELECT * FROM lessons WHERE module_id = ? ORDER BY position, id');
-        $insLes = $this->db->prepare('INSERT INTO lessons (module_id, course_id, slug, title, body_html, video_url, duration_min, is_preview, position, created_at, updated_at, quiz_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
+        $insLes = $this->db->prepare('INSERT INTO lessons (module_id, course_id, slug, title, body_html, video_url, duration_min, is_preview, position, created_at, updated_at, quiz_json, kind, weight, assignment_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
         foreach ($mods->fetchAll() as $m) {
-            $insMod->execute([$newId, $m['title'], $m['position']]);
+            $insMod->execute([$newId, $m['title'], $m['position'], (string) ($m['summary'] ?? ''), (string) ($m['objectives'] ?? '')]);
             $newMod = (int) $this->db->lastInsertId();
             $lq->execute([$m['id']]);
             foreach ($lq->fetchAll() as $l) {
-                $insLes->execute([$newMod, $newId, $l['slug'], $l['title'], $l['body_html'], $l['video_url'], $l['duration_min'], $l['is_preview'], $l['position'], $now, $now, $l['quiz_json']]);
+                $insLes->execute([$newMod, $newId, $l['slug'], $l['title'], $l['body_html'], $l['video_url'], $l['duration_min'], $l['is_preview'], $l['position'], $now, $now, $l['quiz_json'], (string) ($l['kind'] ?? ''), (int) ($l['weight'] ?? 1), $l['assignment_json'] ?? null]);
             }
         }
         return $newSlug;

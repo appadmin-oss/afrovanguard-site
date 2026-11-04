@@ -2050,6 +2050,10 @@ try {
                 'access_type' => (string) ($body['access_type'] ?? 'open'), 'price_ngn' => (int) ($body['price_ngn'] ?? 0),
                 'pass_code' => (string) ($body['pass_code'] ?? ''),
             ];
+            // Course details and grading, only when the Studio sends them.
+            foreach (['language', 'skills', 'prerequisites', 'pass_mark', 'pace_weeks'] as $k) {
+                if (array_key_exists($k, $body)) $fields[$k] = $body[$k];
+            }
             // Resolve an instructor by email (must already have an Academy account).
             $instructorMsg = null;
             if (array_key_exists('instructor_email', $body)) {
@@ -2127,10 +2131,15 @@ try {
         case 'mod_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $title = trim((string) ($body['title'] ?? '')); if ($title === '') json_out(['ok' => false, 'error' => 'Title required.'], 422);
-            if (!empty($body['id'])) { $lms->renameModule((int) $body['id'], $title); json_out(['ok' => true, 'id' => (int) $body['id']]); }
-            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
-            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
-            json_out(['ok' => true, 'id' => $lms->addModule((int) $cs['id'], $title)]);
+            if (!empty($body['id'])) { $mid = (int) $body['id']; $lms->renameModule($mid, $title); }
+            else {
+                $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
+                if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+                $mid = $lms->addModule((int) $cs['id'], $title);
+            }
+            if (array_key_exists('summary', $body) || array_key_exists('objectives', $body))
+                $lms->describeModule($mid, (string) ($body['summary'] ?? ''), (string) ($body['objectives'] ?? ''));
+            json_out(['ok' => true, 'id' => $mid]);
         case 'mod_delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $lms->deleteModule((int) ($body['id'] ?? 0)); json_out(['ok' => true]);
@@ -2142,18 +2151,23 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             if (trim((string) ($body['title'] ?? '')) === '') json_out(['ok' => false, 'error' => 'A title is required.'], 422);
             $lbody = Embeds::sanitize(Embeds::embedify((string) ($body['body_html'] ?? '')));
-            // Validate + normalise the optional quiz
+            /* Validate + normalise the optional quiz with the SAME rule the player
+               reads it by (LmsRepository::normaliseQuestion), so a question saved
+               here can never mean something else on the learner's screen. */
+            $kind = in_array($body['kind'] ?? '', ['assignment', 'discussion'], true) ? (string) $body['kind'] : '';
             $quizJson = null;
-            if (!empty($body['quiz']) && is_array($body['quiz']) && !empty($body['quiz']['questions'])) {
+            if ($kind === '' && !empty($body['quiz']) && is_array($body['quiz']) && !empty($body['quiz']['questions'])) {
                 $qs = [];
-                foreach ($body['quiz']['questions'] as $q) {
-                    $prompt = trim((string) ($q['q'] ?? ''));
-                    $opts = array_values(array_filter(array_map(fn($o) => trim((string) $o), (array) ($q['options'] ?? [])), fn($o) => $o !== ''));
-                    if ($prompt === '' || count($opts) < 2) continue;
-                    $ans = max(0, min(count($opts) - 1, (int) ($q['answer'] ?? 0)));
-                    $qs[] = ['q' => $prompt, 'options' => $opts, 'answer' => $ans];
+                foreach ((array) $body['quiz']['questions'] as $q) {
+                    $n = is_array($q) ? LmsRepository::normaliseQuestion($q) : null;
+                    if ($n) $qs[] = $n;
                 }
-                if ($qs) $quizJson = json_encode(['pass' => max(1, min(100, (int) ($body['quiz']['pass'] ?? 70))), 'questions' => $qs]);
+                if ($qs) $quizJson = json_encode([
+                    'pass' => max(1, min(100, (int) ($body['quiz']['pass'] ?? 70))),
+                    'graded' => !array_key_exists('graded', $body['quiz']) || !empty($body['quiz']['graded']),
+                    'attempts' => max(0, min(99, (int) ($body['quiz']['attempts'] ?? 0))),
+                    'questions' => $qs,
+                ], JSON_UNESCAPED_UNICODE);
             }
             $vurl = trim((string) ($body['video_url'] ?? ''));
             if ($vurl !== '' && Embeds::iframeSrc($vurl) === null)
@@ -2164,11 +2178,42 @@ try {
                 'body_html' => $lbody, 'video_url' => trim((string) ($body['video_url'] ?? '')),
                 'duration_min' => (int) ($body['duration_min'] ?? 0), 'is_preview' => !empty($body['is_preview']),
                 'quiz_json' => $quizJson,
+                'kind' => $kind, 'weight' => (int) ($body['weight'] ?? 1), 'assignment_pass' => (int) ($body['assignment_pass'] ?? 70),
             ]);
             json_out(['ok' => true, 'id' => $id]);
         case 'lesson_delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $lms->deleteLesson((int) ($body['id'] ?? 0)); json_out(['ok' => true]);
+
+        /* ── Programmes (series of courses) ── */
+        case 'prog_list':
+            json_out(['ok' => true, 'programmes' => (new LmsCourseware(null, $lms))->programmes(false)]);
+        case 'prog_get': {
+            $pcw = new LmsCourseware(null, $lms);
+            $pg = $pcw->programme(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
+            if (!$pg) json_out(['ok' => false, 'error' => 'Not found.'], 404);
+            json_out(['ok' => true, 'programme' => $pg, 'courses' => array_map(static fn($c) => ['slug' => $c['slug'], 'title' => $c['title']], $pcw->programmeCourses((int) $pg['id'], true))]);
+        }
+        case 'prog_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (trim((string) ($body['title'] ?? '')) === '') json_out(['ok' => false, 'error' => 'A title is required.'], 422);
+            $pslug = (new LmsCourseware(null, $lms))->saveProgramme([
+                '_editing' => preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['editing'] ?? ''))),
+                'title' => (string) $body['title'], 'slug' => (string) ($body['slug'] ?? ''), 'summary' => (string) ($body['summary'] ?? ''),
+                'body_html' => Embeds::sanitize(Embeds::embedify((string) ($body['body_html'] ?? ''))),
+                'cover_url' => av_safe_asset_url((string) ($body['cover_url'] ?? '')),
+                'status' => (string) ($body['status'] ?? 'draft'), 'sort' => (int) ($body['sort'] ?? 0),
+            ], array_values(array_filter(array_map(static fn($x) => preg_replace('/[^a-z0-9\-]/', '', strtolower((string) $x)), (array) ($body['courses'] ?? [])))));
+            $lms->audit('prog_save', $pslug, 'programme');
+            json_out(['ok' => true, 'slug' => $pslug]);
+        }
+        case 'prog_delete': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $pslug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? '')));
+            $r = (new LmsCourseware(null, $lms))->deleteProgramme($pslug, !empty($body['force']));
+            if (!empty($r['ok'])) $lms->audit('prog_delete', $pslug, 'programme');
+            json_out($r, !empty($r['ok']) ? 200 : (!empty($r['needs_confirm']) ? 409 : 404));
+        }
 
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);

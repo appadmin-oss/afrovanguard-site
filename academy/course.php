@@ -54,6 +54,24 @@ $instructorName = $lms->instructorName(isset($c['instructor_id']) ? (int) $c['in
 $started = $progress && !empty($progress['completed']);
 $complete = $progress && !empty($progress['complete']);
 $certUrl = academy_url($c['slug'] . '/certificate');
+$cw = new LmsCourseware(null, $lms);
+$skills = LmsCourseware::skills($c);
+$prereqs = LmsCourseware::prerequisites($c);
+$rating = $cw->ratingSummary($id);
+$reviews = $cw->reviews($id, 12);
+$canReview = $user && $cw->canReview((int) $user['id'], $id);
+$myReview = $user ? $cw->myReview((int) $user['id'], $id) : null;
+$partOf = $cw->programmesFor($id);
+$certified = $user ? (bool) $lms->getCertificate((int) $user['id'], $id) : false;
+$grades = ($user && $progress && $started) ? $cw->grades((int) $user['id'], $c) : null;
+$passMark = (int) ($c['pass_mark'] ?? 70);
+/* What a learner will do, counted by kind — the syllabus header. */
+$kinds = ['video' => 0, 'reading' => 0, 'quiz' => 0, 'practice' => 0, 'assignment' => 0, 'discussion' => 0];
+foreach ($curriculum as $m) { foreach ($m['lessons'] as $l) { $kinds[(string) ($l['type'] ?? 'reading')] = ($kinds[(string) ($l['type'] ?? 'reading')] ?? 0) + 1; } }
+$kindLabel = ['video' => 'video', 'reading' => 'reading', 'quiz' => 'graded quiz', 'practice' => 'practice quiz', 'assignment' => 'assignment', 'discussion' => 'discussion prompt'];
+$hasGraded = $kinds['quiz'] + $kinds['assignment'] > 0;
+$weeks = (int) ($c['pace_weeks'] ?? 0) > 0 ? (int) $c['pace_weeks'] : $moduleCount;
+$fmtMins = static fn(int $m): string => $m >= 60 ? (intdiv($m, 60) . ' hr' . ($m % 60 ? ' ' . ($m % 60) . ' min' : '')) : $m . ' min';
 
 /* Primary call to action: the same rules as v1. */
 $resumeUrl = $firstLesson ? academy_url($c['slug'] . '/learn/' . $firstLesson) : '#enrol';
@@ -75,13 +93,19 @@ else { $priceBig = 'Free'; $priceNote = $access === 'tracked' ? ($user ? 'Free �
 
 $facts = array_filter([
     'Level' => (string) ($c['level'] ?? ''), 'Format' => (string) ($c['format'] ?? ''),
-    'Duration' => (string) ($c['duration'] ?? ''), 'Lessons' => $lessonTotal ? (string) $lessonTotal : '',
-    'Location' => (string) ($c['location'] ?? ''), 'Certificate' => 'Yes, on completion',
+    'Duration' => (string) ($c['duration'] ?? ''), 'Language' => (string) ($c['language'] ?? 'English'),
+    'Modules' => $moduleCount ? (string) $moduleCount : '', 'Lessons' => $lessonTotal ? (string) $lessonTotal : '',
+    'Time' => $totalMins ? $fmtMins($totalMins) . ' total' : '',
+    'Pace' => $moduleCount ? 'Suggested ' . avac_plural($weeks, 'week') : '',
+    'Location' => (string) ($c['location'] ?? ''),
+    'Certificate' => $hasGraded ? 'Yes — pass with ' . $passMark . '%' : 'Yes, on completion',
 ]);
 $badges = array_filter([(string) ($c['level'] ?? ''), (string) ($c['format'] ?? ''), (string) ($c['duration'] ?? ''), $lessonTotal ? avac_plural($lessonTotal, 'lesson') : '']);
 
 $faqs = [
-    ['Do I earn a certificate?', 'Yes. Complete every lesson to earn a verifiable Afrovanguard Academy certificate with a unique serial you can share on LinkedIn and your CV.'],
+    ['Do I earn a certificate?', $hasGraded
+        ? 'Yes. Complete every item and pass the graded work — an overall grade of ' . $passMark . '% or more, with every graded quiz and assignment passed — to earn a verifiable certificate with a unique serial.'
+        : 'Yes. Complete every lesson to earn a verifiable Afrovanguard Academy certificate with a unique serial you can share on LinkedIn and your CV.'],
     ['How much does it cost?', $access === 'paid'
         ? 'This programme is ' . ($price > 0 ? $ngn($price) . ' (one-time)' : 'paid') . '. Academy members get it included — see membership.'
         : ($access === 'membership'
@@ -90,7 +114,9 @@ $faqs = [
                 ? 'This programme is restricted to invited members or those holding a pass.'
                 : 'This programme is free. ' . ($access === 'tracked' ? 'Create a free account to save your progress and earn your certificate.' : 'You can start straight away.')))],
     ['How long does it take?', ($c['duration'] ? 'About ' . strtolower((string) $c['duration']) . ', ' : '') . 'self-paced' . ($lessonTotal ? ' across ' . avac_plural($lessonTotal, 'lesson') : '') . ', so you can learn on your own schedule.'],
-    ['Do I need any prior experience?', 'This programme is pitched at ' . strtolower((string) $c['level']) . '. Come curious and ready to build — we take it step by step.'],
+    ['Do I need any prior experience?', $prereqs
+        ? 'You should have: ' . implode('; ', $prereqs) . '.'
+        : 'This programme is pitched at ' . strtolower((string) $c['level']) . '. Come curious and ready to build — we take it step by step.'],
 ];
 
 $othersRows = avac_decorate($repo->others($c['slug']), $lms, $user);
@@ -102,6 +128,9 @@ $courseSchema = [
     'hasCourseInstance' => ['@type' => 'CourseInstance', 'courseMode' => $c['format'], 'location' => $c['location']],
 ];
 if (strtolower((string) $c['price']) === 'free') $courseSchema['isAccessibleForFree'] = true;
+if ($rating['count'] > 0) $courseSchema['aggregateRating'] = ['@type' => 'AggregateRating', 'ratingValue' => $rating['avg'], 'ratingCount' => $rating['count'], 'bestRating' => 5, 'worstRating' => 1];
+if ($skills) $courseSchema['teaches'] = $skills;
+if (!empty($c['language'])) $courseSchema['inLanguage'] = (string) $c['language'];
 $crumbs = schema_breadcrumb([
     ['name' => 'Home', 'url' => $S . '/'],
     ['name' => 'Academy', 'url' => $S . '/academy/'],
@@ -150,7 +179,11 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 <?php if ($cta !== ''): ?>          <a class="avac-btn avac-btn--line" href="<?= e($cta) ?>" target="_blank" rel="noopener">Programme site ↗<span class="av-sr"> (opens in a new tab)</span></a>
 <?php endif; ?>
         </div>
-        <p class="avco-trust"><span class="avac-live" aria-hidden="true"></span><?= $enrolledCount > 0 ? '<b class="av-num">' . e(number_format($enrolledCount)) . '</b> already enrolled' : 'New programme — be among the first' ?> · Certificate on completion<?= $instructorName ? ' · Taught by ' . e($instructorName) : '' ?></p>
+<?php if ($rating['count'] > 0): ?>        <p class="avco-rating"><?= avac_stars((float) $rating['avg'], (int) $rating['count']) ?> <a href="#reviews" data-avco-goto="reviews">Read reviews</a></p>
+<?php endif; ?>
+<?php if ($partOf): ?>        <p class="avco-partof">Part of <?php foreach ($partOf as $pi => $po): ?><?= $pi ? ', ' : '' ?><a href="/academy/programmes/<?= e(rawurlencode((string) $po['slug'])) ?>/"><?= e((string) $po['title']) ?></a><?php endforeach; ?></p>
+<?php endif; ?>
+        <p class="avco-trust"><span class="avac-live" aria-hidden="true"></span><?= $enrolledCount > 0 ? '<b class="av-num">' . e(number_format($enrolledCount)) . '</b> already enrolled' : 'New programme — be among the first' ?> · <?= $hasGraded ? 'Graded · certificate when you pass' : 'Certificate on completion' ?><?= $instructorName ? ' · Taught by ' . e($instructorName) : '' ?></p>
       </div>
       <div class="avco-hero-media"><?= avac_cover($c, 'avco-hero-img') ?></div>
     </div>
@@ -162,9 +195,10 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
     <div class="avco-main">
       <div class="avco-tabs" role="tablist" aria-label="Course sections">
         <button type="button" class="avco-tab" role="tab" id="avco-t-overview" aria-controls="avco-p-overview" aria-selected="true" data-avco-tab="overview">Overview</button>
-<?php if ($curriculum): ?>        <button type="button" class="avco-tab" role="tab" id="avco-t-curriculum" aria-controls="avco-p-curriculum" aria-selected="false" tabindex="-1" data-avco-tab="curriculum">Curriculum</button>
+<?php if ($curriculum): ?>        <button type="button" class="avco-tab" role="tab" id="avco-t-curriculum" aria-controls="avco-p-curriculum" aria-selected="false" tabindex="-1" data-avco-tab="curriculum">Syllabus</button>
 <?php endif; ?>
         <button type="button" class="avco-tab" role="tab" id="avco-t-certificate" aria-controls="avco-p-certificate" aria-selected="false" tabindex="-1" data-avco-tab="certificate">Certificate</button>
+        <button type="button" class="avco-tab" role="tab" id="avco-t-reviews" aria-controls="avco-p-reviews" aria-selected="false" tabindex="-1" data-avco-tab="reviews">Reviews<?= $rating['count'] ? ' (' . (int) $rating['count'] . ')' : '' ?></button>
       </div>
 
       <section class="avco-panel" role="tabpanel" id="avco-p-overview" aria-labelledby="avco-t-overview" data-avco-panel="overview">
@@ -177,8 +211,26 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
           </ul>
         </div>
 <?php endif; ?>
+<?php if ($skills): ?>
+        <div>
+          <h2 class="avco-h2">Skills you’ll gain</h2>
+          <ul class="avco-skills">
+<?php foreach ($skills as $sk): ?>            <li><?= e($sk) ?></li>
+<?php endforeach; ?>
+          </ul>
+        </div>
+<?php endif; ?>
 <?php if (trim(strip_tags((string) ($c['body_html'] ?? ''))) !== ''): ?>
         <div class="avco-about"><?= $c['body_html'] ?></div>
+<?php endif; ?>
+<?php if ($prereqs): ?>
+        <div>
+          <h2 class="avco-h2">Before you start</h2>
+          <ul class="avco-pre">
+<?php foreach ($prereqs as $pq): ?>            <li><?= e($pq) ?></li>
+<?php endforeach; ?>
+          </ul>
+        </div>
 <?php endif; ?>
         <div class="avco-instructor">
           <span class="avco-avatar" aria-hidden="true"><?= e(mb_substr($instructorName ?: 'Afrovanguard', 0, 1)) ?></span>
@@ -188,24 +240,35 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 
 <?php if ($curriculum): ?>
       <section class="avco-panel" role="tabpanel" id="avco-p-curriculum" aria-labelledby="avco-t-curriculum" data-avco-panel="curriculum" hidden>
-        <h2 class="avco-h2 avco-h2--tight">Curriculum</h2>
-        <p class="avco-sub av-num"><?= e(avac_plural($moduleCount, 'module')) ?> · <?= e(avac_plural($lessonTotal, 'lesson')) ?><?= $totalMins ? ' · ' . $totalMins . ' min' : '' ?> · self-paced</p>
+        <h2 class="avco-h2 avco-h2--tight">Syllabus</h2>
+        <p class="avco-sub av-num"><?= e(avac_plural($moduleCount, 'module')) ?> · <?= e(avac_plural($lessonTotal, 'item')) ?><?= $totalMins ? ' · ' . e($fmtMins($totalMins)) : '' ?> · self-paced, about <?= e(avac_plural($weeks, 'week')) ?></p>
+        <p class="avco-kinds"><?= e(implode(' · ', array_map(static fn($k, $n) => avac_plural($n, $kindLabel[$k]), array_keys(array_filter($kinds)), array_filter($kinds)))) ?></p>
 <?php if ($progress): ?>
         <div class="avac-prog avco-prog"><span class="av-num"><?= (int) $progress['completed'] ?>/<?= (int) $progress['total'] ?> done</span><span class="avac-bar"><span style="width:<?= (int) $progress['pct'] ?>%"></span></span><span class="av-num"><?= (int) $progress['pct'] ?>%</span></div>
 <?php if ($complete): ?>
-        <div class="avco-done">You’ve completed this programme. <a href="<?= e($certUrl) ?>" target="_blank" rel="noopener">Get your certificate →</a></div>
+<?php if ($certified): ?>        <div class="avco-done">You’ve passed this course. <a href="<?= e($certUrl) ?>" target="_blank" rel="noopener">Get your certificate →</a></div>
+<?php else: ?>        <div class="avco-done">Every item is done. <a href="<?= e(academy_url($c['slug'] . '/grades')) ?>">Check your grades →</a></div>
 <?php endif; ?>
 <?php endif; ?>
-<?php $n = 0; foreach ($curriculum as $m):
-        $mDone = 0; foreach ($m['lessons'] as $l) { if (in_array((int) $l['id'], $doneIds, true)) $mDone++; } ?>
-        <h3 class="avco-mod"><span><?= e((string) $m['title']) ?></span><span class="av-num"><?= $progress ? $mDone . '/' : '' ?><?= e(avac_plural(count($m['lessons']), 'lesson')) ?></span></h3>
+<?php endif; ?>
+<?php $n = 0; foreach ($curriculum as $mi => $m):
+        $mDone = 0; $mMins = 0; foreach ($m['lessons'] as $l) { if (in_array((int) $l['id'], $doneIds, true)) $mDone++; $mMins += (int) $l['duration_min']; }
+        $objs = LmsCourseware::objectives($m); ?>
+        <div class="avco-modbox">
+        <h3 class="avco-mod"><span><span class="avco-mod-k">Module <?= $mi + 1 ?></span><?= e((string) $m['title']) ?></span><span class="av-num"><?= $progress ? $mDone . '/' : '' ?><?= e(avac_plural(count($m['lessons']), 'item')) ?><?= $mMins ? ' · ' . e($fmtMins($mMins)) : '' ?></span></h3>
+<?php if (trim((string) ($m['summary'] ?? '')) !== ''): ?>        <p class="avco-mod-s"><?= e((string) $m['summary']) ?></p>
+<?php endif; ?>
+<?php if ($objs): ?>        <details class="avco-objs"><summary>Learning objectives</summary><ul>
+<?php foreach ($objs as $ob): ?>          <li><?= e($ob) ?></li>
+<?php endforeach; ?>        </ul></details>
+<?php endif; ?>
         <ol class="avco-lessons">
 <?php foreach ($m['lessons'] as $l):
             $n++;
             $lOpen = !empty($l['is_preview']) || $access === 'open' || ($user && $lms->canAccess($user, $c, $l));
             $done = in_array((int) $l['id'], $doneIds, true);
             $type = (string) ($l['type'] ?? 'reading');
-            $sub = array_filter([ucfirst($type), (int) $l['duration_min'] ? (int) $l['duration_min'] . ' min' : '', !empty($l['is_preview']) ? 'Preview · open to everyone' : ($lOpen ? '' : 'Locked')]); ?>
+            $sub = array_filter([ucfirst($kindLabel[$type] ?? $type), (int) $l['duration_min'] ? (int) $l['duration_min'] . ' min' : '', !empty($l['is_preview']) ? 'Preview · open to everyone' : ($lOpen ? '' : 'Locked')]); ?>
           <li><a class="avco-lesson<?= $done ? ' is-done' : '' ?><?= $lOpen ? '' : ' is-locked' ?>" href="<?= e(academy_url($c['slug'] . '/learn/' . $l['slug'])) ?>">
             <span class="avco-n av-num"><?= str_pad((string) $n, 2, '0', STR_PAD_LEFT) ?></span>
             <span><span class="avco-lt"><?= e((string) $l['title']) ?></span><span class="avco-ls"><?= e(implode(' · ', $sub)) ?></span></span>
@@ -213,25 +276,64 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
           </a></li>
 <?php endforeach; ?>
         </ol>
+        </div>
 <?php endforeach; ?>
       </section>
 <?php endif; ?>
 
       <section class="avco-panel" role="tabpanel" id="avco-p-certificate" aria-labelledby="avco-t-certificate" data-avco-panel="certificate" hidden>
         <h2 class="avco-h2 avco-h2--tight">Your certificate</h2>
-        <p class="avco-lede">Complete every lesson to earn a verifiable Afrovanguard Academy certificate with a unique serial you can share on LinkedIn and your CV.</p>
+        <p class="avco-lede"><?= $hasGraded ? 'Complete every item and pass the graded work (' . $passMark . '% overall, every graded item passed) to earn' : 'Complete every lesson to earn' ?> a verifiable Afrovanguard Academy certificate with a unique serial you can share on LinkedIn and your CV.</p>
         <div class="avco-cert" aria-hidden="true">
           <div class="avco-cert-k">Afrovanguard Academy · Certificate of completion</div>
           <div class="avco-cert-n"><?= $user ? e((string) $user['name']) : 'Your name here' ?></div>
           <div class="avco-cert-c">has completed <strong><?= e((string) $c['title']) ?></strong></div>
           <div class="avco-cert-f"><span>Serial · AVA-XXXX-XXXX</span><span>Verify at academy/verify</span></div>
         </div>
-<?php if ($complete): ?>
+<?php if ($certified): ?>
         <a class="avac-btn" href="<?= e($certUrl) ?>" target="_blank" rel="noopener">Get your certificate →</a>
 <?php elseif ($progress): ?>
-        <p class="avco-sub">You’re <?= (int) $progress['pct'] ?>% of the way there — finish the remaining lessons to unlock it.</p>
+        <p class="avco-sub">You’re <?= (int) $progress['pct'] ?>% through<?= $grades && $grades['graded_count'] ? ', with a grade of ' . (int) $grades['overall'] . '% so far' : '' ?>. <a href="<?= e(academy_url($c['slug'] . '/grades')) ?>">See your grades →</a></p>
 <?php endif; ?>
         <a class="avac-more" href="/academy/verify.php">Verify a certificate →</a>
+      </section>
+
+      <section class="avco-panel" role="tabpanel" id="avco-p-reviews" aria-labelledby="avco-t-reviews" data-avco-panel="reviews" hidden>
+        <h2 class="avco-h2 avco-h2--tight" id="reviews">Learner reviews</h2>
+<?php if ($rating['count'] > 0): ?>
+        <div class="avco-rsum">
+          <div class="avco-rsum-n"><b class="av-num"><?= e(number_format((float) $rating['avg'], 1)) ?></b><span aria-hidden="true">★</span><span class="av-num"><?= e(avac_plural((int) $rating['count'], 'rating')) ?></span></div>
+          <ul class="avco-rdist" aria-label="Ratings by stars">
+<?php foreach ($rating['dist'] as $stars => $cnt): $pc = $rating['count'] ? (int) round($cnt / $rating['count'] * 100) : 0; ?>
+            <li><span class="av-num"><?= $stars ?> ★</span><span class="avac-bar"><span style="width:<?= $pc ?>%"></span></span><span class="av-num"><?= $pc ?>%</span></li>
+<?php endforeach; ?>
+          </ul>
+        </div>
+<?php else: ?>
+        <p class="avco-sub avco-sub--flat">No ratings yet.</p>
+<?php endif; ?>
+<?php if ($canReview): ?>
+        <form class="avco-rform" data-avco-review="<?= e((string) $c['slug']) ?>">
+          <fieldset><legend><?= $myReview ? 'Update your rating' : 'Rate this course' ?></legend>
+            <div class="avco-stars">
+<?php for ($st = 5; $st >= 1; $st--): ?>              <input type="radio" id="avco-st<?= $st ?>" name="rating" value="<?= $st ?>"<?= (int) ($myReview['rating'] ?? 0) === $st ? ' checked' : '' ?> required><label for="avco-st<?= $st ?>"><span aria-hidden="true">★</span><span class="av-sr"><?= e(avac_plural($st, 'star')) ?></span></label>
+<?php endfor; ?>
+            </div>
+          </fieldset>
+          <label for="avco-rbody">Your review <span>(optional)</span></label>
+          <textarea id="avco-rbody" name="body" rows="4" maxlength="2000"><?= e((string) ($myReview['body'] ?? '')) ?></textarea>
+          <div class="avco-rfoot"><button type="submit" class="avac-btn">Save review</button><p class="avac-msg" data-avco-review-msg role="status" aria-live="polite"></p></div>
+        </form>
+<?php elseif (!$user): ?>
+        <p class="avco-sub avco-sub--flat"><a href="/login" data-avac-auth="login">Sign in</a> and enrol to rate this course.</p>
+<?php endif; ?>
+<?php if ($reviews): ?>
+        <ul class="avco-reviews">
+<?php foreach ($reviews as $rv): ?>
+          <li><div class="avco-rv-h"><span class="avco-rv-s" aria-label="<?= (int) $rv['rating'] ?> out of 5"><?= str_repeat('★', (int) $rv['rating']) ?><span class="avco-rv-off"><?= str_repeat('★', 5 - (int) $rv['rating']) ?></span></span><b><?= e((string) $rv['author']) ?></b><span class="av-num"><?= e(substr((string) $rv['updated_at'], 0, 10)) ?></span></div><p><?= nl2br(e((string) $rv['body'])) ?></p></li>
+<?php endforeach; ?>
+        </ul>
+<?php endif; ?>
       </section>
 
       <div class="avco-faq">

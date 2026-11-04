@@ -46,6 +46,7 @@ declare(strict_types=1);
     <nav class="side-nav" aria-label="Sections">
       <button class="nav-item is-active" data-view="overview"><svg viewBox="0 0 24 24"><path d="M3 13h8V3H3zM13 21h8V3h-8zM3 21h8v-6H3z"/></svg><span>Overview</span></button>
       <button class="nav-item" data-view="courses"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M4 9h16"/></svg><span>Courses</span></button>
+      <button class="nav-item" data-view="programmes"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg><span>Programmes</span></button>
       <button class="nav-item" data-view="curriculum"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Curriculum</span></button>
       <button class="nav-item" data-view="learners"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0112 0M16 3.5a3 3 0 010 5.8M21 20a6 6 0 00-5-5.9"/></svg><span>Learners</span></button>
       <button class="nav-item" data-view="applications"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h6"/></svg><span>Applications</span></button>
@@ -53,6 +54,7 @@ declare(strict_types=1);
     </nav>
     <div class="side-foot">
       <button class="ghost" id="themeToggle" title="Toggle theme"><svg class="t-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="t-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/></svg><span>Theme</span></button>
+      <a class="ghost" href="/academy/teach/grading" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2h9"/></svg><span>Grading queue</span></a>
       <a class="ghost" href="/academy/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M14 3h7v7M21 3l-9 9M19 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h5"/></svg><span>View Academy</span></a>
       <button class="ghost danger" id="logout"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg><span>Log out</span></button>
     </div>
@@ -109,7 +111,11 @@ declare(strict_types=1);
             </div>
             <label class="fld"><span>Summary</span><textarea id="c_summary" rows="2" placeholder="One or two sentences shown on cards."></textarea></label>
             <label class="fld"><span>Description (HTML allowed)</span><textarea id="c_body" rows="8" placeholder="The course overview…"></textarea></label>
-            <label class="fld"><span>Outcomes (one per line — each becomes a lesson when curriculum is seeded)</span><textarea id="c_outcomes" rows="4" placeholder="Read documentation independently&#10;Ship a small real project"></textarea></label>
+            <label class="fld"><span>What you’ll learn (one per line)</span><textarea id="c_outcomes" rows="4" placeholder="Read documentation independently&#10;Ship a small real project"></textarea></label>
+            <div class="grid2">
+              <label class="fld"><span>Skills you’ll gain (one per line)</span><textarea id="c_skills" rows="4" placeholder="Public speaking&#10;Budgeting"></textarea></label>
+              <label class="fld"><span>Before you start (one per line, empty = none)</span><textarea id="c_prereqs" rows="4" placeholder="A phone or laptop&#10;Basic English"></textarea></label>
+            </div>
           </div>
           <aside class="editor-side">
             <div class="card">
@@ -125,6 +131,15 @@ declare(strict_types=1);
               </label>
               <label class="fld" id="priceWrap" hidden><span>Price (₦)</span><input id="c_price_ngn" type="number" min="0" value="0" /></label>
               <label class="fld"><span>Instructor email</span><input id="c_instructor" type="email" placeholder="instructor@afrovanguard.org.ng" /></label>
+            </div>
+            <div class="card">
+              <h3>Grading &amp; pace</h3>
+              <div class="grid2">
+                <label class="fld"><span>Pass mark (%)</span><input id="c_pass_mark" type="number" min="0" max="100" value="70" /></label>
+                <label class="fld"><span>Suggested weeks</span><input id="c_pace_weeks" type="number" min="0" max="104" value="0" /></label>
+              </div>
+              <p class="muted fld-help">Pass mark: the weighted grade a learner needs, with every graded item passed. Weeks: 0 = one week per module.</p>
+              <label class="fld"><span>Language</span><input id="c_language" placeholder="English" /></label>
             </div>
             <div class="card">
               <h3>Details</h3>
@@ -143,6 +158,40 @@ declare(strict_types=1);
               <label class="fld"><span>External CTA URL (optional)</span><input id="c_cta" placeholder="https://…" /></label>
             </div>
             <p class="editor-note" id="courseNote"></p>
+          </aside>
+        </form>
+      </section>
+
+      <!-- PROGRAMMES -->
+      <section class="view" id="view-programmes" hidden>
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead><tr><th>Programme</th><th class="num">Courses</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="progBody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PROGRAMME EDITOR -->
+      <section class="view" id="view-programme" hidden>
+        <form id="progForm" class="editor">
+          <div class="editor-main">
+            <label class="fld"><span>Title *</span><input id="p_title" required placeholder="Programme title" /></label>
+            <label class="fld"><span>Slug</span><input id="p_slug" placeholder="auto from title" /></label>
+            <label class="fld"><span>Summary</span><textarea id="p_summary" rows="2"></textarea></label>
+            <label class="fld"><span>Description (HTML allowed)</span><textarea id="p_body" rows="6"></textarea></label>
+            <fieldset class="fld prog-courses"><legend>Courses in this programme, in order</legend>
+              <p class="muted">Tick the courses, then number them. Learners earn the programme certificate once every course is certified.</p>
+              <div id="progCourses"></div>
+            </fieldset>
+          </div>
+          <aside class="editor-side">
+            <div class="card">
+              <h3>Publish</h3>
+              <label class="fld"><span>Status</span><select id="p_status"><option value="draft">Draft</option><option value="published">Published</option></select></label>
+              <label class="fld"><span>Sort order</span><input id="p_sort" type="number" value="0" /></label>
+              <label class="fld"><span>Cover image URL</span><input id="p_cover" placeholder="https://…" /></label>
+            </div>
           </aside>
         </form>
       </section>
@@ -203,16 +252,25 @@ declare(strict_types=1);
     <form id="lessonForm" class="modal-body">
       <label class="fld"><span>Title *</span><input id="l_title" required /></label>
       <div class="grid2">
+        <label class="fld"><span>Item type</span>
+          <select id="l_kind"><option value="">Lesson (video, reading or quiz)</option><option value="assignment">Assignment (instructor-graded)</option><option value="discussion">Discussion prompt</option></select>
+        </label>
+        <label class="fld"><span>Grade weight</span><input id="l_weight" type="number" min="1" max="100" value="1" /></label>
+      </div>
+      <label class="fld" id="apassWrap" hidden><span>Assignment pass mark (%)</span><input id="l_apass" type="number" min="1" max="100" value="70" /></label>
+      <div class="grid2">
         <label class="fld"><span>Slug</span><input id="l_slug" placeholder="auto from title" /></label>
         <label class="fld"><span>Duration (min)</span><input id="l_duration" type="number" min="0" value="0" /></label>
       </div>
-      <label class="fld"><span>Body (HTML allowed)</span><textarea id="l_body" rows="6"></textarea></label>
+      <label class="fld"><span id="l_body_label">Body (HTML allowed)</span><textarea id="l_body" rows="6"></textarea></label>
       <label class="fld"><span>Video URL (optional)</span><input id="l_video" placeholder="https://…" /></label>
       <label class="chk"><input type="checkbox" id="l_preview" /> <span>Free preview (open without an account)</span></label>
 
-      <div class="quiz">
-        <div class="quiz-head"><h3>Quiz <small>(optional — gates completion)</small></h3>
+      <div class="quiz" id="quizWrap">
+        <div class="quiz-head"><h3>Quiz <small>(optional)</small></h3>
           <label class="quiz-pass">Pass %<input id="q_pass" type="number" min="1" max="100" value="70" /></label>
+          <label class="quiz-pass">Attempts<input id="q_attempts" type="number" min="0" max="99" value="0" title="0 = unlimited" /></label>
+          <label class="chk"><input type="checkbox" id="q_graded" checked /> <span>Graded (counts toward the grade)</span></label>
         </div>
         <div id="quizQuestions"></div>
         <button type="button" class="btn btn-outline btn-sm" id="addQ">+ Add question</button>
@@ -222,6 +280,23 @@ declare(strict_types=1);
     <div class="modal-foot">
       <button class="btn btn-ghost" id="lessonCancel" type="button">Cancel</button>
       <button class="btn btn-primary" id="lessonSave" type="button">Save lesson</button>
+    </div>
+  </div>
+</div>
+
+<!-- Module editor modal -->
+<div class="modal" id="modModal" role="dialog" aria-modal="true" aria-labelledby="modModalTitle" hidden>
+  <div class="modal-card">
+    <div class="modal-head"><h2 id="modModalTitle">Module</h2><button class="icon-x" id="modClose" aria-label="Close">×</button></div>
+    <form id="modForm" class="modal-body">
+      <label class="fld"><span>Title *</span><input id="m_title" required /></label>
+      <label class="fld"><span>What this module covers</span><textarea id="m_summary" rows="3"></textarea></label>
+      <label class="fld"><span>Learning objectives (one per line)</span><textarea id="m_objectives" rows="4" placeholder="Explain…&#10;Build…"></textarea></label>
+      <p class="modal-msg" id="modMsg"></p>
+    </form>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="modCancel" type="button">Cancel</button>
+      <button class="btn btn-primary" id="modSave" type="button">Save module</button>
     </div>
   </div>
 </div>

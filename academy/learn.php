@@ -16,10 +16,13 @@ require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 require_once __DIR__ . '/_avac.php';
 
-/** Lesson type → label + glyph (design: ▤ reading, ▶ video, ? quiz). */
+/** Item type → label + glyph (▤ reading, ▶ video, ? quiz, ✎ assignment, ❝ discussion). */
+if (!function_exists('avle_type')) {
 function avle_type(string $type): array
 {
-    return ['video' => ['Video', '▶'], 'quiz' => ['Quiz', '?']][$type] ?? ['Reading', '▤'];
+    return ['video' => ['Video', '▶'], 'quiz' => ['Graded quiz', '?'], 'practice' => ['Practice quiz', '?'],
+            'assignment' => ['Assignment', '✎'], 'discussion' => ['Discussion', '❝']][$type] ?? ['Reading', '▤'];
+}
 }
 
 $courseSlug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['course'] ?? '')));
@@ -27,6 +30,7 @@ $lessonSlug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['less
 
 $ac = new AcademyRepository();
 $lms = new LmsRepository();
+$cw = new LmsCourseware(null, $lms);
 $course = $courseSlug ? $ac->bySlug($courseSlug) : null;
 if (!$course) { require_once AV_ROOT . '/lib/errors.php'; av_error_render(404); exit; }
 
@@ -68,6 +72,16 @@ $courseUrl = academy_url($courseSlug . '/');
 $nextUrl = $next ? $learnUrl((string) $next['slug']) : '';
 $pct = (int) $progress['pct'];
 $savedNote = ($user && $canAccess) ? $lms->getNote((int) $user['id'], (int) $lesson['id']) : '';
+$quizStats = ($quiz && $user) ? $lms->quizStats((int) $user['id'], (int) $lesson['id']) : ['used' => 0, 'best' => null, 'passed' => false];
+$attemptsLeft = ($quiz && $quiz['attempts'] > 0) ? max(0, $quiz['attempts'] - $quizStats['used']) : null;
+$submission = ($lType === 'assignment' && $user && $canAccess) ? $cw->submission((int) $user['id'], (int) $lesson['id']) : null;
+$asgPass = $lType === 'assignment' ? LmsCourseware::assignmentPass($lesson) : 0;
+$prompt = ($lType === 'discussion' && $canAccess) ? $cw->promptThread($lesson) : null;
+$replies = $prompt ? $cw->posts((int) $prompt['id']) : [];
+/* Items completed by doing something, not by ticking a box. */
+$selfComplete = !$quiz && !in_array($lType, ['assignment', 'discussion'], true);
+$gradesUrl = academy_url($courseSlug . '/grades');
+$forumUrl = academy_url($courseSlug . '/discussions');
 
 avac_head([
     'title' => $lesson['title'] . ' — ' . $course['title'] . ' · Afrovanguard Academy',
@@ -88,6 +102,9 @@ avac_head([
   </div>
   <div class="avle-top-r">
     <span class="avle-ring" style="--p:<?= $pct ?>" aria-hidden="true"></span><span class="avle-ring-n av-num" data-avle-count><?= (int) $progress['completed'] ?>/<?= (int) $progress['total'] ?></span><span class="av-sr" data-avle-count-sr><?= (int) $progress['completed'] ?> of <?= (int) $progress['total'] ?> lessons complete</span>
+<?php if ($user && $canAccess): ?>    <a class="avle-btn avle-btn--line avle-hide-sm" href="<?= e($gradesUrl) ?>">Grades</a>
+    <a class="avle-btn avle-btn--line avle-hide-sm" href="<?= e($forumUrl) ?>">Discussions</a>
+<?php endif; ?>
 <?php if ($canAccess): ?>    <button type="button" class="avle-btn avle-btn--line avle-notes-btn" data-avle-notes-toggle aria-controls="avle-notes" aria-expanded="false">Notes</button>
 <?php endif; ?>
     <a class="avle-btn" href="<?= e($courseUrl) ?>">Exit</a>
@@ -204,26 +221,86 @@ avac_head([
     <div class="avle-body"><?= $lesson['body_html'] ?></div>
 <?php endif; ?>
 
-<?php if ($quiz): $qn = count($quiz['questions']); ?>
-    <form class="avle-quiz" data-avle-quiz data-course="<?= e($courseSlug) ?>" data-lesson="<?= e($lessonSlug) ?>">
-      <p class="avle-quiz-intro">Answer every question — score <?= (int) $quiz['pass'] ?>% or higher to complete this lesson.</p>
-<?php foreach ($quiz['questions'] as $qi => $q): ?>
-      <fieldset class="avle-q">
-        <legend><span class="avle-q-k av-num">Question <?= $qi + 1 ?> of <?= $qn ?></span><span class="avle-q-t"><?= e((string) $q['q']) ?></span></legend>
+<?php if ($quiz): $qn = count($quiz['questions']); $outOfTries = $attemptsLeft === 0; ?>
+    <form class="avle-quiz" data-avle-quiz data-course="<?= e($courseSlug) ?>" data-lesson="<?= e($lessonSlug) ?>" data-graded="<?= $quiz['graded'] ? '1' : '0' ?>">
+      <p class="avle-quiz-intro"><?php if ($quiz['graded']): ?>Graded quiz · pass mark <?= (int) $quiz['pass'] ?>%<?= (int) ($lesson['weight'] ?? 1) > 1 ? ' · weight ' . (int) $lesson['weight'] : '' ?><?php else: ?>Practice quiz · doesn’t count toward your grade<?php endif; ?><?= $quiz['attempts'] > 0 ? ' · ' . e(avac_plural((int) $quiz['attempts'], 'attempt')) . ' allowed' : '' ?></p>
+<?php if ($quizStats['used'] > 0): ?>
+      <p class="avle-quiz-stat av-num" data-avle-quiz-stat>Best score <?= (int) $quizStats['best'] ?>% · <?= e(avac_plural($quizStats['used'], 'attempt')) ?><?= $attemptsLeft !== null ? ' · ' . $attemptsLeft . ' left' : '' ?></p>
+<?php endif; ?>
+<?php foreach ($quiz['questions'] as $qi => $q): $multi = $q['type'] === 'multi'; ?>
+      <fieldset class="avle-q" data-avle-q="<?= $qi ?>" data-type="<?= e($q['type']) ?>">
+        <legend><span class="avle-q-k av-num">Question <?= $qi + 1 ?> of <?= $qn ?><?= $multi ? ' · choose all that apply' : '' ?></span><span class="avle-q-t"><?= e((string) $q['q']) ?></span></legend>
 <?php foreach ($q['options'] as $oi => $opt): ?>
-        <label class="avle-opt"><input type="radio" name="q<?= $qi ?>" value="<?= $oi ?>"><span class="avle-opt-k" aria-hidden="true"><?= e(chr(65 + ($oi % 26))) ?></span><span><?= e((string) $opt) ?></span></label>
+        <label class="avle-opt" data-opt="<?= $oi ?>"><input type="<?= $multi ? 'checkbox' : 'radio' ?>" name="q<?= $qi ?><?= $multi ? '[]' : '' ?>" value="<?= $oi ?>"<?= $outOfTries ? ' disabled' : '' ?>><span class="avle-opt-k" aria-hidden="true"><?= e(chr(65 + ($oi % 26))) ?></span><span><?= e((string) $opt) ?></span></label>
 <?php endforeach; ?>
+        <p class="avle-q-fb" data-avle-qfb role="status" hidden></p>
       </fieldset>
 <?php endforeach; ?>
       <div class="avle-quiz-foot">
-        <button type="submit" class="avle-btn avle-btn--lg"><?= $isDone ? 'Retake quiz' : 'Check answers' ?></button>
+<?php if ($outOfTries): ?>
+        <p class="avle-quiz-out is-err">You’ve used every attempt on this quiz.</p>
+<?php else: ?>
+        <button type="submit" class="avle-btn avle-btn--lg"><?= $quizStats['used'] > 0 ? 'Try again' : 'Submit answers' ?></button>
         <p class="avle-quiz-out" data-avle-quiz-out role="status" aria-live="polite"></p>
+<?php endif; ?>
       </div>
     </form>
 <?php endif; ?>
 
+<?php if ($lType === 'assignment'): $st = (string) ($submission['status'] ?? ''); $locked = $st === 'graded' && (int) ($submission['score'] ?? 0) >= $asgPass; ?>
+    <section class="avle-asg" aria-labelledby="avle-asg-h">
+      <h2 class="avle-h2" id="avle-asg-h">Your submission</h2>
+      <p class="avle-asg-rule">Graded by your instructor · pass mark <?= $asgPass ?>%<?= (int) ($lesson['weight'] ?? 1) > 1 ? ' · weight ' . (int) $lesson['weight'] : '' ?></p>
+<?php if ($submission): ?>
+      <div class="avle-asg-state is-<?= e($st) ?>" data-avle-asg-state>
+<?php if ($st === 'graded'): ?>
+        <b class="av-num"><?= (int) $submission['score'] ?>%</b> <?= (int) $submission['score'] >= $asgPass ? 'Passed' : 'Not yet passed — revise and resubmit' ?>
+<?php elseif ($st === 'returned'): ?>
+        <b>Returned</b> Your instructor asked for changes.
+<?php else: ?>
+        <b>Submitted</b> Waiting for your instructor to grade it.
+<?php endif; ?>
+<?php if (trim((string) $submission['feedback']) !== ''): ?>
+        <div class="avle-asg-fb"><span>Feedback</span><?= nl2br(e((string) $submission['feedback'])) ?></div>
+<?php endif; ?>
+      </div>
+<?php endif; ?>
+<?php if (!$user): ?>
+      <p>Sign in to submit your work.</p>
+<?php elseif (!$locked): ?>
+      <form class="avle-asg-form" data-avle-asg data-course="<?= e($courseSlug) ?>" data-lesson="<?= e($lessonSlug) ?>">
+        <label for="avle-asg-body">Your answer</label>
+        <textarea id="avle-asg-body" name="body" rows="8" maxlength="20000"><?= e((string) ($submission['body'] ?? '')) ?></textarea>
+        <label for="avle-asg-url">Link to your work <span>(optional)</span></label>
+        <input id="avle-asg-url" name="url" type="url" inputmode="url" placeholder="https://" value="<?= e((string) ($submission['link_url'] ?? '')) ?>">
+        <div class="avle-asg-foot"><button type="submit" class="avle-btn avle-btn--lg"><?= $submission ? 'Resubmit' : 'Submit' ?></button><p class="avle-quiz-out" data-avle-asg-out role="status" aria-live="polite"></p></div>
+      </form>
+<?php endif; ?>
+    </section>
+<?php endif; ?>
+
+<?php if ($lType === 'discussion' && $prompt): $mine = $user && array_filter($replies, static fn($p) => (int) $p['user_id'] === (int) $user['id']); ?>
+    <section class="avle-disc" aria-labelledby="avle-disc-h">
+      <h2 class="avle-h2" id="avle-disc-h">Responses <span class="av-num">(<?= count($replies) ?>)</span></h2>
 <?php if ($user): ?>
-    <div class="avle-done" data-avle-done<?= !empty($progress['complete']) ? '' : ' hidden' ?>>
+      <form class="avle-asg-form" data-avle-disc data-course="<?= e($courseSlug) ?>" data-lesson="<?= e($lessonSlug) ?>">
+        <label for="avle-disc-body"><?= $mine ? 'Add another response' : 'Your response — posting completes this item' ?></label>
+        <textarea id="avle-disc-body" name="body" rows="5" maxlength="10000" required></textarea>
+        <div class="avle-asg-foot"><button type="submit" class="avle-btn avle-btn--lg">Post</button><p class="avle-quiz-out" data-avle-disc-out role="status" aria-live="polite"></p></div>
+      </form>
+<?php endif; ?>
+      <ol class="avle-posts">
+<?php foreach (array_reverse($replies) as $p): ?>
+        <li><div class="avle-post-h"><b><?= e((string) ($p['author'] ?? 'Learner')) ?></b><span class="av-num"><?= e(substr((string) $p['created_at'], 0, 10)) ?></span></div><div class="avle-post-b"><?= nl2br(e((string) $p['body'])) ?></div></li>
+<?php endforeach; ?>
+<?php if (!$replies): ?>        <li class="avle-posts-none">No responses yet — be the first.</li>
+<?php endif; ?>
+      </ol>
+    </section>
+<?php endif; ?>
+
+<?php if ($user): ?>
+    <div class="avle-done" data-avle-done<?= $lms->getCertificate((int) $user['id'], (int) $course['id']) ? '' : ' hidden' ?>>
       <span>You’ve completed <strong><?= e((string) $course['title']) ?></strong> — your certificate is ready.</span>
       <a class="avle-btn avle-btn--gold" href="<?= e(academy_url($courseSlug . '/certificate')) ?>" target="_blank" rel="noopener">Get your certificate →<span class="av-sr"> (opens in a new tab)</span></a>
     </div>
@@ -246,11 +323,11 @@ avac_head([
 <?php if ($prev): ?>      <a class="avle-btn avle-btn--line avle-btn--lg" href="<?= e($learnUrl((string) $prev['slug'])) ?>" data-avle-prev>← Previous</a>
 <?php endif; ?>
       <div class="avle-bar-r">
-        <span class="avle-keys" aria-hidden="true">N next · P prev<?= $quiz ? '' : ' · K complete' ?> · S contents</span>
-<?php if (!$quiz): ?>
+        <span class="avle-keys" aria-hidden="true">N next · P prev<?= $selfComplete ? ' · K complete' : '' ?> · S contents</span>
+<?php if ($selfComplete): ?>
         <button type="button" class="avle-btn avle-btn--lg" data-avle-complete data-done="<?= $isDone ? '1' : '0' ?>"<?= $next ? ' data-next="' . e($nextUrl) . '"' : '' ?>><?= $isDone ? 'Completed ✓' : 'Mark complete' . ($next ? ' & continue' : '') ?></button>
 <?php else: ?>
-        <span class="avle-qstatus<?= $isDone ? ' is-done' : '' ?>" data-avle-qstatus><?= $isDone ? 'Completed ✓' : 'Quiz required' ?></span>
+        <span class="avle-qstatus<?= $isDone ? ' is-done' : '' ?>" data-avle-qstatus><?= $isDone ? 'Completed ✓' : ($quiz ? 'Quiz required' : ($lType === 'assignment' ? 'Submission required' : 'Response required')) ?></span>
 <?php endif; ?>
 <?php if ($next): ?>        <a class="avle-btn avle-btn--line avle-btn--lg" href="<?= e($nextUrl) ?>" data-avle-next>Next →</a>
 <?php endif; ?>

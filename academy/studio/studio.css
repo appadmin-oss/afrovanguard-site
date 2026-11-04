@@ -218,3 +218,15 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:25}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* Courseware authoring: question types, programmes, module summaries */
+.qcard .q-type{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 8px;max-width:170px}
+.qcard .q-explain{width:100%;box-sizing:border-box;margin-top:8px;font:inherit;color:var(--ink);background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:8px 10px}
+.quiz-head{flex-wrap:wrap;gap:10px}
+.fld-help{font-size:12.5px;margin:-4px 0 10px}
+.mod-sum{display:block;font-size:12.5px;font-weight:400;margin-top:2px}
+.prog-courses{border:0;padding:0;margin:0}
+.prog-courses legend{font-weight:600;margin-bottom:4px}
+.prog-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line-2)}
+.prog-pos{width:72px;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.qopt input[type=checkbox]{accent-color:var(--gold)}

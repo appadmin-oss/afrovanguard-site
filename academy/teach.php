@@ -178,6 +178,8 @@ $totCerts = array_sum(array_map(fn($c) => (int) $c['stats']['completed'], $cours
     <div class="container teach">
       <span class="diary-eyebrow">Instructor dashboard</span>
       <h1 class="teach-h1">Welcome, <?= e(explode(' ', $user['name'])[0]) ?></h1>
+<?php $waiting = count((new LmsCourseware(null, $lms))->queue($user['role'] === 'admin' || LmsAuth::atLeast($user, 'coordinator') ? null : array_map(static fn($x) => (int) $x['id'], $lms->coursesForInstructor((int) $user['id'])))); ?>
+      <p><a class="btn btn-primary" href="/academy/teach/grading">Grading queue<?= $waiting ? ' (' . $waiting . ' waiting)' : '' ?> →</a></p>
       <div class="teach-stats">
         <div class="tstat"><span class="tn"><?= count($courses) ?></span><span class="tl"><?= $user['role'] === 'admin' ? 'All programmes' : 'My programmes' ?></span></div>
         <div class="tstat"><span class="tn"><?= (int) $totLearners ?></span><span class="tl">Total learners</span></div>
