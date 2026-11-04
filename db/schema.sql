@@ -169,7 +169,10 @@ CREATE TABLE IF NOT EXISTS lessons (
   quiz_json    TEXT,                           -- optional quiz spec (also added by ensureAcademy)
   kind         VARCHAR(32) NOT NULL DEFAULT '',  -- '' = from content (video|reading|quiz) · assignment · discussion
   weight       INTEGER NOT NULL DEFAULT 1,       -- share of the course grade, for graded items
-  assignment_json TEXT                           -- assignment spec: {"pass": 70}
+  assignment_json TEXT,                          -- assignment spec: {"pass": 70}
+  transcript   TEXT NOT NULL DEFAULT '',         -- a video's transcript, shown beside it
+  captions_url TEXT,                             -- WebVTT captions for an uploaded video
+  resources_json TEXT                            -- downloads: [{"title": …, "url": …}]
 );
 CREATE INDEX IF NOT EXISTS idx_lessons_course ON lessons(course_id);
 CREATE TABLE IF NOT EXISTS lesson_progress (

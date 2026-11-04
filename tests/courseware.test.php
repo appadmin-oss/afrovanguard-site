@@ -273,3 +273,50 @@ $pdl = $lms->saveLesson(['module_id' => $pdm, 'title' => 'Secret prompt', 'slug'
 $cw->promptThread($lms->lessonById($pdl));
 $html = render_page(AV_ROOT . '/academy/forum.php', ['course' => $paid['slug']]);
 ck('courseware: a paid course’s forum is closed to a visitor', !str_contains($html, 'Secret prompt') && str_contains($html, 'join this course'));
+
+/* ══ Media: video files, providers, captions, transcript, resources ═════ */
+
+ck('media: a Loom share link plays through Loom’s embed', (Embeds::lessonVideo('https://www.loom.com/share/0123456789abcdef0123456789abcdef')['src'] ?? '') === 'https://www.loom.com/embed/0123456789abcdef0123456789abcdef');
+ck('media: a Drive file plays through its preview', (Embeds::lessonVideo('https://drive.google.com/file/d/1AbCdEfGhIjKlMn/view?usp=sharing')['src'] ?? '') === 'https://drive.google.com/file/d/1AbCdEfGhIjKlMn/preview');
+ck('media: Slides embed', str_ends_with((string) (Embeds::lessonVideo('https://docs.google.com/presentation/d/1AbCdEfGhIjKlMnOp/edit')['src'] ?? ''), '/embed'));
+ck('media: an Office deck goes through the Office viewer', str_starts_with((string) (Embeds::providerPlayer('https://example.com/deck.pptx') ?? ''), 'https://view.officeapps.live.com/'));
+ck('media: our upload is a file', (Embeds::lessonVideo('/uploads/media/a1.mp4') ?? [])['kind'] === 'file');
+ck('media: a Cloudinary video is a file', (Embeds::lessonVideo('https://res.cloudinary.com/x/video/upload/v1/a.mp4') ?? [])['kind'] === 'file');
+ck('media: an http video file is refused', Embeds::videoFile('http://example.com/a.mp4') === null);
+ck('media: a script URL is refused', Embeds::lessonVideo('javascript:alert(1)') === null && Embeds::lessonVideo(' javascript:alert(1)') === null);
+ck('media: a path outside uploads is refused', Embeds::videoFile('/admin/a.mp4') === null && Embeds::videoFile('/uploads/../x.mp4') === null);
+ck('media: captions must be .vtt', Embeds::captionsFile('/uploads/media/c.vtt') !== null && Embeds::captionsFile('/uploads/media/c.srt') === null);
+ck('media: a pasted video file in text plays inline', str_contains(Embeds::embedify('<p>https://example.com/talk.mp4</p>'), '<video class="embed-video"'));
+ck('media: a pasted Loom link in text embeds', str_contains(Embeds::embedify('<p>https://www.loom.com/share/0123456789abcdef0123456789abcdef</p>'), 'www.loom.com/embed/'));
+$san = Embeds::sanitize('<video src="javascript:x" onerror="a()" controls></video><video src="/uploads/media/a.mp4" controls><track src="/uploads/media/a.vtt" kind="captions"></video>');
+ck('media: the sanitizer keeps a safe video and drops a script one', !str_contains($san, 'javascript') && !str_contains($san, 'onerror') && str_contains($san, 'src="/uploads/media/a.mp4"') && str_contains($san, '<track'));
+ck('media: Loom, Wistia and the Office viewer are framable', !array_diff(['www.loom.com', 'fast.wistia.net', 'view.officeapps.live.com'], av_embed_hosts()));
+$ht = (string) file_get_contents(AV_ROOT . '/.htaccess');
+ck('media: the static CSP frames every host the PHP one does', !array_filter(av_embed_hosts(), static fn($h) => !str_contains($ht, 'https://' . $h)));
+ck('media: a video upload is media, not a Drive document', Storage::kindFor('video/mp4', 'a.mp4') === 'media' && Storage::kindFor('text/plain', 'c.vtt') === 'media' && Storage::kindFor('application/pdf', 'a.pdf') === 'document');
+ck('media: captions are stored as .vtt', Storage::safeExt('text/plain', 'captions.vtt') === 'vtt' && Storage::safeExt('text/plain', 'notes.txt') === 'txt');
+ck('media: /uploads serves captions as text/vtt', str_contains(Storage::UPLOADS_HTACCESS, 'AddType text/vtt .vtt') && (string) file_get_contents(AV_ROOT . '/uploads/.htaccess') === Storage::UPLOADS_HTACCESS);
+
+$lVid = $lms->saveLesson(['module_id' => $m1, 'title' => 'Watch: running a meeting', 'slug' => '', 'body_html' => '<p>Watch.</p>',
+    'video_url' => '/uploads/media/meeting.mp4', 'captions_url' => '/uploads/media/meeting.vtt', 'transcript' => "Welcome.\nToday: meetings.",
+    'resources' => [['title' => 'Slides', 'url' => '/uploads/documents/slides.pdf'], ['title' => 'Bad', 'url' => 'javascript:alert(1)'], ['title' => '', 'url' => 'https://example.com/agenda.docx']]]);
+$vl = $L($lVid);
+ck('media: an uploaded video is stored as given', $vl['video_url'] === '/uploads/media/meeting.mp4' && LmsRepository::lessonType($vl) === 'video');
+ck('media: captions and transcript are stored', $vl['captions_url'] === '/uploads/media/meeting.vtt' && str_contains((string) $vl['transcript'], 'Today: meetings.'));
+$rs = LmsRepository::resources($vl);
+ck('media: resources keep the safe links and name an untitled one', count($rs) === 2 && $rs[0]['title'] === 'Slides' && $rs[1]['title'] === 'agenda.docx');
+$lms->saveLesson(['id' => $lVid, 'module_id' => $m1, 'title' => 'Watch: running a meeting', 'slug' => $vl['slug'], 'body_html' => '', 'video_url' => '', 'captions_url' => 'javascript:x']);
+ck('media: an unsafe captions URL is not stored', $L($lVid)['captions_url'] === null);
+$lms->saveLesson(['id' => $lVid, 'module_id' => $m1, 'title' => 'Watch: running a meeting', 'slug' => $vl['slug'], 'body_html' => '<p>Watch.</p>',
+    'video_url' => '/uploads/media/meeting.mp4', 'captions_url' => '/uploads/media/meeting.vtt', 'transcript' => "Welcome.", 'resources' => [['title' => 'Slides', 'url' => '/uploads/documents/slides.pdf']]]);
+$html = render_page(AV_ROOT . '/academy/learn.php', ['course' => $slug, 'lesson' => $L($lVid)['slug']]);
+ck('media: an uploaded video plays in a video element with captions', str_contains($html, '<video data-avle-video src="/uploads/media/meeting.mp4"') && str_contains($html, '<track kind="captions" src="/uploads/media/meeting.vtt"'));
+ck('media: speed controls are offered', str_contains($html, 'data-avle-speed="1.5"'));
+ck('media: the transcript and resources render', str_contains($html, 'Transcript') && str_contains($html, 'data-cues="1"') && str_contains($html, 'Resources') && str_contains($html, '/uploads/documents/slides.pdf'));
+ck('media: the video page did not throw', !str_contains($html, 'render_page: threw'));
+$lLoom = $lms->saveLesson(['module_id' => $m1, 'title' => 'Watch on Loom', 'slug' => '', 'body_html' => '', 'video_url' => 'https://www.loom.com/share/0123456789abcdef0123456789abcdef']);
+$html = render_page(AV_ROOT . '/academy/learn.php', ['course' => $slug, 'lesson' => $L($lLoom)['slug']]);
+ck('media: a Loom lesson frames Loom’s player, with no speed bar', str_contains($html, 'src="https://www.loom.com/embed/') && !str_contains($html, 'data-avle-speed'));
+$dup = $ac->duplicate($slug);
+$dv = array_values(array_filter($lms->orderedLessons((int) $ac->bySlug($dup, true)['id']), static fn($l) => $l['title'] === 'Watch: running a meeting'))[0] ?? null;
+ck('media: a duplicated course keeps its captions and resources', $dv && ($full = $lms->lessonById((int) $dv['id'])) && $full['captions_url'] === '/uploads/media/meeting.vtt' && count(LmsRepository::resources($full)) === 1);

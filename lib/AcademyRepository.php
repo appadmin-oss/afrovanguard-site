@@ -223,13 +223,13 @@ final class AcademyRepository
         $mods = $this->db->prepare('SELECT * FROM modules WHERE course_id = ? ORDER BY position, id'); $mods->execute([(int) $src['id']]);
         $insMod = $this->db->prepare('INSERT INTO modules (course_id, title, position, summary, objectives) VALUES (?,?,?,?,?)');
         $lq = $this->db->prepare('SELECT * FROM lessons WHERE module_id = ? ORDER BY position, id');
-        $insLes = $this->db->prepare('INSERT INTO lessons (module_id, course_id, slug, title, body_html, video_url, duration_min, is_preview, position, created_at, updated_at, quiz_json, kind, weight, assignment_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        $insLes = $this->db->prepare('INSERT INTO lessons (module_id, course_id, slug, title, body_html, video_url, duration_min, is_preview, position, created_at, updated_at, quiz_json, kind, weight, assignment_json, transcript, captions_url, resources_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
         foreach ($mods->fetchAll() as $m) {
             $insMod->execute([$newId, $m['title'], $m['position'], (string) ($m['summary'] ?? ''), (string) ($m['objectives'] ?? '')]);
             $newMod = (int) $this->db->lastInsertId();
             $lq->execute([$m['id']]);
             foreach ($lq->fetchAll() as $l) {
-                $insLes->execute([$newMod, $newId, $l['slug'], $l['title'], $l['body_html'], $l['video_url'], $l['duration_min'], $l['is_preview'], $l['position'], $now, $now, $l['quiz_json'], (string) ($l['kind'] ?? ''), (int) ($l['weight'] ?? 1), $l['assignment_json'] ?? null]);
+                $insLes->execute([$newMod, $newId, $l['slug'], $l['title'], $l['body_html'], $l['video_url'], $l['duration_min'], $l['is_preview'], $l['position'], $now, $now, $l['quiz_json'], (string) ($l['kind'] ?? ''), (int) ($l['weight'] ?? 1), $l['assignment_json'] ?? null, (string) ($l['transcript'] ?? ''), $l['captions_url'] ?? null, $l['resources_json'] ?? null]);
             }
         }
         return $newSlug;

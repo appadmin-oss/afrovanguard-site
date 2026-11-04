@@ -28,6 +28,22 @@
     }).then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Bad server response.' }; }); });
   }
   function get(action, qs) { return api(action, { qs: qs ? '&' + qs : '' }); }
+  /* Upload one file through /admin/api.php?action=upload; resolves to its URL. */
+  function uploadFile(accept) {
+    return new Promise(function (resolve, reject) {
+      var inp = document.createElement('input'); inp.type = 'file'; if (accept) inp.accept = accept;
+      inp.onchange = function () {
+        var f = inp.files && inp.files[0]; if (!f) return reject(new Error('No file'));
+        var fd = new FormData(); fd.append('file', f);
+        var msg = $('#uploadMsg'); if (msg) msg.textContent = 'Uploading ' + f.name + '…';
+        api('upload', { method: 'POST', body: fd }).then(function (d) {
+          if (msg) msg.textContent = d && d.ok ? 'Uploaded ' + f.name + '.' : ((d && d.error) || 'Upload failed.');
+          if (d && d.ok) resolve(d.url); else reject(new Error((d && d.error) || 'Upload failed'));
+        }).catch(function (e) { if (msg) msg.textContent = 'Network error.'; reject(e); });
+      };
+      inp.click();
+    });
+  }
   function post(action, payload) { return api(action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) }); }
 
   /* ── Auth ── */
@@ -330,6 +346,26 @@
     $('#l_body_label').textContent = k === 'assignment' ? 'Instructions (HTML allowed)' : (k === 'discussion' ? 'Discussion prompt (HTML allowed)' : 'Body (HTML allowed)');
   }
   $('#l_kind').addEventListener('change', syncKind);
+  $$('[data-upload]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      b.disabled = true;
+      uploadFile(b.getAttribute('data-accept')).then(function (url) { $('#' + b.getAttribute('data-upload')).value = url; })
+        .catch(function () {}).then(function () { b.disabled = false; });
+    });
+  });
+  function resRow(r) {
+    r = r || { title: '', url: '' };
+    var row = document.createElement('div'); row.className = 'res-row';
+    row.innerHTML = '<input type="text" class="r-title" placeholder="Title (e.g. Slides)" value="' + esc(r.title) + '" />'
+      + '<input type="text" class="r-url" placeholder="https://… or upload" value="' + esc(r.url) + '" />'
+      + '<button type="button" class="btn btn-ghost btn-sm r-up">Upload</button><button type="button" class="link-btn r-rm" aria-label="Remove resource">✕</button>';
+    row.querySelector('.r-rm').onclick = function () { row.parentNode.removeChild(row); };
+    row.querySelector('.r-up').onclick = function () {
+      uploadFile('').then(function (url) { row.querySelector('.r-url').value = url; if (!row.querySelector('.r-title').value) row.querySelector('.r-title').value = 'Download'; }).catch(function () {});
+    };
+    $('#resList').appendChild(row);
+  }
+  $('#addRes').onclick = function () { resRow(); };
   function openLesson(id, moduleId) {
     lessonOpener = document.activeElement;
     lessonId = id || 0; lessonModuleId = moduleId || 0;
@@ -341,6 +377,10 @@
       $('#l_duration').value = l.duration_min || 0; $('#l_body').value = l.body_html || '';
       $('#l_video').value = l.video_url || ''; $('#l_preview').checked = !!(l.is_preview && l.is_preview != '0');
       $('#l_kind').value = l.kind || ''; $('#l_weight').value = l.weight || 1;
+      $('#l_captions').value = l.captions_url || ''; $('#l_transcript').value = l.transcript || ''; $('#uploadMsg').textContent = '';
+      $('#resList').innerHTML = '';
+      var res = []; try { res = l.resources_json ? JSON.parse(l.resources_json) : []; } catch (e) {}
+      (res || []).forEach(function (r) { resRow(r); });
       var a = null; try { a = l.assignment_json ? JSON.parse(l.assignment_json) : null; } catch (e) {}
       $('#l_apass').value = (a && a.pass) || 70;
       var quiz = null; try { quiz = l.quiz_json ? JSON.parse(l.quiz_json) : null; } catch (e) {}
@@ -382,7 +422,10 @@
       id: lessonId, module_id: lessonModuleId, title: title, slug: $('#l_slug').value.trim(),
       body_html: $('#l_body').value, video_url: $('#l_video').value.trim(),
       duration_min: +$('#l_duration').value || 0, is_preview: $('#l_preview').checked,
-      kind: kind, weight: +$('#l_weight').value || 1, assignment_pass: +$('#l_apass').value || 70
+      kind: kind, weight: +$('#l_weight').value || 1, assignment_pass: +$('#l_apass').value || 70,
+      captions_url: $('#l_captions').value.trim(), transcript: $('#l_transcript').value,
+      resources: $$('#resList .res-row').map(function (r) { return { title: r.querySelector('.r-title').value.trim(), url: r.querySelector('.r-url').value.trim() }; })
+        .filter(function (r) { return r.url !== ''; })
     };
     if (kind === '' && questions.length) payload.quiz = { pass: +$('#q_pass').value || 70, attempts: +$('#q_attempts').value || 0, graded: $('#q_graded').checked, questions: questions };
     $('#lessonSave').disabled = true;

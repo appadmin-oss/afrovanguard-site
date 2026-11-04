@@ -159,6 +159,33 @@ function avac_card(array $row, bool $hidden = false): void
       </li>
 <?php }
 
+/**
+ * The LMS footer: minimal on purpose. A learner in the Academy needs the
+ * Academy's own ways around (catalogue, programmes, their learning, verify,
+ * help) and the policies — not the whole organisation's sitemap and a
+ * newsletter box under every lesson list. The site header still reaches the rest.
+ */
+function avac_footer(): void
+{
+    $set = function_exists('avh_settings') ? avh_settings() : [];
+    $links = [['/academy/', 'Catalogue'], ['/academy/programmes/', 'Programmes'], ['/academy/my', 'My learning'],
+              ['/academy/verify.php', 'Verify a certificate'], ['/academy/teach/', 'Teach'], ['/contact.html', 'Help']];
+    ?>
+<footer class="avac-foot">
+  <div class="avac-foot-in avh-pad">
+    <a class="avac-foot-brand" href="/academy/"><span class="avac-foot-mark" aria-hidden="true"></span>Afrovanguard Academy</a>
+    <nav class="avac-foot-nav" aria-label="Academy">
+<?php foreach ($links as [$href, $label]): ?>      <a href="<?= e($href) ?>"><?= e($label) ?></a>
+<?php endforeach; ?>
+    </nav>
+    <div class="avac-foot-legal">
+      <span><?= e((string) ($set['copyright'] ?? ('© ' . date('Y') . ' Afrovanguard'))) ?></span>
+      <a href="/privacy-policy/">Privacy</a><a href="/terms/">Terms</a>
+    </div>
+  </div>
+</footer>
+<?php }
+
 /** Pay return flag (?pay=paid|failed) → a status line, or nothing. */
 function avac_pay_flash(string $cls): void
 {

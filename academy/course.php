@@ -430,7 +430,7 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 <?php endif; ?>
 
 </main>
-<?php avh_footer(); ?>
+<?php avac_footer(); ?>
 </div>
 <div class="avac-toast" data-avac-toast role="status" aria-live="polite" hidden></div>
 <script src="<?= e(av_asset('/assets/site/chioma.js')) ?>" defer></script>

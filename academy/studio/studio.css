@@ -230,3 +230,12 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 .prog-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line-2)}
 .prog-pos{width:72px;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 .qopt input[type=checkbox]{accent-color:var(--gold)}
+
+/* Lesson media: upload rows, resources */
+.up-row{display:flex;gap:8px;align-items:center}
+.up-row input{flex:1;min-width:0}
+.media-box,.res-box{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:6px 0 12px}
+.res-box legend{font-weight:600;padding:0 4px}
+.res-row{display:grid;grid-template-columns:1fr 1.6fr auto auto;gap:8px;align-items:center;margin-bottom:8px}
+.res-row input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+@media (max-width:640px){.res-row{grid-template-columns:1fr auto}.res-row .r-url{grid-column:1/-1}}

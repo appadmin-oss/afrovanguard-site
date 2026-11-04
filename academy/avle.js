@@ -342,6 +342,79 @@
     });
   });
 
+  /* Native video: speed, resume where you left off, a transcript that follows
+     the captions (click a line to jump there), and the item completes itself
+     once 90% has been watched — without leaving the page. */
+  run('video', () => {
+    const v = $('[data-avle-video]'); if (!v) return;
+    const key = v.dataset.key || '';
+    const store = (k, val) => { try { if (val === null) localStorage.removeItem(k); else localStorage.setItem(k, val); } catch (e) { /* private mode */ } };
+    const read = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+
+    const speeds = $$('[data-avle-speed]');
+    const setSpeed = r => {
+      v.playbackRate = r;
+      speeds.forEach(b => b.setAttribute('aria-pressed', String(parseFloat(b.dataset.avleSpeed) === r)));
+      store('av.vspeed', String(r));
+    };
+    speeds.forEach(b => b.addEventListener('click', () => setSpeed(parseFloat(b.dataset.avleSpeed))));
+    const sp = parseFloat(read('av.vspeed') || '1'); if (sp && sp !== 1) setSpeed(sp);
+
+    v.addEventListener('loadedmetadata', () => {
+      const t = parseFloat(read(key) || '0');
+      if (t > 5 && v.duration && t < v.duration - 10) v.currentTime = t;
+    }, { once: true });
+    let last = 0, sent = false;
+    v.addEventListener('timeupdate', () => {
+      const now = v.currentTime;
+      if (Math.abs(now - last) > 5) { last = now; store(key, String(Math.floor(now))); }
+      if (!sent && v.dataset.autocomplete === '1' && v.duration && now / v.duration >= 0.9) {
+        sent = true;
+        post('lesson_complete', { course, lesson }).then(d => {
+          if (!d || !d.ok) { sent = false; return; }
+          const b = $('[data-avle-complete]');
+          if (b) { b.dataset.done = '1'; b.textContent = 'Completed ✓'; }
+          paint(d.progress, true);
+        }).catch(() => { sent = false; });
+      }
+    });
+    v.addEventListener('ended', () => store(key, null));
+
+    /* Transcript from the caption track's cues. */
+    const box = $('[data-avle-trans][data-cues]');
+    const list = box && $('[data-avle-cues]', box);
+    const track = v.textTracks && v.textTracks[0];
+    if (!list || !track) return;
+    track.mode = track.mode === 'showing' ? 'showing' : 'hidden';
+    const fmt = s => { const m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ':' + String(r).padStart(2, '0'); };
+    const build = () => {
+      const cues = track.cues ? Array.from(track.cues) : [];
+      if (!cues.length || list.childElementCount) return;
+      cues.forEach(c => {
+        const li = document.createElement('li');
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'avle-cue'; b.dataset.start = String(c.startTime);
+        const t = document.createElement('span'); t.className = 'avle-cue-t av-num'; t.textContent = fmt(c.startTime);
+        const x = document.createElement('span'); x.textContent = String(c.text || '').replace(/<[^>]*>/g, '');
+        b.append(t, x);
+        b.addEventListener('click', () => { v.currentTime = c.startTime; v.play().catch(() => {}); });
+        li.appendChild(b); list.appendChild(li);
+      });
+      list.hidden = false;
+      const txt = $('[data-avle-trans-text]', box); if (txt) txt.hidden = true;
+    };
+    const el = v.querySelector('track');
+    if (el) el.addEventListener('load', build);
+    build();
+    track.addEventListener('cuechange', () => {
+      const act = track.activeCues && track.activeCues[0];
+      $$('.avle-cue', list).forEach(b => {
+        const on = !!act && Math.abs(parseFloat(b.dataset.start) - act.startTime) < 0.01;
+        b.classList.toggle('is-on', on);
+        if (on && box.open) list.scrollTop = Math.max(0, b.parentNode.offsetTop - list.clientHeight / 3);
+      });
+    });
+  });
+
   run('readbar', () => {
     const bar = $('[data-avle-readbar]'); if (!bar || !main) return;
     let ticking = false;

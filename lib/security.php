@@ -84,6 +84,8 @@ function av_embed_hosts(): array {
         'docs.google.com', 'drive.google.com', 'calendar.google.com', 'flo.uri.sh', 'public.flourish.studio',
         'www.facebook.com', 'web.facebook.com', 'anchor.fm', 'embed.music.apple.com',
         'www.canva.com', 'datawrapper.dwcdn.net',
+        // Course media: screen recordings, hosted video, Office documents.
+        'www.loom.com', 'fast.wistia.net', 'view.officeapps.live.com',
     ];
 }
 

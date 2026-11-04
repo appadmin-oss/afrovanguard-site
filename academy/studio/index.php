@@ -263,7 +263,20 @@ declare(strict_types=1);
         <label class="fld"><span>Duration (min)</span><input id="l_duration" type="number" min="0" value="0" /></label>
       </div>
       <label class="fld"><span id="l_body_label">Body (HTML allowed)</span><textarea id="l_body" rows="6"></textarea></label>
-      <label class="fld"><span>Video URL (optional)</span><input id="l_video" placeholder="https://…" /></label>
+      <div class="media-box">
+        <label class="fld"><span>Video (optional) — upload, or paste a YouTube, Vimeo, Loom, Wistia or Google Drive link</span>
+          <span class="up-row"><input id="l_video" placeholder="https://…" /><button type="button" class="btn btn-outline btn-sm" data-upload="l_video" data-accept="video/mp4,video/webm,video/quicktime">Upload video</button></span>
+        </label>
+        <label class="fld"><span>Captions (.vtt, for an uploaded video)</span>
+          <span class="up-row"><input id="l_captions" placeholder="/uploads/media/….vtt" /><button type="button" class="btn btn-outline btn-sm" data-upload="l_captions" data-accept=".vtt,text/vtt">Upload captions</button></span>
+        </label>
+        <label class="fld"><span>Transcript (optional — shown under the video)</span><textarea id="l_transcript" rows="4"></textarea></label>
+        <p class="muted fld-help" id="uploadMsg" role="status" aria-live="polite"></p>
+      </div>
+      <fieldset class="fld res-box"><legend>Resources (downloads and links)</legend>
+        <div id="resList"></div>
+        <button type="button" class="btn btn-ghost btn-sm" id="addRes">+ Add resource</button>
+      </fieldset>
       <label class="chk"><input type="checkbox" id="l_preview" /> <span>Free preview (open without an account)</span></label>
 
       <div class="quiz" id="quizWrap">

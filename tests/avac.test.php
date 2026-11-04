@@ -53,8 +53,9 @@ $avIndex = (string) file_get_contents(AV_ROOT . '/academy/index.php');
 $avCourse = (string) file_get_contents(AV_ROOT . '/academy/course.php');
 $avLearn = (string) file_get_contents(AV_ROOT . '/academy/learn.php');
 $avJs = (string) file_get_contents(AV_ROOT . '/academy/avac.js') . (string) file_get_contents(AV_ROOT . '/academy/avle.js');
-ck('avac: catalogue and course use the Home chrome', str_contains($avIndex, 'avh_nav()') && str_contains($avIndex, 'avh_footer()')
-   && str_contains($avCourse, 'avh_nav()') && str_contains($avCourse, 'avh_footer()'));
+// The Home nav, and the Academy's own minimal footer rather than the site's full one.
+ck('avac: catalogue and course use the Home nav and the LMS footer', str_contains($avIndex, 'avh_nav()') && str_contains($avIndex, 'avac_footer()')
+   && str_contains($avCourse, 'avh_nav()') && str_contains($avCourse, 'avac_footer()') && !str_contains($avIndex . $avCourse, 'avh_footer()'));
 ck('avac: the lesson player is focused (no marketing nav)', !str_contains($avLearn, 'avh_nav()') && !str_contains($avLearn, 'render_nav('));
 ck('avac: the summit band reads the shared facts', str_contains($avIndex, 'Summit::facts'));
 ck('avac: membership checkout is offered from the catalogue', str_contains($avIndex, 'data-avac-pay="membership"'));

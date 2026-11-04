@@ -1831,6 +1831,9 @@ try {
         case 'upload':
             if ($method !== 'POST' || empty($_FILES['file'])) json_out(['ok' => false, 'error' => 'No file.'], 400);
             $f = $_FILES['file'];
+            /* The host's own limit refuses a big video before this code sees it; say so plainly. */
+            if (in_array($f['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true))
+                json_out(['ok' => false, 'error' => 'Too large for this server (limit ' . ini_get('upload_max_filesize') . '). Upload the video to YouTube, Vimeo or Loom and paste its link instead.'], 413);
             if ($f['error'] !== UPLOAD_ERR_OK) json_out(['ok' => false, 'error' => 'Upload error.'], 400);
             $mime = Storage::mime($f['tmp_name']);
             $imageOk = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
@@ -1845,12 +1848,18 @@ try {
             $isAudio  = in_array($mime, $audioOk, true)
                      || ($mime === 'application/octet-stream' && in_array($ext, ['mp3', 'm4a', 'aac', 'ogg', 'oga', 'wav'], true));
             // Audio narrations can be large; everything else stays at 25 MB.
-            $cap = $isAudio ? 60 : 25;
+            $videoOk = ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'video/x-m4v'];
+            $isVideo = in_array($mime, $videoOk, true);
+            /* WebVTT is plain text to finfo; the extension and the header line say it is captions. */
+            $isVtt = $ext === 'vtt' && in_array($mime, ['text/plain', 'text/vtt'], true)
+                  && str_starts_with(ltrim((string) @file_get_contents($f['tmp_name'], false, null, 0, 16), "\xEF\xBB\xBF"), 'WEBVTT');
+            // Course video is large; narrations next; everything else stays at 25 MB.
+            $cap = $isVideo ? 500 : ($isAudio ? 60 : 25);
             if ($f['size'] > $cap * 1024 * 1024) json_out(['ok' => false, 'error' => 'Max ' . $cap . ' MB.'], 413);
-            if (!$isAudio && !in_array($mime, array_merge($imageOk, $docOk), true)) json_out(['ok' => false, 'error' => 'Unsupported file type.'], 415);
+            if (!$isAudio && !$isVideo && !$isVtt && !in_array($mime, array_merge($imageOk, $docOk), true)) json_out(['ok' => false, 'error' => 'Unsupported file type.'], 415);
             // images/audio → Cloudinary (resource_type auto), documents → Drive (each with a local fallback)
             $res = Storage::put($f['tmp_name'], $f['name'], 'auto');
-            json_out(['ok' => true, 'url' => $res['url'], 'location' => $res['url'], 'provider' => $res['provider'], 'kind' => $res['kind'] ?? ($isAudio ? 'audio' : 'image')]);
+            json_out(['ok' => true, 'url' => $res['url'], 'location' => $res['url'], 'provider' => $res['provider'], 'kind' => $res['kind'] ?? ($isVideo || $isVtt ? 'media' : ($isAudio ? 'audio' : 'image'))]);
 
         case 'save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
@@ -2170,8 +2179,11 @@ try {
                 ], JSON_UNESCAPED_UNICODE);
             }
             $vurl = trim((string) ($body['video_url'] ?? ''));
-            if ($vurl !== '' && Embeds::iframeSrc($vurl) === null)
-                json_out(['ok' => false, 'error' => 'That video link can’t be shown. Use a YouTube or Vimeo link, or another https player we embed.'], 422);
+            if ($vurl !== '' && Embeds::lessonVideo($vurl) === null)
+                json_out(['ok' => false, 'error' => 'That video can’t be shown. Upload a video, or use a YouTube, Vimeo, Loom, Wistia or Google Drive link.'], 422);
+            $capUrl = trim((string) ($body['captions_url'] ?? ''));
+            if ($capUrl !== '' && Embeds::captionsFile($capUrl) === null)
+                json_out(['ok' => false, 'error' => 'Captions must be a .vtt file.'], 422);
             $id = $lms->saveLesson([
                 'id' => (int) ($body['id'] ?? 0), 'module_id' => (int) ($body['module_id'] ?? 0),
                 'slug' => trim((string) ($body['slug'] ?? '')), 'title' => trim((string) $body['title']),
@@ -2179,6 +2191,8 @@ try {
                 'duration_min' => (int) ($body['duration_min'] ?? 0), 'is_preview' => !empty($body['is_preview']),
                 'quiz_json' => $quizJson,
                 'kind' => $kind, 'weight' => (int) ($body['weight'] ?? 1), 'assignment_pass' => (int) ($body['assignment_pass'] ?? 70),
+                'transcript' => (string) ($body['transcript'] ?? ''), 'captions_url' => $capUrl,
+                'resources' => is_array($body['resources'] ?? null) ? $body['resources'] : [],
             ]);
             json_out(['ok' => true, 'id' => $id]);
         case 'lesson_delete':

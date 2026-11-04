@@ -196,9 +196,28 @@ avac_head([
     </section>
   </div>
 <?php else: ?>
-<?php if ($lType === 'video'): ?>
+<?php if ($lType === 'video'): $vid = Embeds::lessonVideo((string) $lesson['video_url']); $caps = Embeds::captionsFile((string) ($lesson['captions_url'] ?? '')); ?>
   <div class="avle-stage">
-    <div class="avle-video"><?php $vsrc = Embeds::iframeSrc((string) $lesson['video_url']); if ($vsrc !== null): ?><iframe src="<?= e($vsrc) ?>" title="<?= e((string) $lesson['title']) ?>" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe><?php else: ?><p class="avle-video-off">This video can’t be shown here.</p><?php endif; ?></div>
+    <div class="avle-video">
+<?php if (($vid['kind'] ?? '') === 'file'): ?>
+      <video data-avle-video src="<?= e($vid['src']) ?>" controls preload="metadata" playsinline<?= $caps && !str_starts_with($caps, '/') ? ' crossorigin="anonymous"' : '' ?> data-key="av.vpos.<?= e($courseSlug) ?>.<?= e($lessonSlug) ?>"<?= $user && !$isDone ? ' data-autocomplete="1"' : '' ?>>
+<?php if ($caps): ?>        <track kind="captions" src="<?= e($caps) ?>" srclang="en" label="English" default>
+<?php endif; ?>
+        <a href="<?= e($vid['src']) ?>">Download the video</a>
+      </video>
+<?php elseif ($vid): ?>
+      <iframe src="<?= e($vid['src']) ?>" title="<?= e((string) $lesson['title']) ?>" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe>
+<?php else: ?>
+      <p class="avle-video-off">This video can’t be shown here.</p>
+<?php endif; ?>
+    </div>
+<?php if (($vid['kind'] ?? '') === 'file'): ?>
+    <div class="avle-vbar" role="group" aria-label="Playback speed">
+      <span>Speed</span>
+<?php foreach (['0.75', '1', '1.25', '1.5', '2'] as $sp): ?>      <button type="button" class="avle-speed" data-avle-speed="<?= $sp ?>" aria-pressed="<?= $sp === '1' ? 'true' : 'false' ?>"><?= $sp ?>×</button>
+<?php endforeach; ?>
+    </div>
+<?php endif; ?>
   </div>
 <?php endif; ?>
   <div class="avle-col<?= $lType === 'video' ? ' avle-col--video' : '' ?>">
@@ -219,6 +238,26 @@ avac_head([
     <div class="avle-meta"><?php if ($modTitle !== ''): ?><span><?= e($modTitle) ?></span><span aria-hidden="true">·</span><?php endif; ?><span class="av-num">Lesson <?= $lessonNum ?> of <?= $lessonTotal ?></span><span class="avle-type"><span aria-hidden="true"><?= $typeGlyph ?></span><?= e($typeLabel) ?><?= $mins ? ' · ' . $mins . ' min' : '' ?></span></div>
     <h1 class="avle-h1"><?= e((string) $lesson['title']) ?></h1>
     <div class="avle-body"><?= $lesson['body_html'] ?></div>
+<?php endif; ?>
+
+<?php $transcript = trim((string) ($lesson['transcript'] ?? '')); $hasCues = $lType === 'video' && !empty($caps) && ($vid['kind'] ?? '') === 'file'; ?>
+<?php if ($transcript !== '' || $hasCues): ?>
+    <details class="avle-trans" data-avle-trans<?= $hasCues ? ' data-cues="1"' : '' ?>>
+      <summary>Transcript</summary>
+      <ol class="avle-cues" data-avle-cues hidden></ol>
+<?php if ($transcript !== ''): ?>      <div class="avle-trans-text" data-avle-trans-text><?= nl2br(e($transcript)) ?></div>
+<?php endif; ?>
+    </details>
+<?php endif; ?>
+<?php if ($resources = LmsRepository::resources($lesson)): ?>
+    <section class="avle-res" aria-labelledby="avle-res-h">
+      <h2 class="avle-h2" id="avle-res-h">Resources</h2>
+      <ul>
+<?php foreach ($resources as $rs): $rx = strtoupper((string) pathinfo((string) parse_url($rs['url'], PHP_URL_PATH), PATHINFO_EXTENSION)); ?>
+        <li><a href="<?= e($rs['url']) ?>" target="_blank" rel="noopener"><span class="avle-res-k" aria-hidden="true"><?= e(in_array($rx, ['PDF', 'DOC', 'DOCX', 'PPT', 'PPTX', 'XLS', 'XLSX', 'CSV', 'TXT', 'MP3', 'MP4', 'ZIP'], true) ? $rx : 'LINK') ?></span><span><?= e($rs['title']) ?></span><span class="av-sr"> (opens in a new tab)</span></a></li>
+<?php endforeach; ?>
+      </ul>
+    </section>
 <?php endif; ?>
 
 <?php if ($quiz): $qn = count($quiz['questions']); $outOfTries = $attemptsLeft === 0; ?>

@@ -243,3 +243,37 @@ body.avle{margin:0;background:var(--av-white);color:var(--av-ink);font-family:va
 .avle-post-b{font-size:16px;line-height:1.55;overflow-wrap:anywhere}
 .avle-posts-none{color:var(--av-text-2);font-size:15px}
 @media (max-width:719px){.avle-hide-sm{display:none!important}}
+
+/* Native video: speed, transcript, resources */
+.avle-video video{display:block;width:100%;height:100%;background:var(--av-ink)}
+.avle-vbar{max-width:1120px;margin:10px auto 0;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:14px;color:var(--av-text-2)}
+.avle-vbar span{margin-right:4px}
+.avle-speed{min-width:44px;min-height:36px;padding:0 10px;border:1px solid var(--av-line);border-radius:var(--av-r-pill);background:var(--av-white);color:var(--av-ink);font:600 14px var(--av-sans);cursor:pointer}
+.avle-speed[aria-pressed="true"]{background:var(--av-ink);border-color:var(--av-ink);color:var(--av-white)}
+.avle-trans{margin-top:22px;border:1px solid var(--av-line-menu);border-radius:var(--av-r-14);padding:0 20px}
+.avle-trans summary{cursor:pointer;min-height:52px;display:flex;align-items:center;font-weight:600;font-size:16px}
+.avle-trans-text{padding:0 0 18px;font-size:16px;line-height:1.65;max-height:420px;overflow:auto}
+.avle-cues{position:relative;list-style:none;margin:0;padding:0 0 14px;max-height:420px;overflow:auto}
+.avle-cue{display:grid;grid-template-columns:52px 1fr;gap:10px;width:100%;text-align:left;padding:8px 10px;border:0;border-radius:var(--av-r-8);background:transparent;color:var(--av-ink);font:15.5px/1.5 var(--av-sans);cursor:pointer}
+.avle-cue:hover{background:var(--av-stone)}
+.avle-cue.is-on{background:var(--av-gold-soft)}
+.avle-cue-t{color:var(--av-text-2);font-size:13.5px;padding-top:2px}
+.avle-res{margin-top:24px}
+.avle-res ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.avle-res a{display:flex;align-items:center;gap:12px;min-height:52px;padding:10px 14px;border:1px solid var(--av-line);border-radius:var(--av-r-10);font-size:15.5px}
+.avle-res a:hover{border-color:var(--av-line-2)}
+.avle-res-k{min-width:46px;text-align:center;padding:3px 6px;border-radius:var(--av-r-8);background:var(--av-stone);font-size:12px;font-weight:700}
+.embed-video{width:100%;display:block;background:var(--av-ink)}
+/* Embeds inside a lesson's text (Embeds::embedify) */
+.avle-body .embed{margin:28px 0}
+.avle-body .embed-16x9,.avle-body .embed-doc{position:relative;width:100%;border-radius:var(--av-r-14);overflow:hidden;background:var(--av-stone)}
+.avle-body .embed-16x9{aspect-ratio:16/9}
+.avle-body .embed-doc{aspect-ratio:4/3;max-height:80vh}
+.avle-body .embed-16x9 .embed-frame,.avle-body .embed-doc .embed-frame,.avle-body .embed-16x9 .embed-video{position:absolute;inset:0;width:100%;height:100%;border:0}
+.avle-body .embed-fixed .embed-frame{width:100%;border:0;border-radius:var(--av-r-14);display:block}
+.avle-body .embed figcaption{margin-top:10px;text-align:center;font-size:14px;color:var(--av-text-2)}
+.avle-body .embed-card-link{display:flex;flex-direction:column;gap:6px;border:1px solid var(--av-line);border-left:4px solid var(--av-gold);border-radius:var(--av-r-10);padding:18px 20px}
+.avle-body .embed-card-provider{font-size:13px;font-weight:700;color:var(--av-gold-text)}
+.avle-body .embed-card-label{font-weight:700;font-size:17px}
+.avle-body video,.avle-body audio{max-width:100%}
+.avle-body img{max-width:100%;height:auto;border-radius:var(--av-r-10)}

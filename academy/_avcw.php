@@ -37,7 +37,7 @@ function avcw_open(array $o): void
 function avcw_close(): void
 {
     echo "</div></main>\n";
-    avh_footer();
+    avac_footer();
     echo "</div>\n<div class=\"avac-toast\" data-avac-toast role=\"status\" aria-live=\"polite\" hidden></div>\n</body>\n</html>";
 }
 

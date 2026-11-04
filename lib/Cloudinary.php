@@ -21,17 +21,17 @@ final class Cloudinary
      * Upload a local temp file. Returns ['url'=>..., 'provider'=>...].
      * Throws RuntimeException on failure.
      */
-    public static function upload(string $tmpPath, string $originalName, string $folder = 'diary'): array
+    public static function upload(string $tmpPath, string $originalName, string $folder = 'diary', string $type = 'image'): array
     {
         if (!is_file($tmpPath)) throw new RuntimeException('No file to upload.');
 
         if (self::configured()) {
-            return self::uploadToCloudinary($tmpPath, $folder);
+            return self::uploadToCloudinary($tmpPath, $folder, $type === 'video' ? 'video' : 'image');
         }
         return self::uploadLocal($tmpPath, $originalName, $folder);
     }
 
-    private static function uploadToCloudinary(string $tmpPath, string $folder): array
+    private static function uploadToCloudinary(string $tmpPath, string $folder, string $type = 'image'): array
     {
         $ts = time();
         // Signature: all params (except file/api_key/resource_type) sorted, joined, + secret, sha1.
@@ -40,7 +40,7 @@ final class Cloudinary
         $toSign = urldecode(http_build_query($params));
         $signature = sha1($toSign . CLOUDINARY_API_SECRET);
 
-        $endpoint = 'https://api.cloudinary.com/v1_1/' . CLOUDINARY_CLOUD_NAME . '/image/upload';
+        $endpoint = 'https://api.cloudinary.com/v1_1/' . CLOUDINARY_CLOUD_NAME . '/' . $type . '/upload';
         $post = [
             'file'      => new CURLFile($tmpPath),
             'api_key'   => CLOUDINARY_API_KEY,
@@ -53,7 +53,7 @@ final class Cloudinary
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => $post,
-            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_TIMEOUT        => $type === 'video' ? 600 : 30,
             CURLOPT_SSL_VERIFYPEER => true,
         ]);
         $raw  = curl_exec($ch);

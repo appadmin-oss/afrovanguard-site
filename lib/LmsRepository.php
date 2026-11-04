@@ -536,7 +536,10 @@ final class LmsRepository
         while (true) { $chk->execute([$courseId, $slug, (int) ($d['id'] ?? 0)]); if (!$chk->fetchColumn()) break; $slug = $base . '-' . $i++; }
         $fields = [
             'module_id' => (int) $d['module_id'], 'course_id' => $courseId, 'slug' => $slug,
-            'title' => $d['title'], 'body_html' => $d['body_html'] ?? '', 'video_url' => (($v = trim((string) ($d['video_url'] ?? ''))) !== '' ? (Embeds::iframeSrc($v) ?? null) : null),
+            'title' => $d['title'], 'body_html' => $d['body_html'] ?? '', 'video_url' => (($v = trim((string) ($d['video_url'] ?? ''))) !== '' ? (Embeds::lessonVideo($v)['src'] ?? null) : null),
+            'transcript' => mb_substr(trim((string) ($d['transcript'] ?? '')), 0, 60000),
+            'captions_url' => ($cap = trim((string) ($d['captions_url'] ?? ''))) !== '' ? Embeds::captionsFile($cap) : null,
+            'resources_json' => self::normaliseResources((array) ($d['resources'] ?? [])),
             'duration_min' => (int) ($d['duration_min'] ?? 0), 'is_preview' => !empty($d['is_preview']) ? 1 : 0,
             'quiz_json' => isset($d['quiz_json']) && $d['quiz_json'] !== '' ? $d['quiz_json'] : null,
             'kind' => in_array($d['kind'] ?? '', ['assignment', 'discussion'], true) ? $d['kind'] : '',
@@ -555,6 +558,30 @@ final class LmsRepository
         $this->db->prepare("INSERT INTO lessons ($cols) VALUES ($ph)")->execute($fields);
         return (int) $this->db->lastInsertId();
     }
+    /** Up to 20 resources, each a title and a link we allow; JSON, or null for none. */
+    public static function normaliseResources(array $list): ?string
+    {
+        $out = [];
+        foreach ($list as $r) {
+            if (!is_array($r)) continue;
+            $url = Embeds::resourceUrl((string) ($r['url'] ?? ''));
+            if ($url === null) continue;
+            $title = mb_substr(trim((string) ($r['title'] ?? '')), 0, 160);
+            $out[] = ['title' => $title !== '' ? $title : (basename((string) parse_url($url, PHP_URL_PATH)) ?: 'Resource'), 'url' => $url];
+            if (count($out) >= 20) break;
+        }
+        return $out ? json_encode($out, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null;
+    }
+
+    /** A lesson's resources, decoded and re-checked on the way out. */
+    public static function resources(array $lesson): array
+    {
+        $r = json_decode((string) ($lesson['resources_json'] ?? ''), true);
+        if (!is_array($r)) return [];
+        return array_values(array_filter(array_map(static fn($x) => is_array($x) && ($u = Embeds::resourceUrl((string) ($x['url'] ?? ''))) !== null
+            ? ['title' => (string) ($x['title'] ?? 'Resource'), 'url' => $u] : null, $r)));
+    }
+
     private function lessonModule(int $moduleId): ?array { $s = $this->db->prepare('SELECT * FROM modules WHERE id = ?'); $s->execute([$moduleId]); return $s->fetch() ?: null; }
     public function deleteLesson(int $id): void { $this->db->prepare('DELETE FROM lessons WHERE id = ?')->execute([$id]); }
 

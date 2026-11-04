@@ -67,7 +67,10 @@ ck('audit: …and a pasted YouTube or Vimeo page becomes its player', Embeds::if
    && Embeds::iframeSrc('https://vimeo.com/123') === 'https://player.vimeo.com/video/123');
 $auL = $auLms->lessonById($auLms->saveLesson(['module_id' => $auMod, 'title' => 'Bad video', 'slug' => 'bad-video', 'video_url' => 'javascript:alert(1)']));
 ck('audit: a bad video link is not stored', ($auL['video_url'] ?? null) === null);
-ck('audit: the learn page frames only a checked video', str_contains((string) file_get_contents("$auRoot/academy/learn.php"), 'Embeds::iframeSrc((string) $lesson[\'video_url\'])'));
+/* Since uploaded video: the learn page resolves the URL through lessonVideo(), which
+   returns a checked file or a checked iframe src — and frames only the latter. */
+ck('audit: the learn page frames only a checked video', str_contains((string) file_get_contents("$auRoot/academy/learn.php"), 'Embeds::lessonVideo((string) $lesson[\'video_url\'])')
+   && Embeds::lessonVideo('javascript:alert(1)') === null && (Embeds::lessonVideo('https://evil.example/') === null));
 foreach (['academy/_avac.php', 'lib/partials.php'] as $auF) {
     ck("audit: $auF's JSON-LD cannot be closed by a </script> in a title", str_contains((string) file_get_contents("$auRoot/$auF"), 'JSON_HEX_TAG'));
 }

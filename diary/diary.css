@@ -303,6 +303,8 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
 .article-body .embed { margin: 36px 0; }
 .embed-16x9 { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--card-shadow); background: var(--surface-2); }
 .embed-16x9 .embed-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.embed-doc { position: relative; width: 100%; aspect-ratio: 4 / 3; max-height: 80vh; border-radius: var(--radius-lg); overflow: hidden; background: var(--surface-2); }
+.embed-doc .embed-frame, .embed-16x9 .embed-video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .embed-fixed .embed-frame { width: 100%; border: 0; border-radius: var(--radius-lg); display: block; box-shadow: var(--card-shadow); }
 .embed-frame { background: var(--surface-2); }
 .embed figcaption { margin-top: 12px; text-align: center; font-size: 13px; color: var(--muted); }
