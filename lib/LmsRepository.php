@@ -10,26 +10,41 @@ final class LmsRepository
     private PDO $db;
     public function __construct(?PDO $pdo = null) { $this->db = $pdo ?? Database::pdo(); }
 
-    /** Modules (with their lessons) for a course. */
+    /** The lesson columns an outline needs: everything but the body, which a list never shows. */
+    private const OUTLINE_COLS = 'l.id, l.module_id, l.course_id, l.slug, l.title, l.duration_min, l.is_preview, l.position, l.video_url, l.quiz_json, l.kind, l.weight, l.assignment_json, l.available_at';
+
+    /** course_id => modules with lessons, for this request. Cleared by every write here. */
+    private array $outline = [];
+
+    /**
+     * Modules (with their lessons) for a course: two queries whatever its
+     * size, remembered for the rest of the request. A player page asks for
+     * the outline four or five times (sidebar, position, next item, grades,
+     * the certificate check); it used to be a query per module each time.
+     * The lesson rows carry `available_at`, without which every access check
+     * on an outline read a scheduled lesson as open.
+     */
     public function curriculum(int $courseId): array
     {
+        if (isset($this->outline[$courseId])) return $this->outline[$courseId];
         $mods = $this->db->prepare('SELECT * FROM modules WHERE course_id = ? ORDER BY position, id');
         $mods->execute([$courseId]);
         $modules = $mods->fetchAll();
-        // Also fetch video_url / quiz_json so the UI can label each lesson's type
-        // (video · reading · quiz) with an icon — a cheap read; both are small.
-        $ls = $this->db->prepare('SELECT id, slug, title, duration_min, is_preview, position, video_url, quiz_json, kind, weight, assignment_json FROM lessons WHERE module_id = ? ORDER BY position, id');
-        foreach ($modules as &$m) {
-            $ls->execute([$m['id']]);
-            $lessons = $ls->fetchAll();
-            foreach ($lessons as &$l) { $l['type'] = self::lessonType($l); }
-            $m['lessons'] = $lessons;
-        }
-        return $modules;
+        $ls = $this->db->prepare('SELECT ' . self::OUTLINE_COLS . ' FROM lessons l WHERE l.course_id = ? ORDER BY l.position, l.id');
+        $ls->execute([$courseId]);
+        $by = [];
+        foreach ($ls->fetchAll() as $l) { $l['type'] = self::lessonType($l); $by[(int) $l['module_id']][] = $l; }
+        foreach ($modules as &$m) $m['lessons'] = $by[(int) $m['id']] ?? [];
+        unset($m);
+        return $this->outline[$courseId] = $modules;
     }
+
+    /** Forget remembered outlines (called by every write that changes one). */
+    public function forgetOutlines(): void { $this->outline = []; }
 
     public function lessonCount(int $courseId): int
     {
+        if (isset($this->outline[$courseId])) return count($this->orderedLessons($courseId));
         $s = $this->db->prepare('SELECT COUNT(*) FROM lessons WHERE course_id = ?'); $s->execute([$courseId]);
         return (int) $s->fetchColumn();
     }
@@ -41,18 +56,12 @@ final class LmsRepository
         return $s->fetch() ?: null;
     }
 
-    /** Ordered lesson list (for prev/next + the "up next" card). */
+    /** Ordered lesson list (for prev/next + the "up next" card) — the outline, flattened. */
     public function orderedLessons(int $courseId): array
     {
-        $s = $this->db->prepare(
-            'SELECT l.id, l.slug, l.title, l.is_preview, l.duration_min, l.video_url, l.quiz_json, l.kind, l.weight, l.assignment_json, l.module_id
-             FROM lessons l JOIN modules m ON m.id = l.module_id
-             WHERE l.course_id = ? ORDER BY m.position, m.id, l.position, l.id'
-        );
-        $s->execute([$courseId]);
-        $rows = $s->fetchAll();
-        foreach ($rows as &$r) { $r['type'] = self::lessonType($r); }
-        return $rows;
+        $out = [];
+        foreach ($this->curriculum($courseId) as $m) { foreach ($m['lessons'] as $l) $out[] = $l; }
+        return $out;
     }
 
     /**
@@ -100,7 +109,11 @@ final class LmsRepository
         if ($st->rowCount() > 0 && class_exists('Events')) Events::emit('enrollment.created', ['user_id' => $userId, 'course_id' => $courseId]);
     }
 
-    /** A learner's enrolled courses with progress + certificate state (for the portal). */
+    /**
+     * A learner's enrolled courses with progress + certificate state (for the
+     * portal). Grouped: four queries plus one outline per course, where it was
+     * five queries a course.
+     */
     public function enrolledCourses(int $userId): array
     {
         $s = $this->db->prepare(
@@ -110,17 +123,33 @@ final class LmsRepository
         );
         $s->execute([$userId]);
         $rows = $s->fetchAll();
+        if (!$rows) return [];
+        $done = []; $last = []; $cert = [];
+        $p = $this->db->prepare('SELECT course_id, lesson_id, completed_at FROM lesson_progress WHERE user_id = ?');
+        $p->execute([$userId]);
+        foreach ($p->fetchAll() as $r) {
+            $cid = (int) $r['course_id'];
+            $done[$cid][] = (int) $r['lesson_id'];
+            if (!isset($last[$cid]) || strcmp((string) $r['completed_at'], $last[$cid]) > 0) $last[$cid] = (string) $r['completed_at'];
+        }
+        $c = $this->db->prepare('SELECT course_id FROM certificates WHERE user_id = ?');
+        $c->execute([$userId]);
+        foreach ($c->fetchAll() as $r) $cert[(int) $r['course_id']] = true;
         foreach ($rows as &$r) {
-            $pr = $this->progress($userId, (int) $r['id']);
-            $r['pct'] = $pr['pct']; $r['complete'] = $pr['complete'];
-            $r['done'] = $pr['completed']; $r['total'] = $pr['total'];
-            $r['certified'] = (bool) $this->getCertificate($userId, (int) $r['id']);
-            $r['next'] = $r['complete'] ? null : $this->nextLesson((int) $r['id'], $pr['ids']);
-            // Most recent activity in this course (last completed lesson) — used to
-            // surface the freshest "continue learning" course first.
-            $la = $this->db->prepare('SELECT MAX(completed_at) FROM lesson_progress WHERE user_id = ? AND course_id = ?');
-            $la->execute([$userId, (int) $r['id']]);
-            $r['last_active'] = $la->fetchColumn() ?: null;
+            $id = (int) $r['id'];
+            $ordered = $this->orderedLessons($id);
+            $ids = array_values(array_intersect($done[$id] ?? [], array_map(static fn($l) => (int) $l['id'], $ordered)));
+            $total = count($ordered);
+            $r['total'] = $total; $r['done'] = count($ids);
+            $r['pct'] = $total ? (int) round(count($ids) / $total * 100) : 0;
+            $r['complete'] = $total > 0 && count($ids) >= $total;
+            $r['certified'] = isset($cert[$id]);
+            $r['next'] = null;
+            if (!$r['complete']) {
+                foreach ($ordered as $l) { if (!in_array((int) $l['id'], $ids, true)) { $r['next'] = ['slug' => $l['slug'], 'title' => $l['title'], 'type' => $l['type'] ?? 'reading']; break; } }
+            }
+            // Most recent activity in this course — the freshest "continue learning" first.
+            $r['last_active'] = $last[$id] ?? null;
         }
         return $rows;
     }
@@ -156,6 +185,24 @@ final class LmsRepository
     }
 
     /** Can this (maybe-null) user open this lesson? */
+    /**
+     * canAccess() for every lesson of an outline at once: lesson id => bool.
+     * The course-level answer (membership, enrolment, grants, passes — the
+     * part that queries) is worked out once; what differs per lesson (a
+     * release date, a free preview) is not a query. Same rules, same order.
+     */
+    public function canAccessMany(?array $user, array $course, array $lessons): array
+    {
+        $teach = $user !== null && $this->teaches($user, $course);
+        $whole = $this->canAccess($user, $course, ['is_preview' => 0]);
+        $out = [];
+        foreach ($lessons as $l) {
+            $open = !class_exists('LmsDrip') || LmsDrip::lessonOpen($l) || $teach;
+            $out[(int) $l['id']] = $open && (!empty($l['is_preview']) || $whole);
+        }
+        return $out;
+    }
+
     public function canAccess(?array $user, array $course, array $lesson): bool
     {
         /* A scheduled lesson is shut until its date, whoever is asking —
@@ -201,13 +248,13 @@ final class LmsRepository
     /** GRADED quiz lessons in a course this learner has not passed yet (practice quizzes never block). */
     public function unpassedQuizzes(int $userId, int $courseId): int
     {
+        $s = $this->db->prepare('SELECT DISTINCT q.lesson_id FROM quiz_attempts q JOIN lessons l ON l.id = q.lesson_id WHERE q.user_id = ? AND l.course_id = ? AND q.passed = 1');
+        $s->execute([$userId, $courseId]);
+        $passed = array_fill_keys(array_map('intval', array_column($s->fetchAll(), 'lesson_id')), true);
         $n = 0;
         foreach ($this->orderedLessons($courseId) as $l) {
             $q = $this->quiz($l);
-            if (!$q || !$q['graded']) continue;
-            $s = $this->db->prepare('SELECT 1 FROM quiz_attempts WHERE user_id = ? AND lesson_id = ? AND passed = 1 LIMIT 1');
-            $s->execute([$userId, (int) $l['id']]);
-            if (!$s->fetchColumn()) $n++;
+            if ($q && $q['graded'] && !isset($passed[(int) $l['id']])) $n++;
         }
         return $n;
     }
@@ -423,7 +470,7 @@ final class LmsRepository
 
     public function progress(int $userId, int $courseId): array
     {
-        $total = $this->lessonCount($courseId);
+        $total = $this->lessonCount($courseId);    // free once the outline is in hand
         $s = $this->db->prepare('SELECT lesson_id FROM lesson_progress WHERE user_id = ? AND course_id = ?');
         $s->execute([$userId, $courseId]);
         $done = array_map('intval', array_column($s->fetchAll(), 'lesson_id'));
@@ -498,20 +545,23 @@ final class LmsRepository
     /* ── Authoring: modules ── */
     public function addModule(int $courseId, string $title): int
     {
+        $this->outline = [];
         $pos = (int) $this->db->query('SELECT COALESCE(MAX(position),-1)+1 FROM modules WHERE course_id = ' . (int) $courseId)->fetchColumn();
         $st = $this->db->prepare('INSERT INTO modules (course_id, title, position) VALUES (?,?,?)');
         $st->execute([$courseId, $title, $pos]);
         return (int) $this->db->lastInsertId();
     }
-    public function renameModule(int $id, string $title): void { $this->db->prepare('UPDATE modules SET title = ? WHERE id = ?')->execute([$title, $id]); }
+    public function renameModule(int $id, string $title): void { $this->outline = []; $this->db->prepare('UPDATE modules SET title = ? WHERE id = ?')->execute([$title, $id]); }
     /** A module's overview: what it covers and its learning objectives (newline-separated). */
     public function describeModule(int $id, string $summary, string $objectives): void
     {
+        $this->outline = [];
         $obj = implode("\n", array_slice(array_values(array_filter(array_map('trim', preg_split('/\r?\n/', $objectives) ?: []))), 0, 12));
         $this->db->prepare('UPDATE modules SET summary = ?, objectives = ? WHERE id = ?')->execute([mb_substr(trim($summary), 0, 1000), $obj, $id]);
     }
     public function deleteModule(int $id): void
     {
+        $this->outline = [];
         $this->db->prepare('DELETE FROM lessons WHERE module_id = ?')->execute([$id]);
         $this->db->prepare('DELETE FROM modules WHERE id = ?')->execute([$id]);
     }
@@ -526,6 +576,7 @@ final class LmsRepository
 
     public function saveLesson(array $d): int
     {
+        $this->outline = [];
         $module = $this->lessonModule((int) $d['module_id']);
         if (!$module) throw new RuntimeException('Module not found');
         $courseId = (int) $module['course_id'];
@@ -583,16 +634,18 @@ final class LmsRepository
     }
 
     private function lessonModule(int $moduleId): ?array { $s = $this->db->prepare('SELECT * FROM modules WHERE id = ?'); $s->execute([$moduleId]); return $s->fetch() ?: null; }
-    public function deleteLesson(int $id): void { $this->db->prepare('DELETE FROM lessons WHERE id = ?')->execute([$id]); }
+    public function deleteLesson(int $id): void { $this->outline = []; $this->db->prepare('DELETE FROM lessons WHERE id = ?')->execute([$id]); }
 
     /* ── Management: reordering (positions 0..n in the given order) ── */
     public function reorderModules(int $courseId, array $orderedIds): void
     {
+        $this->outline = [];
         $u = $this->db->prepare('UPDATE modules SET position = ? WHERE id = ? AND course_id = ?');
         foreach (array_values($orderedIds) as $pos => $id) { $u->execute([$pos, (int) $id, $courseId]); }
     }
     public function reorderLessons(int $moduleId, array $orderedIds): void
     {
+        $this->outline = [];
         $u = $this->db->prepare('UPDATE lessons SET position = ? WHERE id = ? AND module_id = ?');
         foreach (array_values($orderedIds) as $pos => $id) { $u->execute([$pos, (int) $id, $moduleId]); }
     }

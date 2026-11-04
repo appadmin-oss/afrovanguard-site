@@ -602,11 +602,12 @@ final class LmsCourseware
         $s->execute([$userId]);
         foreach ($s->fetchAll() as $r) $certified[(int) $r['course_id']] = true;
         $dc = $this->doneCounts($userId);
+        $mine = $this->enrolledIds($userId);
         $done = 0; $started = false; $rows = [];
         foreach ($courses as $c) {
             $ok = isset($certified[(int) $c['id']]);
             if ($ok) $done++;
-            if ($ok || ($dc[(int) $c['id']] ?? 0) > 0 || $this->lms->isEnrolled($userId, (int) $c['id'])) $started = true;
+            if ($ok || ($dc[(int) $c['id']] ?? 0) > 0 || isset($mine[(int) $c['id']])) $started = true;
             $rows[] = ['course' => $c, 'certified' => $ok];
         }
         $total = count($courses);

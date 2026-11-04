@@ -251,7 +251,7 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 <?php endif; ?>
 <?php endif; ?>
 <?php endif; ?>
-<?php $n = 0; foreach ($curriculum as $mi => $m):
+<?php $n = 0; $openMap = $lms->canAccessMany($user, $c, $ordered); foreach ($curriculum as $mi => $m):
         $mDone = 0; $mMins = 0; foreach ($m['lessons'] as $l) { if (in_array((int) $l['id'], $doneIds, true)) $mDone++; $mMins += (int) $l['duration_min']; }
         $objs = LmsCourseware::objectives($m); ?>
         <div class="avco-modbox">
@@ -265,7 +265,7 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
         <ol class="avco-lessons">
 <?php foreach ($m['lessons'] as $l):
             $n++;
-            $lOpen = !empty($l['is_preview']) || $access === 'open' || ($user && $lms->canAccess($user, $c, $l));
+            $lOpen = $openMap[(int) $l['id']] ?? false;
             $done = in_array((int) $l['id'], $doneIds, true);
             $type = (string) ($l['type'] ?? 'reading');
             $sub = array_filter([ucfirst($kindLabel[$type] ?? $type), (int) $l['duration_min'] ? (int) $l['duration_min'] . ' min' : '', !empty($l['is_preview']) ? 'Preview · open to everyone' : ($lOpen ? '' : 'Locked')]); ?>

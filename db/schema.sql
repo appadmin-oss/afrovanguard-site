@@ -172,7 +172,8 @@ CREATE TABLE IF NOT EXISTS lessons (
   assignment_json TEXT,                          -- assignment spec: {"pass": 70}
   transcript   TEXT NOT NULL DEFAULT '',         -- a video's transcript, shown beside it
   captions_url TEXT,                             -- WebVTT captions for an uploaded video
-  resources_json TEXT                            -- downloads: [{"title": …, "url": …}]
+  resources_json TEXT,                           -- downloads: [{"title": …, "url": …}]
+  available_at VARCHAR(32) NOT NULL DEFAULT ''   -- release date (LmsDrip); '' = open
 );
 CREATE INDEX IF NOT EXISTS idx_lessons_course ON lessons(course_id);
 CREATE TABLE IF NOT EXISTS lesson_progress (
