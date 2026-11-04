@@ -80,6 +80,7 @@ ck('audit: the reminder links with that signature', LmsDrip::classSig(7, 3) !== 
 /* ══ 2. A new training fee after a voided one charges ═════════════════════ */
 $auN = NgvDb::pdo();
 foreach (['ngv_charges', 'ngv_payments', 'ngv_participants'] as $auT) { try { $auN->exec("DELETE FROM $auT WHERE member_id = 7101"); } catch (Throwable $e) {} }
+$auFeesWas = Database::metaGet('ngv_fees');
 NgvLedger::saveSettings(['enabled' => true, 'accrueFrom' => '2026-01-01'], 'test');
 $auN->prepare("INSERT INTO ngv_participants (member_id,name,email,plan,status,start_date,created_at,updated_at) VALUES (7101,'Audit Fee','auditfee@example.test','Full Programme','active','2026-03-10','2026-03-10','2026-03-10')")->execute();
 $auT1 = NgvLedger::startTrainingFee(7101, 12, 1, 120000, '2026-09-07');
@@ -122,3 +123,6 @@ ck('audit: pages and JSON are not given the host\'s week-long default', str_cont
 /* tidy */
 $auDb->exec("DELETE FROM lms_users WHERE email = 'audit.learner@example.test'");
 foreach (['ngv_charges', 'ngv_participants'] as $auT) { try { $auN->exec("DELETE FROM $auT WHERE member_id = 7101"); } catch (Throwable $e) {} }
+// Fees back the way they were: later files read the switch.
+Database::metaSet('ngv_fees', (string) ($auFeesWas ?? ''));
+$auC = new ReflectionProperty('NgvLedger', 'cache'); $auC->setAccessible(true); $auC->setValue(null, null);
