@@ -323,7 +323,10 @@ $donateHref = '/donate.html?campaign=' . rawurlencode((string) $a['slug']);
       <?php if (!$st['accepting']): ?>
         <p class="give-note"><?= $closed
             ? 'This appeal has closed. Thank you to everyone who gave.'
-            : 'This appeal is not taking donations at the moment.' ?>
+            : ($st['upcoming']
+                ? 'This appeal opens on ' . e(date('j F Y', (int) strtotime($st['opens_on']))) . '.'
+                : ($st['ended'] ? 'This appeal has ended. Thank you to everyone who gave.'
+                                : 'This appeal is not taking donations at the moment.')) ?>
           <a href="/donate.html">Give to Afrovanguard</a> instead.</p>
       <?php else:
         /* ── the giving widget ────────────────────────────────────────────

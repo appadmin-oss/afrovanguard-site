@@ -17,7 +17,8 @@ ck('projects: filter counts (7 · 2 · 1 · 1 · 2 · 1)',
    array_values(avpj_filters($all)) === [7, 2, 1, 1, 2, 1]);
 ck('projects: NGG and LCASP are Street-To-Stardom programmes, not projects',
    !isset($all['ngg']) && !isset($all['ngv'])
-   && array_column($all['sts']['programmes'], 1) === ['https://next.afrovanguard.org.ng/', '/projects/sts/lcasp.html']);
+   && array_column($all['sts']['programmes'], 0) === ['Next Generation Genius', 'LCASP — Lagos Community Advancement School Project']
+   && $all['sts']['programmes'][0][1] === 'https://next.afrovanguard.org.ng/' && $all['sts']['programmes'][1][1] === '');
 ck('projects: the STS page lists its programmes', avpj_view($all, 'sts')['programmes'] === $all['sts']['programmes']);
 
 /* Every local project has a page, every external one keeps its own site. */

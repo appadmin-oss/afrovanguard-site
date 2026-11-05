@@ -337,6 +337,41 @@
   run('copy', () => { const st = $('[data-avdn-copy-status]'); $$('[data-avdn-copy]').forEach(b => b.addEventListener('click', () => copyText(b.dataset.avdnCopy, b, st))); });
 
   /* ===== Presets: links from /give/, then the visitor's region ===== */
+  run('campaign', () => {
+    /* The campaign block and "Direct my gift to" come from the appeals that
+       are running now (live, inside their dates). A campaign is timed in the
+       appeals console: it appears the day it opens and is gone the day after
+       it ends. No answer, or none running: the general text stays. */
+    const box = $('[data-avdn-campaign]'); const sel = s1 && s1.elements.campaign;
+    if (!window.fetch || (!box && !sel)) return;
+    const txt = (n, v) => { if (n) n.textContent = String(v); };
+    fetch('/give/feed.json?limit=12', { headers: { Accept: 'application/json' } })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => {
+        const list = ((d && d.appeals) || []).filter(a => a && a.slug && a.title && /^[a-z0-9_-]+$/.test(a.slug));
+        if (sel) list.forEach(a => {
+          let o = sel.querySelector('option[value="' + a.slug + '"]');
+          if (!o) { o = document.createElement('option'); o.value = a.slug; sel.appendChild(o); }
+          o.textContent = a.title;
+        });
+        const a = list[0]; if (!box || !a) return;
+        txt($('[data-avdn-camp-kicker]', box), 'Running now');
+        txt($('[data-avdn-camp-title]', box), a.title);
+        if (a.tagline) txt($('[data-avdn-camp-text]', box), a.tagline);
+        const link = $('[data-avdn-camp-link]', box);
+        if (link && /^https:\/\/|^\//.test(a.url || '')) { link.href = a.url; link.textContent = 'See this campaign'; }
+        const grid = $('[data-avdn-camp-grid]', box); if (!grid) return;
+        const rows = [['Raised so far', a.raised_label], a.goal_label ? ['Goal', a.goal_label] : null,
+          ['Donors', a.donors], (a.days_left != null && a.days_left >= 0) ? ['Days left', a.days_left] : null].filter(Boolean);
+        grid.replaceChildren(...rows.map(([k, v]) => {
+          const div = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
+          dt.textContent = k; dd.textContent = String(v); dd.className = 'av-num'; div.append(dt, dd); return div;
+        }));
+        grid.hidden = false;
+      })
+      .catch(() => {});
+  });
+
   run('preset', () => {
     const qs = new URLSearchParams(location.search);
     const amt = parseInt(qs.get('amount') || '', 10);

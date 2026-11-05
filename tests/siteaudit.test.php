@@ -18,7 +18,6 @@ $saCanon = [
     '/contact.html' => 'contact.html',
     '/donate/'      => 'donate.html',
     '/projects/'    => 'projects/index.html',
-    '/projects/sts/lcasp.html' => 'projects/sts/lcasp.html',
 ];
 foreach ($saCanon as $loc => $file) {
     $html = (string) @file_get_contents(AV_ROOT . '/' . $file);
@@ -26,7 +25,7 @@ foreach ($saCanon as $loc => $file) {
     ck("sitemap: $file declares $loc canonical",
        str_contains($html, '<link rel="canonical" href="https://afrovanguard.org.ng' . $loc . '"'));
 }
-foreach (['/about/', '/contact/', '/donate.html', '/projects', '/projects/sts/lcasp/'] as $stale) {
+foreach (['/about/', '/contact/', '/donate.html', '/projects', '/projects/sts/lcasp/', '/projects/sts/lcasp.html'] as $stale) {
     ck("sitemap: the non-canonical $stale is not listed", !in_array($stale, $saLocs, true));
 }
 ck('sitemap: the privacy policy and terms are listed',
@@ -137,3 +136,25 @@ ck('reports: no mailto: buttons; requests open the contact form pre-filled',
    !str_contains($saRp, '$mail(') && str_contains($saRp, "'/contact/?'") && str_contains($saRp, "#contact-form"));
 ck('contact: the form accepts a pre-fill, purpose only from its own options',
    str_contains((string) file_get_contents(AV_ROOT . '/assets/site/avct.js'), "[...purpose.options].some(o => o.value === pp)"));
+
+/* Campaigns are appeals, timed by their own dates (owner, 2026-11-05). */
+$saA = ['status' => 'live', 'starts_on' => '2026-03-01', 'ends_on' => '2026-08-31'];
+ck('campaigns: before its start date an appeal is scheduled', Appeals::window($saA, '2026-02-28') === 'upcoming' && !Appeals::isRunning($saA, '2026-02-28'));
+ck('campaigns: from its first day to its last it is running (both ends inclusive)',
+   Appeals::isRunning($saA, '2026-03-01') && Appeals::isRunning($saA, '2026-08-31'));
+ck('campaigns: the day after its end date it has ended', Appeals::window($saA, '2026-09-01') === 'ended' && !Appeals::isRunning($saA, '2026-09-01'));
+ck('campaigns: an appeal with no dates runs while it is live',
+   Appeals::isRunning(['status' => 'live', 'starts_on' => '', 'ends_on' => ''], '2030-01-01')
+   && !Appeals::isRunning(['status' => 'paused', 'starts_on' => '', 'ends_on' => ''], '2030-01-01'));
+ck('campaigns: the LCASP 2026 page redirects to the STS page (.htaccess and dev router)',
+   str_contains($saHt, 'RewriteRule ^projects/sts/lcasp(?:\.html|/)?$ /projects/sts/ [R=301,L]')
+   && strpos($saHt, 'RewriteRule ^projects/sts/lcasp') < strpos($saHt, "RewriteCond %{REQUEST_FILENAME} -f [OR]")
+   && str_contains($saRt, "~^/projects/sts/lcasp(?:\\.html|/)?$~"));
+foreach (['index.html', 'projects/index.html', 'donate.html', 'lib/projects_content.php', 'partials/avh-chrome.php'] as $f) {
+    ck("campaigns: $f no longer links the retired LCASP page or names a past campaign",
+       !preg_match('~href="/projects/sts/lcasp\.html"|LCASP 2026 — the|Campus Tour 2026|2026 Season</option>|School Storm 2026|Summer 2026 · Limited~', (string) file_get_contents(AV_ROOT . "/$f")));
+}
+ck('campaigns: Donate, Projects and Home fill their campaign spots from the appeals feed',
+   str_contains((string) file_get_contents(AV_ROOT . '/assets/site/avdn.js'), "/give/feed.json?limit=12")
+   && str_contains((string) file_get_contents(AV_ROOT . '/assets/site/avpj.js'), "/give/feed.json?limit=4")
+   && str_contains((string) file_get_contents(AV_ROOT . '/projects/index.html'), 'data-avpj-open hidden'));

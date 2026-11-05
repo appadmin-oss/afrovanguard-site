@@ -58,6 +58,11 @@ RewriteRule ^projects/africa-gates/?(.*)$ https://afg.afrovanguard.org.ng/$1 [R=
 # published PDFs. The ceo/api/data deny above stays: a host deployed before the
 # removal may still hold that tool's backups, and git does not delete them.
 RewriteRule ^projects/sts/((?:about|team|impact|units|programs|get-involved|blog|contact|ceo)(?:/.*)?)$ https://sts.afrovanguard.org.ng/$1 [R=301,L,QSA,NE]
+# The LCASP 2026 campaign page, retired when the campaign ended (owner,
+# 2026-11-05). Campaigns are appeals now (give/manage.php), timed by their
+# dates; the page file stays as the record, not served. Above the real-file
+# guard, because the file exists.
+RewriteRule ^projects/sts/lcasp(?:\.html|/)?$ /projects/sts/ [R=301,L]
 
 # ── Clean URLs (work WITHOUT a file extension) ──────────────────────────────
 # Consolidated in the ROOT so routing works even when per-directory .htaccess

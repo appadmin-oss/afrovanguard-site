@@ -21,10 +21,10 @@
   <link rel="stylesheet" href="/assets/site/fonts.css?v=ace0a75b7d" />
   <link rel="preload" as="image" href="/Images/summer6.jpg" fetchpriority="high" />
   <link rel="stylesheet" href="/assets/site/av-tokens.css?v=c84fb80b5f" />
-  <link rel="stylesheet" href="/assets/site/avh.css?v=1ee2662d0c" />
+  <link rel="stylesheet" href="/assets/site/avh.css?v=a9b04be483" />
   <link rel="stylesheet" href="/assets/site/avdn.css?v=aaa058f948" />
-  <script src="/assets/site/avh.js?v=3291f29c00" defer></script>
-  <script src="/assets/site/avdn.js?v=a3b1fb649a" defer></script>
+  <script src="/assets/site/avh.js?v=af18636b18" defer></script>
+  <script src="/assets/site/avdn.js?v=4a65554b44" defer></script>
   <script src="/assets/site/ga.js?v=2b4c55e383" async></script>
 </head>
 <body class="avh" id="top">
@@ -196,9 +196,7 @@
           <label class="avdn-field"><span>Direct my gift to</span>
             <select name="campaign" data-avdn-camp>
               <option value="general">Where it’s needed most</option>
-              <option value="sts">Street-To-Stardom Campus Tour 2026</option>
-              <option value="s2s">Street-To-Stardom 2026 Season</option>
-              <option value="techhome">CACENTRE Equipment Drive</option>
+              <!-- The campaigns running now are added by avdn.js from /give/feed.json. -->
             </select>
           </label>
           <p class="avdn-camp-stat av-num" data-avdn-camp-stat hidden></p>
@@ -268,21 +266,17 @@
   </div>
 </section>
 
-<section class="avdn-sec avdn-sec--ink" aria-labelledby="avdn-lcasp-h">
+<section class="avdn-sec avdn-sec--ink" aria-labelledby="avdn-lcasp-h" data-avdn-campaign>
   <div class="avh-topo" data-avh-topo="dark" data-seed="15" aria-hidden="true"></div>
+  <!-- Filled by avdn.js from /give/feed.json: the campaign running now (an appeal inside its dates, give/manage.php). Without one, this general text stays. -->
   <div class="avdn-wrap avdn-lcasp">
     <div>
-      <div class="avdn-eyebrow avdn-eyebrow--light">Where your gift goes</div>
-      <h2 id="avdn-lcasp-h" class="avdn-h2">LCASP 2026 — the ₦40.3M campaign</h2>
-      <p data-cms="donate-p-4">This year’s campaign funds 900 children, 30 instructors and 20 volunteers across six community centres in Alimosho — with 71% going directly to programme assets.</p>
-      <a class="avdn-gold" href="/give/" data-cms="donate-a-2">See every live appeal</a>
+      <div class="avdn-eyebrow avdn-eyebrow--light" data-avdn-camp-kicker>Where your gift goes</div>
+      <h2 id="avdn-lcasp-h" class="avdn-h2" data-avdn-camp-title>Where it is needed most</h2>
+      <p data-cms="donate-p-4" data-avdn-camp-text>A gift with no campaign named goes to the children, instructors and centres where it is needed most. When a campaign is running, it is shown here with what it has raised so far.</p>
+      <a class="avdn-gold" href="/give/" data-cms="donate-a-2" data-avdn-camp-link>See every live appeal</a>
     </div>
-    <dl class="avdn-lcasp-grid">
-      <div><dt data-cms="donate-dt-5">Children across 6 centres</dt><dd class="av-num" data-cms="donate-dd-5">900</dd></div>
-      <div><dt data-cms="donate-dt-6">Instructors</dt><dd class="av-num" data-cms="donate-dd-6">30</dd></div>
-      <div><dt data-cms="donate-dt-7">Volunteers</dt><dd class="av-num" data-cms="donate-dd-7">20</dd></div>
-      <div><dt data-cms="donate-dt-8">To direct programme assets</dt><dd class="av-num" data-cms="donate-dd-8">71%</dd></div>
-    </dl>
+    <dl class="avdn-lcasp-grid" data-avdn-camp-grid hidden></dl>
   </div>
 </section>
 

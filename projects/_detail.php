@@ -135,7 +135,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
     <div class="avpj-eyebrow">Programmes</div>
     <h2 class="avpj-h2 avpj-h2--sm" id="avpj-programmes-h">What <?= e($P['abbr']) ?> runs</h2>
     <ul class="avpj-pgm">
-<?php foreach ($v['programmes'] as [$pn, $ph, $pd]): $pext = preg_match('~^https?://~', $ph) === 1; ?>      <li><a href="<?= e($ph) ?>"<?= $pext ? ' target="_blank" rel="noopener"' : '' ?>><?= e($pn) ?><?= $pext ? '<span class="av-sr"> (opens in a new tab)</span> <span aria-hidden="true">↗</span>' : ' <span aria-hidden="true">→</span>' ?></a><p><?= e($pd) ?></p></li>
+<?php foreach ($v['programmes'] as [$pn, $ph, $pd]): $pext = preg_match('~^https?://~', $ph) === 1; ?>      <li><?php if ($ph === ''): ?><span class="avpj-pgm-name"><?= e($pn) ?></span><?php else: ?><a href="<?= e($ph) ?>"<?= $pext ? ' target="_blank" rel="noopener"' : '' ?>><?= e($pn) ?><?= $pext ? '<span class="av-sr"> (opens in a new tab)</span> <span aria-hidden="true">↗</span>' : ' <span aria-hidden="true">→</span>' ?></a><?php endif; ?><p><?= e($pd) ?></p></li>
 <?php endforeach; ?>    </ul>
   </div>
 </section>

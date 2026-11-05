@@ -44,6 +44,12 @@ foreach (Appeals::published(80) as $a) {
         'raised_label' => Appeals::naira($st['raised']),
         'goal_label'   => $st['goal'] > 0 ? Appeals::naira($st['goal']) : '',
         'published' => (string) $a['published_at'],
+        'project'   => (string) $a['project'],
+        'featured'  => (bool) $a['featured'],
+        'starts_on' => (string) $a['starts_on'],
+        'ends_on'   => (string) $a['ends_on'],
+        'event_start' => (string) $a['event_start'],
+        'event_end'   => (string) $a['event_end'],
     ];
     if (count($rows) >= $limit) break;
 }

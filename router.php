@@ -35,6 +35,10 @@ if (str_ends_with(strtolower($uri), '.pdf')) {
 }
 
 // Serve existing static files (css, js, images, .html) directly.
+// The retired LCASP 2026 campaign page (mirrors .htaccess). Before the
+// real-file branch below: the file still exists, as the record.
+if (preg_match('~^/projects/sts/lcasp(?:\.html|/)?$~', $uri)) { header('Location: /projects/sts/', true, 301); return true; }
+
 if ($uri !== '/' && is_file($path)) { return false; }
 
 // Serve real directories that ship their own index.php (e.g. /academy/studio/)

@@ -483,7 +483,7 @@
 
   run('events', () => {
     // GET /events-feed.php → {events:[…]} (our events and Africa GATES', lib/SiteEvents.php::shape / AvEvents::norm).
-    // Nothing coming up, an error or offline → the design's four cards stay. Text only, never markup.
+    // Nothing coming up → a card saying so. An error or offline → the undated fallback card stays. Text only, never markup.
     const rail = $('[data-avh-events]'); if (!rail || !window.fetch) return;
     const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null && text !== '') n.textContent = String(text); return n; };
     const safe = (u, d) => (typeof u === 'string' && /^(\/(?!\/)|https:\/\/)/.test(u)) ? u : d;
@@ -504,7 +504,12 @@
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(d => {
         const ev = ((d && d.events) || []).filter(x => x && x.title && !x.cancelled).slice(0, 4);
-        if (!ev.length) return;
+        if (!ev.length) {   // nothing coming up: say so, rather than leave an undated card that reads like a promise
+          const none = el('a', 'avh-card avh-card--none'); none.href = '/events/';
+          const body = el('div', 'avh-card-body');
+          body.append(el('div', 'avh-tag', 'Events'), el('h3', null, 'Nothing scheduled right now'), el('div', 'avh-card-meta', 'See the events we have held, and check back soon'));
+          none.appendChild(body); rail.replaceChildren(none); return;
+        }
         rail.replaceChildren(...ev.map(card));
       })
       .catch(() => {});

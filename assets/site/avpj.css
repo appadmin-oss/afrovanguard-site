@@ -240,3 +240,4 @@
   .avpj *{animation:none!important;transition:none!important}
   .avpj-prog:hover .avpj-prog-img img,.avpj-open-card:hover img,.avpj-field figure:hover img,.avh .avpj-card:hover{transform:none}
 }
+.avpj-pgm-name{font-size:18px;font-weight:600;color:var(--av-ink)}

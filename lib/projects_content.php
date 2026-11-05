@@ -19,7 +19,8 @@
  * application entry; otherwise green dot + open registration), img, href,
  * ext (another site: opens in a new tab), local (has a page here), d, tags,
  * mail (Talk to the team), gallery (optional, How to join images),
- * programmes (optional: [name, href, description] for each programme run under it).
+ * programmes (optional: [name, href, description] for each programme run under it;
+ *            href '' when the programme has no page of its own).
  * Order is the design's card order.
  */
 declare(strict_types=1);
@@ -37,7 +38,7 @@ return [
         'programmes' => [
             ['Next Generation Genius', 'https://next.afrovanguard.org.ng/',
              'Accelerates exceptional talent through competitive challenges, scholarships and stretching programming.'],
-            ['LCASP — Lagos Community Advancement School Project', '/projects/sts/lcasp.html',
+            ['LCASP — Lagos Community Advancement School Project', '',
              'Formerly the Alimosho Summer School, renamed as it grows beyond Alimosho: skills, values and mentorship at community centres across Lagos.'],
         ],
     ],

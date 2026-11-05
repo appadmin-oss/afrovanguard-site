@@ -24,7 +24,6 @@ final class Sitemap
         ['diary/', '0.9', 'weekly'],
         ['projects/', '0.8', 'monthly'],
         ['projects/sts/', '0.7', 'monthly'],
-        ['projects/sts/lcasp.html', '0.7', 'monthly'],
         ['projects/techhome/', '0.7', 'monthly'],
         ['projects/mediapro/', '0.7', 'monthly'],
         ['projects/bec/', '0.6', 'monthly'],

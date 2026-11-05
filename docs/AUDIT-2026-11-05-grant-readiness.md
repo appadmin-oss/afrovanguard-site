@@ -55,7 +55,7 @@ Pinned by `tests/siteaudit.test.php`.
 | O-1 | Founding year | **2017** | Sign-in page ("Est. 2017") and the founder profile now agree with Home, About and the footer. |
 | O-2 | How many programmes | **Seven projects**: Africa GATES, Career Hub, Business Executive Club, Techome, MediaPro, Kingdom Advancement Project, Street-To-Stardom. Programmes run under projects: Next Generation Genius and LCASP (formerly the Alimosho Summer School) are STS programmes. | `lib/projects_content.php` holds the seven; the STS page lists its programmes; Home, Projects, About, Contact, menus and footer say "seven projects". The Academy is no longer shown as a project. |
 | O-3 | Lives reached | **10,000+** | The founder profile's "5,000+" now reads 10,000+. The About timeline keeps 5,000+ for 2023, as a point on the way. |
-| O-4 | Volunteer counts | They vary by season (more during LCASP); not all are retained. | Left as they are; each count describes its own season. |
+| O-4 | Volunteer counts | They vary by season (more during LCASP); not all are retained. | The first pass misread these: Donate said 30 *instructors* and 20 volunteers, matching LCASP's own budget, and LCASP labels 20 or 50 per episode. They did not conflict. The Donate block is now the running campaign's own figures (below). |
 | O-5 | Registration | Registered address: CACENTRE, 2 Abolude / Oremeji Street, off Akowonjo Road, Alimosho. | On the Contact page, the Reports page and in the search-engine data (JSON-LD). The CAC number is public record at the Corporate Affairs Commission and funders ask for it; it is not on the site, and can be added to the Contact page when you choose. |
 | O-6 | Non-discrimination, forms | Forms record sex as Male or Female. | Every form across this site, CACENTRE and NGG already offers only Male / Female. The NGV application store, which accepted any text, now keeps only Male, Female or blank. |
 | O-7 | Reports | Reports exist up to 2025, some large or incomplete; 2026 to come later this year. | New page **/reports/** (footer and About menu), listed from `lib/Reports.php`, with the 2026 annual report shown as in preparation. Procedure: `docs/REPORTS.md`. |
@@ -72,6 +72,16 @@ grounds, and the application asks the organisation to certify that.
 | F-8 | **The YouTube icon linked to a stranger's channel**: youtube.com/@afrovanguard is "Max Morris". Instagram linked @afrovanguard, not the organisation's @afro.vanguard. | YouTube now goes to AFROVANGUARD TV (@afrovanguardism) and Instagram to @afro.vanguard, on every page. Both YouTube channels, with Okun Alimosho TV (@okunalimosho), are on the Contact page and in the search-engine data. **The Studio may hold its own copy of these links** (Content → Site → Site details): check them there after deploying. |
 | F-9 | The Google map on Contact loaded from Google, which can set cookies, before the visitor had been asked. | The map loads only when "Show the map" is pressed. |
 | F-10 | The Reports page called the LCASP plan a "Project report" and showed it as the latest report. | It is a "Project document"; a document is never shown as the latest report. |
+
+## 3A-2. Campaigns are timed (owner, 2026-11-05)
+
+The LCASP 2026 campaign stayed on Donate ("the ₦40.3M campaign"), Projects
+("Open for enrollment now") and the Home events after it ended, because each was
+typed into its page. Campaigns are now appeals, timed by their Starts and Ends
+dates: shown from the first day, gone the day after the last (`docs/appeals.md`,
+"Campaigns are appeals"). The LCASP 2026 page redirects to the Street-To-Stardom
+page; the Home events fallback names no date, and says "Nothing scheduled right
+now" when nothing is.
 
 ## 3B. Cookies and other data the site collects
 
