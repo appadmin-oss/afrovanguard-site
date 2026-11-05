@@ -198,3 +198,23 @@ foreach (['index.html', 'about.html', 'contact.html', 'donate.html', 'projects/i
 }
 ck('seo: the projects list given to search engines is the seven projects, from the data file',
    substr_count((string) file_get_contents(AV_ROOT . '/projects/index.html'), '"@type":"ListItem","position":') === 9);
+
+/* Chioma knows what the site says (owner, 2026-11-05: "knows absolutely nothing"). */
+$saFacts = SiteFacts::markdown();
+foreach (['Founded: 2017', '10,000+', '2 Oremeji Street', '18 Camp Davis Road', '70% to the project', 'They are different things', 'cacentre.afrovanguard.org.ng/volunteer'] as $needle) {
+    ck("chioma: the fact sheet says “{$needle}”", str_contains($saFacts, $needle));
+}
+$saBrief = Chioma::systemPrompt(['title' => 'Home', 'path' => '/'], false);
+ck('chioma: her briefing carries the whole fact sheet', str_contains($saBrief, trim($saFacts)));
+ck('chioma: her briefing no longer lists Techome, MediaPro, GATES and NGG as Academy programmes',
+   !str_contains($saBrief, 'Techome, MediaPro, Africa GATES, Next Generation Genius'));
+ck('chioma: her briefing sends people to pages that exist', !str_contains($saBrief, '(/contact/)') && !str_contains($saBrief, '/donate.html'));
+ck('chioma: the community bot is briefed from the same sheet', str_contains(AvBot::systemPrompt(), trim($saFacts)));
+$saAsk = static fn (string $q): string => Chioma::fallback($q);
+ck('chioma: without AI she still knows when we were founded', str_contains($saAsk('When was Afrovanguard founded?'), '2017'));
+ck('chioma: without AI she knows where the centres are', str_contains($saAsk('Where is your office?'), '2 Oremeji Street') && str_contains($saAsk('Where is your office?'), 'Camp Davis'));
+ck('chioma: without AI she knows where a donation goes', str_contains($saAsk('Where does my donation go?'), '70%'));
+ck('chioma: without AI she sends volunteers to the volunteer form', str_contains($saAsk('How do I volunteer?'), 'cacentre.afrovanguard.org.ng/volunteer'));
+ck('chioma: a question about one project gets that project', str_contains($saAsk('Tell me about Techome'), '/projects/techhome/'));
+ck('chioma: NextGen Vanguard and Next Generation Genius are not confused',
+   str_contains($saAsk('Tell me about NextGen Vanguard'), '/academy/ngv/') && str_contains($saAsk('What is Next Generation Genius?'), 'next.afrovanguard.org.ng'));
