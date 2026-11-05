@@ -73,17 +73,67 @@ final class CacWifi
             ];
     }
 
-    /** Send the roster. One full push; a list over the cap is not sent at all, and says so. */
-    public static function push(): array
+    /**
+     * The most claims one roster request may carry, in bytes of JSON. The token
+     * is base64 (a third bigger) and CACENTRE's host refuses any body over
+     * 128KB with a 406 before CACENTRE sees it — a roster of ~700 members did.
+     */
+    public const PART_BYTES = 60000;
+    /** At most this many requests in one push, however often a 406 splits a part. */
+    public const MAX_CALLS = 120;
+
+    /**
+     * Send the roster. In one request when it fits (`full`: anybody not sent
+     * loses Wi-Fi there), else in parts under one sync id: a CACENTRE that reads
+     * `sync` withdraws whoever the last part of an unbroken set did not list.
+     * A part the host refuses (406) is halved and retried; one member refused
+     * even alone is set aside and named, and then nothing is called complete.
+     */
+    public static function push(?array $people = null): array
     {
         if (!CacSso::ready()) return ['ok' => false, 'error' => 'not-configured'];
-        $people = self::roster();
-        if (count($people) > self::ROSTER_MAX) return ['ok' => false, 'error' => 'too-many', 'sent' => 0];
-        $raw = self::sendRoster($people, true);
-        if ($raw === null) return ['ok' => false, 'error' => 'unreachable', 'sent' => count($people)];
-        $d = json_decode($raw, true);
-        if (!is_array($d) || empty($d['ok'])) return ['ok' => false, 'error' => is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreadable', 'sent' => count($people)];
-        return ['ok' => true, 'sent' => count($people), 'applied' => (int) ($d['applied'] ?? 0), 'refused' => (int) ($d['refused'] ?? 0), 'gone' => (int) ($d['gone'] ?? 0)];
+        $people = $people ?? self::roster();
+        $queue = self::parts($people);
+        $single = count($queue) === 1;
+        $sid = bin2hex(random_bytes(8));
+        $r = ['ok' => true, 'sent' => count($people), 'applied' => 0, 'refused' => 0, 'gone' => 0, 'parts' => 0, 'firewalled' => [], 'synced' => false, 'full' => false];
+        $part = 0; $calls = 0; $split = false;
+        while ($queue) {
+            if (++$calls > self::MAX_CALLS) { $r['ok'] = false; $r['error'] = 'too-many-calls'; break; }
+            $chunk = array_shift($queue);
+            $full = $single && !$split;
+            $raw = self::sendRoster($chunk, $full, ['id' => $sid, 'part' => $part + 1, 'last' => !$queue && !$r['firewalled']]);
+            $d = $raw !== null ? json_decode($raw, true) : null;
+            if ((int) self::$last['status'] === 406 && !(is_array($d) && !empty($d['ok']))) {
+                $split = true;
+                if (count($chunk) > 1) { $h = intdiv(count($chunk), 2); array_unshift($queue, array_slice($chunk, 0, $h), array_slice($chunk, $h)); }
+                else $r['firewalled'][] = (string) ($chunk[0]['id'] ?? '');
+                continue;
+            }
+            if ($raw === null) { $r['ok'] = false; $r['error'] = 'unreachable'; break; }
+            if (!is_array($d) || empty($d['ok'])) { $r['ok'] = false; $r['error'] = is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreadable'; $r['why'] = self::failure($raw, is_array($d) ? $d : null); break; }
+            $part++;
+            if ($full) $r['full'] = true;
+            if (!empty($d['sync']['complete'])) $r['synced'] = true;
+            $r['applied'] += (int) ($d['applied'] ?? 0); $r['refused'] += (int) ($d['refused'] ?? 0); $r['gone'] += (int) ($d['gone'] ?? 0);
+        }
+        $r['parts'] = $part;
+        if ($r['firewalled']) $r['note'] = count($r['firewalled']) . ' member(s) refused by CACENTRE’s host firewall even sent alone (ids ' . implode(', ', array_slice($r['firewalled'], 0, 10)) . '); everybody else went, and nobody was withdrawn this time.';
+        elseif ($r['ok'] && !$r['full'] && !$r['synced']) $r['note'] = 'Sent in ' . $part . ' parts and CACENTRE did not confirm the set complete, so nobody was withdrawn (CACENTRE withdraws from parts once it reads `sync`).';
+        return $r;
+    }
+
+    /** The roster cut into parts of at most PART_BYTES of JSON (a member longer than that goes alone). */
+    public static function parts(array $people, int $budget = self::PART_BYTES): array
+    {
+        $out = []; $cur = []; $size = 0;
+        foreach ($people as $row) {
+            $n = strlen((string) json_encode($row, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) + 1;
+            if ($cur && $size + $n > $budget) { $out[] = $cur; $cur = []; $size = 0; }
+            $cur[] = $row; $size += $n;
+        }
+        if ($cur || !$out) $out[] = $cur;
+        return $out;
     }
 
     /**
@@ -124,13 +174,12 @@ final class CacWifi
         return ['ok' => true, 'sent' => count($sent), 'failed' => $failed, 'marked' => $marked];
     }
 
-    /** Send people as a roster. `full` withdraws anybody not sent; a partial one withdraws nobody. */
-    private static function sendRoster(array $people, bool $full): ?string
+    /** Send people as a roster. `full` withdraws anybody not sent; a part of a sync set withdraws when its set completes; anything else withdraws nobody. */
+    private static function sendRoster(array $people, bool $full, ?array $sync = null): ?string
     {
-        return self::send(CacTasks::site() . self::PATH, [
-            'action' => 'roster',
-            'token'  => CacSso::sign(['aud' => 'wifi', 'typ' => 'wifi.roster', 'full' => $full, 'people' => $people]),
-        ], $full ? 60 : self::TIMEOUT);
+        $claims = ['aud' => 'wifi', 'typ' => 'wifi.roster', 'full' => $full, 'people' => $people];
+        if ($sync) $claims['sync'] = $sync;
+        return self::send(CacTasks::site() . self::PATH, ['action' => 'roster', 'token' => CacSso::sign($claims)], ($full || $sync) ? 60 : self::TIMEOUT);
     }
 
     /**
@@ -240,8 +289,12 @@ final class CacWifi
         return 'CACENTRE answered ' . $st . ' with something that is not an answer' . ($text !== '' ? ': ' . mb_substr($text, 0, 120) : '') . '.';
     }
 
+    /** Test seam: fn(string $url, ?array $body): array{0:int,1:?string} — the status and the body CACENTRE would answer. */
+    public static ?Closure $sendHook = null;
+
     private static function send(string $url, ?array $body, int $timeout): ?string
     {
+        if (self::$sendHook) { [$st, $out] = (self::$sendHook)($url, $body); self::$last = ['status' => (int) $st, 'error' => '']; return $out; }
         if (!function_exists('curl_init')) return null;
         $ch = curl_init($url);
         $opt = [
