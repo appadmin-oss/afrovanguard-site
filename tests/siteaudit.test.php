@@ -123,7 +123,7 @@ ck('centres: Ayobo is 18 Camp Davis Road, with its map link',
    && str_contains($saC, 'data-dir="https://maps.app.goo.gl/MdfC7vS58sDKm7cK8"'));
 ck('centres: Egbeda is 2 Oremeji Street, with its map link',
    str_contains($saC, 'data-addr="2 Oremeji Street, off Akowonjo Road, Bakey Bus Stop, Egbeda, Alimosho, Lagos"')
-   && str_contains($saC, 'data-dir="https://maps.app.goo.gl/G6NLUKUED6rN1NZ26"'));
+   && str_contains($saC, 'data-dir="https://maps.app.goo.gl/srnufRqc7LAT8rEp6"'));
 foreach (['contact.html', 'index.html', 'lib/Ngv.php', 'reports/index.php'] as $f) {
     $t = (string) file_get_contents(AV_ROOT . "/$f");
     ck("centres: $f has no old or misspelt address", !str_contains($t, 'Abolude') && !str_contains($t, 'Bakery Bus Stop'));
@@ -158,3 +158,13 @@ ck('campaigns: Donate, Projects and Home fill their campaign spots from the appe
    str_contains((string) file_get_contents(AV_ROOT . '/assets/site/avdn.js'), "/give/feed.json?limit=12")
    && str_contains((string) file_get_contents(AV_ROOT . '/assets/site/avpj.js'), "/give/feed.json?limit=4")
    && str_contains((string) file_get_contents(AV_ROOT . '/projects/index.html'), 'data-avpj-open hidden'));
+
+/* Claims the owner withdrew (2026-11-05): no "14 nations", no "100% of funds". */
+foreach (['index.html', 'contact.html', 'donate.html', 'about.html'] as $f) {
+    $t = (string) file_get_contents(AV_ROOT . "/$f");
+    ck("claims: $f says nothing about nations reached or 100% of funds",
+       !preg_match('~[Nn]ations [Rr]eached|data-avh-count="14"|100% of (?:my |your )?(?:funds|donation)|zero admin cut~', $t));
+}
+ck('claims: where a donation goes is the owner\'s split, 70% project / 30% CACENTRE, on Donate and Contact',
+   str_contains((string) file_get_contents(AV_ROOT . '/donate.html'), '70% goes to the project or campaign you give to, and 30% to running the CACENTRE')
+   && str_contains((string) file_get_contents(AV_ROOT . '/contact.html'), '70% to the project, 30% to running CACENTRE'));
