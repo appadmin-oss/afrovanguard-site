@@ -31,6 +31,34 @@ function avpj_filters(array $all): array
     return $out;
 }
 
+/**
+ * What each shared photograph actually shows — one description, used for its
+ * alt text wherever it appears (tests/siteaudit.test.php holds the static
+ * pages to it). A photo lent to a project is still described as what it is.
+ */
+const AVPJ_IMG_ALT = [
+    '/Images/Afrovanguard Volunteers Get-Together- Lagos ChapterOn December 8th, 2024, the Lagos Chapter of  (1).webp' => 'Afrovanguard volunteers at the Lagos Chapter get-together, December 2024',
+    '/Images/Afrovanguard Volunteers Get-Together- Lagos ChapterOn December 8th, 2024, the Lagos Chapter of  (4).webp' => 'Afrovanguard volunteers at the Lagos Chapter get-together, December 2024',
+    '/Images/Afrovanguard Volunteers Get-Together- Lagos ChapterOn December 8th, 2024, the Lagos Chapter of  (5).webp' => 'Afrovanguard volunteers at the Lagos Chapter get-together, December 2024',
+    '/Images/Afrovanguard Volunteers Get-Together- Lagos ChapterOn December 8th, 2024, the Lagos Chapter of .webp' => 'Afrovanguard volunteers at the Lagos Chapter get-together, December 2024',
+    '/Images/alimosho.jpg' => 'An Alimosho community celebration of Nigeria at 60',
+    '/Images/bootcamp1.png' => 'Children at an Afrovanguard community programme in Alimosho',
+    '/Images/career1.png' => 'Three volunteers in Alimosho T-shirts',
+    '/Images/culture1.png' => 'A cultural dance performance with drummers',
+    '/Images/gates1.png' => 'A speaker on stage at an Africa GATES event',
+    '/Images/gates2.png' => 'Young volunteers in green Alimosho T-shirts celebrating',
+    '/Images/storm2.jpg' => 'Students and volunteers at a School Storm outreach in a Lagos secondary school',
+    '/Images/storm3.png' => 'A volunteer speaking to pupils at a School Storm outreach',
+    '/Images/summer1.png' => 'Two smiling girls in Alimosho T-shirts',
+    '/Images/summer4.png' => 'A young person holding a hand-written “Support us” sign',
+    '/Images/summer6.jpg' => 'Teenagers holding hand-written signs about character and accountability',
+];
+
+function avpj_img_alt(string $src, string $fallback = ''): string
+{
+    return AVPJ_IMG_ALT[rawurldecode((string) strtok($src, '?'))] ?? $fallback;
+}
+
 /** Everything the detail page shows for $slug, or null when it has no page here. */
 function avpj_view(array $all, string $slug): ?array
 {

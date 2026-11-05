@@ -38,8 +38,9 @@ final class SiteHome
 
     public static function defaults(): array
     {
+        require_once __DIR__ . '/avpj.php';   // avpj_img_alt(): what each photo shows
         $s = static fn(string $img, string $eb, string $t, string $sub, string $href) =>
-            ['image' => $img, 'alt' => $t, 'eyebrow' => $eb, 'title' => $t, 'sub' => $sub, 'href' => $href, 'hidden' => false];
+            ['image' => $img, 'alt' => avpj_img_alt($img, $t), 'eyebrow' => $eb, 'title' => $t, 'sub' => $sub, 'href' => $href, 'hidden' => false];
         return [
             'mode' => 'carousel',
             'interval' => 6,

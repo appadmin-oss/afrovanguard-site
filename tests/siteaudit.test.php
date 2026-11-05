@@ -231,3 +231,26 @@ foreach ($saPublic as $f) {
 $saDD = (string) file_get_contents(AV_ROOT . '/donor-dashboard.html');
 ck('donor dashboard: never shows invented totals when the request fails', !preg_match('~raised:\s*\d{4,}~', $saDD) && str_contains($saDD, 'We could not load the campaign totals just now'));
 ck('donor dashboard: its campaigns are the running appeals', str_contains($saDD, "fetch('/give/feed.json?limit=12'") && !str_contains($saDD, 'CAMP_META'));
+
+/* Images (owner, 2026-11-05): each photograph is described as what it shows,
+   the same way everywhere; the founder's own photo; the right picture for
+   Africa GATES and NextGen Vanguard. */
+require_once AV_ROOT . '/lib/avpj.php';
+foreach (['index.html', 'about.html', 'contact.html', 'donate.html', 'projects/index.html', 'partials/avh-chrome.php', 'academy/index.php', '404.html'] as $f) {
+    $t = (string) file_get_contents(AV_ROOT . "/$f");
+    preg_match_all('~<img\b[^>]*\bsrc="(/Images/[^"?]+)[^"]*"[^>]*\balt="([^"]*)"~', $t, $m, PREG_SET_ORDER);
+    $bad = [];
+    foreach ($m as [, $src, $alt]) {
+        $want = avpj_img_alt($src, '');
+        if ($alt !== '' && $want !== '' && html_entity_decode($alt) !== $want) $bad[] = rawurldecode($src) . ' = "' . $alt . '"';
+    }
+    ck("images: $f describes each photo as what it shows (" . implode('; ', array_slice($bad, 0, 3)) . ')', $bad === []);
+}
+$saAb = (string) file_get_contents(AV_ROOT . '/about.html');
+ck('images: About shows Babatunde Adeola\'s own photograph beside his words',
+   str_contains($saAb, 'src="/assets/img/people/babatunde-adeola-800.jpg" alt="Babatunde Adeola, founder of Afrovanguard"')
+   && is_file(AV_ROOT . '/assets/img/people/babatunde-adeola-800.jpg') && is_file(AV_ROOT . '/assets/img/people/babatunde-adeola-400.jpg'));
+ck('images: Africa GATES is shown with its own event photo', str_contains((string) file_get_contents(AV_ROOT . '/lib/projects_content.php'), "'img' => \$img('gates1.png'), 'href' => 'https://afg.afrovanguard.org.ng'"));
+ck('images: NextGen Vanguard is shown with its own flyer, not an Africa GATES stage',
+   str_contains((string) file_get_contents(AV_ROOT . '/partials/avh-chrome.php'), 'href="/academy/ngv/"><img class="avh-feat-poster" src="/assets/site/ngv/ngv-flyer.png"')
+   && !str_contains((string) file_get_contents(AV_ROOT . '/academy/index.php'), 'alt="NextGen Vanguard cohort"'));

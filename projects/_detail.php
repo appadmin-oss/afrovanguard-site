@@ -93,7 +93,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
 <main id="main" tabindex="-1">
 
 <header class="avpj-hero">
-  <img class="avpj-hero-img" src="<?= e($P['img']) ?>" alt="<?= e($P['name']) ?>" fetchpriority="high">
+  <img class="avpj-hero-img" src="<?= e($P['img']) ?>" alt="<?= e(avpj_img_alt((string) $P['img'], (string) $P['name'])) ?>" fetchpriority="high">
   <div class="avpj-hero-shade" aria-hidden="true"></div>
   <div class="avpj-hero-in avh-pad">
     <div class="avpj-hero-copy">
@@ -194,7 +194,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
     <div class="avpj-others">
 <?php foreach ($v['others'] as $o): ?>
       <a class="avpj-card" href="<?= e($o['href']) ?>"<?= $o['ext'] ? ' target="_blank" rel="noopener"' : '' ?>>
-        <img src="<?= e($o['img']) ?>" alt="<?= e($o['name']) ?>" loading="lazy" decoding="async" width="580" height="363">
+        <img src="<?= e($o['img']) ?>" alt="<?= e(avpj_img_alt((string) $o['img'], (string) $o['name'])) ?>" loading="lazy" decoding="async" width="580" height="363">
         <div class="avpj-card-body">
           <div class="avpj-kicker"><?= e($o['cat']) ?></div>
           <div class="avpj-card-t"><?= e($o['name']) ?><?= $o['ext'] ? '<span class="av-sr"> (opens in a new tab)</span>' : '' ?></div>

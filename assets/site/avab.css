@@ -209,3 +209,5 @@
 }
 
 @media (prefers-reduced-motion:reduce){.avab *{transition:none!important;animation:none!important}.avab-groups a:hover img{transform:none}}
+/* The founder's portrait is square; the slot is 4:3 — keep his cap and face in frame. */
+.avab-founder img.avab-founder-photo{object-position:50% 22%}

@@ -87,7 +87,7 @@ $projects = [
     ['/Images/bootcamp1.png', 'Technology', 'Techome', '/projects/techhome/'],
     ['/Images/summer4.png', 'Arts & Media', 'MediaPro', '/projects/mediapro/'],
     ['/Images/culture1.png', 'Arts & Media', 'Street-To-Stardom', '/projects/sts/'],
-    ['/Images/gates2.png', 'Leadership', 'Africa GATES', 'https://afg.afrovanguard.org.ng'],
+    ['/Images/gates1.png', 'Leadership', 'Africa GATES', 'https://afg.afrovanguard.org.ng'],
 ];
 ?>
 <body class="avh avac" id="top">
@@ -131,7 +131,7 @@ $projects = [
         </span>
         <span class="avac-gold">Explore NextGen Vanguard →</span>
       </span>
-      <img class="avac-ngv-img" src="/Images/gates2.png" alt="NextGen Vanguard cohort" loading="lazy" decoding="async">
+      <img class="avac-ngv-img" src="/assets/site/ngv/ngv-flyer.png" alt="NextGen Vanguard: learn and earn in six months" loading="lazy" decoding="async">
     </a>
   </div>
 </header>

@@ -575,3 +575,6 @@ html.av-si .avh .avh-drawer-ctas{grid-template-columns:1fr}
 
 /* An events card with no picture: the fallback, or "nothing scheduled". */
 .avh-card--none{display:flex;align-items:flex-end;min-height:180px;background:var(--av-sand)}
+
+/* A poster in a 16:9 feature slot (the NextGen Vanguard flyer): keep its headline in view. */
+.avh-feat img.avh-feat-poster{object-position:50% 34%}

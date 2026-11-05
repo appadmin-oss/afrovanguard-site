@@ -69,7 +69,7 @@ return [
     'africa-gates' => [
         'abbr' => 'GATES', 'name' => 'Africa GATES', 'cat' => 'Leadership',
         'status' => 'Open to apply', 'selective' => false,
-        'img' => $img('gates2.png'), 'href' => 'https://afg.afrovanguard.org.ng', 'ext' => true, 'local' => false,
+        'img' => $img('gates1.png'), 'href' => 'https://afg.afrovanguard.org.ng', 'ext' => true, 'local' => false,
         'd' => 'Curating international scholarships and fellowships, then walking applicants through every step of the journey.',
         'tags' => ['Scholarships', 'Fellowships', 'Global'],
         'mail' => 'gates@afrovanguard.org.ng',
