@@ -107,6 +107,18 @@
       form.setAttribute('aria-busy', String(on));
     };
 
+    /* A link can start a message: /contact/?purpose=general&subject=…&message=…#contact-form
+       (the Reports page's "Email me when it's out" and "Request a report").
+       Values go in as plain text, and purpose only if it is one of the options. */
+    try {
+      const q = new URLSearchParams(location.search);
+      const pre = (k, max) => (q.get(k) || '').slice(0, max);
+      const pp = pre('purpose', 40);
+      if (pp && purpose && [...purpose.options].some(o => o.value === pp)) { purpose.value = pp; purpose.dispatchEvent(new Event('change')); }
+      if (pre('subject', 200) && form.elements.subject) form.elements.subject.value = pre('subject', 200);
+      if (pre('message', 2000) && msg) { msg.value = pre('message', 2000); msg.dispatchEvent(new Event('input')); }
+    } catch (err) { /* no URLSearchParams: the form simply starts empty */ }
+
     form.addEventListener('submit', e => {
       e.preventDefault();
       if (busy) return;
@@ -187,6 +199,7 @@
       tabs.forEach(o => { const on = o === t; o.setAttribute('aria-selected', String(on)); o.tabIndex = on ? 0 : -1; });
       panel.setAttribute('aria-labelledby', t.id);
       $('[data-avct-loc-name]', panel).textContent = t.dataset.name;
+      const addr = $('[data-avct-loc-addr]', panel); if (addr && t.dataset.addr) addr.textContent = t.dataset.addr;
       $('[data-avct-loc-dir]', panel).href = t.dataset.dir;
       if (map && map.getAttribute('src') !== t.dataset.map) { map.src = t.dataset.map; map.title = t.dataset.name + ' map'; }
       if (focus) t.focus();

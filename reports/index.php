@@ -20,7 +20,12 @@ $rows    = Reports::all();
 $head    = Reports::headline($rows);
 $years   = [];
 foreach ($rows as $r) $years[$r['year']][] = $r;
-$mail = static fn (string $subject): string => 'mailto:' . $contact . '?subject=' . rawurlencode($subject);
+/* Requests go through the contact form, not a mailto: link — a link that
+   needs a mail app does nothing on many phones and office computers, and a
+   form submission is stored, acknowledged and lands in the Studio's inbox. */
+$ask = static fn (string $subject, string $message): string => '/contact/?' . http_build_query(
+    ['purpose' => 'general', 'subject' => $subject, 'message' => $message], '', '&', PHP_QUERY_RFC3986) . '#contact-form';
+$rid = static fn (array $r): string => 'r' . (int) $r['year'] . '-' . trim((string) preg_replace('/[^a-z0-9]+/', '-', strtolower((string) $r['title'])), '-');
 
 render_head([
     'title'     => 'Reports — Afrovanguard',
@@ -45,7 +50,7 @@ render_nav('');
         <div class="legal-content rep-wrap">
 <?php if ($head['latest'] || $head['next']): ?>
           <div class="rep-glance" aria-label="At a glance">
-<?php if ($head['latest']): ?>            <div><span>Latest</span><a href="#y<?= (int) $head['latest']['year'] ?>"><?= e($head['latest']['title']) ?></a></div>
+<?php if ($head['latest']): ?>            <div><span>Latest</span><a href="#<?= e($rid($head['latest'])) ?>"><?= e($head['latest']['title']) ?></a></div>
 <?php endif; if ($head['next']): ?>            <div><span>Next</span><b><?= e($head['next']['title']) ?></b> <small>expected <?= e($head['next']['expected']) ?></small></div>
 <?php endif; ?>          </div>
 <?php endif; ?>
@@ -63,7 +68,7 @@ render_nav('');
             <h2 id="y<?= (int) $year ?>-h"><?= (int) $year ?></h2>
             <ul class="rep-list">
 <?php foreach ($list as $r): $ext = $r['href'] !== '' && !str_starts_with($r['href'], '/'); ?>
-              <li class="rep-item<?= $r['status'] === 'preparing' ? ' rep-item--soon' : '' ?>">
+              <li class="rep-item<?= $r['status'] === 'preparing' ? ' rep-item--soon' : '' ?>" id="<?= e($rid($r)) ?>">
                 <div class="rep-top">
                   <span class="rep-kind"><?= e(Reports::KINDS[$r['kind']]) ?></span>
 <?php if ($r['status'] === 'partial'): ?>                  <span class="rep-badge">Partly complete</span>
@@ -74,7 +79,7 @@ render_nav('');
 <?php endif; ?>
 <?php if ($r['status'] === 'preparing'): ?>
                 <p class="rep-meta">Expected <?= e($r['expected']) ?>.</p>
-                <div class="rep-actions"><a class="rep-btn rep-btn--line" href="<?= e($mail('Send me the ' . $r['title'])) ?>">Email me when it&rsquo;s out</a></div>
+                <div class="rep-actions"><a class="rep-btn rep-btn--line" href="<?= e($ask('Send me the ' . $r['title'], 'Please email me the ' . $r['title'] . ' when it is published.')) ?>">Email me when it&rsquo;s out</a></div>
 <?php else: ?>
 <?php if ($r['label'] !== ''): ?>                <p class="rep-meta"><?= e($r['label']) ?></p>
 <?php endif; ?>
@@ -92,11 +97,11 @@ render_nav('');
             <h2 id="earlier-h">Earlier years</h2>
             <div class="rep-item rep-item--plain">
               <p class="rep-note">Reports from 2017 onwards, and the figures behind any number on this site, are available on request while we prepare them for publishing here.</p>
-              <div class="rep-actions"><a class="rep-btn rep-btn--line" href="<?= e($mail('Request: an earlier Afrovanguard report')) ?>">Request a report</a></div>
+              <div class="rep-actions"><a class="rep-btn rep-btn--line" href="<?= e($ask('Request: an earlier Afrovanguard report', 'Please send me the report for the year: ')) ?>">Request a report</a></div>
             </div>
           </section>
 
-          <p class="rep-foot">Afrovanguard · CACENTRE, 2 Abolude / Oremeji Street, off Akowonjo Road, Alimosho, Lagos, Nigeria · <a href="mailto:<?= e($contact) ?>"><?= e($contact) ?></a></p>
+          <p class="rep-foot">Afrovanguard · CACENTRE Egbeda, 2 Oremeji Street, off Akowonjo Road, Bakey Bus Stop, Egbeda, Alimosho, Lagos, Nigeria · <a href="mailto:<?= e($contact) ?>"><?= e($contact) ?></a></p>
         </div>
       </div>
     </div>

@@ -103,8 +103,8 @@ ck('reports: linked from the shared footer and the Home page',
 $saFacts = [
     'login/index.php' => 'Est. 2017',
     'member.html'     => "Founded Afrovanguard in 2017",
-    'index.html'      => '"streetAddress": "CACENTRE, 2 Abolude / Oremeji Street, off Akowonjo Road"',
-    'contact.html'    => 'CACENTRE, 2 Abolude / Oremeji Street, off Akowonjo Road',
+    'index.html'      => '"streetAddress": "CACENTRE Egbeda, 2 Oremeji Street, off Akowonjo Road, Bakey Bus Stop"',
+    'contact.html'    => 'CACENTRE Egbeda, 2 Oremeji Street, off Akowonjo Road, Bakey Bus Stop',
 ];
 foreach ($saFacts as $f => $needle) ck("facts: $f says “{$needle}”", str_contains((string) file_get_contents(AV_ROOT . "/$f"), $needle));
 foreach (['index.html', 'about.html', 'member.html', 'projects/index.html', 'login/index.php'] as $f) {
@@ -116,3 +116,24 @@ ck('reports: a project document (a plan) is never shown as the latest report',
    (Reports::headline(Reports::all())['latest']['kind'] ?? '') !== 'document');
 ck('nav: the footer and menus list projects, not NGG, as projects',
    !str_contains((string) file_get_contents(AV_ROOT . '/partials/avh-chrome.php'), 'Kingdom Advancement</a><a href="https://next.afrovanguard.org.ng/"'));
+
+/* The two centres (owner, 2026-11-05): their addresses and the owner's own map links. */
+$saC = (string) file_get_contents(AV_ROOT . '/contact.html');
+ck('centres: Ayobo is 18 Camp Davis Road, with its map link',
+   str_contains($saC, 'data-addr="18 Camp Davis Road, Orisunbare Phase 2 Bus Stop, Ishefun Road, Alimosho, Lagos"')
+   && str_contains($saC, 'data-dir="https://maps.app.goo.gl/MdfC7vS58sDKm7cK8"'));
+ck('centres: Egbeda is 2 Oremeji Street, with its map link',
+   str_contains($saC, 'data-addr="2 Oremeji Street, off Akowonjo Road, Bakey Bus Stop, Egbeda, Alimosho, Lagos"')
+   && str_contains($saC, 'data-dir="https://maps.app.goo.gl/G6NLUKUED6rN1NZ26"'));
+foreach (['contact.html', 'index.html', 'lib/Ngv.php', 'reports/index.php'] as $f) {
+    $t = (string) file_get_contents(AV_ROOT . "/$f");
+    ck("centres: $f has no old or misspelt address", !str_contains($t, 'Abolude') && !str_contains($t, 'Bakery Bus Stop'));
+}
+ck('centres: the address line follows the selected tab', str_contains((string) file_get_contents(AV_ROOT . '/assets/site/avct.js'), "t.dataset.addr"));
+
+/* Reports: requests are contact-form messages, not mailto: links. */
+$saRp = (string) file_get_contents(AV_ROOT . '/reports/index.php');
+ck('reports: no mailto: buttons; requests open the contact form pre-filled',
+   !str_contains($saRp, '$mail(') && str_contains($saRp, "'/contact/?'") && str_contains($saRp, "#contact-form"));
+ck('contact: the form accepts a pre-fill, purpose only from its own options',
+   str_contains((string) file_get_contents(AV_ROOT . '/assets/site/avct.js'), "[...purpose.options].some(o => o.value === pp)"));

@@ -168,7 +168,7 @@ final class Ngv
                 ['q' => 'How long is the programme?', 'a' => 'A structured journey of up to 12 months: Phase 1 is six months of training, Phase 2 is six months of service and internship. Free training-only and internship-only options are available.'],
                 ['q' => 'Do I really earn while I learn?', 'a' => 'Yes. Interns serve on real Afrovanguard projects and receive weekly stipends, alongside internship placement and free internet/workspace access.'],
                 ['q' => 'What will it cost me?', 'a' => 'Training-only and internship-only tracks are free (limited slots). The full programme is ₦240,000/year. A ₦10,000/year membership and ₦1,000/month commitment fee support your uniform, materials and community — and no one is turned away for lack.'],
-                ['q' => 'Where is it held?', 'a' => 'At CACENTRE Egbeda — 2 Abolude / Oremeji Street, Bakery Bus Stop, Egbeda, Lagos.'],
+                ['q' => 'Where is it held?', 'a' => 'At CACENTRE Egbeda — 2 Oremeji Street, off Akowonjo Road, Bakey Bus Stop, Egbeda, Lagos.'],
             ],
 
             'cta' => [
@@ -187,7 +187,7 @@ final class Ngv
             // Afrovanguard's two offices (editable list). Rendered on the page and
             // used in the Course location schema.
             'offices' => [
-                ['name' => 'CACENTRE Egbeda', 'address' => '2 Abolude / Oremeji Street, Bakery Bus Stop, Egbeda, Lagos'],
+                ['name' => 'CACENTRE Egbeda', 'address' => '2 Oremeji Street, off Akowonjo Road, Bakey Bus Stop, Egbeda, Lagos'],
                 ['name' => 'CACENTRE Okun Alimosho', 'address' => 'Okun Alimosho, Alimosho, Lagos'],
             ],
 

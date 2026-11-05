@@ -331,3 +331,5 @@ html[data-theme="dark"] .legal-callout { background: rgba(243,180,22,.06); }
 .legal-table td:first-child { min-width: 9em; }
 .legal-table td:last-child { white-space: nowrap; }
 @media (max-width: 560px) { .legal-table td:last-child { white-space: normal; } }
+.legal-section .rep-list li.rep-item { scroll-margin-top: 96px; }
+.legal-section .rep-list li.rep-item:target { border-color: var(--legal-accent); box-shadow: 0 0 0 3px rgba(168,130,26,.18); }
