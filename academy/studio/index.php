@@ -100,64 +100,73 @@ declare(strict_types=1);
         </div>
       </section>
 
-      <!-- COURSE EDITOR -->
+      <!-- COURSE EDITOR — the questions a course page answers, in the order a
+           learner asks them. Nothing technical up front: the web address, the
+           card colour and the catalogue order live under "Advanced". -->
       <section class="view" id="view-course" hidden>
-        <form id="courseForm" class="editor">
+        <form id="courseForm" class="editor" novalidate>
           <div class="editor-main">
-            <label class="fld"><span>Title *</span><input id="c_title" required placeholder="Course title" /></label>
-            <div class="grid2">
-              <label class="fld"><span>Slug</span><input id="c_slug" placeholder="auto from title" /></label>
-              <label class="fld"><span>Category</span><input id="c_category" placeholder="Technology" /></label>
-            </div>
-            <label class="fld"><span>Summary</span><textarea id="c_summary" rows="2" placeholder="One or two sentences shown on cards."></textarea></label>
-            <label class="fld"><span>Description (HTML allowed)</span><textarea id="c_body" rows="8" placeholder="The course overview…"></textarea></label>
-            <label class="fld"><span>What you’ll learn (one per line)</span><textarea id="c_outcomes" rows="4" placeholder="Read documentation independently&#10;Ship a small real project"></textarea></label>
-            <div class="grid2">
-              <label class="fld"><span>Skills you’ll gain (one per line)</span><textarea id="c_skills" rows="4" placeholder="Public speaking&#10;Budgeting"></textarea></label>
-              <label class="fld"><span>Before you start (one per line, empty = none)</span><textarea id="c_prereqs" rows="4" placeholder="A phone or laptop&#10;Basic English"></textarea></label>
-            </div>
+            <section class="ed-step"><h2><span>1</span> The basics</h2>
+              <label class="fld"><span>Course title</span><input id="c_title" required placeholder="e.g. Community Organising 101" autocomplete="off" /></label>
+              <label class="fld"><span>One-line summary <em class="muted">— shown on the catalogue card</em></span><textarea id="c_summary" rows="2" maxlength="240" placeholder="Plan, run and report a community project people trust."></textarea></label>
+              <div class="grid3">
+                <label class="fld"><span>Track</span><input id="c_category" list="c_categories" placeholder="Leadership" autocomplete="off" /><datalist id="c_categories"></datalist></label>
+                <label class="fld"><span>Level</span><select id="c_level"><option>All levels</option><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></label>
+                <label class="fld"><span>Language</span><input id="c_language" placeholder="English" /></label>
+              </div>
+              <div class="cover-row">
+                <div class="cover-prev" id="c_coverPrev" aria-hidden="true"></div>
+                <div><b>Cover image</b><p class="muted fld-help">A wide photo, at least 1200 × 630.</p>
+                  <button type="button" class="btn btn-outline btn-sm" data-upload="c_cover" data-accept="image/*">Upload a cover</button>
+                  <button type="button" class="link-btn" id="c_coverClear" hidden>Remove</button></div>
+                <input id="c_cover" type="hidden" />
+              </div>
+            </section>
+            <section class="ed-step"><h2><span>2</span> What learners get</h2>
+              <label class="fld"><span>What they’ll learn <em class="muted">(one per line)</em></span><textarea id="c_outcomes" rows="4" placeholder="Run a meeting people want to come to&#10;Write a budget a funder trusts"></textarea></label>
+              <div class="grid2">
+                <label class="fld"><span>Skills they’ll gain <em class="muted">(one per line)</em></span><textarea id="c_skills" rows="4" placeholder="Public speaking&#10;Budgeting"></textarea></label>
+                <label class="fld"><span>Before they start <em class="muted">(one per line — leave empty if none)</em></span><textarea id="c_prereqs" rows="4" placeholder="A phone or laptop&#10;Basic English"></textarea></label>
+              </div>
+              <label class="fld"><span>About the course</span><textarea id="c_body" rows="8"></textarea></label>
+            </section>
           </div>
           <aside class="editor-side">
             <div class="card">
-              <h3>Publish</h3>
-              <label class="fld"><span>Status</span><select id="c_status"><option value="draft">Draft</option><option value="published">Published</option></select></label>
-              <label class="chk"><input type="checkbox" id="c_featured" /> <span>Featured on the catalogue</span></label>
-              <label class="fld"><span>Sort order</span><input id="c_sort" type="number" value="0" /></label>
-            </div>
-            <div class="card">
-              <h3>Access</h3>
-              <label class="fld"><span>Access type</span>
-                <select id="c_access"><option value="open">Open — all lessons free</option><option value="tracked">Tracked — free, account-gated</option><option value="membership">Membership only</option><option value="paid">Paid (one-off)</option></select>
+              <h3>Who can take it</h3>
+              <label class="fld"><span>Access</span>
+                <select id="c_access"><option value="open">Free — anyone, no account</option><option value="tracked">Free — with an account (progress saved)</option><option value="membership">Members only</option><option value="paid">Paid</option></select>
               </label>
-              <label class="fld" id="priceWrap" hidden><span>Price (₦)</span><input id="c_price_ngn" type="number" min="0" value="0" /></label>
-              <label class="fld"><span>Instructor email</span><input id="c_instructor" type="email" placeholder="instructor@afrovanguard.org.ng" /></label>
+              <label class="fld" id="priceWrap" hidden><span>Price</span><span class="suffix">₦<input id="c_price_ngn" type="number" min="0" value="0" /></span></label>
+              <label class="fld"><span>Instructor’s email <em class="muted">(optional)</em></span><input id="c_instructor" type="email" placeholder="name@afrovanguard.org.ng" /></label>
             </div>
             <div class="card">
-              <h3>Grading &amp; pace</h3>
-              <div class="grid2">
-                <label class="fld"><span>Pass mark (%)</span><input id="c_pass_mark" type="number" min="0" max="100" value="70" /></label>
-                <label class="fld"><span>Suggested weeks</span><input id="c_pace_weeks" type="number" min="0" max="104" value="0" /></label>
-              </div>
-              <p class="muted fld-help">Pass mark: the weighted grade a learner needs, with every graded item passed. Weeks: 0 = one week per module.</p>
-              <label class="fld"><span>Language</span><input id="c_language" placeholder="English" /></label>
-              <label class="chk"><input type="checkbox" id="c_sequential" /> <span>Items open in order (finish one to unlock the next)</span></label>
+              <h3>Certificate &amp; pace</h3>
+              <label class="fld"><span>Pass mark</span><span class="suffix"><input id="c_pass_mark" type="number" min="0" max="100" value="70" />%</span></label>
+              <p class="muted fld-help">The overall grade needed, with every graded quiz and assignment passed. A course with no graded work certifies on finishing.</p>
+              <label class="fld"><span>Suggested length</span><span class="suffix"><input id="c_pace_weeks" type="number" min="0" max="104" value="0" />weeks <em class="muted">(0 = a week a module)</em></span></label>
+              <label class="chk"><input type="checkbox" id="c_sequential" /> <span>Open items in order — finish one to unlock the next</span></label>
             </div>
             <div class="card">
-              <h3>Details</h3>
+              <h3>Publish</h3>
+              <label class="fld"><span>Status</span><select id="c_status"><option value="draft">Draft — only you can see it</option><option value="published">Published — on the catalogue</option></select></label>
+              <label class="chk"><input type="checkbox" id="c_featured" /> <span>Feature it at the top of the catalogue</span></label>
+            </div>
+            <details class="card ed-more ed-adv"><summary>Advanced</summary>
+              <label class="fld"><span>Web address</span><input id="c_slug" placeholder="made from the title" /></label>
               <div class="grid2">
-                <label class="fld"><span>Level</span><input id="c_level" placeholder="All levels" /></label>
-                <label class="fld"><span>Format</span><input id="c_format" placeholder="In-person" /></label>
+                <label class="fld"><span>Format</span><input id="c_format" placeholder="Online" /></label>
+                <label class="fld"><span>Duration label</span><input id="c_duration" placeholder="6 weeks" /></label>
               </div>
               <div class="grid2">
-                <label class="fld"><span>Duration</span><input id="c_duration" placeholder="12 weeks" /></label>
                 <label class="fld"><span>Price label</span><input id="c_pricelabel" placeholder="Free" /></label>
+                <label class="fld"><span>Catalogue order</span><input id="c_sort" type="number" value="0" /></label>
               </div>
-              <label class="fld"><span>Cover image URL</span><input id="c_cover" placeholder="https://…" /></label>
-              <label class="fld"><span>Card gradient</span>
+              <label class="fld"><span>Card colour (no cover)</span>
                 <select id="c_gradient"><option value="g-gold">Gold</option><option value="g-sky">Sky</option><option value="g-green">Green</option><option value="g-sunset">Sunset</option><option value="g-ink">Ink</option></select>
               </label>
-              <label class="fld"><span>External CTA URL (optional)</span><input id="c_cta" placeholder="https://…" /></label>
-            </div>
+              <label class="fld"><span>External sign-up link</span><input id="c_cta" placeholder="https://…" /></label>
+            </details>
             <p class="editor-note" id="courseNote"></p>
           </aside>
         </form>
@@ -200,6 +209,7 @@ declare(strict_types=1);
       <!-- CURRICULUM -->
       <section class="view" id="view-curriculum" hidden>
         <div class="picker"><label>Course</label><select id="curCourse"></select><span class="pick-hint" id="curHint"></span></div>
+        <section class="ready" id="readiness" aria-live="polite" hidden></section>
         <div class="curriculum" id="curriculum"><p class="empty">Pick a course to build its curriculum.</p></div>
       </section>
 
@@ -246,67 +256,113 @@ declare(strict_types=1);
   </div>
 </div>
 
-<!-- Lesson editor modal -->
+<!-- Item editor: one screen per kind of item. The kind is chosen when the item
+     is added; only that kind's fields are shown. Nothing technical is asked up
+     front — the web address, grade weight and time are worked out, and live
+     under "Advanced" for the rare change. -->
 <div class="modal" id="lessonModal" role="dialog" aria-modal="true" aria-labelledby="lessonModalTitle" hidden>
-  <div class="modal-card">
-    <div class="modal-head"><h2 id="lessonModalTitle">Lesson</h2><button class="icon-x" id="lessonClose" aria-label="Close">×</button></div>
-    <form id="lessonForm" class="modal-body">
-      <label class="fld"><span>Title *</span><input id="l_title" required /></label>
-      <div class="grid2">
-        <label class="fld"><span>Item type</span>
-          <select id="l_kind"><option value="">Lesson (video, reading or quiz)</option><option value="assignment">Assignment (instructor-graded)</option><option value="discussion">Discussion prompt</option></select>
-        </label>
-        <label class="fld"><span>Grade weight</span><input id="l_weight" type="number" min="1" max="100" value="1" /></label>
-      </div>
-      <label class="fld" id="apassWrap" hidden><span>Assignment pass mark (%)</span><input id="l_apass" type="number" min="1" max="100" value="70" /></label>
-      <div class="grid2">
-        <label class="fld"><span>Slug</span><input id="l_slug" placeholder="auto from title" /></label>
-        <label class="fld"><span>Duration (min)</span><input id="l_duration" type="number" min="0" value="0" /></label>
-      </div>
-      <label class="fld"><span id="l_body_label">Body (HTML allowed)</span><textarea id="l_body" rows="6"></textarea></label>
-      <div class="media-box">
-        <label class="fld"><span>Video (optional) — upload, or paste a YouTube, Vimeo, Loom, Wistia or Google Drive link</span>
-          <span class="up-row"><input id="l_video" placeholder="https://…" /><button type="button" class="btn btn-outline btn-sm" data-upload="l_video" data-accept="video/mp4,video/webm,video/quicktime">Upload video</button></span>
-        </label>
-        <label class="fld"><span>Captions (.vtt, for an uploaded video)</span>
-          <span class="up-row"><input id="l_captions" placeholder="/uploads/media/….vtt" /><button type="button" class="btn btn-outline btn-sm" data-upload="l_captions" data-accept=".vtt,text/vtt">Upload captions</button></span>
-        </label>
-        <label class="fld"><span>Transcript (optional — shown under the video)</span><textarea id="l_transcript" rows="4"></textarea></label>
-        <p class="muted fld-help" id="uploadMsg" role="status" aria-live="polite"></p>
-      </div>
-      <fieldset class="fld res-box"><legend>Resources (downloads and links)</legend>
-        <div id="resList"></div>
-        <button type="button" class="btn btn-ghost btn-sm" id="addRes">+ Add resource</button>
-      </fieldset>
-      <label class="chk"><input type="checkbox" id="l_preview" /> <span>Free preview (open without an account)</span></label>
+  <div class="modal-card modal-card--wide">
+    <div class="modal-head">
+      <div><span class="kind-chip" id="l_kindChip">Reading</span><h2 id="lessonModalTitle">New item</h2></div>
+      <button class="icon-x" id="lessonClose" aria-label="Close">×</button>
+    </div>
+    <form id="lessonForm" class="modal-body" novalidate>
+      <label class="fld"><span>Title</span><input id="l_title" required placeholder="e.g. What a mandate is" autocomplete="off" /></label>
 
-      <div class="quiz" id="quizWrap">
-        <div class="quiz-head"><h3>Quiz <small>(optional)</small></h3>
-          <label class="quiz-pass">Pass %<input id="q_pass" type="number" min="1" max="100" value="70" /></label>
-          <label class="quiz-pass">Attempts<input id="q_attempts" type="number" min="0" max="99" value="0" title="0 = unlimited" /></label>
-          <label class="chk"><input type="checkbox" id="q_graded" checked /> <span>Graded (counts toward the grade)</span></label>
+      <!-- Video -->
+      <section class="ed-sec" data-for="video">
+        <h3>Video</h3>
+        <div class="src-pick" id="videoPick">
+          <button type="button" class="src-card" data-upload="l_video" data-accept="video/mp4,video/webm,video/quicktime" data-media="video">
+            <b>Upload a video file</b><span>MP4 or WebM from your computer</span></button>
+          <div class="src-card src-card--link"><b>Or paste a link</b><span>YouTube, Vimeo, Loom, Wistia or Google Drive</span>
+            <input id="l_video" type="url" inputmode="url" placeholder="https://youtu.be/…" autocomplete="off" /></div>
         </div>
+        <p class="file-ok" id="videoNow" hidden></p>
+        <div id="captionsRow" hidden>
+          <button type="button" class="btn btn-outline btn-sm" data-upload="l_captions" data-accept=".vtt,text/vtt">Add captions (.vtt)</button>
+          <span class="muted" id="captionsNow"></span>
+          <input id="l_captions" type="hidden" />
+        </div>
+        <details class="ed-more"><summary>Add a transcript</summary>
+          <textarea id="l_transcript" rows="5" placeholder="Paste what is said in the video. Learners can read it beside the video."></textarea>
+        </details>
+      </section>
+
+      <!-- Text: the lesson itself, notes under a video, instructions, the prompt, a quiz intro -->
+      <section class="ed-sec" data-for="reading video assignment discussion quiz">
+        <h3 id="l_body_label">Lesson text</h3>
+        <p class="muted fld-help" id="l_body_help">Write as you would in a document. Paste a YouTube or Loom link on its own line to embed it.</p>
+        <textarea id="l_body" rows="10"></textarea>
+      </section>
+
+      <!-- Quiz -->
+      <section class="ed-sec" data-for="quiz">
+        <h3>Questions</h3>
+        <div class="mode-pick" role="radiogroup" aria-label="Does this quiz count toward the grade?">
+          <label class="mode-card"><input type="radio" name="q_mode" value="practice" /><b>Practice check</b><span>Learners see the answers. Doesn’t count.</span></label>
+          <label class="mode-card"><input type="radio" name="q_mode" value="graded" checked /><b>Graded quiz</b><span>Must be passed for the certificate.</span></label>
+        </div>
+        <div class="grid2" id="gradedOpts">
+          <label class="fld"><span>Pass mark</span><span class="suffix"><input id="q_pass" type="number" min="1" max="100" value="70" />%</span></label>
+          <label class="fld"><span>Attempts allowed</span><select id="q_attempts"><option value="0">Unlimited</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option></select></label>
+        </div>
+        <input id="q_graded" type="checkbox" hidden checked />
         <div id="quizQuestions"></div>
-        <button type="button" class="btn btn-outline btn-sm" id="addQ">+ Add question</button>
-      </div>
-      <p class="modal-msg" id="lessonMsg"></p>
+        <button type="button" class="btn btn-outline btn-sm" id="addQ">+ Add a question</button>
+      </section>
+
+      <!-- Assignment -->
+      <section class="ed-sec" data-for="assignment">
+        <h3>Grading</h3>
+        <label class="fld"><span>Pass mark</span><span class="suffix"><input id="l_apass" type="number" min="1" max="100" value="70" />%</span></label>
+        <p class="muted fld-help">Learners submit text or a link. You grade it from the grading queue and can return it for changes.</p>
+      </section>
+
+      <!-- Resources, for any item -->
+      <details class="ed-more" id="resDetails"><summary>Attach files or links <span class="muted" id="resCount"></span></summary>
+        <div id="resList"></div>
+        <button type="button" class="btn btn-ghost btn-sm" id="addRes">+ Add a file or link</button>
+      </details>
+
+      <label class="chk"><input type="checkbox" id="l_preview" /> <span>Free preview — anyone can open it without signing in</span></label>
+
+      <details class="ed-more ed-adv"><summary>Advanced</summary>
+        <div class="grid2">
+          <label class="fld"><span>Type</span>
+            <select id="l_uikind"><option value="reading">Reading</option><option value="video">Video</option><option value="quiz">Quiz</option><option value="assignment">Assignment</option><option value="discussion">Discussion</option></select></label>
+          <label class="fld"><span>Time it takes (min) <em class="muted">— 0 works it out</em></span><input id="l_duration" type="number" min="0" value="0" /></label>
+          <label class="fld"><span>Share of the grade <em class="muted">(graded items)</em></span><input id="l_weight" type="number" min="1" max="100" value="1" /></label>
+          <label class="fld"><span>Web address</span><input id="l_slug" placeholder="made from the title" autocomplete="off" /></label>
+        </div>
+        <select id="l_kind" hidden><option value=""></option><option value="assignment"></option><option value="discussion"></option></select>
+      </details>
+      <p class="muted fld-help" id="uploadMsg" role="status" aria-live="polite"></p>
+      <p class="modal-msg" id="lessonMsg" role="alert"></p>
     </form>
     <div class="modal-foot">
+      <span class="muted save-state" id="saveState" aria-live="polite"></span>
       <button class="btn btn-ghost" id="lessonCancel" type="button">Cancel</button>
-      <button class="btn btn-primary" id="lessonSave" type="button">Save lesson</button>
+      <button class="btn btn-primary" id="lessonSave" type="button">Save</button>
     </div>
   </div>
 </div>
 
-<!-- Module editor modal -->
+<!-- Module editor: its introduction, and how to start it -->
 <div class="modal" id="modModal" role="dialog" aria-modal="true" aria-labelledby="modModalTitle" hidden>
   <div class="modal-card">
     <div class="modal-head"><h2 id="modModalTitle">Module</h2><button class="icon-x" id="modClose" aria-label="Close">×</button></div>
-    <form id="modForm" class="modal-body">
-      <label class="fld"><span>Title *</span><input id="m_title" required /></label>
-      <label class="fld"><span>What this module covers</span><textarea id="m_summary" rows="3"></textarea></label>
-      <label class="fld"><span>Learning objectives (one per line)</span><textarea id="m_objectives" rows="4" placeholder="Explain…&#10;Build…"></textarea></label>
-      <p class="modal-msg" id="modMsg"></p>
+    <form id="modForm" class="modal-body" novalidate>
+      <label class="fld"><span>Module title</span><input id="m_title" required placeholder="e.g. Week 1 — Why organise" autocomplete="off" /></label>
+      <label class="fld"><span>Introduction <em class="muted">— shown to learners at the start of the module</em></span><textarea id="m_summary" rows="3" placeholder="In this module you will…"></textarea></label>
+      <label class="fld"><span>By the end, learners will be able to… <em class="muted">(one per line)</em></span><textarea id="m_objectives" rows="4" placeholder="Explain what a mandate is&#10;Plan a first meeting"></textarea></label>
+      <fieldset class="fld" id="m_startWrap"><legend>Start with</legend>
+        <div class="mode-pick">
+          <label class="mode-card"><input type="radio" name="m_start" value="week" checked /><b>A standard week</b><span>Two lessons, a practice check and a graded quiz, ready to fill in.</span></label>
+          <label class="mode-card"><input type="radio" name="m_start" value="empty" /><b>An empty module</b><span>Add each item yourself.</span></label>
+        </div>
+      </fieldset>
+      <p class="modal-msg" id="modMsg" role="alert"></p>
     </form>
     <div class="modal-foot">
       <button class="btn btn-ghost" id="modCancel" type="button">Cancel</button>

@@ -249,3 +249,63 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 .les-open:hover{text-decoration:underline}
 .mod-k{display:block;font-size:11.5px;font-weight:700;color:var(--muted)}
 .add-kinds{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+
+/* Item editor: one screen per kind */
+.modal-card--wide{max-width:860px;width:100%}
+.modal-head>div{display:flex;flex-direction:column;gap:4px}
+.kind-chip{align-self:flex-start;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2)}
+.ed-sec{display:flex;flex-direction:column;gap:10px;padding:16px 0;border-top:1px solid var(--line-2)}
+.ed-sec[hidden]{display:none}
+.ed-sec h3{margin:0;font-size:15px}
+.ed-more{border:1px solid var(--line);border-radius:12px;padding:0 14px;margin:8px 0}
+.ed-more summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:6px;font-weight:600}
+.ed-more[open]{padding-bottom:14px}
+.ed-more textarea{width:100%;box-sizing:border-box;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px}
+.ed-adv summary{color:var(--ink-2)}
+.src-pick,.mode-pick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.src-card,.mode-card{display:flex;flex-direction:column;gap:4px;text-align:left;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer}
+.src-card span,.mode-card span{font-size:13px;color:var(--ink-2)}
+.src-card--link{cursor:default}
+.src-card--link input{margin-top:6px;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.mode-card input{position:absolute;opacity:0;width:1px;height:1px}
+.mode-card{position:relative}
+.mode-card:has(input:checked){border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.mode-card:has(input:focus-visible){outline:2px solid var(--gold);outline-offset:2px}
+.file-ok{margin:0;font-weight:600;color:var(--ink)}
+.suffix{display:flex;align-items:center;gap:6px}
+.suffix input{width:90px}
+.qcard .q-n{font-weight:700;min-width:22px}
+.qcard .q-hint{margin:2px 0 4px;font-size:12.5px}
+.save-state{margin-right:auto}
+.tox-tinymce{border-radius:10px!important}
+@media (max-width:640px){.src-pick,.mode-pick{grid-template-columns:1fr}}
+
+/* Readiness checklist */
+.ready{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:16px;background:var(--surface)}
+.ready h3{margin:0 0 6px;font-size:15px}
+.ready.is-ok h3::before{content:"✓ ";color:var(--ok)}
+.ready ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.ready li{display:flex;align-items:center;gap:8px;font-size:14px}
+.ready .r-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.ready .r-fix .r-dot{background:var(--warn)}
+.ready .link-btn{text-align:left}
+
+/* Course form: steps, a cover preview */
+.ed-step{border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;background:var(--surface)}
+.ed-step h2{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:17px}
+.ed-step h2 span{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-2);border:1px solid var(--line);font-size:13px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.cover-row{display:flex;gap:16px;align-items:center;margin-top:6px}
+.cover-prev{width:160px;aspect-ratio:1200/630;border-radius:10px;background:var(--surface-2) center/cover no-repeat;border:1px dashed var(--line);flex-shrink:0}
+.cover-prev.has{border-style:solid}
+@media (max-width:760px){.grid3{grid-template-columns:1fr}.cover-row{flex-direction:column;align-items:flex-start}}
+
+#lessonModal .modal-head,#modModal .modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+#lessonForm{display:flex;flex-direction:column}
+#lessonForm.is-quiz>.fld:first-child{order:-3}
+#lessonForm.is-quiz>.ed-sec[data-for="quiz"]{order:-2}
+.qcard .q-prompt,.qcard .q-explain{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.qcard .q-prompt{font-weight:600}
+
+/* Writing boxes read as writing, not code */
+.fld textarea,.ed-more textarea{font-family:inherit;line-height:1.5}

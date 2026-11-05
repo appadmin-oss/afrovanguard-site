@@ -363,6 +363,46 @@ final class LmsCourseware
         return $st->rowCount() > 0;
     }
 
+    /**
+     * Is this course ready for learners? A checklist an author works through,
+     * not a gate: [['level' => 'fix'|'tip', 'text' => …, 'lesson' => id|null, 'module' => id|null], …].
+     * "fix" is something a learner would trip over (an empty item, a starter
+     * question nobody replaced); "tip" makes the course better.
+     */
+    public function readiness(array $course): array
+    {
+        $out = [];
+        $add = static function (string $level, string $t, ?int $l = null, ?int $m = null) use (&$out): void { $out[] = ['level' => $level, 'text' => $t, 'lesson' => $l, 'module' => $m]; };
+        if (trim((string) ($course['summary'] ?? '')) === '') $add('fix', 'Add a one-line summary — it is what the catalogue card shows.');
+        if (trim((string) ($course['cover_url'] ?? '')) === '') $add('tip', 'Add a cover image.');
+        if (!self::skills($course)) $add('tip', 'List the skills learners will gain — the course page and search use them.');
+        $mods = $this->lms->curriculum((int) $course['id']);
+        if (!$mods) { $add('fix', 'Add your first module.'); return $out; }
+        $s = $this->db->prepare('SELECT id, body_html FROM lessons WHERE course_id = ?');
+        $s->execute([(int) $course['id']]);
+        $bodies = [];
+        foreach ($s->fetchAll() as $r) $bodies[(int) $r['id']] = trim(strip_tags((string) $r['body_html']));
+        $graded = 0;
+        foreach ($mods as $i => $m) {
+            $mid = (int) $m['id']; $name = 'Module ' . ($i + 1);
+            if (!$m['lessons']) { $add('fix', $name . ' has no items.', null, $mid); continue; }
+            if (trim((string) ($m['summary'] ?? '')) === '') $add('tip', $name . ' has no introduction — learners see it when the module starts.', null, $mid);
+            foreach ($m['lessons'] as $l) {
+                $lid = (int) $l['id']; $type = (string) ($l['type'] ?? 'reading'); $title = '“' . $l['title'] . '”';
+                $body = $bodies[$lid] ?? '';
+                $starter = in_array($body, ['Write your first lesson here.', 'Write your second lesson here.'], true);
+                if ($type === 'reading' && ($body === '' || $starter)) $add('fix', $title . ' has no text yet.', $lid, $mid);
+                if (in_array($type, ['assignment', 'discussion'], true) && $body === '') $add('fix', $title . ' needs ' . ($type === 'assignment' ? 'instructions.' : 'a prompt.'), $lid, $mid);
+                if (in_array($type, ['quiz', 'practice'], true) && str_contains((string) ($l['quiz_json'] ?? ''), 'Replace this with your question')) $add('fix', $title . ' still has the starter question.', $lid, $mid);
+                if ($type === 'video' && str_starts_with((string) $l['video_url'], '/uploads/') && empty($l['captions_url'] ?? null)) $add('tip', $title . ' has no captions.', $lid, $mid);
+                if ($type === 'quiz' || $type === 'assignment') $graded++;
+            }
+        }
+        if (!$graded) $add('tip', 'Nothing is graded, so the certificate is given for finishing. Add a graded quiz or an assignment to certify a pass.');
+        if (($course['status'] ?? '') !== 'published') $add('tip', 'The course is a draft. Publish it from Courses when the list above is clear.');
+        return $out;
+    }
+
     /* ── Catalogue figures (grouped, never per row) ──────────────────── */
 
     /**

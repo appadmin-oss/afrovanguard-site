@@ -350,3 +350,25 @@ ck('order: the second is shut until the first is done', !$lms->canAccess($u3, $s
 $lms->markComplete((int) $u3['id'], $L($s1));
 ck('order: and opens once it is', $lms->canAccess($u3, $seqC, $L($s2)) && $lms->canAccessMany($u3, $seqC, [$L($s2)])[$s2] === true);
 ck('order: an ordinary course is not in order', $lms->canAccess($u3, $plain, $lms->lessonById($pl)));
+
+/* ══ Readiness: what an author still has to finish ══════════════════════ */
+
+$rc = $ac->bySlug($ac->save(['title' => 'Courseware Readiness', 'summary' => '', 'status' => 'draft', 'access_type' => 'open']), true);
+$rr = $cw->readiness($rc);
+ck('readiness: an empty course asks for a summary and a first module', in_array('fix', array_column($rr, 'level'), true)
+   && (bool) array_filter($rr, static fn($i) => str_contains($i['text'], 'summary')) && (bool) array_filter($rr, static fn($i) => str_contains($i['text'], 'first module')));
+$rm = $lms->addModule((int) $rc['id'], 'Week 1');
+$re = $lms->saveLesson(['module_id' => $rm, 'title' => 'Lesson 1', 'slug' => '', 'body_html' => '<p>Write your first lesson here.</p>']);
+$rq = $lms->saveLesson(['module_id' => $rm, 'title' => 'Module quiz', 'slug' => '', 'body_html' => '',
+    'quiz_json' => json_encode(['pass' => 70, 'questions' => [['q' => 'Replace this with your question', 'options' => ['First answer', 'Second answer'], 'answer' => 0]]])]);
+$rr = $cw->readiness($ac->bySlug($rc['slug'], true));
+$texts = implode(' | ', array_column($rr, 'text'));
+ck('readiness: a starter lesson nobody wrote is flagged, and points at it', str_contains($texts, '“Lesson 1” has no text yet.') && in_array($re, array_column($rr, 'lesson'), true));
+ck('readiness: a starter question nobody replaced is flagged', str_contains($texts, '“Module quiz” still has the starter question.'));
+ck('readiness: a module with no introduction is a tip, not a fix', (bool) array_filter($rr, static fn($i) => $i['level'] === 'tip' && str_contains($i['text'], 'no introduction')));
+$lms->saveLesson(['id' => $re, 'body_html' => '<p>A real lesson about mandates.</p>']);
+$lms->saveLesson(['id' => $rq, 'quiz_json' => json_encode(['pass' => 70, 'questions' => [['q' => 'Who gives a mandate?', 'options' => ['The people', 'Nobody'], 'answer' => 0]]])]);
+$lms->describeModule($rm, 'Why organise.', '');
+$db->prepare("UPDATE courses SET summary = 'A summary.' WHERE id = ?")->execute([(int) $rc['id']]);
+$rr = $cw->readiness($ac->bySlug($rc['slug'], true));
+ck('readiness: once written, nothing is left to fix', !in_array('fix', array_column($rr, 'level'), true));

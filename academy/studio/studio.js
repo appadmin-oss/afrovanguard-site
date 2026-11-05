@@ -53,7 +53,7 @@
     var btn = e.target.querySelector('button'); btn.disabled = true;
     post('login', { token: $('#token').value }).then(function (d) {
       btn.disabled = false;
-      if (d && d.ok) { csrf = d.csrf || ''; showApp(true); var hm = /^#curriculum=([a-z0-9-]+)$/.exec(location.hash); if (hm) route('curriculum', hm[1]); else route('overview'); }
+      if (d && d.ok) { csrf = d.csrf || ''; showApp(true); startRoute(); }
       else $('#loginMsg').textContent = (d && d.error) || 'Could not sign in.';
     }).catch(function () { btn.disabled = false; $('#loginMsg').textContent = 'Network error.'; });
   });
@@ -187,6 +187,14 @@
     language: 'c_language', skills: 'c_skills', prerequisites: 'c_prereqs', pass_mark: 'c_pass_mark', pace_weeks: 'c_pace_weeks' };
   function toggledPrice() { $('#priceWrap').hidden = $('#c_access').value !== 'paid'; }
   $('#c_access').addEventListener('change', toggledPrice);
+  /* The cover: an upload, shown as a picture, never as a web address. */
+  function showCover() {
+    var u = $('#c_cover').value, pv = $('#c_coverPrev');
+    pv.style.backgroundImage = u ? 'url("' + u.replace(/["\\]/g, '') + '")' : '';
+    pv.classList.toggle('has', !!u); $('#c_coverClear').hidden = !u;
+  }
+  $('#c_coverClear').addEventListener('click', function () { $('#c_cover').value = ''; showCover(); });
+  new MutationObserver(showCover).observe($('#c_cover'), { attributes: true });
   function openCourse(slug) {
     editingSlug = slug;
     $('#courseNote').textContent = '';
@@ -199,6 +207,11 @@
       $('#c_featured').checked = !!(c.featured && c.featured != '0');
       $('#c_sequential').checked = !!(c.sequential && c.sequential != '0');
       $('#c_instructor').value = c.instructor_email || '';
+      if (c.level && !$$('#c_level option').some(function (o) { return o.value === c.level; })) { var o = document.createElement('option'); o.textContent = c.level; $('#c_level').appendChild(o); }
+      $('#c_level').value = c.level || 'All levels';
+      showCover();
+      richInit('c_body', c.body_html || '');
+      get('ac_categories').then(function (r) { $('#c_categories').innerHTML = ((r && r.categories) || []).map(function (x) { return '<option value="' + esc(x) + '">'; }).join(''); });
       toggledPrice();
       VIEWS.course.title = slug ? 'Edit course' : 'New course';
       route('course');
@@ -209,6 +222,7 @@
   function saveCourse() {
     var payload = {};
     Object.keys(CF).forEach(function (k) { var el = $('#' + CF[k]); if (el) payload[k] = el.value; });
+    payload.body_html = richGet('c_body');
     payload.status = $('#c_status').value; payload.access_type = $('#c_access').value;
     payload.gradient = $('#c_gradient').value; payload.featured = $('#c_featured').checked; payload.sequential = $('#c_sequential').checked ? 1 : 0;
     if (editingSlug && !payload.slug) payload.slug = editingSlug;
@@ -275,6 +289,25 @@
       if (!d || !d.ok) { wrap.innerHTML = '<p class="empty">' + esc((d && d.error) || 'Could not load.') + '</p>'; return; }
       curMods = (d.modules || []).map(function (m) { m.id = +m.id; (m.lessons || []).forEach(function (l) { l.id = +l.id; }); return m; });
       draw(slug);
+      loadReadiness(slug);
+    });
+  }
+  /* Is it ready for learners? Each line opens the thing to fix. */
+  function loadReadiness(slug) {
+    var box = $('#readiness');
+    get('ac_readiness', 'slug=' + encodeURIComponent(slug)).then(function (d) {
+      var items = (d && d.items) || [], fixes = items.filter(function (i) { return i.level === 'fix'; });
+      box.hidden = false;
+      box.className = 'ready ' + (fixes.length ? 'is-fix' : 'is-ok');
+      box.innerHTML = '<h3>' + (fixes.length ? fixes.length + ' thing' + (fixes.length === 1 ? '' : 's') + ' to finish before learners arrive' : 'Ready for learners') + '</h3>'
+        + (items.length ? '<ul>' + items.map(function (i, n) {
+            return '<li class="r-' + esc(i.level) + '"><span class="r-dot" aria-hidden="true"></span>'
+              + (i.lesson || i.module ? '<button type="button" class="link-btn" data-ri="' + n + '">' + esc(i.text) + '</button>' : esc(i.text)) + '</li>';
+          }).join('') + '</ul>' : '');
+      $$('[data-ri]', box).forEach(function (b) { b.onclick = function () {
+        var i = items[+b.getAttribute('data-ri')];
+        if (i.lesson) openLesson(i.lesson, null); else openModule(curMods.filter(function (m) { return m.id === i.module; })[0] || null);
+      }; });
     });
   }
   function draw(slug, focusSel) {
@@ -380,29 +413,74 @@
     });
   }
 
-  /* ── Lesson modal + quiz builder ──
-     A question is single-answer, multi-select or true/false, with an optional
-     explanation shown after the learner answers. The server re-validates
-     every question (LmsRepository::normaliseQuestion). */
-  var lessonId = 0, lessonModuleId = 0;
+  /* ── Item editor ──
+     One screen per kind of item (reading, video, quiz, assignment,
+     discussion). The kind is chosen when the item is added. Text is written
+     in a rich editor (TinyMCE, fetched the first time it is needed); nothing
+     asks for HTML, a file path or a web address. The server re-validates
+     every field (lesson_save → LmsRepository::saveLesson / normaliseQuestion). */
+  var lessonId = 0, lessonModuleId = 0, uiKind = 'reading', lessonOpener = null, dirty = false;
+  var KIND_UI = {
+    reading:    { label: 'Reading',    body: 'Lesson text', help: 'Write as you would in a document. Paste a YouTube or Loom link on its own line to embed it.' },
+    video:      { label: 'Video',      body: 'Notes under the video', help: 'Optional: what to look out for, or what to do next.' },
+    quiz:       { label: 'Quiz',       body: 'Introduction (optional)', help: 'A line or two shown above the questions.' },
+    assignment: { label: 'Assignment', body: 'Instructions', help: 'Say exactly what to hand in and how it will be judged.' },
+    discussion: { label: 'Discussion', body: 'The prompt', help: 'Ask one clear question. Learners complete the item by replying.' }
+  };
+
+  /* Rich text: TinyMCE when it arrives, a plain box until then (and if it never does). */
+  var tinyLoading = null;
+  function loadTiny() {
+    if (window.tinymce) return Promise.resolve(true);
+    if (tinyLoading) return tinyLoading;
+    tinyLoading = new Promise(function (resolve) {
+      var s = document.createElement('script'); s.src = '/assets/vendor/tinymce/tinymce.min.js';
+      s.onload = function () { resolve(!!window.tinymce); }; s.onerror = function () { resolve(false); };
+      document.head.appendChild(s);
+    });
+    return tinyLoading;
+  }
+  function richInit(id, html) {
+    var ta = $('#' + id); ta.value = html || '';
+    if (window.tinymce && tinymce.get(id)) tinymce.get(id).remove();
+    loadTiny().then(function (ok) {
+      if (!ok || !document.body.contains(ta)) return;
+      if (tinymce.get(id)) tinymce.get(id).remove();
+      var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+      tinymce.init({
+        target: ta, height: 320, menubar: false, branding: false, promotion: false, license_key: 'gpl',
+        skin: dark ? 'oxide-dark' : 'oxide', content_css: dark ? 'dark' : 'default',
+        plugins: 'link lists autolink autoresize', autoresize_bottom_margin: 20, min_height: 200, max_height: 640, statusbar: false,
+        toolbar: 'blocks | bold italic | bullist numlist | link | avimage | blockquote | undo redo',
+        block_formats: 'Paragraph=p; Heading=h2; Subheading=h3',
+        link_default_target: '_blank', convert_urls: false,
+        setup: function (ed) {
+          ed.ui.registry.addButton('avimage', { icon: 'image', tooltip: 'Insert an image', onAction: function () {
+            uploadFile('image/*').then(function (url) { ed.insertContent('<p><img src="' + esc(url) + '" alt=""></p>'); }).catch(function () {});
+          } });
+          ed.on('input change', function () { dirty = true; });
+        }
+      });
+    });
+  }
+  function richGet(id) { return (window.tinymce && tinymce.get(id)) ? tinymce.get(id).getContent() : $('#' + id).value; }
+
+  /* Questions: one answer, several, or true/false, with an optional explanation. */
   function qCard(q) {
-    q = q || { type: 'single', q: '', options: ['', ''], answer: 0, explain: '' };
-    var type = q.type || 'single';
+    q = q || { type: 'single', q: '', options: ['', ''], answer: null, explain: '' };
     var card = document.createElement('div'); card.className = 'qcard';
-    card.innerHTML = '<div class="qrow"><select class="q-type" aria-label="Question type"><option value="single">One answer</option><option value="multi">Several answers</option><option value="truefalse">True / false</option></select>'
-      + '<input type="text" class="q-prompt" placeholder="Question" value="' + esc(q.q) + '" /><button type="button" class="link-btn q-rm">Remove</button></div>'
-      + '<div class="q-opts"></div><button type="button" class="btn btn-ghost btn-sm q-addopt">+ Option</button>'
-      + '<input type="text" class="q-explain" placeholder="Explanation shown after answering (optional)" value="' + esc(q.explain || '') + '" />';
-    var sel = card.querySelector('.q-type'); sel.value = type;
-    var opts = card.querySelector('.q-opts');
-    var group = 'rg' + Math.random().toString(36).slice(2);
-    var keys = [].concat(q.answer == null ? [0] : q.answer).map(Number);
+    card.innerHTML = '<div class="qrow"><span class="q-n"></span><input type="text" class="q-prompt" placeholder="Write the question" value="' + esc(q.q) + '" />'
+      + '<select class="q-type" aria-label="Answer type"><option value="single">One right answer</option><option value="multi">Several right answers</option><option value="truefalse">True or false</option></select>'
+      + '<button type="button" class="link-btn q-rm" aria-label="Remove question">Remove</button></div>'
+      + '<p class="muted q-hint">Tick the right answer.</p><div class="q-opts"></div><button type="button" class="btn btn-ghost btn-sm q-addopt">+ Add an answer</button>'
+      + '<input type="text" class="q-explain" placeholder="Why that is right (shown after answering) — optional" value="' + esc(q.explain || '') + '" />';
+    var sel = card.querySelector('.q-type'); sel.value = q.type || 'single';
+    var opts = card.querySelector('.q-opts'), group = 'rg' + Math.random().toString(36).slice(2);
     function addOpt(val, checked) {
       var row = document.createElement('div'); row.className = 'qopt';
-      var multi = sel.value === 'multi';
-      row.innerHTML = '<input type="' + (multi ? 'checkbox' : 'radio') + '" name="' + group + '" aria-label="Correct answer" ' + (checked ? 'checked' : '') + ' />'
-        + '<input type="text" class="o-text" placeholder="Answer option" value="' + esc(val || '') + '" /><button type="button" class="link-btn o-rm" aria-label="Remove option">✕</button>';
-      row.querySelector('.o-rm').onclick = function () { opts.removeChild(row); };
+      row.innerHTML = '<input type="' + (sel.value === 'multi' ? 'checkbox' : 'radio') + '" name="' + group + '" aria-label="Right answer" ' + (checked ? 'checked' : '') + ' />'
+        + '<input type="text" class="o-text" placeholder="An answer" value="' + esc(val || '') + '" /><button type="button" class="link-btn o-rm" aria-label="Remove answer">✕</button>';
+      row.querySelector('.o-rm').onclick = function () { if ($$('.qopt', opts).length > 2) opts.removeChild(row); };
       opts.appendChild(row);
     }
     function draw(list, picked) {
@@ -412,141 +490,219 @@
       $$('.o-text', opts).forEach(function (t) { t.readOnly = tf; });
       $$('.o-rm', opts).forEach(function (b) { b.hidden = tf; });
       card.querySelector('.q-addopt').hidden = tf;
+      card.querySelector('.q-hint').textContent = sel.value === 'multi' ? 'Tick every right answer.' : 'Tick the right answer.';
     }
     function current() {
       return { list: $$('.qopt', opts).map(function (r) { return r.querySelector('.o-text').value; }),
                picked: $$('.qopt', opts).map(function (r, i) { return r.querySelector('input:not(.o-text)').checked ? i : -1; }).filter(function (i) { return i > -1; }) };
     }
-    draw(q.options || ['', ''], keys);
-    sel.onchange = function () { var c = current(); draw(sel.value === 'truefalse' || c.list.every(function (x) { return x === 'True' || x === 'False'; }) && sel.value !== 'truefalse' ? ['', ''] : c.list, sel.value === 'multi' ? c.picked : c.picked.slice(0, 1)); };
+    /* A new question has nothing ticked, so the author has to choose — a default would quietly make the first answer right. */
+    draw(q.options || ['', ''], q.answer == null ? [] : [].concat(q.answer).map(Number));
+    sel.onchange = function () { var c = current(); var tfWas = c.list.join('|') === 'True|False'; draw(sel.value === 'truefalse' || tfWas ? ['', ''] : c.list, sel.value === 'multi' ? c.picked : c.picked.slice(0, 1)); };
     card.querySelector('.q-addopt').onclick = function () { addOpt('', false); };
-    card.querySelector('.q-rm').onclick = function () { card.parentNode.removeChild(card); };
+    card.querySelector('.q-rm').onclick = function () { card.parentNode.removeChild(card); numberQs(); };
     return card;
   }
-  function syncKind() {
-    var k = $('#l_kind').value;
-    $('#apassWrap').hidden = k !== 'assignment';
-    $('#quizWrap').hidden = k !== '';
-    $('#l_body_label').textContent = k === 'assignment' ? 'Instructions (HTML allowed)' : (k === 'discussion' ? 'Discussion prompt (HTML allowed)' : 'Body (HTML allowed)');
+  function numberQs() { $$('#quizQuestions .qcard .q-n').forEach(function (n, i) { n.textContent = (i + 1) + '.'; }); }
+  $('#addQ').onclick = function () { $('#quizQuestions').appendChild(qCard()); numberQs(); var p = $$('#quizQuestions .q-prompt'); p[p.length - 1].focus(); };
+
+  function syncMode() {
+    var graded = ($('input[name="q_mode"]:checked') || {}).value !== 'practice';
+    $('#q_graded').checked = graded; $('#gradedOpts').hidden = !graded;
   }
-  $('#l_kind').addEventListener('change', syncKind);
+  $$('input[name="q_mode"]').forEach(function (r) { r.addEventListener('change', syncMode); });
+
+  function showKind(k) {
+    uiKind = KIND_UI[k] ? k : 'reading';
+    var ui = KIND_UI[uiKind];
+    $('#l_kindChip').textContent = ui.label; $('#l_kindChip').className = 'kind-chip k-' + uiKind;
+    $('#l_uikind').value = uiKind;
+    $('#lessonForm').className = 'modal-body is-' + uiKind;   // a quiz shows its questions before its introduction (CSS order)
+    $$('#lessonForm .ed-sec').forEach(function (s) { s.hidden = (' ' + s.getAttribute('data-for') + ' ').indexOf(' ' + uiKind + ' ') < 0; });
+    $('#l_body_label').textContent = ui.body; $('#l_body_help').textContent = ui.help;
+    $('#l_kind').value = uiKind === 'assignment' || uiKind === 'discussion' ? uiKind : '';
+    $('#lessonSave').textContent = lessonId ? 'Save' : 'Add ' + ui.label.toLowerCase();
+  }
+  $('#l_uikind').addEventListener('change', function () { showKind(this.value); if (uiKind === 'quiz' && !$$('#quizQuestions .qcard').length) { $('#quizQuestions').appendChild(qCard()); numberQs(); } });
+
+  /* Files are named, never shown as paths. */
+  function fileName(url) { try { return decodeURIComponent(String(url).split('?')[0].split('/').pop()); } catch (e) { return url; } }
+  function showVideo() {
+    var v = $('#l_video').value.trim(), up = /^\/uploads\/|res\.cloudinary\.com\/.+\/video\//.test(v);
+    $('#videoNow').hidden = !v; $('#videoNow').textContent = v ? (up ? '✓ Uploaded: ' + fileName(v) : '✓ Link added') : '';
+    $('#captionsRow').hidden = !up;
+    var c = $('#l_captions').value; $('#captionsNow').textContent = c ? '✓ ' + fileName(c) : 'Captions help everyone, and are needed by learners who cannot hear.';
+  }
+  $('#l_video').addEventListener('input', showVideo);
   $$('[data-upload]').forEach(function (b) {
     b.addEventListener('click', function () {
       b.disabled = true;
-      uploadFile(b.getAttribute('data-accept')).then(function (url) { $('#' + b.getAttribute('data-upload')).value = url; })
-        .catch(function () {}).then(function () { b.disabled = false; });
+      uploadFile(b.getAttribute('data-accept')).then(function (url) {
+        $('#' + b.getAttribute('data-upload')).value = url; dirty = true; showVideo();
+        if (b.getAttribute('data-upload') === 'c_cover') showCover();
+        if (b.getAttribute('data-media') === 'video') readDuration(url);
+      }).catch(function () {}).then(function () { b.disabled = false; });
     });
   });
+  /* An uploaded video knows its own length. */
+  function readDuration(url) {
+    var v = document.createElement('video'); v.preload = 'metadata'; v.muted = true;
+    v.onloadedmetadata = function () { if (v.duration && isFinite(v.duration) && !(+$('#l_duration').value)) $('#l_duration').value = Math.max(1, Math.round(v.duration / 60)); };
+    v.src = url;
+  }
+
   function resRow(r) {
     r = r || { title: '', url: '' };
     var row = document.createElement('div'); row.className = 'res-row';
-    row.innerHTML = '<input type="text" class="r-title" placeholder="Title (e.g. Slides)" value="' + esc(r.title) + '" />'
-      + '<input type="text" class="r-url" placeholder="https://… or upload" value="' + esc(r.url) + '" />'
-      + '<button type="button" class="btn btn-ghost btn-sm r-up">Upload</button><button type="button" class="link-btn r-rm" aria-label="Remove resource">✕</button>';
-    row.querySelector('.r-rm').onclick = function () { row.parentNode.removeChild(row); };
+    row.innerHTML = '<input type="text" class="r-title" placeholder="Name (e.g. Slides)" value="' + esc(r.title) + '" />'
+      + '<input type="text" class="r-url" placeholder="Paste a link, or upload →" value="' + esc(r.url) + '" />'
+      + '<button type="button" class="btn btn-ghost btn-sm r-up">Upload</button><button type="button" class="link-btn r-rm" aria-label="Remove">✕</button>';
+    row.querySelector('.r-rm').onclick = function () { row.parentNode.removeChild(row); countRes(); };
     row.querySelector('.r-up').onclick = function () {
-      uploadFile('').then(function (url) { row.querySelector('.r-url').value = url; if (!row.querySelector('.r-title').value) row.querySelector('.r-title').value = 'Download'; }).catch(function () {});
+      uploadFile('').then(function (url) { row.querySelector('.r-url').value = url; if (!row.querySelector('.r-title').value) row.querySelector('.r-title').value = fileName(url).replace(/\.[a-z0-9]+$/i, ''); countRes(); }).catch(function () {});
     };
-    $('#resList').appendChild(row);
+    $('#resList').appendChild(row); countRes();
   }
-  $('#addRes').onclick = function () { resRow(); };
+  function countRes() { var n = $$('#resList .res-row').length; $('#resCount').textContent = n ? '(' + n + ')' : ''; }
+  $('#addRes').onclick = function () { resRow(); $('#resDetails').open = true; };
+
+  /* Time, when not given: reading at 200 words a minute, a minute and a half a question. */
+  function estimate(html) {
+    var words = String(html || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
+    if (uiKind === 'quiz') return Math.max(2, Math.ceil($$('#quizQuestions .qcard').length * 1.5));
+    if (uiKind === 'assignment') return Math.max(20, Math.ceil(words / 200) + 20);
+    if (uiKind === 'discussion') return 10;
+    return Math.max(1, Math.ceil(words / 200));
+  }
+
   function openLesson(id, moduleId, preset) {
     lessonOpener = document.activeElement;
-    lessonId = id || 0; lessonModuleId = moduleId || 0;
-    $('#lessonMsg').textContent = '';
-    $('#quizQuestions').innerHTML = ''; $('#q_pass').value = 70; $('#q_attempts').value = 0; $('#q_graded').checked = true;
-    function fill(l) {
-      $('#lessonModalTitle').textContent = id ? 'Edit item' : 'New item';
+    lessonId = id || 0; lessonModuleId = moduleId || 0; dirty = false;
+    $('#lessonMsg').textContent = ''; $('#uploadMsg').textContent = ''; $('#saveState').textContent = '';
+    $('#quizQuestions').innerHTML = ''; $('#resList').innerHTML = ''; $('#resDetails').open = false;
+    function fill(l, kind) {
+      $('#lessonModalTitle').textContent = id ? (l.title || 'Edit item') : 'New ' + (KIND_UI[kind] || KIND_UI.reading).label.toLowerCase();
       $('#l_title').value = l.title || ''; $('#l_slug').value = l.slug || '';
-      $('#l_duration').value = l.duration_min || 0; $('#l_body').value = l.body_html || '';
-      $('#l_video').value = l.video_url || ''; $('#l_preview').checked = !!(l.is_preview && l.is_preview != '0');
-      $('#l_kind').value = l.kind || ''; $('#l_weight').value = l.weight || 1;
-      $('#l_captions').value = l.captions_url || ''; $('#l_transcript').value = l.transcript || ''; $('#uploadMsg').textContent = '';
-      $('#resList').innerHTML = '';
-      var res = []; try { res = l.resources_json ? JSON.parse(l.resources_json) : []; } catch (e) {}
-      (res || []).forEach(function (r) { resRow(r); });
+      $('#l_duration').value = l.duration_min || 0; $('#l_video').value = l.video_url || '';
+      $('#l_captions').value = l.captions_url || ''; $('#l_transcript').value = l.transcript || '';
+      $('#l_preview').checked = !!(l.is_preview && l.is_preview != '0'); $('#l_weight').value = l.weight || 1;
       var a = null; try { a = l.assignment_json ? JSON.parse(l.assignment_json) : null; } catch (e) {}
       $('#l_apass').value = (a && a.pass) || 70;
       var quiz = null; try { quiz = l.quiz_json ? JSON.parse(l.quiz_json) : null; } catch (e) {}
-      if (quiz && quiz.questions) {
-        $('#q_pass').value = quiz.pass || 70; $('#q_attempts').value = quiz.attempts || 0;
-        $('#q_graded').checked = quiz.graded === undefined ? true : !!quiz.graded;
-        quiz.questions.forEach(function (q) { $('#quizQuestions').appendChild(qCard(q)); });
-      }
-      syncKind();
+      var graded = !(quiz && quiz.graded === false);
+      $$('input[name="q_mode"]').forEach(function (r) { r.checked = r.value === (graded ? 'graded' : 'practice'); });
+      $('#q_pass').value = (quiz && quiz.pass) || 70; $('#q_attempts').value = String((quiz && quiz.attempts) || 0);
+      if (!$('#q_attempts').value) $('#q_attempts').value = '0';
+      ((quiz && quiz.questions) || []).forEach(function (q) { $('#quizQuestions').appendChild(qCard(q)); });
+      var res = []; try { res = l.resources_json ? JSON.parse(l.resources_json) : []; } catch (e) {}
+      (res || []).forEach(function (r) { resRow(r); });
+      showKind(kind); syncMode(); showVideo();
+      if (kind === 'quiz' && !$$('#quizQuestions .qcard').length) $('#quizQuestions').appendChild(qCard());
+      numberQs();
+      richInit('l_body', l.body_html || '');
       $('#lessonModal').hidden = false;
-      setTimeout(function () { var f = $('#l_title'); if (f) f.focus(); }, 30);
+      setTimeout(function () { $('#l_title').focus(); }, 30);
     }
-    if (!id) {
-      var pre = { kind: preset === 'assignment' || preset === 'discussion' ? preset : '' };
-      fill(pre);
-      if (preset === 'quiz') $('#quizQuestions').appendChild(qCard());
-      if (preset === 'video') setTimeout(function () { $('#l_video').focus(); }, 40);
-      return;
-    }
-    get('lesson_get', 'id=' + id).then(function (d) { fill((d && d.lesson) || {}); });
-  }
-  var lessonOpener = null;  // element to restore focus to on close
-  function closeLesson() { $('#lessonModal').hidden = true; if (lessonOpener && lessonOpener.focus) { try { lessonOpener.focus(); } catch (e) {} } lessonOpener = null; }
-  $('#lessonClose').onclick = closeLesson; $('#lessonCancel').onclick = closeLesson;
-  // Click the backdrop (outside the card) or press Esc to close.
-  $('#lessonModal').addEventListener('mousedown', function (e) { if (e.target === this) closeLesson(); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#lessonModal').hidden) closeLesson(); });
-  $('#addQ').onclick = function () { $('#quizQuestions').appendChild(qCard()); };
-  $('#lessonSave').onclick = function () {
-    var title = $('#l_title').value.trim(); if (!title) { $('#lessonMsg').textContent = 'A title is required.'; return; }
-    var kind = $('#l_kind').value;
-    var questions = [];
-    $$('#quizQuestions .qcard').forEach(function (card) {
-      var type = card.querySelector('.q-type').value;
-      var prompt = card.querySelector('.q-prompt').value.trim();
-      var rows = $$('.qopt', card).map(function (r) { return { text: r.querySelector('.o-text').value.trim(), correct: r.querySelector('input:not(.o-text)').checked }; }).filter(function (o) { return o.text !== ''; });
-      if (!prompt || rows.length < 2) return;
-      var picked = []; rows.forEach(function (o, i) { if (o.correct) picked.push(i); });
-      questions.push({ type: type, q: prompt, options: rows.map(function (o) { return o.text; }),
-        answer: type === 'multi' ? picked : (picked[0] || 0), explain: card.querySelector('.q-explain').value.trim() });
+    if (!id) { fill({}, preset || 'reading'); return; }
+    get('lesson_get', 'id=' + id).then(function (d) {
+      var l = (d && d.lesson) || {};
+      var k = l.kind === 'assignment' || l.kind === 'discussion' ? l.kind : (l.video_url ? 'video' : (l.quiz_json ? 'quiz' : 'reading'));
+      fill(l, k);
     });
-    var multiNoKey = questions.some(function (q) { return q.type === 'multi' && !q.answer.length; });
-    if (multiNoKey) { $('#lessonMsg').textContent = 'Tick at least one correct answer on each several-answer question.'; return; }
+  }
+  function closeLesson(force) {
+    if (!force && dirty && !confirm('Leave without saving your changes?')) return;
+    if (window.tinymce && tinymce.get('l_body')) tinymce.get('l_body').remove();
+    $('#lessonModal').hidden = true;
+    if (lessonOpener && lessonOpener.focus) { try { lessonOpener.focus(); } catch (e) {} }
+    lessonOpener = null;
+  }
+  $('#lessonForm').addEventListener('input', function () { dirty = true; });
+  $('#lessonClose').onclick = function () { closeLesson(false); }; $('#lessonCancel').onclick = function () { closeLesson(false); };
+  $('#lessonModal').addEventListener('mousedown', function (e) { if (e.target === this) closeLesson(false); });
+  document.addEventListener('keydown', function (e) {
+    if ($('#lessonModal').hidden) return;
+    if (e.key === 'Escape') closeLesson(false);
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); $('#lessonSave').click(); }
+  });
+
+  $('#lessonSave').onclick = function () {
+    var title = $('#l_title').value.trim();
+    var say = function (m, el) { $('#lessonMsg').textContent = m; if (el) el.focus(); };
+    if (!title) { say('Give it a title.', $('#l_title')); return; }
+    var body = richGet('l_body');
+    var questions = [];
+    if (uiKind === 'quiz') {
+      var bad = null;
+      $$('#quizQuestions .qcard').forEach(function (card, i) {
+        var type = card.querySelector('.q-type').value, prompt = card.querySelector('.q-prompt').value.trim();
+        var rows = $$('.qopt', card).map(function (r) { return { text: r.querySelector('.o-text').value.trim(), ok: r.querySelector('input:not(.o-text)').checked }; }).filter(function (o) { return o.text !== ''; });
+        if (!prompt && !rows.length) return;                                   // an untouched blank card
+        if (!prompt) bad = bad || ['Question ' + (i + 1) + ' has no question.', card.querySelector('.q-prompt')];
+        else if (rows.length < 2) bad = bad || ['Question ' + (i + 1) + ' needs at least two answers.', card.querySelector('.o-text')];
+        else if (!rows.some(function (o) { return o.ok; })) bad = bad || ['Tick the right answer for question ' + (i + 1) + '.', card.querySelector('.qopt input')];
+        var picked = []; rows.forEach(function (o, j) { if (o.ok) picked.push(j); });
+        questions.push({ type: type, q: prompt, options: rows.map(function (o) { return o.text; }), answer: type === 'multi' ? picked : (picked[0] || 0), explain: card.querySelector('.q-explain').value.trim() });
+      });
+      if (bad) { say(bad[0], bad[1]); return; }
+      if (!questions.length) { say('Add at least one question.', $('#addQ')); return; }
+    }
+    if (uiKind === 'video' && !$('#l_video').value.trim()) { say('Upload a video or paste its link.', $('#l_video')); return; }
     var payload = {
-      id: lessonId, module_id: lessonModuleId, title: title, slug: $('#l_slug').value.trim(),
-      body_html: $('#l_body').value, video_url: $('#l_video').value.trim(),
-      duration_min: +$('#l_duration').value || 0, is_preview: $('#l_preview').checked,
-      kind: kind, weight: +$('#l_weight').value || 1, assignment_pass: +$('#l_apass').value || 70,
-      captions_url: $('#l_captions').value.trim(), transcript: $('#l_transcript').value,
-      resources: $$('#resList .res-row').map(function (r) { return { title: r.querySelector('.r-title').value.trim(), url: r.querySelector('.r-url').value.trim() }; })
-        .filter(function (r) { return r.url !== ''; })
+      id: lessonId, module_id: lessonModuleId, title: title, slug: $('#l_slug').value.trim(), body_html: body,
+      duration_min: +$('#l_duration').value || estimate(body), is_preview: $('#l_preview').checked,
+      kind: $('#l_kind').value, weight: +$('#l_weight').value || 1, assignment_pass: +$('#l_apass').value || 70,
+      video_url: uiKind === 'video' ? $('#l_video').value.trim() : '',
+      captions_url: uiKind === 'video' ? $('#l_captions').value.trim() : '',
+      transcript: uiKind === 'video' ? $('#l_transcript').value : '',
+      resources: $$('#resList .res-row').map(function (r) { return { title: r.querySelector('.r-title').value.trim(), url: r.querySelector('.r-url').value.trim() }; }).filter(function (r) { return r.url !== ''; }),
+      quiz: uiKind === 'quiz' ? { pass: +$('#q_pass').value || 70, attempts: +$('#q_attempts').value || 0, graded: $('#q_graded').checked, questions: questions } : null
     };
-    if (kind === '' && questions.length) payload.quiz = { pass: +$('#q_pass').value || 70, attempts: +$('#q_attempts').value || 0, graded: $('#q_graded').checked, questions: questions };
-    $('#lessonSave').disabled = true;
+    var btn = $('#lessonSave'); btn.disabled = true; $('#saveState').textContent = 'Saving…';
     post('lesson_save', payload).then(function (d) {
-      $('#lessonSave').disabled = false;
-      if (d && d.ok) { toast('Saved', 'ok'); closeLesson(); renderCurriculum(curCourseSlug); }
-      else $('#lessonMsg').textContent = (d && d.error) || 'Save failed.';
-    }).catch(function () { $('#lessonSave').disabled = false; $('#lessonMsg').textContent = 'Network error.'; });
+      btn.disabled = false;
+      if (d && d.ok) { dirty = false; toast('Saved', 'ok'); closeLesson(true); renderCurriculum(curCourseSlug); }
+      else { $('#saveState').textContent = ''; say((d && d.error) || 'Could not save.'); }
+    }).catch(function () { btn.disabled = false; $('#saveState').textContent = ''; say('Network error — your work is still here. Try again.'); });
   };
 
-  /* ── Module modal: title, what it covers, learning objectives ── */
+  /* ── Module editor: title, introduction, objectives — and, for a new one, how to start it ── */
   var modEditing = 0, modOpener = null;
   function openModule(m) {
     modOpener = document.activeElement; modEditing = m ? m.id : 0;
     $('#modModalTitle').textContent = m ? 'Edit module' : 'New module';
-    $('#m_title').value = (m && m.title) || ''; $('#m_summary').value = (m && m.summary) || ''; $('#m_objectives').value = (m && m.objectives) || '';
+    $('#m_title').value = (m && m.title) || ('Module ' + (curMods.length + 1));
+    $('#m_summary').value = (m && m.summary) || ''; $('#m_objectives').value = (m && m.objectives) || '';
+    $('#m_startWrap').hidden = !!m;
     $('#modMsg').textContent = ''; $('#modModal').hidden = false;
-    setTimeout(function () { $('#m_title').focus(); }, 30);
+    setTimeout(function () { var t = $('#m_title'); t.focus(); t.select(); }, 30);
   }
   function closeModule() { $('#modModal').hidden = true; if (modOpener && modOpener.focus) { try { modOpener.focus(); } catch (e) {} } }
   $('#modClose').onclick = closeModule; $('#modCancel').onclick = closeModule;
   $('#modModal').addEventListener('mousedown', function (e) { if (e.target === this) closeModule(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#modModal').hidden) closeModule(); });
+  /* A standard week: the shape most modules take, so nobody starts from nothing. */
+  function starterWeek(modId) {
+    var ph = { type: 'single', q: 'Replace this with your question', options: ['First answer', 'Second answer'], answer: 0, explain: '' };
+    var items = [
+      { title: 'Lesson 1', kind: '', body_html: '<p>Write your first lesson here.</p>' },
+      { title: 'Lesson 2', kind: '', body_html: '<p>Write your second lesson here.</p>' },
+      { title: 'Practice check', kind: '', quiz: { pass: 50, graded: false, attempts: 0, questions: [ph] } },
+      { title: 'Module quiz', kind: '', quiz: { pass: 70, graded: true, attempts: 3, questions: [ph] } }
+    ];
+    return items.reduce(function (p, it) {
+      return p.then(function () { return post('lesson_save', Object.assign({ id: 0, module_id: modId, slug: '', duration_min: it.quiz ? 2 : 5 }, it)); });
+    }, Promise.resolve());
+  }
   $('#modSave').onclick = function () {
-    var t = $('#m_title').value.trim(); if (!t) { $('#modMsg').textContent = 'A title is required.'; return; }
+    var t = $('#m_title').value.trim(); if (!t) { $('#modMsg').textContent = 'Give the module a title.'; $('#m_title').focus(); return; }
     var p = { title: t, summary: $('#m_summary').value, objectives: $('#m_objectives').value };
     if (modEditing) p.id = modEditing; else p.course = curCourseSlug;
+    var week = !modEditing && ($('input[name="m_start"]:checked') || {}).value === 'week';
     $('#modSave').disabled = true;
     post('mod_save', p).then(function (r) {
-      $('#modSave').disabled = false;
-      if (r && r.ok) { closeModule(); renderCurriculum(curCourseSlug); } else $('#modMsg').textContent = (r && r.error) || 'Save failed.';
+      if (!(r && r.ok)) { $('#modSave').disabled = false; $('#modMsg').textContent = (r && r.error) || 'Could not save.'; return; }
+      return (week ? starterWeek(r.id) : Promise.resolve()).then(function () { $('#modSave').disabled = false; closeModule(); renderCurriculum(curCourseSlug); });
     }).catch(function () { $('#modSave').disabled = false; $('#modMsg').textContent = 'Network error.'; });
   };
 
@@ -701,8 +857,15 @@
   }
 
   /* ── Boot ── */
+  /* Where the Studio opens: a deep link (#curriculum=<slug>, from the admin
+     console's Curriculum button) or the overview. Both ways in — an existing
+     session and a fresh sign-in — come through here. */
+  function startRoute() {
+    var hm = /^#curriculum=([a-z0-9-]+)$/.exec(location.hash);
+    if (hm) route('curriculum', hm[1]); else route('overview');
+  }
   get('session').then(function (d) {
-    if (d && d.ok) { csrf = d.csrf || ''; showApp(true); route('overview'); }
+    if (d && d.ok) { csrf = d.csrf || ''; showApp(true); startRoute(); }
     else showApp(false);
   }).catch(function () { showApp(false); });
 })();

@@ -11,7 +11,7 @@ final class LmsRepository
     public function __construct(?PDO $pdo = null) { $this->db = $pdo ?? Database::pdo(); }
 
     /** The lesson columns an outline needs: everything but the body, which a list never shows. */
-    private const OUTLINE_COLS = 'l.id, l.module_id, l.course_id, l.slug, l.title, l.duration_min, l.is_preview, l.position, l.video_url, l.quiz_json, l.kind, l.weight, l.assignment_json, l.available_at';
+    private const OUTLINE_COLS = 'l.id, l.module_id, l.course_id, l.slug, l.title, l.duration_min, l.is_preview, l.position, l.video_url, l.quiz_json, l.kind, l.weight, l.assignment_json, l.available_at, l.captions_url';
 
     /** course_id => modules with lessons, for this request. Cleared by every write here. */
     private array $outline = [];

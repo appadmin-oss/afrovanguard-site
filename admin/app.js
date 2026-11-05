@@ -290,8 +290,28 @@
 
   /* ---- TinyMCE ---- */
   function getBody(id) { return (window.tinymce && tinymce.get(id)) ? tinymce.get(id).getContent() : ($('#' + id) ? $('#' + id).value : ''); }
+  /* The editor is fetched the first time it is needed, never on page load. */
+  var tinyLoading = null;
+  function loadTiny() {
+    if (window.tinymce) return Promise.resolve(true);
+    if (tinyLoading) return tinyLoading;
+    tinyLoading = new Promise(function (resolve) {
+      var s = document.createElement('script');
+      s.src = '/assets/vendor/tinymce/tinymce.min.js';
+      s.onload = function () { resolve(!!window.tinymce); };
+      s.onerror = function () { resolve(false); };
+      document.head.appendChild(s);
+    });
+    return tinyLoading;
+  }
   function initTiny(id, initial) {
-    if (!window.tinymce) { var ta = $('#' + id); if (ta) { ta.value = initial || ''; ta.style.minHeight = '420px'; } return; }
+    var ta0 = $('#' + id);
+    if (!window.tinymce) {
+      // Plain textarea at once; upgraded in place when the editor arrives.
+      if (ta0) { ta0.value = initial || ''; ta0.style.minHeight = '420px'; }
+      loadTiny().then(function (ok) { if (ok && ta0 && document.body.contains(ta0)) initTiny(id, ta0.value); });
+      return;
+    }
     if (tinymce.get(id)) tinymce.get(id).remove();
     var dark = document.documentElement.getAttribute('data-theme') === 'dark';
     tinymce.init({

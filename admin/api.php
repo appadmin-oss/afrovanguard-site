@@ -373,12 +373,23 @@ try {
             // Email/delivery health, distilled from the same signals as the System page.
             $mailReady = Mailer::configured();
             $mailHost  = defined('SMTP_HOST') ? (string) SMTP_HOST : '';
-            $health = ['ok' => 0, 'warn' => 0, 'off' => 0];
-            foreach (Config::diagnostics() as $g) {
-                foreach (($g['checks'] ?? []) as $c) {
-                    $st = $c['state'] ?? 'info';
-                    if (isset($health[$st])) $health[$st]++;
+            /* The three health numbers come from the full diagnostics, which
+               decrypt every setting, count information_schema and ask each
+               provider how it is set up — work the System page needs live and
+               the landing view does not, on every console load. Kept 15 minutes;
+               ?fresh=1 (the System page's refresh) recomputes. */
+            $health = null;
+            $hc = json_decode((string) (Database::metaGet('dash_health') ?? ''), true);
+            if (is_array($hc) && empty($_GET['fresh']) && (int) ($hc['at'] ?? 0) > time() - 900 && is_array($hc['h'] ?? null)) $health = $hc['h'];
+            if ($health === null) {
+                $health = ['ok' => 0, 'warn' => 0, 'off' => 0];
+                foreach (Config::diagnostics() as $g) {
+                    foreach (($g['checks'] ?? []) as $c) {
+                        $st = $c['state'] ?? 'info';
+                        if (isset($health[$st])) $health[$st]++;
+                    }
                 }
+                try { Database::metaSet('dash_health', json_encode(['at' => time(), 'h' => $health])); } catch (Throwable $e) { /* best effort */ }
             }
             json_out(['ok' => true, 'stats' => [
                 'diary_published'   => $cnt("SELECT COUNT(*) FROM articles WHERE status='published'"),
@@ -2194,6 +2205,11 @@ try {
             if (array_key_exists('quiz', $body) || array_key_exists('kind', $body)) $ld['quiz_json'] = $quizJson;
             $id = $lms->saveLesson($ld);
             json_out(['ok' => true, 'id' => $id]);
+        case 'ac_readiness': {
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            json_out(['ok' => true, 'items' => (new LmsCourseware(null, $lms))->readiness($cs)]);
+        }
         case 'outline_save': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
