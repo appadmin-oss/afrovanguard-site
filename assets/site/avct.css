@@ -140,6 +140,10 @@
 .avct-lstats dt{font-size:13px;color:var(--av-copy-3);margin-top:6px}
 .avct-map{background:var(--av-line);min-height:420px}
 .avct-map iframe{width:100%;height:100%;min-height:420px;border:0;display:block;filter:grayscale(.35)}
+.avct-map-load{all:unset;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;width:100%;height:100%;min-height:420px;padding:24px;text-align:center;cursor:pointer;color:var(--av-ink)}
+.avct-map-load b{font-size:16px;text-decoration:underline;text-underline-offset:3px}
+.avct-map-load small{font-size:14px;color:var(--av-slate)}
+.avct-map-load:focus-visible{outline:3px solid var(--av-gold);outline-offset:-3px}
 
 /* FAQ */
 .avct-faq{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:40px 80px;align-items:start}
@@ -186,7 +190,7 @@
   .avct-dir li{flex:0 0 82%;scroll-snap-align:start}
   .avct-tabs button{min-height:44px}
   .avct-lstats dd{font-size:30px}
-  .avct-map,.avct-map iframe{min-height:300px}
+  .avct-map,.avct-map iframe,.avct-map-load{min-height:300px}
   .avct-plat{grid-template-columns:1fr 1fr}
   .avct-plat a{padding:14px 12px;gap:10px}
   .avct-acc button{font-size:17px;min-height:44px}

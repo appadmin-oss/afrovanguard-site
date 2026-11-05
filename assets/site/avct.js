@@ -166,8 +166,23 @@
   });
 
   run('locations', () => {
-    const tabs = $$('[data-avct-tabs] [role=tab]'), panel = $('[data-avct-loc]'), map = $('[data-avct-map]');
+    const tabs = $$('[data-avct-tabs] [role=tab]'), panel = $('[data-avct-loc]'), box = $('[data-avct-map-box]');
     if (!tabs.length || !panel) return;
+    /* The map is Google's, and Google can set cookies from it, so it loads
+       only when asked for (privacy policy, "Cookies"). Until then a button
+       stands in its place; once shown, switching tabs moves the same map. */
+    let map = null;
+    const current = () => tabs.find(o => o.getAttribute('aria-selected') === 'true') || tabs[0];
+    const loadBtn = $('[data-avct-map-load]');
+    if (box && loadBtn) loadBtn.addEventListener('click', () => {
+      const t = current();
+      map = document.createElement('iframe');
+      map.title = t.dataset.name + ' map';
+      map.src = t.dataset.map;
+      map.referrerPolicy = 'no-referrer-when-downgrade';
+      box.replaceChildren(map);
+      map.focus();
+    });
     const select = (t, focus) => {
       tabs.forEach(o => { const on = o === t; o.setAttribute('aria-selected', String(on)); o.tabIndex = on ? 0 : -1; });
       panel.setAttribute('aria-labelledby', t.id);

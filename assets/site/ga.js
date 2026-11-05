@@ -89,7 +89,7 @@
     box.className = 'av-cc'; box.setAttribute('role', 'region'); box.setAttribute('aria-labelledby', 'av-cc-h');
     box.innerHTML = '<h2 id="av-cc-h">Cookies</h2>'
       + '<p>We’d like to use Google Analytics to count visits and see which pages help people. It sets cookies. '
-      + 'Nothing is sent until you allow it. <a href="/privacy-policy/#cookies">Privacy policy</a></p>'
+      + 'Nothing is sent until you allow it. The cookies the site needs to work are listed in our <a href="/privacy-policy/#cookies">privacy policy</a>.</p>'
       + '<div class="av-cc-b"><button type="button" data-v="1">Allow analytics</button><button type="button" data-v="0">Decline</button></div>';
     box.addEventListener('click', function (e) {
       var b = e.target.closest && e.target.closest('button[data-v]'); if (!b) return;

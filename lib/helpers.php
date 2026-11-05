@@ -290,11 +290,12 @@ function schema_org(): array {
         'url'   => rtrim(SITE_URL, '/') . '/',
         'logo'  => rtrim(SITE_URL, '/') . '/Images/og-image.png',
         'sameAs' => [
-            'https://www.instagram.com/afrovanguard/',
+            'https://www.instagram.com/afro.vanguard/',
             'https://twitter.com/afrovanguard',
             'https://www.facebook.com/afrovanguard/',
             'https://www.linkedin.com/company/afrovanguard/',
-            'https://www.youtube.com/@afrovanguard',
+            'https://www.youtube.com/@afrovanguardism',
+            'https://www.youtube.com/@okunalimosho',
         ],
     ];
 }

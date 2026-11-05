@@ -595,7 +595,7 @@ if ($action === 'newsletter') {
         'Welcome to the Afrovanguard community',
         [
             "You've been added to our newsletter. You'll receive weekly updates on programs, events, and impact stories from across the movement.",
-            'Follow us: <a href="https://www.instagram.com/afrovanguard/" style="color:#8A6406;text-decoration:underline">@afrovanguard</a>',
+            'Follow us: <a href="https://www.instagram.com/afro.vanguard/" style="color:#8A6406;text-decoration:underline">@afro.vanguard</a>',
             'Warm regards,<br><strong>The Afrovanguard Team</strong>',
         ],
         ['text' => 'See what we are building', 'url' => 'https://afrovanguard.org.ng/'],

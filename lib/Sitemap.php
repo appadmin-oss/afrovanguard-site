@@ -35,6 +35,7 @@ final class Sitemap
         ['mentorship/become-a-mentor/', '0.7', 'monthly'],
         ['contact.html', '0.5', 'yearly'],
         ['donate/', '0.8', 'monthly'],
+        ['reports/', '0.6', 'monthly'],
         ['privacy-policy/', '0.3', 'yearly'],
         ['terms/', '0.3', 'yearly'],
         ['give/', '0.9', 'daily'],

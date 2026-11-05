@@ -192,6 +192,12 @@
 /* Detail: other projects + appeals */
 .avpj-more{padding-top:clamp(64px,7vw,96px);padding-bottom:clamp(64px,7vw,96px)}
 .avpj-more-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:16px;margin-bottom:28px}
+/* Programmes a project runs (lib/projects_content.php 'programmes'). */
+.avpj-pgm{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px}
+.avpj-pgm li{background:var(--av-stone);border-radius:var(--av-r-14);padding:22px 24px}
+.avpj-pgm a{font-size:18px;font-weight:600;color:var(--av-ink);text-decoration:none}
+.avh .avpj-pgm a:hover{color:var(--av-gold-text)}
+.avpj-pgm p{margin:8px 0 0;font-size:15px;line-height:1.6;color:var(--av-copy)}
 .avpj-appeals{padding-top:clamp(56px,6vw,80px);padding-bottom:clamp(56px,6vw,80px);border-top:1px solid var(--av-line)}
 .avpj-others{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px}
 .avpj-card{background:var(--av-stone);border-radius:var(--av-r-12);overflow:hidden;display:flex;flex-direction:column;color:var(--av-ink);transition:transform .2s}

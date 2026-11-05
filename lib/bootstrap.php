@@ -395,6 +395,7 @@ require_once __DIR__ . '/AdminMfa.php';   /* a second factor on the Studio, port
 require_once __DIR__ . '/SuperAdmin.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Sitemap.php';
+require_once __DIR__ . '/Reports.php';       // published reports: /reports/ (docs/REPORTS.md)
 require_once __DIR__ . '/AuthArt.php';
 require_once __DIR__ . '/Cloudinary.php';
 require_once __DIR__ . '/Drive.php';

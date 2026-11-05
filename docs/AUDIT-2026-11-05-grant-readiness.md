@@ -48,20 +48,59 @@ counts, has reason to doubt every other number on the site.
 
 Pinned by `tests/siteaudit.test.php`.
 
-## 3. Needs an owner decision before the application goes in
+## 3. Owner decisions (answered 2026-11-05) and what changed
 
-These are facts only the organisation can confirm. The site currently
-contradicts itself on each one.
+| # | Question | Owner's answer | Done |
+|---|---|---|---|
+| O-1 | Founding year | **2017** | Sign-in page ("Est. 2017") and the founder profile now agree with Home, About and the footer. |
+| O-2 | How many programmes | **Seven projects**: Africa GATES, Career Hub, Business Executive Club, Techome, MediaPro, Kingdom Advancement Project, Street-To-Stardom. Programmes run under projects: Next Generation Genius and LCASP (formerly the Alimosho Summer School) are STS programmes. | `lib/projects_content.php` holds the seven; the STS page lists its programmes; Home, Projects, About, Contact, menus and footer say "seven projects". The Academy is no longer shown as a project. |
+| O-3 | Lives reached | **10,000+** | The founder profile's "5,000+" now reads 10,000+. The About timeline keeps 5,000+ for 2023, as a point on the way. |
+| O-4 | Volunteer counts | They vary by season (more during LCASP); not all are retained. | Left as they are; each count describes its own season. |
+| O-5 | Registration | Registered address: CACENTRE, 2 Abolude / Oremeji Street, off Akowonjo Road, Alimosho. | On the Contact page, the Reports page and in the search-engine data (JSON-LD). The CAC number is public record at the Corporate Affairs Commission and funders ask for it; it is not on the site, and can be added to the Contact page when you choose. |
+| O-6 | Non-discrimination, forms | Forms record sex as Male or Female. | Every form across this site, CACENTRE and NGG already offers only Male / Female. The NGV application store, which accepted any text, now keeps only Male, Female or blank. |
+| O-7 | Reports | Reports exist up to 2025, some large or incomplete; 2026 to come later this year. | New page **/reports/** (footer and About menu), listed from `lib/Reports.php`, with the 2026 annual report shown as in preparation. Procedure: `docs/REPORTS.md`. |
 
-| # | Finding | Where |
+**Before submitting to Cisco**, read their certification wording closely. Cisco's
+policy excludes organisations that deny service or employment on protected
+grounds, and the application asks the organisation to certify that.
+
+## 3A. Also fixed in the second pass
+
+| # | Problem | Fix |
 |---|---|---|
-| O-1 | **Founding year.** "Since 2017" (Home, About, "© 2017–2026", "9 years of impact") vs "Est. 2018" (sign-in page) vs the founder profile, which says "Founded Afrovanguard in 2018" and gives 2018 as the "since" year. | `index.html`, `about.html`, `login/index.php:120`, `member.html:336-338` |
-| O-2 | **Number of programmes.** "9 Programmes" / "Nine Pathways" (Home, Projects) vs "Eight programmes, one standard" (About) vs "8 flagship programmes" (founder profile). `lib/projects_content.php` lists nine, two of which (Africa GATES, NGV) are separate sites. | `index.html:338`, `projects/index.html`, `about.html:254`, `member.html:338` |
-| O-3 | **Lives reached.** "10,000+ lives transformed" (Home, About, Projects, Donate, Contact) vs "5,000+ beneficiaries" (founder profile). There is no source or date next to the 10,000 figure. Cisco asks for impact that has been validated: each headline number should have a year, a definition (reached? enrolled? completed?) and a link to the report it comes from. | as above |
-| O-4 | **Volunteer counts.** Donate says 20 in one place and 30 in another; LCASP says 20 and 50. | `donate.html`, `projects/sts/lcasp.html` |
-| O-5 | **No registration details anywhere on the site.** No CAC / Incorporated Trustees number, no registered address, no tax status. Cisco grants only to registered non-profits, and a reviewer will look in the footer or on the About page. | site-wide footer (`partials/avh-chrome.php`) |
-| O-6 | **No non-discrimination or safeguarding statement.** Cisco excludes organisations that deny service on protected grounds. A short public statement on About or in the footer answers this before anyone asks, and a safeguarding policy is expected of a youth organisation. "Kingdom Advancement Project" is a heritage and culture programme, not a religious one; say so on its page so a reviewer does not have to guess. | `about.html`, `projects/kap/` |
-| O-7 | **No published annual report or financials for Afrovanguard as a whole.** The only report on the site is STS 2025. A "Reports" link carrying the latest annual report, the audited or management accounts, and the board list would support the transparency criterion more than anything else on this page. | — |
+| F-7 | **An unresolved merge conflict was live** in `projects/index.html`: `<<<<<<< HEAD … >>>>>>>` inside `<head>`, which a browser prints as text at the top of the page. | Resolved (both sides were identical). `tests/siteaudit.test.php` now fails on a conflict marker anywhere in the site. |
+| F-8 | **The YouTube icon linked to a stranger's channel**: youtube.com/@afrovanguard is "Max Morris". Instagram linked @afrovanguard, not the organisation's @afro.vanguard. | YouTube now goes to AFROVANGUARD TV (@afrovanguardism) and Instagram to @afro.vanguard, on every page. Both YouTube channels, with Okun Alimosho TV (@okunalimosho), are on the Contact page and in the search-engine data. **The Studio may hold its own copy of these links** (Content → Site → Site details): check them there after deploying. |
+| F-9 | The Google map on Contact loaded from Google, which can set cookies, before the visitor had been asked. | The map loads only when "Show the map" is pressed. |
+| F-10 | The Reports page called the LCASP plan a "Project report" and showed it as the latest report. | It is a "Project document"; a document is never shown as the latest report. |
+
+## 3B. Cookies and other data the site collects
+
+Checked by loading the live pages in a browser without answering the notice,
+and by reading every cookie the code sets.
+
+**Urgent: the live site sets Google Analytics cookies without asking.** The
+version deployed now predates the consent notice (`assets/site/ga.js` on the
+live host is the 2026-11-04 version): visiting the home page set `_ga` and
+`_ga_K3MXKHNB0W` with no notice shown. The notice is in this branch; deploying
+it fixes this.
+
+Only Google Analytics needs the visitor's consent, and that is what the notice
+asks about. Everything else is needed for the site to work, never leaves the
+site, or loads only when the visitor asks for it. All of it is now listed in the
+privacy policy (section 6, Cookies), and the notice links there:
+
+| What | Kind | Consent needed? |
+|---|---|---|
+| `av_consent`; sign-in (`av_lms`, `av_si`, `av_oauth`, `av_gws`, `av_admin`); Cloudflare `cf_clearance` | Needed for the site to work | No |
+| Diary reader id `av_rv` and view/applause cookies; invitation credit `av_ref`; `av_illo` | First-party, anonymous or functional | No; disclosed |
+| Theme, text size, saved Diary entries | Browser storage, never sent | No; disclosed |
+| Cloudflare Web Analytics | Count without cookies | No; disclosed |
+| jsDelivr, Cloudinary | Files only (they see an IP address, like any server) | No; disclosed |
+| Google Analytics `_ga` | Optional | **Yes**: the notice |
+| Google Maps (Contact), videos and Diary embeds, Paystack | Third party, loads only when asked for (show, play, pay) | Disclosed |
+
+The privacy policy also said a cookie remembered the theme; it is browser
+storage, and now says so.
 
 ## 4. Smaller findings (not changed)
 
@@ -71,12 +110,14 @@ contradicts itself on each one.
 | S-2 | `/academy/teach/` has no `<h1>`. |
 | S-3 | Contact and Donate have no `og:image`, so a shared link shows no picture. |
 | S-4 | `/Images/*` (the main photo set) is not in the repository; it lives only on the live host. A fresh deployment from git would show no photographs. Back it up and add it to `DEPLOY.md`. |
+| S-6 | Contact says "14 nations reached". Confirm it or remove it: a reviewer may ask which. |
+| S-7 | Contact says of donations: "100% of funds go to programmes". A funder will compare that with the accounts; make sure they agree. |
 | S-5 | Older audits in the repository root (`CODEBASE-AUDIT.md`, `DESIGN-AUDIT.md`) still describe `projects/sts/ceo/api/ai.php`, which this change removed. |
 
 ## 5. Verification
 
-- `php tests/run.php`: 7,627 assertions across 182 files, all passing (the
-  baseline before this change was 7,591 across 181).
+- `php tests/run.php`: 7,645 assertions across 182 files, all passing (the
+  baseline before this work was 7,591 across 181).
 - `php bin/check-inline-js.php`: 5 inline script blocks, none bad.
 - Through `php -S … router.php`: `/projects/sts/about/`, `/team/`, `/ceo/` and
   `/blog/x/?a=1` each answer 301 to the same path (query string kept) on

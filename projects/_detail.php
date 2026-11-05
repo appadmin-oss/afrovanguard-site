@@ -129,6 +129,18 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   </div>
 </section>
 
+<?php if ($v['programmes']): ?>
+<section class="avpj-appeals avh-pad" aria-labelledby="avpj-programmes-h">
+  <div class="avpj-wrap">
+    <div class="avpj-eyebrow">Programmes</div>
+    <h2 class="avpj-h2 avpj-h2--sm" id="avpj-programmes-h">What <?= e($P['abbr']) ?> runs</h2>
+    <ul class="avpj-pgm">
+<?php foreach ($v['programmes'] as [$pn, $ph, $pd]): $pext = preg_match('~^https?://~', $ph) === 1; ?>      <li><a href="<?= e($ph) ?>"<?= $pext ? ' target="_blank" rel="noopener"' : '' ?>><?= e($pn) ?><?= $pext ? '<span class="av-sr"> (opens in a new tab)</span> <span aria-hidden="true">↗</span>' : ' <span aria-hidden="true">→</span>' ?></a><p><?= e($pd) ?></p></li>
+<?php endforeach; ?>    </ul>
+  </div>
+</section>
+<?php endif; ?>
+
 <?php if ($appeals): /* Kept from v1: live appeals filed against this project, hidden when there are none. */ ?>
 <section class="avpj-appeals avh-pad" aria-labelledby="avpj-appeals-h">
   <div class="avpj-wrap">

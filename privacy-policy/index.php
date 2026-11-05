@@ -10,7 +10,7 @@ require_once AV_ROOT . '/lib/partials.php';
 
 $S         = rtrim(SITE_URL, '/');
 $canonical = "$S/privacy-policy/";
-$updated   = '29 June 2026';
+$updated   = '5 November 2026';
 $contact   = 'cacentre@afrovanguard.org.ng';
 
 render_head([
@@ -110,7 +110,33 @@ render_nav('');
 
             <section class="legal-section" id="cookies">
               <h2><span class="legal-num">6</span> Cookies</h2>
-              <p data-cms="privacy-policy-p-6">We use a small number of cookies that are essential to the Site: keeping you signed in, remembering your light or dark theme choice, and protecting forms against cross-site abuse. We also use Google Analytics to count visits and see which pages help people &mdash; <strong>only if you allow it</strong> in the cookie notice. Until you do, nothing is sent to Google and none of its cookies (named <code>_ga</code>) are set. If you allow it, we send the address of the page without any codes or links in it, and never your name, email or account details. We remember your answer for a year in a cookie named <code>av_consent</code>. If your browser sends Global Privacy Control or Do Not Track, we treat that as a no and do not ask. You can change your mind at any time with <a href="#cookies" data-av-consent-open>Cookie settings</a>, here or at the foot of any page; withdrawing removes Google&rsquo;s cookies. We don&rsquo;t use advertising cookies.</p>
+              <p data-cms="privacy-policy-p-6">Most of what this Site stores in your browser is there to make it work, never leaves it, and is not used to follow you anywhere else. One thing is optional: Google Analytics, which counts visits and shows us which pages help people. It runs <strong>only if you allow it</strong> in the cookie notice. Until you do, nothing is sent to Google and none of its cookies (named <code>_ga</code>) are set. If you allow it, we send the address of the page without any codes or links in it, and never your name, email or account details. If your browser sends Global Privacy Control or Do Not Track, we treat that as a no and do not ask. You can change your mind at any time with <a href="#cookies" data-av-consent-open>Cookie settings</a>, here or at the foot of any page; withdrawing removes Google&rsquo;s cookies. We don&rsquo;t use advertising cookies.</p>
+              <h3 data-cms="privacy-policy-h3-1">What the Site stores, and why</h3>
+              <div class="legal-table-wrap">
+              <table class="legal-table">
+                <thead><tr><th scope="col">Name</th><th scope="col">What it is for</th><th scope="col">How long</th></tr></thead>
+                <tbody>
+                  <tr><td><code>av_consent</code></td><td>Your answer to the cookie notice.</td><td>1 year</td></tr>
+                  <tr><td><code>av_lms</code>, <code>av_si</code></td><td>Keeping you signed in to your account, and remembering that you are.</td><td>Up to 30 days, or until you sign out</td></tr>
+                  <tr><td><code>av_oauth</code>, <code>av_gws</code></td><td>Signing in with Google: proves the reply came back to the same browser.</td><td>Minutes</td></tr>
+                  <tr><td><code>av_admin</code></td><td>Staff only: the signed-in session for the staff console.</td><td>Until sign-out</td></tr>
+                  <tr><td><code>cf_clearance</code></td><td>Set by Cloudflare, which protects the Site, when it has checked that a visitor is not an automated attack.</td><td>Up to 1 year</td></tr>
+                  <tr><td><code>av_rv</code> and the Diary&rsquo;s view and applause cookies</td><td>Counting Diary views and applause without knowing who you are: a random number, not linked to your name or account.</td><td><code>av_rv</code> 1 year; the others 2 hours</td></tr>
+                  <tr><td><code>av_ref</code></td><td>When you arrive through a member&rsquo;s invitation link, which member invited you, so they are credited if you join.</td><td>30 days</td></tr>
+                  <tr><td><code>av_illo</code></td><td>Which illustration a page showed you, so it does not change as you move around.</td><td>Until you close the browser</td></tr>
+                  <tr><td>Browser storage (<code>av.theme</code>, <code>av.scale</code>, <code>av.saved</code>, <code>av.follow</code>)</td><td>Your light or dark theme, text size, and the Diary entries you saved or follow. This stays on your device; it is not a cookie and is never sent to us.</td><td>Until you clear it</td></tr>
+                  <tr><td><code>_ga</code>, <code>_ga_*</code></td><td>Google Analytics. <strong>Only if you allow it.</strong></td><td>Up to 2 years</td></tr>
+                </tbody>
+              </table>
+              </div>
+              <h3 data-cms="privacy-policy-h3-2">Services a page loads from elsewhere</h3>
+              <ul>
+                <li data-cms="privacy-policy-li-18"><strong>Cloudflare</strong> serves and protects the Site, and counts page views with its Web Analytics, which sets no cookies and does not identify you.</li>
+                <li><strong>jsDelivr</strong> and <strong>Cloudinary</strong> deliver some icons and images. Like any website, they see your device&rsquo;s internet address when your browser fetches a file; they set no cookies here.</li>
+                <li><strong>Google Maps</strong> on the Contact page loads only when you press &ldquo;Show the map&rdquo;. Google may then set its own cookies.</li>
+                <li data-cms="privacy-policy-li-19"><strong>Videos and posts</strong> from YouTube and other networks: the film on the home page loads only when you press play, and YouTube is used in its reduced-cookie mode. Posts embedded in a Diary entry load from that network when you open the entry.</li>
+                <li data-cms="privacy-policy-li-20"><strong>Paystack</strong> handles card payments when you give. It sees only what you enter on its payment form, under its own privacy policy.</li>
+              </ul>
             </section>
 
             <section class="legal-section" id="retention">

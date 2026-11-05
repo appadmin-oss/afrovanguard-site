@@ -69,5 +69,6 @@ function avpj_view(array $all, string $slug): ?array
         'ctaHref' => !empty($p['ext']) ? $p['href'] : AVPJ_VOLUNTEER_URL,
         'gallery' => $gallery,
         'others'  => $others,
+        'programmes' => $p['programmes'] ?? [],
     ];
 }

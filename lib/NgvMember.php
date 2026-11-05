@@ -678,8 +678,22 @@ final class NgvMember
      * application anonymously — their name, phone and message — while the
      * confirmation still went to the real applicant.
      */
+    /**
+     * Male, Female, or '' when not given. The programme records sex as Male or
+     * Female (owner, 2026-11-05), as Van Quest and the NGG forms already do;
+     * nothing else is stored, whatever a caller sends.
+     */
+    public static function sex(string $v): string
+    {
+        $s = strtolower(trim($v));
+        if (in_array($s, ['m', 'male', 'boy', 'man'], true)) return 'Male';
+        if (in_array($s, ['f', 'female', 'girl', 'woman'], true)) return 'Female';
+        return '';
+    }
+
     private static function updateApplication(int $id, array $d): void
     {
+        if (array_key_exists('gender', $d)) $d['gender'] = self::sex((string) $d['gender']);
         $cur = self::application($id);
         if (!$cur) return;
         $set = []; $args = []; $differs = [];
@@ -737,7 +751,7 @@ final class NgvMember
             $name, $email,
             mb_substr(trim((string) ($d['phone'] ?? '')), 0, 40),
             $ageN !== null ? (string) $ageN : mb_substr(trim((string) ($d['age'] ?? '')), 0, 12),
-            mb_substr(trim((string) ($d['gender'] ?? '')), 0, 24),
+            self::sex((string) ($d['gender'] ?? '')),
             mb_substr(trim((string) ($d['location'] ?? '')), 0, 120),
             self::validTrack((string) ($d['track'] ?? '')) ?? '',
             self::validPlan((string) ($d['plan'] ?? '')) ?? '',

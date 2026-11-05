@@ -67,3 +67,52 @@ ck('sts: what this site still serves is kept',
    is_file(AV_ROOT . '/projects/sts/index.php') && is_file(AV_ROOT . '/projects/sts/lcasp.html')
    && is_file(AV_ROOT . '/projects/sts/STS_Report_2025.pdf')
    && is_file(AV_ROOT . '/projects/sts/2026-LCASP-Document.pdf'));
+
+/* No merge-conflict markers in anything the site serves. One sat in the <head>
+   of projects/index.html, where a browser prints it at the top of the page. */
+$saConflicts = [];
+$saIt = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(AV_ROOT, FilesystemIterator::SKIP_DOTS));
+foreach ($saIt as $f) {
+    $rel = substr($f->getPathname(), strlen(AV_ROOT) + 1);
+    if (preg_match('~^(vendor|\.git|node_modules|db|uploads)/~', $rel) || !preg_match('~\.(html|php|css|js|json|xml|htaccess)$~', $rel)) continue;
+    if (preg_match('~^(<{7}|>{7}) ~m', (string) @file_get_contents($f->getPathname()))) $saConflicts[] = $rel;
+}
+ck('repo: no merge-conflict markers (' . implode(', ', $saConflicts) . ')', $saConflicts === []);
+
+/* Sex is recorded as Male or Female, on every form and in the NGV store. */
+ck('ngv: sex keeps Male and Female, normalised',
+   NgvMember::sex('female') === 'Female' && NgvMember::sex(' M ') === 'Male' && NgvMember::sex('Male') === 'Male');
+ck('ngv: anything else is not stored', NgvMember::sex('other') === '' && NgvMember::sex('') === '');
+
+/* Reports (/reports/): the list is sound, newest first, linked and indexed. */
+ck('reports: the list has no problems (' . implode('; ', Reports::problems()) . ')', Reports::problems() === []);
+$saRep = Reports::all();
+$saYears = array_column($saRep, 'year'); $saSorted = $saYears; rsort($saSorted);
+ck('reports: newest year first, the annual report leading its year',
+   $saYears === $saSorted && $saRep[0]['year'] === 2026 && $saRep[0]['kind'] === 'annual');
+ck('reports: the 2026 annual report is listed as in preparation, with no file',
+   (function () use ($saRep) { foreach ($saRep as $r) if ($r['year'] === 2026 && $r['kind'] === 'annual') return $r['status'] === 'preparing' && $r['href'] === '' && $r['expected'] !== ''; return false; })());
+ck('reports: every published report links a real file',
+   array_filter($saRep, static fn ($r) => $r['status'] !== 'preparing' && $r['href'] === '') === []);
+ck('reports: in the sitemap', in_array('/reports/', $saLocs, true) || str_contains((string) (new ReflectionMethod('Sitemap', 'buildXml'))->invoke(null), '/reports/</loc>'));
+ck('reports: linked from the shared footer and the Home page',
+   str_contains((string) file_get_contents(AV_ROOT . '/partials/avh-chrome.php'), '<a href="/reports/">Reports</a>')
+   && str_contains((string) file_get_contents(AV_ROOT . '/index.html'), '<a href="/reports/">Reports</a>'));
+
+/* Facts the owner settled (2026-11-05). */
+$saFacts = [
+    'login/index.php' => 'Est. 2017',
+    'member.html'     => "Founded Afrovanguard in 2017",
+    'index.html'      => '"streetAddress": "CACENTRE, 2 Abolude / Oremeji Street, off Akowonjo Road"',
+    'contact.html'    => 'CACENTRE, 2 Abolude / Oremeji Street, off Akowonjo Road',
+];
+foreach ($saFacts as $f => $needle) ck("facts: $f says “{$needle}”", str_contains((string) file_get_contents(AV_ROOT . "/$f"), $needle));
+foreach (['index.html', 'about.html', 'member.html', 'projects/index.html', 'login/index.php'] as $f) {
+    $t = (string) file_get_contents(AV_ROOT . "/$f");
+    ck("facts: $f gives no other founding year or project count",
+       !preg_match('~Est\. 2018|[Ff]ounded[^.]{0,40}2018|\b(?:nine|Nine|9) (?:Flagship |Active )?(?:[Pp]rogram|[Pp]rojects?)|[Ee]ight (?:active )?programmes|8 flagship~', $t));
+}
+ck('reports: a project document (a plan) is never shown as the latest report',
+   (Reports::headline(Reports::all())['latest']['kind'] ?? '') !== 'document');
+ck('nav: the footer and menus list projects, not NGG, as projects',
+   !str_contains((string) file_get_contents(AV_ROOT . '/partials/avh-chrome.php'), 'Kingdom Advancement</a><a href="https://next.afrovanguard.org.ng/"'));

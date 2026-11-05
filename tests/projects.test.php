@@ -11,10 +11,14 @@ declare(strict_types=1);
 require_once AV_ROOT . '/lib/avpj.php';
 $all = avpj_projects();
 
-ck('projects: nine, in the design order',
-   array_keys($all) === ['sts', 'ngg', 'techhome', 'mediapro', 'kap', 'africa-gates', 'bec', 'career-hub', 'ngv']);
-ck('projects: filter counts match the design (9 · 2 · 3 · 1 · 2 · 1)',
-   array_values(avpj_filters($all)) === [9, 2, 3, 1, 2, 1]);
+ck('projects: seven, in the design order (owner, 2026-11-05)',
+   array_keys($all) === ['sts', 'techhome', 'mediapro', 'kap', 'africa-gates', 'bec', 'career-hub']);
+ck('projects: filter counts (7 · 2 · 1 · 1 · 2 · 1)',
+   array_values(avpj_filters($all)) === [7, 2, 1, 1, 2, 1]);
+ck('projects: NGG and LCASP are Street-To-Stardom programmes, not projects',
+   !isset($all['ngg']) && !isset($all['ngv'])
+   && array_column($all['sts']['programmes'], 1) === ['https://next.afrovanguard.org.ng/', '/projects/sts/lcasp.html']);
+ck('projects: the STS page lists its programmes', avpj_view($all, 'sts')['programmes'] === $all['sts']['programmes']);
 
 /* Every local project has a page, every external one keeps its own site. */
 foreach ($all as $slug => $p) {
@@ -25,9 +29,8 @@ foreach ($all as $slug => $p) {
         ck("projects: $slug has no detail view here", avpj_view($all, $slug) === null);
     }
 }
-ck('projects: Africa GATES and Next Generation Genius keep their external sites',
-   $all['africa-gates']['href'] === 'https://afg.afrovanguard.org.ng' && $all['africa-gates']['ext']
-   && $all['ngg']['href'] === 'https://next.afrovanguard.org.ng/' && $all['ngg']['ext']);
+ck('projects: Africa GATES keeps its external site',
+   $all['africa-gates']['href'] === 'https://afg.afrovanguard.org.ng' && $all['africa-gates']['ext']);
 ck('projects: an unknown slug has no view', avpj_view($all, 'nope') === null);
 
 /* projectVals(): selective entry changes the facts, step 1 and the CTA. */
@@ -39,8 +42,8 @@ ck('projects: selective entry → Apply now, Application',
    $sel['cta'] === 'Apply now' && $sel['facts'][2] === ['Entry', 'Application'] && $sel['steps'][0][0] === 'Apply');
 ck('projects: a local project’s CTA goes to the volunteer form', $open['ctaHref'] === AVPJ_VOLUNTEER_URL);
 ck('projects: other projects are the first three that are not this one',
-   array_keys($open['others']) === ['ngg', 'techhome', 'mediapro']
-   && array_keys(avpj_view($all, 'techhome')['others']) === ['sts', 'ngg', 'mediapro']);
+   array_keys($open['others']) === ['techhome', 'mediapro', 'kap']
+   && array_keys(avpj_view($all, 'techhome')['others']) === ['sts', 'mediapro', 'kap']);
 ck('projects: the How to join images never repeat the hero',
    count($open['gallery']) === 2 && !in_array($all['sts']['img'], $open['gallery'], true));
 
