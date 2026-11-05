@@ -309,3 +309,49 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 
 /* Writing boxes read as writing, not code */
 .fld textarea,.ed-more textarea{font-family:inherit;line-height:1.5}
+
+/* Search, list tools, folding */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.top-search{display:flex;align-items:center;gap:10px;min-width:280px;min-height:40px;padding:0 12px;margin:0 16px 0 auto;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--muted);font:inherit;font-size:14px;cursor:pointer}
+.top-search svg,.palette-in svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;flex-shrink:0}
+.top-search span{flex:1;text-align:left}
+kbd{font:600 11.5px/1 ui-monospace,monospace;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink-2)}
+.list-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 14px}
+.find input{min-width:260px;min-height:40px;padding:0 12px;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{min-height:38px;padding:0 12px;border:0;background:var(--surface);color:var(--ink-2);font:inherit;font-size:13.5px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.sortby{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--muted)}
+.sortby select{min-height:38px;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 8px}
+.list-count{margin-left:auto;font-size:13px}
+.c-row{display:flex;align-items:center;gap:12px}
+.c-thumb{width:56px;height:30px;border-radius:6px;object-fit:cover;flex-shrink:0;background:var(--surface-2)}
+.c-thumb--none{display:inline-block;border:1px dashed var(--line)}
+.c-row .c-title{font-weight:600;text-align:left;color:var(--ink)}
+.c-row .c-meta{display:block;font-size:12.5px}
+.more{position:relative}
+.more summary{list-style:none}
+.more summary::-webkit-details-marker{display:none}
+.more-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:180px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:var(--shadow)}
+.more-menu a,.more-menu button{display:block;width:100%;text-align:left;padding:8px 10px;border:0;border-radius:6px;background:none;color:var(--ink);font:inherit;font-size:14px;text-decoration:none;cursor:pointer}
+.more-menu a:hover,.more-menu button:hover{background:var(--surface-2)}
+.more-menu .danger{color:var(--danger)}
+.fold{border:0;background:none;color:var(--muted);font-size:14px;min-width:28px;min-height:32px;cursor:pointer;transition:transform .15s}
+.fold[aria-expanded="false"]{transform:rotate(-90deg)}
+.mod.is-folded .mod-lessons,.mod.is-folded .add-kinds{display:none}
+.les.is-hit .les-title{background:color-mix(in srgb,var(--gold) 22%,transparent);border-radius:4px}
+.palette{place-items:start center;padding-top:12vh}
+.palette-card{max-width:640px;width:100%;padding:0;overflow:hidden}
+.palette-in{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);color:var(--muted)}
+.palette-in input{flex:1;border:0;background:none;font:inherit;font-size:17px;color:var(--ink);outline:none}
+.palette-res{max-height:52vh;overflow:auto;padding:6px}
+.palette-hint{padding:14px 12px;margin:0}
+.palette-gh{font-size:12px;font-weight:700;color:var(--muted);padding:10px 10px 4px}
+.palette-hit{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;padding:9px 10px;border:0;border-radius:8px;background:none;color:var(--ink);font:inherit;cursor:pointer}
+.palette-hit span{font-size:13px;color:var(--ink-2)}
+.palette-hit.is-on{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--gold)}
+.palette-foot{margin:0;padding:8px 14px;border-top:1px solid var(--line);font-size:12.5px;display:flex;gap:6px;align-items:center}
+@media (max-width:900px){.top-search{min-width:0}.top-search span,.top-search kbd{display:none}.find input{min-width:0;width:100%}.find{flex:1 1 100%}}
+.c-row .c-title{padding:0;border:0;background:none;font-size:14.5px;cursor:pointer}
+.c-row .c-title:hover{text-decoration:underline}

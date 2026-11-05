@@ -310,6 +310,11 @@
         <button class="btn btn-primary" id="newCourseBtn">+ New programme</button>
       </div>
     </div>
+    <div class="ac-tools" role="search">
+      <input type="search" id="acFind" placeholder="Find a programme" aria-label="Find a programme" autocomplete="off" />
+      <select id="acShow" aria-label="Show"><option value="">All</option><option value="published">Published</option><option value="draft">Drafts</option></select>
+      <span class="muted" id="acCount" aria-live="polite"></span>
+    </div>
     <div class="entry-list" id="courseList"></div>
   </main>
 

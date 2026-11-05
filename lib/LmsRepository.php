@@ -1157,24 +1157,38 @@ final class LmsRepository
     }
 
     /** Per-learner roster for one course (enrolled learners + their progress). */
-    public function roster(int $courseId, int $limit = 300): array
+    /**
+     * A course's learners with their progress. $q matches name or email (on
+     * the server, so a course with thousands of learners is still searchable
+     * past the first page); $state = not_started | in_progress | finished | certified.
+     */
+    public function roster(int $courseId, int $limit = 300, string $q = '', string $state = ''): array
     {
         $total = $this->lessonCount($courseId);
+        $q = trim(mb_substr($q, 0, 80));
+        $like = '%' . strtr(mb_strtolower($q), ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';
         $s = $this->db->prepare(
             "SELECT u.id, u.name, u.email, e.created_at AS enrolled_at,
                     (SELECT COUNT(*) FROM lesson_progress lp WHERE lp.user_id = u.id AND lp.course_id = e.course_id) AS done,
                     (SELECT MAX(completed_at) FROM lesson_progress lp WHERE lp.user_id = u.id AND lp.course_id = e.course_id) AS last_active,
                     (SELECT 1 FROM certificates c WHERE c.user_id = u.id AND c.course_id = e.course_id) AS certified
              FROM course_enrolment e JOIN lms_users u ON u.id = e.user_id
-             WHERE e.course_id = ? ORDER BY done DESC, u.name LIMIT ?"
+             WHERE e.course_id = ?" . ($q !== '' ? " AND (LOWER(u.name) LIKE ? ESCAPE '!' OR LOWER(u.email) LIKE ? ESCAPE '!')" : '') . "
+             ORDER BY done DESC, u.name LIMIT ?"
         );
-        $s->bindValue(1, $courseId, PDO::PARAM_INT); $s->bindValue(2, $limit, PDO::PARAM_INT); $s->execute();
+        $i = 1;
+        $s->bindValue($i++, $courseId, PDO::PARAM_INT);
+        if ($q !== '') { $s->bindValue($i++, $like); $s->bindValue($i++, $like); }
+        $s->bindValue($i, $state !== '' ? 5000 : $limit, PDO::PARAM_INT); $s->execute();
         $rows = $s->fetchAll();
         foreach ($rows as &$r) {
             $r['done'] = (int) $r['done'];
             $r['pct'] = $total ? (int) round(min(100, $r['done'] / $total * 100)) : 0;
             $r['certified'] = (bool) $r['certified'];
+            $r['state'] = $r['certified'] ? 'certified' : ($total && $r['done'] >= $total ? 'finished' : ($r['done'] > 0 ? 'in_progress' : 'not_started'));
         }
+        unset($r);
+        if ($state !== '') $rows = array_slice(array_values(array_filter($rows, static fn($r) => $r['state'] === $state)), 0, $limit);
         return $rows;
     }
 

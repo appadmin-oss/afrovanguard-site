@@ -65,6 +65,8 @@ declare(strict_types=1);
     <header class="topbar">
       <button class="hamburger" id="hamburger" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
       <div class="top-title"><h1 id="viewTitle">Overview</h1><p id="viewSub" class="muted"></p></div>
+      <button type="button" class="top-search" id="searchOpen" aria-haspopup="dialog" aria-keyshortcuts="/ Control+K">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Search courses, items, learners</span><kbd>/</kbd></button>
       <div class="top-actions" id="topActions"></div>
     </header>
 
@@ -92,9 +94,17 @@ declare(strict_types=1);
 
       <!-- COURSES LIST -->
       <section class="view" id="view-courses" hidden>
+        <div class="list-tools" role="search">
+          <label class="find"><span class="sr">Find a course</span><input type="search" id="courseFind" placeholder="Find a course" autocomplete="off" /></label>
+          <div class="seg" role="group" aria-label="Show">
+            <button type="button" data-cf="" aria-pressed="true">All</button><button type="button" data-cf="published" aria-pressed="false">Published</button><button type="button" data-cf="draft" aria-pressed="false">Drafts</button>
+          </div>
+          <label class="sortby"><span>Sort</span><select id="courseSort"><option value="updated">Recently edited</option><option value="title">Title</option><option value="learners">Most learners</option></select></label>
+          <span class="muted list-count" id="courseCount" aria-live="polite"></span>
+        </div>
         <div class="table-wrap">
           <table class="tbl" id="coursesTbl">
-            <thead><tr><th>Course</th><th>Status</th><th>Access</th><th class="num">Lessons</th><th class="num">Sort</th><th></th></tr></thead>
+            <thead><tr><th>Course</th><th>Status</th><th>Access</th><th class="num">Items</th><th class="num">Learners</th><th></th></tr></thead>
             <tbody id="coursesBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
           </table>
         </div>
@@ -210,12 +220,23 @@ declare(strict_types=1);
       <section class="view" id="view-curriculum" hidden>
         <div class="picker"><label>Course</label><select id="curCourse"></select><span class="pick-hint" id="curHint"></span></div>
         <section class="ready" id="readiness" aria-live="polite" hidden></section>
+        <div class="list-tools" role="search" id="outlineTools" hidden>
+          <label class="find"><span class="sr">Find in this outline</span><input type="search" id="outlineFind" placeholder="Find an item in this course" autocomplete="off" /></label>
+          <button type="button" class="btn btn-ghost btn-sm" id="foldAll">Collapse all</button>
+          <span class="muted list-count" id="outlineCount" aria-live="polite"></span>
+        </div>
         <div class="curriculum" id="curriculum"><p class="empty">Pick a course to build its curriculum.</p></div>
       </section>
 
       <!-- LEARNERS -->
       <section class="view" id="view-learners" hidden>
         <div class="picker"><label>Course</label><select id="learnCourse"></select><span class="pick-hint" id="learnHint"></span></div>
+        <div class="list-tools" role="search">
+          <label class="find"><span class="sr">Find a learner</span><input type="search" id="learnFind" placeholder="Find by name or email" autocomplete="off" /></label>
+          <div class="seg" role="group" aria-label="Show">
+            <button type="button" data-lf="" aria-pressed="true">All</button><button type="button" data-lf="not_started" aria-pressed="false">Not started</button><button type="button" data-lf="in_progress" aria-pressed="false">In progress</button><button type="button" data-lf="finished" aria-pressed="false">Finished</button><button type="button" data-lf="certified" aria-pressed="false">Certified</button>
+          </div>
+        </div>
         <div class="roster-tools">
           <form id="enrolForm" class="enrol-form">
             <input id="enrolEmail" type="email" placeholder="Enrol by email (needs an Academy account)" autocomplete="off" />
@@ -368,6 +389,16 @@ declare(strict_types=1);
       <button class="btn btn-ghost" id="modCancel" type="button">Cancel</button>
       <button class="btn btn-primary" id="modSave" type="button">Save module</button>
     </div>
+  </div>
+</div>
+
+<!-- Search: one box for the whole Academy -->
+<div class="modal palette" id="searchModal" role="dialog" aria-modal="true" aria-label="Search the Academy" hidden>
+  <div class="modal-card palette-card">
+    <label class="palette-in"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <span class="sr">Search</span><input id="searchInput" type="search" placeholder="Search courses, items and learners" autocomplete="off" aria-controls="searchResults" /></label>
+    <div id="searchResults" class="palette-res" role="listbox" aria-label="Results"><p class="muted palette-hint">Type a course, a lesson title, or a learner’s name or email.</p></div>
+    <p class="muted palette-foot"><kbd>↑</kbd><kbd>↓</kbd> to move · <kbd>Enter</kbd> to open · <kbd>Esc</kbd> to close</p>
   </div>
 </div>
 

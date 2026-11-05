@@ -1870,6 +1870,11 @@ try {
             if (!$isAudio && !$isVideo && !$isVtt && !in_array($mime, array_merge($imageOk, $docOk), true)) json_out(['ok' => false, 'error' => 'Unsupported file type.'], 415);
             // images/audio → Cloudinary (resource_type auto), documents → Drive (each with a local fallback)
             $res = Storage::put($f['tmp_name'], $f['name'], 'auto');
+            /* A local image gets its common thumbnails now, so the first page to
+               show it does not wait on the resize. Cloudinary resizes itself. */
+            if (in_array($mime, $imageOk, true) && str_starts_with((string) ($res['url'] ?? ''), '/uploads/')) {
+                foreach ([160, 640] as $tw) { try { Thumbs::make((string) $res['url'], $tw); } catch (Throwable $e) { /* made on first view instead */ } }
+            }
             json_out(['ok' => true, 'url' => $res['url'], 'location' => $res['url'], 'provider' => $res['provider'], 'kind' => $res['kind'] ?? ($isVideo || $isVtt ? 'media' : ($isAudio ? 'audio' : 'image'))]);
 
         case 'save':
@@ -1953,7 +1958,20 @@ try {
         }
 
         /* ── Academy ── */
-        case 'ac_list':       json_out(['ok' => true, 'courses' => $ac->allForAdmin()]);
+        case 'ac_list': {
+            /* Each row carries a thumbnail URL: the list shows covers 64 px wide,
+               and loading each upload at full size was the whole of this page's
+               weight (52 MB for 46 courses on a test catalogue). */
+            $rows = $ac->allForAdmin();
+            $lst = (new LmsCourseware(null, $lms))->stats(array_column($rows, 'id'));   // grouped: four queries for the whole list
+            foreach ($rows as &$r) {
+                $r['cover_thumb'] = Thumbs::url((string) ($r['cover_url'] ?? ''), 160);
+                $r['items'] = $lst[(int) $r['id']]['lessons'] ?? 0;
+                $r['learners'] = $lst[(int) $r['id']]['enrolled'] ?? 0;
+            }
+            unset($r);
+            json_out(['ok' => true, 'courses' => $rows]);
+        }
         case 'ac_overview': {
             $pdo = Database::pdo();
             $cnt = function (string $sql) use ($pdo): int { try { return (int) $pdo->query($sql)->fetchColumn(); } catch (Throwable $e) { return 0; } };
@@ -1975,7 +1993,9 @@ try {
         case 'ac_roster': {
             $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
             if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
-            json_out(['ok' => true, 'course' => ['slug' => $cs['slug'], 'title' => $cs['title'], 'lessons' => $lms->lessonCount((int) $cs['id'])], 'roster' => $lms->roster((int) $cs['id'])]);
+            $rst = in_array($_GET['state'] ?? '', ['not_started', 'in_progress', 'finished', 'certified'], true) ? (string) $_GET['state'] : '';
+            json_out(['ok' => true, 'course' => ['slug' => $cs['slug'], 'title' => $cs['title'], 'lessons' => $lms->lessonCount((int) $cs['id']), 'enrolled' => $lms->enrolledCount((int) $cs['id'])],
+                      'roster' => $lms->roster((int) $cs['id'], 300, (string) ($_GET['q'] ?? ''), $rst)]);
         }
         case 'ac_export': {
             $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
@@ -2205,6 +2225,12 @@ try {
             if (array_key_exists('quiz', $body) || array_key_exists('kind', $body)) $ld['quiz_json'] = $quizJson;
             $id = $lms->saveLesson($ld);
             json_out(['ok' => true, 'id' => $id]);
+        case 'ac_search': {
+            /* Learners are people's names and emails: only roles that may see
+               the roster (management and up) get them back. */
+            $people = in_array(function_exists('av_admin_role') ? av_admin_role() : 'superadmin', ['admin', 'superadmin'], true);
+            json_out(['ok' => true] + (new LmsCourseware(null, $lms))->search((string) ($_GET['q'] ?? ''), $people));
+        }
         case 'ac_readiness': {
             $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
             if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);

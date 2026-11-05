@@ -403,6 +403,49 @@ final class LmsCourseware
         return $out;
     }
 
+    /**
+     * The Studio's search: courses, items and (when $people) learners whose
+     * name, email, title or summary contains every word typed. Eight of each.
+     * LIKE wildcards are escaped with `!`, which both SQLite and MySQL read
+     * the same way (a backslash is two characters to one and one to the other).
+     */
+    public function search(string $q, bool $people = false, int $per = 8): array
+    {
+        $words = array_slice(array_values(array_filter(preg_split('/\s+/', mb_strtolower(trim(mb_substr($q, 0, 80)))) ?: [], static fn($w) => $w !== '')), 0, 5);
+        $out = ['courses' => [], 'items' => [], 'learners' => []];
+        if (!$words) return $out;
+        $esc = static fn(string $w): string => '%' . strtr($w, ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';
+        $cond = static function (array $cols) use ($words, $esc): array {
+            $sql = []; $args = [];
+            foreach ($words as $w) {
+                $sql[] = '(' . implode(' OR ', array_map(static fn($c) => "LOWER($c) LIKE ? ESCAPE '!'", $cols)) . ')';
+                foreach ($cols as $_) $args[] = $esc($w);
+            }
+            return [implode(' AND ', $sql), $args];
+        };
+        $per = max(1, min(20, $per));
+        [$w, $a] = $cond(['c.title', 'c.summary', 'c.slug', 'c.category']);
+        $s = $this->db->prepare("SELECT c.id, c.slug, c.title, c.status, c.category FROM courses c WHERE $w ORDER BY c.status DESC, c.title LIMIT $per");
+        $s->execute($a); $out['courses'] = $s->fetchAll();
+        [$w, $a] = $cond(['l.title']);
+        $s = $this->db->prepare("SELECT l.id, l.title, l.kind, l.video_url, l.quiz_json, c.slug AS course_slug, c.title AS course_title, m.title AS module_title
+                                 FROM lessons l JOIN courses c ON c.id = l.course_id JOIN modules m ON m.id = l.module_id WHERE $w ORDER BY c.title, l.title LIMIT $per");
+        $s->execute($a);
+        foreach ($s->fetchAll() as $r) {
+            $r['type'] = LmsRepository::lessonType($r);
+            unset($r['video_url'], $r['quiz_json']);
+            $out['items'][] = $r;
+        }
+        if ($people) {
+            [$w, $a] = $cond(['u.name', 'u.email']);
+            $s = $this->db->prepare("SELECT u.id, u.name, u.email, (SELECT COUNT(*) FROM course_enrolment e WHERE e.user_id = u.id) AS courses,
+                                            (SELECT c.slug FROM course_enrolment e JOIN courses c ON c.id = e.course_id WHERE e.user_id = u.id ORDER BY e.created_at DESC LIMIT 1) AS last_course
+                                     FROM lms_users u WHERE $w ORDER BY u.name LIMIT $per");
+            $s->execute($a); $out['learners'] = $s->fetchAll();
+        }
+        return $out;
+    }
+
     /* ── Catalogue figures (grouped, never per row) ──────────────────── */
 
     /**

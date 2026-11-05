@@ -341,6 +341,7 @@ require_once __DIR__ . '/Greeting.php';        /* the line at the top of Today: 
 require_once __DIR__ . '/GrowthSignature.php'; /* Today's growth signature, each bar from the record */
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/LmsCourseware.php';
+require_once __DIR__ . '/Thumbs.php';
 require_once __DIR__ . '/Analytics.php';
 Analytics::start();   // the Google Analytics tag on every HTML page (lib/Analytics.php)
 require_once __DIR__ . '/LmsDrip.php';

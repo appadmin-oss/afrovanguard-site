@@ -111,7 +111,13 @@ function avac_cover(array $c, string $cls, bool $mark = true): string
 {
     $cover = (string) ($c['cover_url'] ?? '');
     if ($cover !== '') {
-        return '<img class="' . e($cls) . '" src="' . e($cover) . '" alt="" loading="lazy" decoding="async">';
+        /* The size it is shown at, not the size it was uploaded (lib/Thumbs.php). */
+        $hero = str_contains($cls, 'hero');
+        $set = Thumbs::srcset($cover, $hero ? [640, 960, 1280] : [320, 640, 960]);
+        $sizes = $hero ? '(min-width: 960px) 600px, 100vw' : '(min-width: 1100px) 360px, (min-width: 640px) 50vw, 100vw';
+        return '<img class="' . e($cls) . '" src="' . e(Thumbs::url($cover, $hero ? 960 : 640)) . '"'
+             . ($set !== '' ? ' srcset="' . e($set) . '" sizes="' . e($sizes) . '"' : '')
+             . ' alt="" ' . ($hero ? 'fetchpriority="high"' : 'loading="lazy"') . ' decoding="async">';
     }
     return '<span class="' . e($cls) . ' avac-tile" aria-hidden="true">' . ($mark ? '<span>' . e((string) $c['title']) . '</span>' : '') . '</span>';
 }

@@ -456,20 +456,35 @@
   $('#publishBtn').addEventListener('click', function () { saveDiary('published'); });
 
   /* ---- Academy ---- */
+  /* The Academy list: found and filtered in the page; thumbnails, never full covers. */
+  var acRows = [];
   function loadCourses() {
     return api('ac_list').then(function (r) {
-      var box = $('#courseList'); box.innerHTML = '';
+      var box = $('#courseList');
       if (!r.data.ok) { box.innerHTML = '<p class="muted">Could not load programmes.</p>'; return; }
-      r.data.courses.forEach(function (c) {
-        var row = document.createElement('div'); row.className = 'entry-row';
-        row.innerHTML = '<div class="entry-thumb ' + escapeHtml(c.gradient) + '"' + (c.cover_url ? ' style="background-image:url(\'' + escapeHtml(c.cover_url) + '\')"' : '') + '></div>' +
-          '<div class="entry-info"><div class="entry-title">' + escapeHtml(c.title) + '</div><div class="entry-meta"><span class="badge ' + c.status + '">' + c.status + '</span> ' +
-          escapeHtml(c.category) + ' · ' + escapeHtml(c.level) + (c.featured == 1 ? ' · ★' : '') + '</div></div>' +
-          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-ccur="' + c.slug + '">Curriculum</button><button class="btn btn-outline btn-sm" data-cedit="' + c.slug + '">Edit</button><button class="btn btn-outline btn-sm danger" data-cdel="' + c.slug + '">Delete</button></div>';
-        box.appendChild(row);
-      });
+      acRows = r.data.courses || [];
+      drawCourses();
     });
   }
+  function drawCourses() {
+    var box = $('#courseList'); box.innerHTML = '';
+    var q = (($('#acFind') || {}).value || '').trim().toLowerCase(), show = ($('#acShow') || {}).value || '';
+    var rows = acRows.filter(function (c) {
+      if (show && (c.status === 'published' ? 'published' : 'draft') !== show) return false;
+      return !q || [c.title, c.slug, c.category].join(' ').toLowerCase().indexOf(q) > -1;
+    });
+    if ($('#acCount')) $('#acCount').textContent = rows.length === acRows.length ? acRows.length + ' programmes' : rows.length + ' of ' + acRows.length;
+    if (!rows.length) { box.innerHTML = '<p class="muted">' + (acRows.length ? 'No programme matches.' : 'No programmes yet.') + '</p>'; return; }
+    rows.forEach(function (c) {
+      var row = document.createElement('div'); row.className = 'entry-row';
+      row.innerHTML = '<div class="entry-thumb ' + escapeHtml(c.gradient) + '">' + (c.cover_url ? '<img src="' + escapeHtml(c.cover_thumb || c.cover_url) + '" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">' : '') + '</div>' +
+        '<div class="entry-info"><div class="entry-title">' + escapeHtml(c.title) + '</div><div class="entry-meta"><span class="badge ' + escapeHtml(c.status) + '">' + escapeHtml(c.status) + '</span> ' +
+        escapeHtml(c.category) + ' · ' + escapeHtml(c.level) + ' · ' + (+c.items || 0) + ' items · ' + (+c.learners || 0) + ' learners' + (c.featured == 1 ? ' · ★' : '') + '</div></div>' +
+        '<div class="entry-ops"><button class="btn btn-primary btn-sm" data-ccur="' + escapeHtml(c.slug) + '">Build</button><button class="btn btn-outline btn-sm" data-cedit="' + escapeHtml(c.slug) + '">Edit</button><button class="btn btn-outline btn-sm danger" data-cdel="' + escapeHtml(c.slug) + '">Delete</button></div>';
+      box.appendChild(row);
+    });
+  }
+  if ($('#acFind')) { $('#acFind').addEventListener('input', drawCourses); $('#acShow').addEventListener('change', drawCourses); }
   $('#courseList').addEventListener('click', function (e) {
     var ed = e.target.closest('[data-cedit]'), del = e.target.closest('[data-cdel]'), cur = e.target.closest('[data-ccur]');
     if (ed) openCourse(ed.getAttribute('data-cedit'));
