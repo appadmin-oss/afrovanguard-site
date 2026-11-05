@@ -355,3 +355,41 @@ kbd{font:600 11.5px/1 ui-monospace,monospace;padding:3px 6px;border:1px solid va
 @media (max-width:900px){.top-search{min-width:0}.top-search span,.top-search kbd{display:none}.find input{min-width:0;width:100%}.find{flex:1 1 100%}}
 .c-row .c-title{padding:0;border:0;background:none;font-size:14.5px;cursor:pointer}
 .c-row .c-title:hover{text-decoration:underline}
+
+/* Course builder: the editor docks beside the outline on a wide screen */
+@media (min-width:1180px){
+  #lessonModal{background:transparent;pointer-events:none;place-items:stretch end;padding:0;animation:none}
+  #lessonModal .modal-card{pointer-events:auto;width:min(720px,52vw);max-width:none;height:100vh;max-height:none;border-radius:0;border-left:1px solid var(--line);box-shadow:-12px 0 40px rgba(11,17,32,.12);display:flex;flex-direction:column}
+  #lessonModal .modal-body{flex:1;overflow:auto}
+  body.is-editing .main{padding-right:min(720px,52vw)}
+}
+.draft-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 20px;padding:10px 14px;border-radius:10px;background:color-mix(in srgb,var(--gold) 16%,var(--surface));font-size:14px}
+.draft-bar span{flex:1 1 220px}
+/* Outline rows */
+.les-warn{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--warn);color:#fff;font-size:12px;font-weight:800;flex-shrink:0;cursor:help}
+.les .row-actions{display:flex;align-items:center;gap:4px}
+.more-move{display:flex;flex-direction:column;gap:4px;padding:6px 10px;font-size:12.5px;color:var(--muted)}
+.more-move select{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px}
+.mod-name{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--ink);text-align:left;cursor:pointer}
+.mod-name:hover{text-decoration:underline}
+.inline-name{font:inherit;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--gold);border-radius:6px;padding:4px 8px;min-width:240px;flex:1}
+.bulk{margin:8px 0 4px;padding:12px;border:1px dashed var(--line);border-radius:10px;display:flex;flex-direction:column;gap:8px}
+.bulk label{display:flex;flex-direction:column;gap:6px;font-size:13.5px;font-weight:600}
+.bulk textarea{font:inherit;font-weight:400;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.bulk-foot{display:flex;gap:8px}
+.plan{border:1px solid var(--line);border-radius:14px;padding:20px;background:var(--surface);margin-bottom:14px}
+.plan h3{margin:0 0 4px}
+.plan-pick{grid-template-columns:repeat(3,1fr);margin-top:12px}
+.plan-pick .mode-card:hover{border-color:var(--gold)}
+@media (max-width:760px){.plan-pick{grid-template-columns:1fr}}
+
+/* While an item is open beside it, the outline goes compact: one line an item. */
+body.is-editing .les-tags,body.is-editing .mod-sum,body.is-editing #viewSub,body.is-editing .add-kinds .muted{display:none}
+body.is-editing .les{flex-wrap:nowrap}
+body.is-editing .les-open{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.is-editing .les .row-actions a{display:none}
+body.is-editing .mod-head{flex-wrap:wrap}
+body.is-editing .mod-head [data-mren]{order:9}
+body.is-editing .list-tools .find input{min-width:0}
+.les-open{flex:1;min-width:0}
+.ready .r-all{margin-top:6px;font-size:13.5px}

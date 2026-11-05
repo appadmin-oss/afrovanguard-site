@@ -333,11 +333,26 @@
       var items = (d && d.items) || [], fixes = items.filter(function (i) { return i.level === 'fix'; });
       box.hidden = false;
       box.className = 'ready ' + (fixes.length ? 'is-fix' : 'is-ok');
+      /* Things to fix first, then tips; four lines unless asked for all. */
+      items.sort(function (a, b) { return (a.level === 'fix' ? 0 : 1) - (b.level === 'fix' ? 0 : 1); });
+      var cap = 4;
       box.innerHTML = '<h3>' + (fixes.length ? fixes.length + ' thing' + (fixes.length === 1 ? '' : 's') + ' to finish before learners arrive' : 'Ready for learners') + '</h3>'
         + (items.length ? '<ul>' + items.map(function (i, n) {
-            return '<li class="r-' + esc(i.level) + '"><span class="r-dot" aria-hidden="true"></span>'
+            return '<li class="r-' + esc(i.level) + '"' + (n >= cap ? ' data-rmore hidden' : '') + '><span class="r-dot" aria-hidden="true"></span>'
               + (i.lesson || i.module ? '<button type="button" class="link-btn" data-ri="' + n + '">' + esc(i.text) + '</button>' : esc(i.text)) + '</li>';
-          }).join('') + '</ul>' : '');
+          }).join('') + '</ul>' + (items.length > cap ? '<button type="button" class="link-btn r-all" aria-expanded="false">Show all ' + items.length + '</button>' : '') : '');
+      var allBtn = $('.r-all', box);
+      if (allBtn) allBtn.onclick = function () {
+        var open = allBtn.getAttribute('aria-expanded') !== 'true';
+        $$('[data-rmore]', box).forEach(function (li) { li.hidden = !open; });
+        allBtn.setAttribute('aria-expanded', String(open)); allBtn.textContent = open ? 'Show fewer' : 'Show all ' + items.length;
+      };
+      $$('[data-warn]').forEach(function (w) { w.hidden = true; w.removeAttribute('title'); });
+      items.forEach(function (i) {
+        if (i.level !== 'fix' || !i.lesson) return;
+        var w = $('[data-warn="' + i.lesson + '"]'); if (!w) return;
+        w.hidden = false; w.textContent = '!'; w.title = i.text; w.setAttribute('aria-label', 'Needs attention: ' + i.text);
+      });
       $$('[data-ri]', box).forEach(function (b) { b.onclick = function () {
         var i = items[+b.getAttribute('data-ri')];
         if (i.lesson) openLesson(i.lesson, null); else openModule(curMods.filter(function (m) { return m.id === i.module; })[0] || null);
@@ -370,6 +385,7 @@
   function draw(slug, focusSel) {
     var wrap = $('#curriculum');
     $('#outlineTools').hidden = !curMods.length;
+    $('#outlinePreview').href = '/academy/' + encodeURIComponent(slug) + '/';
     var totalLessons = 0, totalMin = 0;
     curMods.forEach(function (m) { (m.lessons || []).forEach(function (l) { totalLessons++; totalMin += (+l.duration_min || 0); }); });
     $('#curHint').textContent = curMods.length + ' module' + (curMods.length === 1 ? '' : 's') + ' · ' + totalLessons + ' item' + (totalLessons === 1 ? '' : 's') + (totalMin ? ' · ' + totalMin + ' min' : '');
@@ -382,25 +398,48 @@
         return '<li class="les" draggable="true" data-item="' + l.id + '">'
           + '<button type="button" class="drag" data-handle="item" data-id="' + l.id + '" aria-label="Move ' + esc(l.title) + ' (drag, or Alt+arrow keys)">⠿</button>'
           + lesTypeBadge(l.type)
-          + '<button type="button" class="les-title les-open" data-led="' + l.id + '">' + esc(l.title) + '</button>'
+          + '<button type="button" class="les-title les-open" data-led="' + l.id + '" title="Open · double-click to rename">' + esc(l.title) + '</button>'
+          + '<span class="les-warn" data-warn="' + l.id + '" hidden></span>'
           + '<span class="les-tags">' + tags + '</span>'
-          + '<span class="row-actions"><button class="btn btn-ghost btn-sm" data-ldup="' + l.id + '" aria-label="Duplicate ' + esc(l.title) + '">Duplicate</button>'
-          + '<button class="btn btn-ghost btn-sm" data-ldel="' + l.id + '" aria-label="Delete ' + esc(l.title) + '">✕</button></span></li>';
+          + '<span class="row-actions"><a class="btn btn-ghost btn-sm" href="/academy/' + esc(slug) + '/learn/' + esc(l.slug) + '" target="_blank" rel="noopener" aria-label="Preview ' + esc(l.title) + ' as a learner (opens a new tab)">Preview</a>'
+          + '<details class="more"><summary class="btn btn-ghost btn-sm" aria-label="More for ' + esc(l.title) + '">⋯</summary><div class="more-menu">'
+          + '<button type="button" data-lren="' + l.id + '">Rename</button>'
+          + '<button type="button" data-ldup="' + l.id + '">Duplicate</button>'
+          + (curMods.length > 1 ? '<label class="more-move"><span>Move to</span><select data-lmove="' + l.id + '"><option value="">Choose a module…</option>'
+              + curMods.map(function (mm, k) { return mm.id === m.id ? '' : '<option value="' + mm.id + '">Module ' + (k + 1) + ' · ' + esc(mm.title) + '</option>'; }).join('') + '</select></label>' : '')
+          + '<button type="button" data-ldel="' + l.id + '" class="danger">Delete</button>'
+          + '</div></details></span></li>';
       }).join('');
       var objs = (m.objectives || '').split('\n').filter(Boolean).length;
+      var mMin = (m.lessons || []).reduce(function (t, l) { return t + (+l.duration_min || 0); }, 0);
       return '<section class="mod" data-mod="' + m.id + '" draggable="true">'
         + '<div class="mod-head"><button type="button" class="fold" data-fold="' + m.id + '" aria-expanded="' + (folded[m.id] ? 'false' : 'true') + '" aria-label="Show or hide the items in ' + esc(m.title) + '">▾</button><button type="button" class="drag" data-handle="mod" data-id="' + m.id + '" aria-label="Move module ' + esc(m.title) + ' (drag, or Alt+arrow keys)">⠿</button>'
-        + '<span class="mod-title"><span class="mod-k">Module ' + (mi + 1) + '</span>' + esc(m.title)
+        + '<span class="mod-title"><span class="mod-k">Module ' + (mi + 1) + ' · ' + (m.lessons || []).length + ' item' + ((m.lessons || []).length === 1 ? '' : 's') + (mMin ? ' · ' + mMin + ' min' : '') + '</span><button type="button" class="mod-name" data-mname="' + m.id + '" title="Double-click to rename">' + esc(m.title) + '</button>'
         + '<span class="muted mod-sum">' + (m.summary ? esc(m.summary) : '<em>No introduction yet — learners see it at the start of the module.</em>') + (objs ? ' · ' + objs + ' objective' + (objs === 1 ? '' : 's') : '') + '</span></span>'
         + '<button class="btn btn-outline btn-sm" data-mren="' + m.id + '">Edit introduction</button>'
         + '<button class="btn btn-ghost btn-sm" data-mdel="' + m.id + '">Delete</button></div>'
         + '<ul class="mod-lessons" data-drop="' + m.id + '">' + (items || '<li class="les-empty">No items yet — drop one here or add one.</li>') + '</ul>'
         + '<div class="mod-foot add-kinds" role="group" aria-label="Add an item to ' + esc(m.title) + '"><span class="muted">Add:</span>'
         + KINDS.map(function (k) { return '<button class="btn btn-outline btn-sm" data-ladd="' + m.id + '" data-kind="' + k.k + '" title="' + esc(k.hint) + '">+ ' + k.label + '</button>'; }).join('')
-        + '</div></section>';
+        + '<button class="btn btn-ghost btn-sm" data-lbulk="' + m.id + '">+ Several at once</button>'
+        + '</div><form class="bulk" data-bulk="' + m.id + '" hidden><label><span>One title per line — each becomes a reading you can fill in later</span><textarea rows="4" placeholder="What a mandate is&#10;Who gives it&#10;When it ends"></textarea></label>'
+        + '<div class="bulk-foot"><button type="submit" class="btn btn-primary btn-sm">Add them</button><button type="button" class="btn btn-ghost btn-sm" data-bulkx>Cancel</button></div></form></section>';
     }).join('');
-    wrap.innerHTML = (html || '<p class="empty">Start with a module — a week or a topic — then add items to it.</p>')
+    wrap.innerHTML = (html || '<div class="plan"><h3>How will this course run?</h3><p class="muted">Pick a shape to start from. Every week comes with two lessons, a practice check and a graded quiz to fill in — rename, move or delete anything later.</p>'
+        + '<div class="mode-pick plan-pick"><button type="button" class="mode-card" data-plan="4"><b>4 weeks</b><span>A short course</span></button>'
+        + '<button type="button" class="mode-card" data-plan="6"><b>6 weeks</b><span>A term-length course</span></button>'
+        + '<button type="button" class="mode-card" data-plan="0"><b>Start blank</b><span>Add modules yourself</span></button></div></div>')
       + '<button class="btn btn-primary btn-sm" id="addMod">+ Add module</button>';
+    $$('[data-plan]', wrap).forEach(function (b) { b.onclick = function () {
+      var n = +b.getAttribute('data-plan'); if (!n) { openModule(null); return; }
+      $$('[data-plan]', wrap).forEach(function (x) { x.disabled = true; }); b.querySelector('span').textContent = 'Setting up…';
+      var chain = Promise.resolve();
+      for (var w = 1; w <= n; w++) (function (w) {
+        chain = chain.then(function () { return post('mod_save', { course: slug, title: 'Week ' + w, summary: '', objectives: '' }); })
+          .then(function (r) { if (r && r.ok) return starterWeek(r.id); });
+      })(w);
+      chain.then(function () { toast(n + ' weeks ready to fill in', 'ok'); renderCurriculum(slug); });
+    }; });
     if (focusSel) { var f = $(focusSel, wrap); if (f) f.focus(); }
     $$('[data-fold]', wrap).forEach(function (b) { b.onclick = function () {
       var id = b.getAttribute('data-fold'); folded[id] = !folded[id]; b.setAttribute('aria-expanded', String(!folded[id])); filterOutline();
@@ -408,10 +447,66 @@
     filterOutline();
 
     $('#addMod').onclick = function () { openModule(null); };
+    /* Rename in place: double-click a title (or "Rename" in ⋯, or F2 on it). Enter saves, Esc cancels.
+       A save that sends only the title leaves everything else as it is (saveLesson). */
+    function inlineRename(btn, save) {
+      var old = btn.textContent, inp = document.createElement('input');
+      inp.type = 'text'; inp.value = old; inp.className = 'inline-name'; inp.setAttribute('aria-label', 'New name');
+      btn.replaceWith(inp); inp.focus(); inp.select();
+      var done = false;
+      function finish(ok) {
+        if (done) return; done = true;
+        var v = inp.value.trim();
+        if (!ok || !v || v === old) { inp.replaceWith(btn); btn.focus(); return; }
+        save(v).then(function (r) { if (r && r.ok) { toast('Renamed', 'ok'); renderCurriculum(slug); } else { toast((r && r.error) || 'Could not rename', 'err'); inp.replaceWith(btn); } });
+      }
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); finish(true); } if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); } });
+      inp.addEventListener('blur', function () { finish(true); });
+    }
+    function renameItem(id) { var b = $('[data-led="' + id + '"]', wrap); if (b) inlineRename(b, function (v) { return post('lesson_save', { id: id, title: v }); }); }
+    $$('[data-led]', wrap).forEach(function (b) {
+      b.addEventListener('dblclick', function (e) { e.preventDefault(); clearTimeout(clickT); renameItem(+b.getAttribute('data-led')); });
+      b.addEventListener('keydown', function (e) { if (e.key === 'F2') { e.preventDefault(); renameItem(+b.getAttribute('data-led')); } });
+    });
+    $$('[data-lren]', wrap).forEach(function (b) { b.onclick = function () { b.closest('details').open = false; renameItem(+b.getAttribute('data-lren')); }; });
+    $$('[data-mname]', wrap).forEach(function (b) {
+      var id = +b.getAttribute('data-mname');
+      var go = function () { inlineRename(b, function (v) { return post('mod_save', { id: id, title: v }); }); };
+      b.addEventListener('dblclick', function (e) { e.preventDefault(); clearTimeout(clickT); go(); });
+      b.addEventListener('keydown', function (e) { if (e.key === 'F2') { e.preventDefault(); go(); } });
+      b.addEventListener('click', singleClick(function () { openModule(curMods.filter(function (x) { return x.id === id; })[0] || null); }));
+    });
+    /* Move to another module from the menu — the keyboard-and-mouse way that needs no drag. */
+    $$('[data-lmove]', wrap).forEach(function (sel) { sel.onchange = function () {
+      var to = +sel.value; if (!to) return;
+      var p = findItem(+sel.getAttribute('data-lmove')); if (!p) return;
+      var it = curMods[p.mi].lessons.splice(p.li, 1)[0];
+      var target = curMods.filter(function (m) { return m.id === to; })[0];
+      (target.lessons = target.lessons || []).push(it);
+      draw(slug); saveOutline(slug).then(function (ok) { if (ok) loadReadiness(slug); });
+    }; });
+    /* Several items at once: one title per line. */
+    $$('[data-lbulk]', wrap).forEach(function (b) { b.onclick = function () {
+      var f = $('[data-bulk="' + b.getAttribute('data-lbulk') + '"]', wrap); f.hidden = false; $('textarea', f).focus();
+    }; });
+    $$('[data-bulk]', wrap).forEach(function (f) {
+      $('[data-bulkx]', f).onclick = function () { f.hidden = true; };
+      f.onsubmit = function (e) {
+        e.preventDefault();
+        var mid = +f.getAttribute('data-bulk');
+        var titles = $('textarea', f).value.split('\n').map(function (t) { return t.trim(); }).filter(Boolean).slice(0, 40);
+        if (!titles.length) return;
+        $('button[type=submit]', f).disabled = true;
+        titles.reduce(function (pr, t) { return pr.then(function () { return post('lesson_save', { id: 0, module_id: mid, title: t, slug: '', body_html: '', kind: '', duration_min: 5 }); }); }, Promise.resolve())
+          .then(function () { toast(titles.length + ' item' + (titles.length === 1 ? '' : 's') + ' added', 'ok'); renderCurriculum(slug); });
+      };
+    });
     $$('[data-mren]', wrap).forEach(function (b) { b.onclick = function () { var id = +b.getAttribute('data-mren'); openModule(curMods.filter(function (x) { return x.id === id; })[0] || null); }; });
     $$('[data-mdel]', wrap).forEach(function (b) { b.onclick = function () { if (confirm('Delete this module and its items?')) post('mod_delete', { id: +b.getAttribute('data-mdel') }).then(function () { renderCurriculum(slug); }); }; });
     $$('[data-ladd]', wrap).forEach(function (b) { b.onclick = function () { openLesson(null, +b.getAttribute('data-ladd'), b.getAttribute('data-kind')); }; });
-    $$('[data-led]', wrap).forEach(function (b) { b.onclick = function () { openLesson(+b.getAttribute('data-led'), null); }; });
+    var clickT = 0;
+    function singleClick(fn) { return function (e) { if (e.detail > 1) return; clearTimeout(clickT); clickT = setTimeout(fn, 230); }; }
+    $$('[data-led]', wrap).forEach(function (b) { b.onclick = singleClick(function () { openLesson(+b.getAttribute('data-led'), null); }); });
     $$('[data-ldup]', wrap).forEach(function (b) { b.onclick = function () { post('lesson_duplicate', { id: +b.getAttribute('data-ldup') }).then(function (r) { if (r && r.ok) { toast('Duplicated', 'ok'); renderCurriculum(slug); } else toast((r && r.error) || 'Failed', 'err'); }); }; });
     $$('[data-ldel]', wrap).forEach(function (b) { b.onclick = function () { if (confirm('Delete this item?')) post('lesson_delete', { id: +b.getAttribute('data-ldel') }).then(function () { renderCurriculum(slug); }); }; });
 
@@ -520,7 +615,7 @@
           ed.ui.registry.addButton('avimage', { icon: 'image', tooltip: 'Insert an image', onAction: function () {
             uploadFile('image/*').then(function (url) { ed.insertContent('<p><img src="' + esc(url) + '" alt=""></p>'); }).catch(function () {});
           } });
-          ed.on('input change', function () { dirty = true; });
+          ed.on('input change', function () { dirty = true; scheduleDraft(); });
         }
       });
     });
@@ -637,7 +732,34 @@
     return Math.max(1, Math.ceil(words / 200));
   }
 
+  /* Unsaved work survives a closed tab, a lost connection or a crash: what is
+     typed is kept in this browser until it is saved, and offered back the
+     next time the item is opened. */
+  var draftT = 0;
+  function draftKey() { return 'av.studio.draft.' + (lessonId ? 'id' + lessonId : 'new.' + lessonModuleId + '.' + uiKind); }
+  function scheduleDraft() {
+    clearTimeout(draftT);
+    draftT = setTimeout(function () {
+      try { localStorage.setItem(draftKey(), JSON.stringify({ at: Date.now(), title: $('#l_title').value, body: richGet('l_body'), transcript: $('#l_transcript').value })); } catch (e) { /* storage full or off */ }
+    }, 700);
+  }
+  function dropDraft() { clearTimeout(draftT); try { localStorage.removeItem(draftKey()); } catch (e) {} }
+  function offerDraft(loaded) {
+    var bar = $('#draftBar'), d = null;
+    try { d = JSON.parse(localStorage.getItem(draftKey()) || 'null'); } catch (e) {}
+    if (!d || (d.title === (loaded.title || '') && String(d.body || '') === String(loaded.body_html || ''))) { bar.hidden = true; return; }
+    var when = new Date(d.at);
+    $('#draftWhen').textContent = when.toLocaleDateString() === new Date().toLocaleDateString() ? 'today at ' + when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : when.toLocaleString();
+    bar.hidden = false;
+    $('#draftRestore').onclick = function () {
+      $('#l_title').value = d.title || ''; $('#l_transcript').value = d.transcript || '';
+      richInit('l_body', d.body || ''); dirty = true; bar.hidden = true; toast('Unsaved text restored', 'ok');
+    };
+    $('#draftDiscard').onclick = function () { dropDraft(); bar.hidden = true; };
+  }
   function openLesson(id, moduleId, preset) {
+    /* Opening another item while this one has changes: ask first. */
+    if (!$('#lessonModal').hidden && dirty && !confirm('You have unsaved changes here. Open the other item anyway? (They are kept as a draft.)')) return;
     lessonOpener = document.activeElement;
     lessonId = id || 0; lessonModuleId = moduleId || 0; dirty = false;
     $('#lessonMsg').textContent = ''; $('#uploadMsg').textContent = ''; $('#saveState').textContent = '';
@@ -662,7 +784,8 @@
       if (kind === 'quiz' && !$$('#quizQuestions .qcard').length) $('#quizQuestions').appendChild(qCard());
       numberQs();
       richInit('l_body', l.body_html || '');
-      $('#lessonModal').hidden = false;
+      offerDraft(l);
+      $('#lessonModal').hidden = false; document.body.classList.add('is-editing');
       setTimeout(function () { $('#l_title').focus(); }, 30);
     }
     if (!id) { fill({}, preset || 'reading'); return; }
@@ -673,15 +796,15 @@
     });
   }
   function closeLesson(force) {
-    if (!force && dirty && !confirm('Leave without saving your changes?')) return;
+    if (!force && dirty && !confirm('Close without saving? Your changes stay as a draft you can restore next time.')) return;
     if (window.tinymce && tinymce.get('l_body')) tinymce.get('l_body').remove();
-    $('#lessonModal').hidden = true;
+    $('#lessonModal').hidden = true; document.body.classList.remove('is-editing');
     if (lessonOpener && lessonOpener.focus) { try { lessonOpener.focus(); } catch (e) {} }
     lessonOpener = null;
   }
-  $('#lessonForm').addEventListener('input', function () { dirty = true; });
+  $('#lessonForm').addEventListener('input', function () { dirty = true; scheduleDraft(); });
   $('#lessonClose').onclick = function () { closeLesson(false); }; $('#lessonCancel').onclick = function () { closeLesson(false); };
-  $('#lessonModal').addEventListener('mousedown', function (e) { if (e.target === this) closeLesson(false); });
+  $('#lessonModal').addEventListener('mousedown', function (e) { if (e.target === this && !matchMedia('(min-width: 1180px)').matches) closeLesson(false); });
   document.addEventListener('keydown', function (e) {
     if ($('#lessonModal').hidden) return;
     if (e.key === 'Escape') closeLesson(false);
@@ -723,7 +846,7 @@
     var btn = $('#lessonSave'); btn.disabled = true; $('#saveState').textContent = 'Saving…';
     post('lesson_save', payload).then(function (d) {
       btn.disabled = false;
-      if (d && d.ok) { dirty = false; toast('Saved', 'ok'); closeLesson(true); renderCurriculum(curCourseSlug); }
+      if (d && d.ok) { dropDraft(); dirty = false; toast('Saved', 'ok'); closeLesson(true); renderCurriculum(curCourseSlug); }
       else { $('#saveState').textContent = ''; say((d && d.error) || 'Could not save.'); }
     }).catch(function () { btn.disabled = false; $('#saveState').textContent = ''; say('Network error — your work is still here. Try again.'); });
   };

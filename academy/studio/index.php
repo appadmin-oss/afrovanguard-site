@@ -223,6 +223,7 @@ declare(strict_types=1);
         <div class="list-tools" role="search" id="outlineTools" hidden>
           <label class="find"><span class="sr">Find in this outline</span><input type="search" id="outlineFind" placeholder="Find an item in this course" autocomplete="off" /></label>
           <button type="button" class="btn btn-ghost btn-sm" id="foldAll">Collapse all</button>
+          <a class="btn btn-outline btn-sm" id="outlinePreview" href="/academy/" target="_blank" rel="noopener">Preview course ↗</a>
           <span class="muted list-count" id="outlineCount" aria-live="polite"></span>
         </div>
         <div class="curriculum" id="curriculum"><p class="empty">Pick a course to build its curriculum.</p></div>
@@ -286,6 +287,11 @@ declare(strict_types=1);
     <div class="modal-head">
       <div><span class="kind-chip" id="l_kindChip">Reading</span><h2 id="lessonModalTitle">New item</h2></div>
       <button class="icon-x" id="lessonClose" aria-label="Close">×</button>
+    </div>
+    <div class="draft-bar" id="draftBar" role="status" hidden>
+      <span>You have unsaved changes from <b id="draftWhen"></b>.</span>
+      <button type="button" class="btn btn-primary btn-sm" id="draftRestore">Restore them</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="draftDiscard">Discard</button>
     </div>
     <form id="lessonForm" class="modal-body" novalidate>
       <label class="fld"><span>Title</span><input id="l_title" required placeholder="e.g. What a mandate is" autocomplete="off" /></label>
