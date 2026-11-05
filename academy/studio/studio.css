@@ -359,9 +359,9 @@ kbd{font:600 11.5px/1 ui-monospace,monospace;padding:3px 6px;border:1px solid va
 /* Course builder: the editor docks beside the outline on a wide screen */
 @media (min-width:1180px){
   #lessonModal{background:transparent;pointer-events:none;place-items:stretch end;padding:0;animation:none}
-  #lessonModal .modal-card{pointer-events:auto;width:min(720px,52vw);max-width:none;height:100vh;max-height:none;border-radius:0;border-left:1px solid var(--line);box-shadow:-12px 0 40px rgba(11,17,32,.12);display:flex;flex-direction:column}
+  #lessonModal .modal-card{pointer-events:auto;width:min(660px,46vw);max-width:none;height:100vh;max-height:none;border-radius:0;border-left:1px solid var(--line);box-shadow:-12px 0 40px rgba(11,17,32,.12);display:flex;flex-direction:column}
   #lessonModal .modal-body{flex:1;overflow:auto}
-  body.is-editing .main{padding-right:min(720px,52vw)}
+  body.is-editing .main{padding-right:min(660px,46vw)}
 }
 .draft-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 20px;padding:10px 14px;border-radius:10px;background:color-mix(in srgb,var(--gold) 16%,var(--surface));font-size:14px}
 .draft-bar span{flex:1 1 220px}
@@ -393,3 +393,69 @@ body.is-editing .mod-head [data-mren]{order:9}
 body.is-editing .list-tools .find input{min-width:0}
 .les-open{flex:1;min-width:0}
 .ready .r-all{margin-top:6px;font-size:13.5px}
+
+/* ── Responsive builder ─────────────────────────────────────────────────
+   Wide: while an item is open the left menu folds to icons, so the outline
+   keeps room beside the editor. Tablet: the editor is a full-height panel.
+   Phone: the editor is the whole screen; item rows put the title on its own
+   line; lists become cards. Touch: every control is at least 44 px. */
+@media (min-width:1180px){
+  body.is-editing .shell{grid-template-columns:72px 1fr}
+  body.is-editing .side{padding:18px 10px}
+  body.is-editing .side-name,body.is-editing .side .nav-item span,body.is-editing .side .ghost span{display:none}
+  body.is-editing .side .nav-item,body.is-editing .side .ghost{justify-content:center;padding:11px 0}
+  body.is-editing .side-brand{justify-content:center;padding:6px 0 18px}
+}
+@media (min-width:761px) and (max-width:1179px){
+  #lessonModal{place-items:stretch end;padding:0}
+  #lessonModal .modal-card{width:min(680px,94vw);max-width:none;height:100vh;max-height:none;border-radius:0;display:flex;flex-direction:column}
+  #lessonModal .modal-body{flex:1;overflow:auto}
+}
+@media (max-width:760px){
+  .top-title p{display:none}
+  .top-title h1{font-size:22px}
+  #lessonModal,#modModal,#searchModal{padding:0;place-items:stretch}
+  #lessonModal .modal-card,#modModal .modal-card{width:100vw;max-width:none;height:100vh;height:100dvh;max-height:none;border-radius:0;display:flex;flex-direction:column}
+  #lessonModal .modal-body,#modModal .modal-body{flex:1;overflow:auto}
+  #searchModal{padding-top:0}
+  #searchModal .palette-card{width:100vw;max-width:none;height:100dvh;border-radius:0;display:flex;flex-direction:column}
+  #searchModal .palette-res{max-height:none;flex:1}
+  .draft-bar{margin:0 14px}
+  /* module header: the name gets the whole first line */
+  .mod-head{flex-wrap:wrap;padding:12px}
+  .mod-head{gap:4px}
+  .mod-head .mod-title{flex:1 1 calc(100% - 124px);min-width:0}
+  .mod-head [data-mren],.mod-head [data-mdel]{flex:0 0 auto}
+  /* item row: handle · title · actions, then type, flags and time beneath the title */
+  .les{flex-wrap:wrap;row-gap:4px;padding:8px 6px}
+  .les .drag{order:0}
+  .les .les-open{order:1;flex:1 1 calc(100% - 160px);min-width:0;white-space:normal}
+  .les .row-actions{order:2;margin-left:auto}
+  .les .les-type,.les .les-warn,.les .les-tags{order:3}
+  .les .les-type{margin-left:44px}
+  .add-kinds{gap:6px}
+  .add-kinds .btn{flex:1 1 calc(50% - 6px)}
+  .list-tools .seg{width:100%;overflow-x:auto}
+  .list-tools .seg button{flex:1 0 auto}
+  .list-count{margin-left:0}
+  /* lists: rows become cards */
+  #coursesTbl,#rosterTbl,#coursesTbl tbody,#rosterTbl tbody{display:block;width:100%;min-width:0}
+  #coursesTbl thead,#rosterTbl thead{display:none}
+  #coursesTbl tr,#rosterTbl tr{display:flex;flex-wrap:wrap;gap:6px 10px;padding:12px;border-bottom:1px solid var(--line)}
+  #coursesTbl td,#rosterTbl td{display:block;padding:0;border:0}
+  #coursesTbl td:first-child,#rosterTbl td:first-child{flex:1 1 100%}
+  #coursesTbl td:nth-child(4),#coursesTbl td:nth-child(5){color:var(--muted);font-size:13px}
+  #coursesTbl td:nth-child(4)::after{content:" items"}
+  #coursesTbl td:nth-child(5)::after{content:" learners"}
+  #coursesTbl td:last-child,#rosterTbl td:last-child{flex:1 1 100%}
+  #coursesTbl .row-actions,#rosterTbl .row-actions{flex-wrap:wrap;justify-content:flex-start}
+  .table-wrap{overflow:visible}
+}
+@media (pointer:coarse){
+  .drag,.fold,.more>summary,.les .btn-sm,.mod-head .btn-sm,.add-kinds .btn,.seg button,.row-actions .btn{min-height:44px;min-width:44px}
+  .les .les-open,.mod-name{min-height:44px}
+  .more-menu a,.more-menu button{min-height:44px}
+}
+/* the checklist: a tip reads as a tip, not a fault */
+.ready .link-btn{color:var(--ink);text-align:left}
+.ready .r-tip,.ready .r-tip .link-btn{color:var(--ink-2)}
