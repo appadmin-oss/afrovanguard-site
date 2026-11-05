@@ -1,0 +1,69 @@
+<?php
+/**
+ * tests/siteaudit.test.php — the public-site audit of 2026-11-05.
+ *
+ * The things a reviewer (or a search engine) checks first: the sitemap lists
+ * each page under the URL that page calls canonical, no internal link points
+ * at a page that does not exist, and Street-To-Stardom has one website.
+ */
+declare(strict_types=1);
+
+$saXml = (string) (new ReflectionMethod('Sitemap', 'buildXml'))->invoke(null);
+preg_match_all('~<loc>https://[^/]+(/[^<]*)</loc>~', $saXml, $saM);
+$saLocs = $saM[1];
+
+/* Every static sitemap entry agrees with the canonical its page declares. */
+$saCanon = [
+    '/about.html'   => 'about.html',
+    '/contact.html' => 'contact.html',
+    '/donate/'      => 'donate.html',
+    '/projects/'    => 'projects/index.html',
+    '/projects/sts/lcasp.html' => 'projects/sts/lcasp.html',
+];
+foreach ($saCanon as $loc => $file) {
+    $html = (string) @file_get_contents(AV_ROOT . '/' . $file);
+    ck("sitemap: $loc is listed", in_array($loc, $saLocs, true));
+    ck("sitemap: $file declares $loc canonical",
+       str_contains($html, '<link rel="canonical" href="https://afrovanguard.org.ng' . $loc . '"'));
+}
+foreach (['/about/', '/contact/', '/donate.html', '/projects', '/projects/sts/lcasp/'] as $stale) {
+    ck("sitemap: the non-canonical $stale is not listed", !in_array($stale, $saLocs, true));
+}
+ck('sitemap: the privacy policy and terms are listed',
+   in_array('/privacy-policy/', $saLocs, true) && in_array('/terms/', $saLocs, true));
+
+/* Links that pointed at nothing. */
+ck('links: the Diary\'s Join goes to the volunteer form, not /volunteer/',
+   !str_contains((string) file_get_contents(AV_ROOT . '/diary/partials.php'), 'href="/volunteer/"'));
+ck('links: the LCASP page never names /projects/sts/lcasp/ (a 404)',
+   !str_contains((string) file_get_contents(AV_ROOT . '/projects/sts/lcasp.html'), '/projects/sts/lcasp/'));
+
+/* About: the 2023 chip agrees with the paragraph beneath it. */
+$saAbout = (string) file_get_contents(AV_ROOT . '/about.html');
+ck('about: 2023 is 5,000+ lives in both the chip and the text',
+   str_contains($saAbout, '2023 · 5,000+ lives') && str_contains($saAbout, 'more than 5,000 lives'));
+
+/* HSTS reaches the static pages, with the value lib/security.php sends. */
+ck('http: .htaccess sends HSTS for the pages PHP never touches',
+   str_contains($saHt ?? (string) file_get_contents(AV_ROOT . '/.htaccess'), 'Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"')
+   && str_contains((string) file_get_contents(AV_ROOT . '/lib/security.php'), "Strict-Transport-Security: max-age=31536000; includeSubDomains"));
+
+/* Street-To-Stardom: its site is sts.afrovanguard.org.ng; the copy here is gone. */
+foreach (['about', 'team', 'impact', 'units', 'programs', 'get-involved', 'blog', 'contact', '_astro'] as $d) {
+    ck("sts: the old copy's $d/ is removed", !is_dir(AV_ROOT . "/projects/sts/$d"));
+}
+ck('sts: the speaker-intake tool lives on the STS site, not here',
+   !is_file(AV_ROOT . '/projects/sts/ceo/index.html') && !is_file(AV_ROOT . '/projects/sts/ceo/api/submit.php'));
+ck('sts: the guard over any backups it left on a host stays', is_file(AV_ROOT . '/projects/sts/ceo/api/data/.htaccess'));
+ck('sts: the old copy\'s sitemap (another domain\'s URLs) is removed', !is_file(AV_ROOT . '/projects/sts/sitemap.xml'));
+$saHt = (string) file_get_contents(AV_ROOT . '/.htaccess');
+$saRt = (string) file_get_contents(AV_ROOT . '/router.php');
+$saRule = '^projects/sts/((?:about|team|impact|units|programs|get-involved|blog|contact|ceo)(?:/.*)?)$ https://sts.afrovanguard.org.ng/$1 [R=301';
+ck('sts: old paths 301 to the STS site (.htaccess)', str_contains($saHt, $saRule));
+ck('sts: the redirect sits above the real-file guard',
+   strpos($saHt, $saRule) < strpos($saHt, "RewriteCond %{REQUEST_FILENAME} -f [OR]"));
+ck('sts: the dev router mirrors it', str_contains($saRt, "header('Location: https://sts.afrovanguard.org.ng/'"));
+ck('sts: what this site still serves is kept',
+   is_file(AV_ROOT . '/projects/sts/index.php') && is_file(AV_ROOT . '/projects/sts/lcasp.html')
+   && is_file(AV_ROOT . '/projects/sts/STS_Report_2025.pdf')
+   && is_file(AV_ROOT . '/projects/sts/2026-LCASP-Document.pdf'));

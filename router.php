@@ -54,6 +54,13 @@ if (preg_match('~^/projects/africa-gates/?(.*)$~', $uri, $m)) {
     return true;
 }
 
+// Street-To-Stardom's own site: the old copy's paths go there (mirrors .htaccess).
+if (preg_match('~^/projects/sts/((?:about|team|impact|units|programs|get-involved|blog|contact|ceo)(?:/.*)?)$~', $uri, $m)) {
+    $qs = $_SERVER['QUERY_STRING'] ?? '';
+    header('Location: https://sts.afrovanguard.org.ng/' . $m[1] . ($qs ? '?' . $qs : ''), true, 301);
+    return true;
+}
+
 // The CACENTRE door: /cacentre and /cacentre/<path on the far side>.
 // A member's pass for the CACENTRE gate.
 if (preg_match('~^/gate-pass/?$~', $uri)) { require __DIR__ . '/gate-pass.php'; return true; }

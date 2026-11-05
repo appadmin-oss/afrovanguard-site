@@ -61,7 +61,7 @@ ck('projects index: no-JS shows every program (filters hidden, no card pre-hidde
 ck('appeals: external programmes are not offered',
    !isset(Appeals::projects()['africa-gates']) && !isset(Appeals::projects()['ngg']) && isset(Appeals::projects()['sts']));
 
-/* The STS sub-apps stay where they were. */
+/* The STS pages this site still serves (the rest is sts.afrovanguard.org.ng). */
 ck('projects: the STS sub-pages are untouched',
-   is_file(AV_ROOT . '/projects/sts/ceo/index.html') && is_file(AV_ROOT . '/projects/sts/lcasp.html')
+   is_file(AV_ROOT . '/projects/sts/lcasp.html')
    && !is_file(AV_ROOT . '/projects/sts/index.html'));

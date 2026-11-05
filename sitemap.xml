@@ -7,9 +7,19 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://afrovanguard.org.ng/about/</loc>
+    <loc>https://afrovanguard.org.ng/about.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/how-it-works</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/people/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://afrovanguard.org.ng/ethos/</loc>
@@ -39,9 +49,49 @@
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://afrovanguard.org.ng/projects</loc>
+    <loc>https://afrovanguard.org.ng/projects/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/projects/sts/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/projects/sts/lcasp.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/projects/techhome/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/projects/mediapro/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/projects/bec/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/projects/career-hub/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/projects/kap/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/franchise</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://afrovanguard.org.ng/events/</loc>
@@ -54,14 +104,24 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://afrovanguard.org.ng/contact/</loc>
+    <loc>https://afrovanguard.org.ng/contact.html</loc>
     <changefreq>yearly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://afrovanguard.org.ng/donate.html</loc>
+    <loc>https://afrovanguard.org.ng/donate/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/privacy-policy/</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/terms/</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
   </url>
   <url>
     <loc>https://afrovanguard.org.ng/give/</loc>
