@@ -246,7 +246,7 @@ $projects = [
   <div class="avh-wrap">
     <div class="avac-proj-head">
       <div><div class="avac-eyebrow">Beyond the classroom</div><h2 class="avac-h2 avac-h2--sm" id="avac-proj-h">Learn by doing in our projects</h2></div>
-      <a class="avac-more" href="/projects/">All nine projects →</a>
+      <a class="avac-more" href="/projects/">All seven projects →</a>
     </div>
     <ul class="avac-proj-grid">
 <?php foreach ($projects as [$img, $k, $t, $h]): $ext = str_starts_with($h, 'http'); ?>
@@ -305,7 +305,7 @@ $projects = [
   <div class="avac-inv-ctas">
     <a class="avac-inv-gold" href="/donate.html">Donate</a>
     <a href="/contact.html">Volunteer</a>
-    <a href="/projects/">Apply to a program</a>
+    <a href="/projects/">Join a project</a>
   </div>
 </section>
 

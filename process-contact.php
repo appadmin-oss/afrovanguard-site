@@ -254,12 +254,12 @@ function adminNotifyHtml(array $d): string {
    PURPOSE LABELS
    ═══════════════════════════════════════════════════════════ */
 $PURPOSE_LABELS = [
-    'volunteer' => 'Volunteering — Street-To-Stardom / Summer School',
+    'volunteer' => 'Volunteering — Street-To-Stardom / LCASP',
     'business'  => 'Business — BEC / Partnerships',
     'tech'      => 'Technology — Techome',
     'media'     => 'Media — Mediapro',
     'career'    => 'Career Development — Career Hub',
-    'creative'  => 'Creative / Cultural — Africa GATES',
+    'creative'  => 'Scholarships & fellowships — Africa GATES',
     'kingdom'   => 'Kingdom Advancement Project',
     'donation'  => 'Donation Enquiry',
     'general'   => 'General Enquiry',

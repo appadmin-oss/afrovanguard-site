@@ -322,7 +322,7 @@ body{font-family:var(--font-b);background:var(--bg);color:var(--text);-webkit-fo
   <div class="container">
     <div class="sec-label">Campaign Progress</div>
     <h2 class="sec-title">Where Your Gift Goes</h2>
-    <p class="sec-sub">Select a campaign when donating to direct your gift to the programs that matter most to you.</p>
+    <p class="sec-sub">Name a campaign when you give and 70% of your gift goes to it; 30% runs our CACENTRE community centres. These are the campaigns running now.</p>
     <div class="camp-grid" id="campGrid">
       <!-- Filled by loadCampaigns() -->
       <div class="camp-card"><div class="sk sk-ln" style="width:60%;height:14px;margin-bottom:10px;"></div><div class="sk sk-ln" style="width:40%;height:8px;"></div></div>
@@ -437,9 +437,7 @@ body{font-family:var(--font-b);background:var(--bg);color:var(--text);-webkit-fo
             <label for="bt_campaign">Campaign *</label>
             <select class="admin-input" id="bt_campaign">
               <option value="general">General Fund — Where It's Needed Most</option>
-              <option value="schoolstorm">School Storm Campus Tour 2026</option>
-              <option value="s2s">Street-To-Stardom 2026 Season</option>
-              <option value="techhome">Techome Equipment Drive</option>
+              <!-- The campaigns running now are added from /give/feed.json (loadCampaigns). -->
             </select>
           </div>
         </div>
@@ -504,12 +502,11 @@ let donorTotal    = 0;
 let currentFilter = 'all';
 let adminToken    = '';
 
-const CAMP_META = {
-  general:     { name:'Where It\'s Needed Most',     badge:'General Fund',    color:'#f3b416', goal:5000000 },
-  schoolstorm: { name:'School Storm Campus Tour 2026',badge:'Flagship Program',color:'#3b82f6', goal:3000000 },
-  s2s:         { name:'Street-To-Stardom 2026',       badge:'Street Program',  color:'#8b5cf6', goal:2500000 },
-  techhome:    { name:'Techome Equipment Drive',     badge:'Tech Education',  color:'#10b981', goal:2000000 },
-};
+/* The general fund, and the colours campaign cards take in turn. The campaigns
+   themselves are the appeals running now (/give/feed.json), never a list
+   typed into this page: one typed here outlived its season by months. */
+const GENERAL = { name:'Where It\'s Needed Most', badge:'General Fund', color:'#f3b416' };
+const CAMP_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#ef4444', '#0ea5e9'];
 
 /* ════════════════════════════════════════════════════════════
    HELPERS
@@ -538,7 +535,7 @@ function buildCampCard(meta, raised, donors, pct) {
   const cnm=document.createElement('div'); cnm.className='camp-name'; cnm.textContent=meta.name;
   const hdr=document.createElement('div'); hdr.className='camp-prog-header';
   const rs=document.createElement('span'); rs.className='camp-prog-raised'; rs.style.color=meta.color; rs.textContent=fmtNGN(raised)+' raised';
-  const ps=document.createElement('span'); ps.className='camp-prog-pct'; ps.textContent=pct+String.fromCharCode(37)+' · Goal '+fmtNGN(meta.goal);
+  const ps=document.createElement('span'); ps.className='camp-prog-pct'; ps.textContent=meta.goal>0 ? pct+String.fromCharCode(37)+' · Goal '+fmtNGN(meta.goal) : 'Open — no fixed goal';
   hdr.append(rs,ps);
   const trk=document.createElement('div'); trk.className='camp-track';
   const fil=document.createElement('div'); fil.className='camp-fill'; fil.style.background=meta.color; fil.style.setProperty('--tw',pct+'%');
@@ -549,33 +546,40 @@ function buildCampCard(meta, raised, donors, pct) {
   ft.append(ds,vs); card.append(bdg,cnm,hdr,trk,ft); return card;
 }
 function loadCampaigns() {
-  fetch('process-donation.php?action=get_stats')
-    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-    .then(function(data){
-      if (!data.success) return;
-      if (data.totals) {
-        var t=data.totals;
-        var dn=document.getElementById('totalDonors'); if(dn) dn.textContent=(t.donors||0).toLocaleString()+'+';
-        var dr=document.getElementById('totalRaised'); if(dr) dr.textContent=fmtNGN(t.raised_ngn||0);
-        var di=document.getElementById('totalInkind'); if(di) di.textContent=(t.inkind||0).toLocaleString();
-      }
-      var grid=document.getElementById('campGrid'); if(!grid||!data.campaigns) return; grid.innerHTML='';
-      Object.entries(CAMP_META).forEach(function([id,meta]){
-        var c=data.campaigns[id]||{}, raised=c.raised||0, donors=c.donors||0;
-        var pct=Math.min(Math.round((raised/meta.goal)*100),100);
-        var card=buildCampCard(meta,raised,donors,pct); grid.appendChild(card);
-        setTimeout(function(){card.querySelector('.camp-fill').classList.add('animated');},100);
-      });
-    })
-    .catch(function(){
-      var grid=document.getElementById('campGrid'); if(!grid) return; grid.innerHTML='';
-      var def={general:{raised:3250000,donors:47},schoolstorm:{raised:1820000,donors:29},s2s:{raised:980000,donors:18},techhome:{raised:560000,donors:11}};
-      Object.entries(CAMP_META).forEach(function([id,meta]){
-        var c=def[id]||{}, pct=Math.round((c.raised||0)/meta.goal*100);
-        var card=buildCampCard(meta,c.raised||0,c.donors||0,pct); grid.appendChild(card);
-        setTimeout(function(){card.querySelector('.camp-fill').classList.add('animated');},100);
-      });
+  var grid=document.getElementById('campGrid');
+  var paint=function(card){ grid.appendChild(card); setTimeout(function(){card.querySelector('.camp-fill').classList.add('animated');},100); };
+  var fail=function(){
+    /* An honest error. This page once filled itself with invented totals
+       (₦3.25M from 47 donors…) when the request failed: a donor cannot tell
+       a placeholder from a figure, so it never shows one. */
+    if(!grid) return; grid.innerHTML='';
+    var p=document.createElement('p'); p.className='sec-sub'; p.textContent='We could not load the campaign totals just now. ';
+    var b=document.createElement('button'); b.type='button'; b.className='filter-btn'; b.textContent='Try again';
+    b.addEventListener('click', loadCampaigns); p.appendChild(b); grid.appendChild(p);
+  };
+  Promise.all([
+    fetch('process-donation.php?action=get_stats').then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }),
+    fetch('/give/feed.json?limit=12',{headers:{Accept:'application/json'}}).then(function(r){ return r.ok ? r.json() : {appeals:[]}; }).catch(function(){ return {appeals:[]}; })
+  ]).then(function(res){
+    var data=res[0], feed=res[1];
+    if (!data || !data.success) { fail(); return; }
+    if (data.totals) {
+      var t=data.totals;
+      var dn=document.getElementById('totalDonors'); if(dn) dn.textContent=(t.donors||0).toLocaleString()+'+';
+      var dr=document.getElementById('totalRaised'); if(dr) dr.textContent=fmtNGN(t.raised_ngn||0);
+      var di=document.getElementById('totalInkind'); if(di) di.textContent=(t.inkind||0).toLocaleString();
+    }
+    if(!grid) return; grid.innerHTML='';
+    var g=(data.campaigns||{}).general||{};
+    paint(buildCampCard({name:GENERAL.name,badge:GENERAL.badge,color:GENERAL.color,goal:0}, g.raised||0, g.donors||0, 0));
+    var sel=document.getElementById('bt_campaign');
+    ((feed&&feed.appeals)||[]).filter(function(a){ return a && a.slug && a.title && /^[a-z0-9_-]+$/.test(a.slug); }).forEach(function(a,i){
+      var goal=a.goal||0, raised=a.raised||0;
+      var meta={name:a.title, badge:a.ends_on ? 'Running · until '+new Date(a.ends_on+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : 'Running now', color:CAMP_COLORS[i%CAMP_COLORS.length], goal:goal};
+      paint(buildCampCard(meta, raised, a.donors||0, goal>0 ? Math.min(Math.round(raised/goal*100),100) : 0));
+      if (sel && !sel.querySelector('option[value="'+a.slug+'"]')) { var o=document.createElement('option'); o.value=a.slug; o.textContent=a.title; sel.appendChild(o); }
     });
+  }).catch(fail);
 }
 
 function setFilter(f, btn) {

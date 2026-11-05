@@ -141,7 +141,7 @@ final class Ngv
             'fees_enabled' => true,
             'fees_title'   => 'Simple, purposeful commitment',
             'fees' => [
-                ['name' => 'Membership fee', 'amount' => '₦10,000 / year', 'desc' => 'A symbol of commitment. Covers your ID card & file setup, program starter pack, digital onboarding and induction/graduation prep. Paid on registration day.'],
+                ['name' => 'Membership fee', 'amount' => '₦10,000 / year', 'desc' => 'A symbol of commitment. Covers your ID card & file setup, programme starter pack, digital onboarding and induction/graduation prep. Paid on registration day.'],
                 ['name' => 'Commitment fee', 'amount' => '₦1,000 / month', 'desc' => 'Not for profit — a leadership-culture tool. Covers resource refreshers, guest-speaker honorariums, community outreach and facility upkeep.'],
             ],
             'fees_note' => 'No one is turned away for lack. If you\'re truly committed and need support, speak to your track lead or send a letter requesting consideration — we\'re here to help you rise, not shame you.',

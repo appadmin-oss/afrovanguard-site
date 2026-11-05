@@ -218,3 +218,16 @@ ck('chioma: without AI she sends volunteers to the volunteer form', str_contains
 ck('chioma: a question about one project gets that project', str_contains($saAsk('Tell me about Techome'), '/projects/techhome/'));
 ck('chioma: NextGen Vanguard and Next Generation Genius are not confused',
    str_contains($saAsk('Tell me about NextGen Vanguard'), '/academy/ngv/') && str_contains($saAsk('What is Next Generation Genius?'), 'next.afrovanguard.org.ng'));
+
+/* Second consistency sweep (2026-11-05): wording that contradicted the
+   seven projects, the programme names, or invented figures. */
+$saPublic = ['index.html', 'about.html', 'contact.html', 'donate.html', 'projects/index.html', 'projects/_detail.php',
+             'academy/index.php', 'member.html', 'donor-dashboard.html', 'process-contact.php'];
+foreach ($saPublic as $f) {
+    $t = (string) file_get_contents(AV_ROOT . "/$f");
+    ck("consistency: $f has no leftover count, name or campaign",
+       !preg_match('~[Nn]ine projects|Active programmes</dt>|Next Generation Vanguard|Apply to a program<|Selective programs|Campus Tour 2026|Street-To-Stardom 2026 Season|Summer School</option>|Creative / Cultural — Africa GATES~', $t));
+}
+$saDD = (string) file_get_contents(AV_ROOT . '/donor-dashboard.html');
+ck('donor dashboard: never shows invented totals when the request fails', !preg_match('~raised:\s*\d{4,}~', $saDD) && str_contains($saDD, 'We could not load the campaign totals just now'));
+ck('donor dashboard: its campaigns are the running appeals', str_contains($saDD, "fetch('/give/feed.json?limit=12'") && !str_contains($saDD, 'CAMP_META'));

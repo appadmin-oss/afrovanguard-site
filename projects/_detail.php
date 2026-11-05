@@ -189,7 +189,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <div class="avpj-wrap">
     <div class="avpj-more-head">
       <h2 class="avpj-h2 avpj-h2--md" id="avpj-more-h">Other projects</h2>
-      <a class="avpj-link" href="/projects/">All nine projects →</a>
+      <a class="avpj-link" href="/projects/">All seven projects →</a>
     </div>
     <div class="avpj-others">
 <?php foreach ($v['others'] as $o): ?>
@@ -214,7 +214,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <div class="avpj-inv-ctas">
     <a class="avpj-gold" href="/donate.html">Donate</a>
     <a href="/contact.html">Volunteer</a>
-    <a href="/projects/">Apply to a program</a>
+    <a href="/projects/">Join a project</a>
   </div>
 </section>
 
