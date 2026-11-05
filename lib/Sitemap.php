@@ -35,6 +35,8 @@ final class Sitemap
         ['contact.html', '0.5', 'yearly'],
         ['donate/', '0.8', 'monthly'],
         ['reports/', '0.6', 'monthly'],
+        ['IQ/', '0.5', 'monthly'],
+        ['academy/programmes/', '0.7', 'weekly'],
         ['privacy-policy/', '0.3', 'yearly'],
         ['terms/', '0.3', 'yearly'],
         ['give/', '0.9', 'daily'],
@@ -212,7 +214,9 @@ final class Sitemap
             . "User-agent: *\nAllow: /\n\n"
             . "# Server internals (also blocked at directory level)\n"
             . "Disallow: /lib/\nDisallow: /db/\nDisallow: /admin/\nDisallow: /error.php\n\n"
-            . "# Sitemaps — custom first (authoritative), then WordPress core's own.\n"
-            . "Sitemap: $S/sitemap.xml\nSitemap: $S/diary/sitemap.xml\nSitemap: $S/academy/sitemap.xml\nSitemap: $S/wp-sitemap.xml\n";
+            . "# Search engines and AI assistants (GPTBot, ClaudeBot, PerplexityBot,\n"
+            . "# Google-Extended…) are welcome: the rules above apply to all. A plain\n"
+            . "# summary of who we are and where things are: $S/llms.txt\n\n"
+            . "Sitemap: $S/sitemap.xml\nSitemap: $S/diary/sitemap.xml\nSitemap: $S/academy/sitemap.xml\n";
     }
 }

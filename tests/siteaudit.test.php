@@ -168,3 +168,33 @@ foreach (['index.html', 'contact.html', 'donate.html', 'about.html'] as $f) {
 ck('claims: where a donation goes is the owner\'s split, 70% project / 30% CACENTRE, on Donate and Contact',
    str_contains((string) file_get_contents(AV_ROOT . '/donate.html'), '70% goes to the project or campaign you give to, and 30% to running the CACENTRE')
    && str_contains((string) file_get_contents(AV_ROOT . '/contact.html'), '70% to the project, 30% to running CACENTRE'));
+
+/* Search engines and AI assistants (2026-11-05). */
+$saOrg = schema_org();
+ck('seo: the organisation\'s logo and image are files the site serves',
+   is_file(AV_ROOT . parse_url($saOrg['logo']['url'], PHP_URL_PATH)) && is_file(AV_ROOT . parse_url($saOrg['image'], PHP_URL_PATH)));
+ck('seo: the organisation data states only confirmed facts',
+   $saOrg['foundingDate'] === '2017' && str_contains($saOrg['address']['streetAddress'], '2 Oremeji Street')
+   && !isset($saOrg['numberOfEmployees']) && in_array('https://www.instagram.com/afro.vanguard/', $saOrg['sameAs'], true));
+$saHome = (string) file_get_contents(AV_ROOT . '/index.html');
+ck('seo: the Home page\'s hand-written organisation node agrees (no 404 wp-content logo, no employee count, real search)',
+   !str_contains($saHome, '/wp-content/uploads/') && !str_contains($saHome, 'numberOfEmployees')
+   && str_contains($saHome, '"target": "https://afrovanguard.org.ng/search.php?q={search_term_string}"'));
+ck('seo: the shared site search action is the real search', str_contains(json_encode(schema_website(), JSON_UNESCAPED_SLASHES), '/search.php?q={search_term_string}'));
+$saRobots = (new ReflectionMethod('Sitemap', 'buildRobots'))->invoke(null);
+ck('seo: robots.txt names no WordPress sitemap (a 404) and points at llms.txt',
+   !str_contains($saRobots, 'wp-sitemap') && str_contains($saRobots, '/llms.txt'));
+ck('seo: /llms.txt is routed (.htaccess and dev router)',
+   str_contains($saHt, 'RewriteRule ^llms\.txt$ llms.php [L]') && str_contains($saRt, "if (\$uri === '/llms.txt')"));
+foreach (['index.html', 'about.html', 'contact.html', 'donate.html', 'projects/index.html'] as $f) {
+    $t = (string) file_get_contents(AV_ROOT . "/$f");
+    preg_match_all('~<script type="application/ld\+json">(.*?)</script>~s', $t, $m);
+    $bad = array_filter($m[1], static fn ($j) => json_decode($j, true) === null);
+    ck("seo: $f has structured data and all of it parses", $m[1] !== [] && $bad === []);
+    preg_match('~<meta name="description" content="([^"]*)"~', $t, $d);
+    ck("seo: $f has a description search results show in full (70–165 characters)", isset($d[1]) && mb_strlen(html_entity_decode($d[1])) >= 70 && mb_strlen(html_entity_decode($d[1])) <= 165);
+    ck("seo: $f has a share image", str_contains($t, '<meta property="og:image"'));
+    ck("seo: $f says nothing a funder would contest", !preg_match('~100% to projects|3-4 hour|foremost youth leadership NGO~', $t));
+}
+ck('seo: the projects list given to search engines is the seven projects, from the data file',
+   substr_count((string) file_get_contents(AV_ROOT . '/projects/index.html'), '"@type":"ListItem","position":') === 9);

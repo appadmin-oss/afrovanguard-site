@@ -34,6 +34,9 @@ if (!$p) {
         'desc' => 'Series of Afrovanguard Academy courses that build one skill set, each with a programme certificate.',
         'canonical' => $S . '/academy/programmes/',
         'crumbs' => [['Academy', '/academy/'], ['Programmes', null]],
+        'jsonld' => [schema_org(), ['@type' => 'CollectionPage', 'name' => 'Programmes — Afrovanguard Academy',
+            'url' => $S . '/academy/programmes/', 'isPartOf' => ['@id' => $S . '/#website'], 'about' => ['@id' => $S . '/#organization']],
+            schema_breadcrumb([['name' => 'Academy', 'url' => $S . '/academy/'], ['name' => 'Programmes', 'url' => $S . '/academy/programmes/']])],
     ]);
     ?>
 <header class="avcw-head">

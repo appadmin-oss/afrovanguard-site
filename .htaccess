@@ -50,6 +50,8 @@ RewriteRule ^projects/sts/ceo/api/data(/|$) - [F,L]
 # serving the page itself. The path and the query string are carried over, so
 # a link somebody has already shared lands on its own page over there.
 RewriteRule ^projects/africa-gates/?(.*)$ https://afg.afrovanguard.org.ng/$1 [R=301,L,QSA,NE]
+# /llms.txt — who we are and where things are, for AI assistants (llms.php).
+RewriteRule ^llms\.txt$ llms.php [L]
 # Street-To-Stardom's own site is sts.afrovanguard.org.ng. A copy of it used to
 # be served from here as well (two sites saying different things about one
 # programme); it was removed, and its old paths go to the real one — the

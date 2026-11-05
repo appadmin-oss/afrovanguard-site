@@ -13,7 +13,7 @@ require_once AV_ROOT . '/partials/avh-chrome.php';
 if (function_exists('send_security_headers')) send_security_headers('public');
 
 $title     = 'How Afrovanguard Works — Progressive Growth & Member Alignment';
-$desc      = 'How members grow at Afrovanguard: an algorithmic progression built on verifiable output, mentorship, invisible service, radical transparency and servant leadership — from Foundation Member (Level O) upward.';
+$desc      = 'How members grow at Afrovanguard: progression earned by verifiable work, mentorship, service and transparency, from Foundation Member upward.';
 $canonical = rtrim(SITE_URL, '/') . '/how-it-works';
 $image     = rtrim(SITE_URL, '/') . '/assets/og/og-default.png';
 
@@ -59,6 +59,10 @@ $ladder = [
   <meta name="author" content="Afrovanguard — afrovanguard.org.ng" />
   <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
   <link rel="canonical" href="<?= e($canonical) ?>" />
+  <script type="application/ld+json"><?= json_encode(['@context' => 'https://schema.org', '@graph' => [schema_org(), [
+      '@type' => 'WebPage', '@id' => $canonical . '#webpage', 'url' => $canonical, 'name' => $title, 'description' => $desc,
+      'inLanguage' => 'en-NG', 'isPartOf' => ['@id' => rtrim(SITE_URL, '/') . '/#website'], 'about' => ['@id' => rtrim(SITE_URL, '/') . '/#organization']]]],
+      JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
   <meta name="theme-color" content="rgb(243 180 22)" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="Afrovanguard" />

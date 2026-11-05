@@ -35,7 +35,7 @@ final class Ngv
 
             'seo' => [
                 'title'    => 'NextGen Vanguard — Learn, Earn & Lead | Afrovanguard Academy',
-                'desc'     => 'NextGen Vanguard is Afrovanguard Academy\'s elite transformation programme for school leavers, NYSC corpers and IT students in Lagos. Learn future-ready tech, media, business and leadership skills, earn weekly stipends and six global certifications, and land a real internship. Stop scrolling — start earning.',
+                'desc'     => 'NextGen Vanguard: Afrovanguard Academy\'s programme for school leavers, NYSC corps members and IT students in Lagos. Learn tech, media, business and leadership.',
                 'keywords' => 'NextGen Vanguard, Afrovanguard Academy, free tech training Lagos, skills training Alimosho, Egbeda youth programme, NYSC skills Nigeria, school leaver training, learn and earn Nigeria, digital marketing training Lagos, tech internship Lagos, weekly stipend training, global certifications Nigeria, leadership programme for youths, music production training, data analysis training, AI training Nigeria, media and content creation, web development bootcamp Lagos, youth empowerment Nigeria, Okun Alimosho',
                 'og_image' => '/assets/site/ngv/ngv-flyer.png',
             ],

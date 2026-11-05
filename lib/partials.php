@@ -121,6 +121,22 @@ function render_head(array $o): void {
     $image = $o['image'] ?? (rtrim(SITE_URL, '/') . '/assets/og/og-default.png');
     $imageAlt = $o['image_alt'] ?? $title;
     $jsonld = $o['jsonld'] ?? [];
+    /* A page may pass one node rather than a list of them. Taken as a list,
+       its keys became the graph ('@context', 'WebPage', a URL…) and search
+       engines threw the whole block away (the mentor page did exactly this). */
+    if ($jsonld && !array_is_list($jsonld)) $jsonld = [$jsonld];
+    $jsonld = array_map(static function ($n) { unset($n['@context']); return $n; }, $jsonld);
+    /* A page that says nothing still says what it is and whose it is, so every
+       indexable page tells a search engine — or an AI assistant reading it —
+       the organisation behind it. A noindex page stays silent. */
+    if (!$jsonld && !str_contains((string) ($o['robots'] ?? ''), 'noindex') && $canonical !== '' && function_exists('schema_org')) {
+        $jsonld = [schema_org(), schema_website(), [
+            '@type' => 'WebPage', '@id' => $canonical . '#webpage', 'url' => $canonical,
+            'name' => $title, 'description' => $desc, 'inLanguage' => 'en-NG',
+            'isPartOf' => ['@id' => rtrim(SITE_URL, '/') . '/#website'],
+            'about' => ['@id' => rtrim(SITE_URL, '/') . '/#organization'],
+        ]];
+    }
     $site = av_chrome_mode((string) ($o['chrome'] ?? 'site')) === 'site';
     if (function_exists('send_security_headers')) send_security_headers('public'); ?>
 <!DOCTYPE html>
@@ -166,7 +182,7 @@ function render_head(array $o): void {
 
   <link rel="alternate" type="application/rss+xml" title="The Afrovanguard Diary" href="<?= e(diary_url('feed.xml')) ?>" />
   <link rel="sitemap" type="application/xml" href="<?= e(diary_url('sitemap.xml')) ?>" />
-<?php if ($jsonld): ?>  <script type="application/ld+json"><?= json_encode(count($jsonld) === 1 ? $jsonld[0] : ['@context' => 'https://schema.org', '@graph' => $jsonld], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
+<?php if ($jsonld): ?>  <script type="application/ld+json"><?= json_encode(count($jsonld) === 1 ? ['@context' => 'https://schema.org'] + $jsonld[0] : ['@context' => 'https://schema.org', '@graph' => $jsonld], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 <?php endif; ?>  <?= $site ? THEME_BOOT_SITE : THEME_BOOT ?>
 
 <?php /* G-06: Cormorant Garamond and Source Sans 3, self-hosted. The old

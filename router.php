@@ -35,6 +35,9 @@ if (str_ends_with(strtolower($uri), '.pdf')) {
 }
 
 // Serve existing static files (css, js, images, .html) directly.
+// /llms.txt for AI assistants (mirrors .htaccess).
+if ($uri === '/llms.txt') { require __DIR__ . '/llms.php'; return true; }
+
 // The retired LCASP 2026 campaign page (mirrors .htaccess). Before the
 // real-file branch below: the file still exists, as the record.
 if (preg_match('~^/projects/sts/lcasp(?:\.html|/)?$~', $uri)) { header('Location: /projects/sts/', true, 301); return true; }
