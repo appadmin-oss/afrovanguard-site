@@ -260,7 +260,6 @@ function av_celebration_founding_week(int $year): array
     $words = av_celebration_words($years);
     $day   = strtotime(sprintf('%04d-%s 12:00:00', $year, AV_FOUNDING_MD));
     $on    = date('j F', $day);
-    $last  = date('j F', $day + AV_FOUNDING_SEASON_DAYS * 86400);
     $out = [];
     for ($d = AV_FOUNDING_SEASON_DAYS; $d >= 1; $d--) {
         $left = $d === 1 ? 'Tomorrow' : ucfirst(av_celebration_words($d)) . ' days to go';
@@ -269,7 +268,7 @@ function av_celebration_founding_week(int $year): array
     }
     for ($d = 1; $d <= AV_FOUNDING_SEASON_DAYS; $d++) {
         $out[] = [date('Y-m-d', $day + $d * 86400), 'foundingweek', 'Celebrating ' . $words . ' years of Afrovanguard', 'internal', '🎂', '#f3b416',
-            'Afrovanguard turned ' . $words . ' on ' . $on . ', and the celebrations run until ' . $last . '. Thank you for being part of the story.'];
+            'Afrovanguard turned ' . $words . ' on ' . $on . '. Thank you for being part of the story.'];
     }
     return $out;
 }

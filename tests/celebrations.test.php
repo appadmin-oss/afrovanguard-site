@@ -70,7 +70,7 @@ ck('Celebrations: …to “Tomorrow”', $c && $c['primary']['title'] === 'Tomor
 ck('Celebrations: …starting seven days out (2 Nov), not before', av_celebration_today($celPdo, '2026-11-02') !== null && av_celebration_today($celPdo, '2026-11-01') === null);
 $c = av_celebration_today($celPdo, '2026-11-12');
 ck('Celebrations: the week after keeps celebrating', $c && $c['primary']['key'] === 'foundingweek' && $c['primary']['title'] === 'Celebrating nine years of Afrovanguard'
-    && str_contains($c['primary']['message'], 'until 16 November') && $c['primary']['art'] === 'founding');
+    && $c['primary']['message'] === 'Afrovanguard turned nine on 9 November. Thank you for being part of the story.' && $c['primary']['art'] === 'founding');
 ck('Celebrations: …to 16 Nov, and not after', av_celebration_today($celPdo, '2026-11-16') !== null && av_celebration_today($celPdo, '2026-11-17') === null);
 ck('Celebrations: the old date (14 Nov) is just a day of the season now', (av_celebration_today($celPdo, '2026-11-14')['primary']['title'] ?? '') === 'Celebrating nine years of Afrovanguard');
 $c = av_celebration_today($celPdo, '2027-11-09');

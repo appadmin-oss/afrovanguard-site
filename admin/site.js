@@ -292,6 +292,10 @@
         '<label class="fld"><span>Sentence under it</span><textarea data-f="sub" rows="2" maxlength="240">' + esc(s.sub) + '</textarea></label>' +
         '<div class="cms-two"><label class="fld"><span>Links to</span><input data-f="href" maxlength="300" value="' + esc(s.href) + '" placeholder="/about.html"></label>' +
         '<label class="fld"><span>Picture description (alt)</span><input data-f="alt" maxlength="200" value="' + esc(s.alt) + '"></label></div>' +
+        '<label class="fld"><span>Shows</span><select data-f="season">' +
+          '<option value=""' + (s.season ? '' : ' selected') + '>All year</option>' +
+          '<option value="anniversary"' + (s.season === 'anniversary' ? ' selected' : '') + '>Only during the anniversary season (2–16 November)</option>' +
+        '</select></label>' +
       '</div>' +
       '<div class="cms-slide-ctl" role="group" aria-label="Slide ' + (k + 1) + '">' +
         '<span class="cms-slide-no">' + (k + 1) + '</span>' +
@@ -300,7 +304,7 @@
         '<button type="button" class="btn btn-outline btn-sm" data-act="hide" aria-pressed="' + (!!s.hidden) + '">' + (s.hidden ? 'Show' : 'Hide') + '</button>' +
         '<button type="button" class="btn danger btn-sm" data-act="del" aria-label="Remove slide ' + (k + 1) + '">Remove</button>' +
       '</div>';
-    $$('[data-f]', li).forEach(function (i) { i.addEventListener('input', function () { H.doc.slides[k][i.dataset.f] = i.value; dirty(); }); });
+    $$('[data-f]', li).forEach(function (i) { i.addEventListener(i.tagName === 'SELECT' ? 'change' : 'input', function () { H.doc.slides[k][i.dataset.f] = i.value; dirty(); }); });
     $$('[data-act]', li).forEach(function (b) { b.addEventListener('click', function () {
       var sl = H.doc.slides, a = b.dataset.act;
       if (a === 'img') return openPicker('image', function (m) { sl[k].image = m.variants.length ? m.variants[m.variants.length - 1].url : m.url; if (!sl[k].alt && m.alt) sl[k].alt = m.alt; dirty(); renderSlides(); });

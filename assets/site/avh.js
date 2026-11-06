@@ -136,6 +136,29 @@
 
   run('hero', () => {
     const hero = $('[data-avh-hero]'); if (!hero) return;
+    /* A seasonal slide (the anniversary) shows only between its dates, by the
+       calendar in Lagos (lib/SiteHome.php::SEASONS). Out of season, it and its
+       dot leave before anything below reads the slides, and the next slide
+       becomes the first. Without the script, every slide stays. */
+    (() => {
+      let today = '';
+      try { today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' }).slice(5); } catch (e) { return; }
+      if (!/^\d{2}-\d{2}$/.test(today)) return;
+      const all = $$('.avh-hero-img', hero), dotEls = $$('[data-avh-dot]', hero);
+      const off = all.map(s => { const f = s.dataset.seasonFrom, t = s.dataset.seasonTo;
+        if (!f || !t) return false;
+        return f <= t ? (today < f || today > t) : (today < f && today > t); });
+      if (!off.some(Boolean) || off.every(Boolean)) return;   // never empty the hero
+      const wasOn = all.findIndex(s => s.classList.contains('is-on'));
+      all.forEach((s, k) => { if (off[k]) { s.remove(); if (dotEls[k]) dotEls[k].remove(); } });
+      const left = $$('.avh-hero-img', hero), dl = $$('[data-avh-dot]', hero);
+      dl.forEach((d, k) => { d.dataset.avhDot = String(k); d.setAttribute('aria-label', 'Story ' + (k + 1) + ' of ' + dl.length); d.toggleAttribute('aria-current', k === 0); if (k === 0) d.setAttribute('aria-current', 'true'); });
+      if (off[wasOn] && left[0]) {
+        left[0].classList.add('is-on'); left[0].loading = 'eager'; left[0].setAttribute('fetchpriority', 'high');
+        const d = left[0].dataset, a = $('[data-avh-hero-link]', hero);
+        if (a) { a.href = d.href; $('[data-avh-hero-eyebrow]', hero).textContent = d.eyebrow; $('[data-avh-hero-title]', hero).textContent = d.title; $('[data-avh-hero-sub]', hero).textContent = d.sub; }
+      }
+    })();
     const slides = $$('.avh-hero-img', hero);
     const link = $('[data-avh-hero-link]', hero), eb = $('[data-avh-hero-eyebrow]', hero);
     const title = $('[data-avh-hero-title]', hero), sub = $('[data-avh-hero-sub]', hero);
