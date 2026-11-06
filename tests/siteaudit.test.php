@@ -174,7 +174,7 @@ $saOrg = schema_org();
 ck('seo: the organisation\'s logo and image are files the site serves',
    is_file(AV_ROOT . parse_url($saOrg['logo']['url'], PHP_URL_PATH)) && is_file(AV_ROOT . parse_url($saOrg['image'], PHP_URL_PATH)));
 ck('seo: the organisation data states only confirmed facts',
-   $saOrg['foundingDate'] === '2017' && str_contains($saOrg['address']['streetAddress'], '2 Oremeji Street')
+   $saOrg['foundingDate'] === '2017-11-09' && str_contains($saOrg['address']['streetAddress'], '2 Oremeji Street')
    && !isset($saOrg['numberOfEmployees']) && in_array('https://www.instagram.com/afro.vanguard/', $saOrg['sameAs'], true));
 $saHome = (string) file_get_contents(AV_ROOT . '/index.html');
 ck('seo: the Home page\'s hand-written organisation node agrees (no 404 wp-content logo, no employee count, real search)',

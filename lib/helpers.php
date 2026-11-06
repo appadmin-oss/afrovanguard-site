@@ -296,7 +296,7 @@ function schema_org(): array {
         'description' => 'Afrovanguard is a youth leadership nonprofit founded in 2017 in Alimosho, Lagos, Nigeria. Its seven projects — Street-To-Stardom, Techome, MediaPro, Kingdom Advancement Project, Africa GATES, Business Executive Club and Career Hub — train young people in technology, media, arts, enterprise and leadership, with the aim of raising one million incorruptible African leaders by 2040.',
         'logo'  => ['@type' => 'ImageObject', 'url' => $S . '/assets/site/av-seal.png', 'width' => 640, 'height' => 640],
         'image' => $S . '/assets/og/og-default.png',
-        'foundingDate' => '2017',
+        'foundingDate' => '2017-11-09',
         'foundingLocation' => ['@type' => 'Place', 'name' => 'Alimosho, Lagos, Nigeria'],
         'address' => [
             '@type' => 'PostalAddress',

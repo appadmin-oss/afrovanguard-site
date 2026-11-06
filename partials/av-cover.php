@@ -60,7 +60,7 @@ function av_cover_holidays(): array
     return [
         'independence' => ['Independence Day', '10-01'], 'democracyday' => ['Democracy Day', '06-12'],
         'christmas' => ['Christmas', '12-25'], 'newyear' => ['New Year', '01-01'], 'africaday' => ['Africa Day', '05-25'],
-        'childrensday' => ['Children’s Day', '05-27'], 'founding' => ['Anniversary', '11-14'],
+        'childrensday' => ['Children’s Day', '05-27'], 'founding' => ['Anniversary', '11-09'],
     ];
 }
 

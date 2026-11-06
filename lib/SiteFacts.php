@@ -36,7 +36,7 @@ final class SiteFacts
         $out[] = '';
         $out[] = 'Key facts (confirmed by Afrovanguard, November 2026):';
         $out[] = '';
-        $out[] = '- Founded: 2017, in Alimosho, Lagos, Nigeria.';
+        $out[] = '- Founded: 2017, in Alimosho, Lagos, Nigeria. The anniversary is 9 November, celebrated for the week before and the week after.';
         $out[] = '- Lives reached across all projects: 10,000+.';
         $out[] = '- Projects: ' . count($projects) . '. Programmes run under projects (for example, Next Generation Genius and LCASP are Street-To-Stardom programmes).';
         $out[] = '- Two names that are easy to confuse: NextGen Vanguard (NGV) is the Afrovanguard Academy\'s learn-and-earn programme; Next Generation Genius (NGG) is a Street-To-Stardom programme with its own site. They are different things.';
