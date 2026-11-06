@@ -113,3 +113,15 @@ $db->prepare('INSERT INTO certificates (user_id, course_id, serial) VALUES (?,?,
 ck('cert verify: the issued serial looks up', ((new LmsRepository())->certificateBySerial($serial)['learner'] ?? '') === 'Adaeze Okonkwo-Bello');
 $html = render_page(AV_ROOT . '/academy/verify.php', ['serial' => $serial]);
 ck('cert verify: pasting the serial into /academy/verify verifies', str_contains($html, 'Verified') && str_contains($html, $serial));
+
+/* The crest (CERT-03): the artwork the design owner supplied, committed, at the
+   size the handoff names, with a transparent ground so the pennant shows round it. */
+$crest = __DIR__ . '/../assets/site/academy-crest.png';
+ck('cert: the Academy crest is committed', is_file($crest));
+$ci = is_file($crest) ? getimagesize($crest) : false;
+ck('cert: the crest is 795x864, as supplied', $ci !== false && $ci[0] === 795 && $ci[1] === 864);
+if ($ci !== false && function_exists('imagecreatefrompng')) {
+    $cimg = imagecreatefrompng($crest);
+    ck('cert: and its corners are transparent', ((imagecolorat($cimg, 0, 0) >> 24) & 0x7F) === 127 && ((imagecolorat($cimg, 794, 0) >> 24) & 0x7F) === 127);
+    imagedestroy($cimg);
+}
