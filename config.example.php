@@ -240,6 +240,13 @@ define('ENABLE_ADMIN_NOTIFICATIONS',  true);
 define('ENABLE_MONTHLY_RECURRING',    true);
 define('ENABLE_BANK_TRANSFER_EMAIL',  true);
 
+// ── Academy certificates ────────────────────────────────────────────────────
+// Who signs every Academy certificate (course and programme alike). Changing
+// the signatory is a config change, not a code change. A signature image is
+// drawn only if assets/site/cert-signature.png exists (none is shipped).
+define('ACADEMY_CERT_SIGNATORY',       'Van. Ujagbe Onofua');
+define('ACADEMY_CERT_SIGNATORY_TITLE', 'COO, Afrovanguard');
+
 // ── CACENTRE bridge ─────────────────────────────────────────────────────────
 // Where /cacentre hands a signed-in member across, and where the portal's task
 // panel reads from. ONE value moves both — they used to be set separately, and

@@ -22,8 +22,7 @@ if ($p && !empty($_GET['cert'])) {
     $u = avcw_need_login();
     $cert = $cw->issueProgrammeCertificate((int) $u['id'], $p);
     if (!$cert) { header('Location: /academy/programmes/' . rawurlencode($slug) . '/'); exit; }
-    avac_cert_png((string) $u['name'], 'Programme Certificate', 'has successfully completed every course in the programme',
-        (string) $p['title'], (string) $cert['issued_at'], (string) $cert['serial'], 'afrovanguard-programme-' . $slug . '.png');
+    avac_cert_png((string) $u['name'], 'programme', (string) $p['title'], (string) $cert['issued_at'], (string) $cert['serial'], 'afrovanguard-programme-' . $slug . '.png');
     exit;
 }
 
