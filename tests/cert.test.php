@@ -125,3 +125,33 @@ if ($ci !== false && function_exists('imagecreatefrompng')) {
     ck('cert: and its corners are transparent', ((imagecolorat($cimg, 0, 0) >> 24) & 0x7F) === 127 && ((imagecolorat($cimg, 794, 0) >> 24) & 0x7F) === 127);
     imagedestroy($cimg);
 }
+
+/* ══ Review fixes ══════════════════════════════════════════════════════════ */
+
+/* The date is the AV_TZ day: issued_at is UTC, so 23:30 UTC is the next day in Lagos. */
+ck('cert date: UTC late evening shows the Lagos next day', avac_cert_date('2026-03-31 23:30:00', 'Africa/Lagos') === '1 April 2026');
+ck('cert date: midday is the same day', avac_cert_date('2026-03-31 12:00:00', 'Africa/Lagos') === '31 March 2026');
+ck('cert date: an unparseable value does not fatal', preg_match('/^\d{1,2} [A-Z][a-z]+ \d{4}$/', avac_cert_date('not a date', 'Africa/Lagos')) === 1);
+
+/* An unknown variant is a caller bug, not a course certificate. */
+$threw = false;
+try { avac_cert_copy('programe'); } catch (InvalidArgumentException $e) { $threw = true; }
+ck('cert copy: an unknown variant throws instead of printing course copy', $threw);
+
+/* Combining marks are zero-advance: a name with an under-dot sets its later
+   letters where the same name without the mark would. */
+if (function_exists('imagettftext')) {
+    $font = AV_ROOT . AVAC_CERT_FONTS['serif600'];
+    $right = function (callable $draw): int {
+        $im = imagecreatetruecolor(1400, 200);
+        imagefill($im, 0, 0, imagecolorallocate($im, 255, 255, 255));
+        $draw($im, imagecolorallocate($im, 0, 0, 0));
+        $r = -1;
+        for ($x = 1399; $x >= 0 && $r < 0; $x--) for ($y = 0; $y < 200; $y++) if ((imagecolorat($im, $x, $y) & 0xFF) < 128) { $r = $x; break; }
+        imagedestroy($im);
+        return $r;
+    };
+    $plain  = $right(fn ($im, $c) => imagettftext($im, 60, 0, 20, 140, $c, $font, 'Ogunfolafe'));
+    $marked = $right(fn ($im, $c) => avac_cert_text($im, 60, 20, 140, $c, $font, "Ogunfo\u{0323}lafe"));
+    ck("cert text: a combining mark does not shift later letters ($plain vs $marked)", abs($plain - $marked) <= 2);
+}

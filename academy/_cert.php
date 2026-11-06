@@ -9,6 +9,11 @@
  * is that canvas times AVAC_CERT_S. Text positions are the TOP of the text
  * box as a browser lays it out (line box from the font's hhea metrics), and
  * are converted to GD baselines in one place, avac_cert_baseline().
+ *
+ * Known limit: the brand fonts cover Latin (with Yoruba/Igbo/Hausa marks),
+ * not CJK, Arabic or emoji. A name in those scripts draws as missing-glyph
+ * boxes. Fixing it means shipping a fallback font (Noto) and choosing it
+ * per cluster; that is a design-owner decision, not done here.
  */
 declare(strict_types=1);
 
@@ -73,6 +78,9 @@ const AVAC_CERT_GUARD = 48;
  */
 function avac_cert_copy(string $variant): array
 {
+    if ($variant !== 'programme' && $variant !== 'course') {
+        throw new InvalidArgumentException("Unknown certificate variant: $variant");
+    }
     return $variant === 'programme'
         ? ['kind' => 'Programme Certificate', 'subtitle' => 'of Programme Completion',
            'leadin' => 'for successfully completing every course in the programme']
@@ -235,6 +243,23 @@ function avac_cert_ink(string $font, float $pt, string $g): array
  * would print beside its letter. Each such mark is centred on its base letter's
  * ink here, and an above-mark is lifted over a letter taller than "o".
  */
+/**
+ * The award date as the learner's organisation reads it. issued_at is stored in
+ * UTC (gmdate / SQLite datetime('now')); the certificate shows the AV_TZ day, so
+ * a course finished at 00:30 in Lagos is not dated the previous day.
+ */
+function avac_cert_date(string $issuedAt, ?string $tz = null): string
+{
+    $zone = $tz ?: (defined('AV_TZ') ? AV_TZ : 'UTC');
+    try {
+        $dt = trim($issuedAt) === '' ? new DateTime('now', new DateTimeZone('UTC'))
+                                     : new DateTime($issuedAt, new DateTimeZone('UTC'));
+        return $dt->setTimezone(new DateTimeZone($zone))->format('j F Y');
+    } catch (Throwable $e) {
+        return gmdate('j F Y');
+    }
+}
+
 function avac_cert_text($im, float $pt, int $x, int $y, int $col, string $font, string $t): void
 {
     if (!preg_match('/\p{Mn}/u', $t)) { imagettftext($im, $pt, 0, $x, $y, $col, $font, $t); return; }
@@ -412,8 +437,7 @@ function avac_cert_render(string $learner, string $variant, string $title, strin
 
     /* CERT-15, CERT-16: signatory and date, fixed. */
     [$sigName, $sigTitle] = avac_cert_signatory();
-    $ts = strtotime($issuedAt);
-    $date = date('j F Y', $ts !== false ? $ts : time());
+    $date = avac_cert_date($issuedAt);
     foreach ([[140, $sigName, $sigTitle], [518, $date, 'Date awarded']] as [$x, $top, $sub]) {
         $rect($x, 941, 322, 1, 'ink');
         $text('serif600', 27, 'ink', $x, 954, $top);
