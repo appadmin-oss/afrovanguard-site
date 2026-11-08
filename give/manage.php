@@ -188,7 +188,11 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
         <a class="gm-row<?= $a['id'] === $selId ? ' is-sel' : '' ?>" href="?a=<?= (int) $a['id'] ?>">
           <div class="gm-row-top">
             <span class="gm-title"><?= $e((string) $a['title']) ?></span>
-            <span class="gm-pill is-<?= $e((string) $a['status']) ?>"><?= $e((string) $a['status']) ?></span>
+            <span class="gm-pill is-<?= $e((string) $a['status']) ?>"><?= $e((string) $a['status']) ?></span><?php
+              if ((string) $a['status'] === 'live'): $w = Appeals::window($a);
+                if ($w === 'upcoming'): ?> <span class="gm-pill is-paused">scheduled · opens <?= $e(date('j M', (int) strtotime((string) $a['starts_on']))) ?></span><?php
+                elseif ($w === 'ended'): ?> <span class="gm-pill is-closed">ended <?= $e(date('j M', (int) strtotime((string) $a['ends_on']))) ?> · no longer shown</span><?php
+                endif; endif; ?>
           </div>
           <div class="gm-row-meta">
             <?= $e(Appeals::naira($st['raised'])) ?><?php if ($st['goal'] > 0): ?> of <?= $e(Appeals::naira($st['goal'])) ?><?php endif; ?>
@@ -266,9 +270,9 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
               </select></label>
             <label class="gm-field"><span>Goal (₦) <em>0 means an open appeal with no finish line</em></span>
               <input name="goal_ngn" type="number" min="0" step="1000" value="<?= (int) $sel['goal_ngn'] ?>"></label>
-            <label class="gm-field"><span>Starts</span>
+            <label class="gm-field"><span>Starts <em>a live appeal is shown, and takes gifts, from this day</em></span>
               <input name="starts_on" type="date" value="<?= $e((string) $sel['starts_on']) ?>"></label>
-            <label class="gm-field"><span>Ends <em>drives "days left"</em></span>
+            <label class="gm-field"><span>Ends <em>its last day on show; drives "days left"</em></span>
               <input name="ends_on" type="date" value="<?= $e((string) $sel['ends_on']) ?>"></label>
             <label class="gm-field"><span>Who it helps</span>
               <input name="beneficiary" value="<?= $e((string) $sel['beneficiary']) ?>" maxlength="160"></label>

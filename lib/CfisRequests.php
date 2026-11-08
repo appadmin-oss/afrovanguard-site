@@ -267,7 +267,8 @@ final class CfisRequests
      */
     public static function send(int $id, string $ref, array $claims): array
     {
-        $r = self::post('/api/requests/' . rawurlencode(CfisCheckout::source()), $claims);
+        /* The door this is for. One key signs every request to CFIS. */
+        $r = self::post('/api/requests/' . rawurlencode(CfisCheckout::source()), $claims + ['typ' => 'cfis.requests']);
 
         $pdo = Database::pdo();
         if (!($r['ok'] ?? false)) {
@@ -324,6 +325,7 @@ final class CfisRequests
 
         $live = self::post('/api/requests/' . rawurlencode(CfisCheckout::source()) . '/status', [
             'refs' => array_values(array_map(fn ($r) => (string) $r['ref'], $rows)),
+            'typ' => 'cfis.requests.status',
         ]);
         $reachable = (bool) ($live['ok'] ?? false);
         $states = (array) ($live['requests'] ?? []);

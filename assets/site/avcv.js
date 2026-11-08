@@ -8,7 +8,7 @@
     meetup: ['Community', 'contour'], arts: ['Arts & showcase', 'chevron'], faith: ['Faith', 'rays'], school: ['Schools', 'grid'], sports: ['Sports & wellbeing', 'chevron'],
     leadership: ['Leadership', 'arcs'], technology: ['Technology', 'grid'], culture: ['Culture', 'chevron'], education: ['Education', 'dots'], nation: ['Nation-building', 'contour'], general: ['', 'hatch'] };
   const HOL = { independence: ['Independence Day', '10-01'], democracyday: ['Democracy Day', '06-12'], christmas: ['Christmas', '12-25'], newyear: ['New Year', '01-01'],
-    africaday: ['Africa Day', '05-25'], childrensday: ['Children’s Day', '05-27'], founding: ['Anniversary', '11-14'] };
+    africaday: ['Africa Day', '05-25'], childrensday: ['Children’s Day', '05-27'], founding: ['Anniversary', '11-09'] };
   const SRC = { event: 'Afrovanguard · Events', diary: 'Afrovanguard · The Diary', project: 'Afrovanguard · Projects', appeal: 'Afrovanguard · Appeal', course: 'Afrovanguard · Academy', news: 'Afrovanguard' };
   const RATIOS = { '16:9': [16, 9], '1.91:1': [1.91, 1], '3:2': [3, 2], '4:5': [4, 5], '1:1': [1, 1], '9:16': [9, 16] };
   const INFER = [[/summit|conference|congress/, 'summit'], [/gala|dinner|award|banquet/, 'gala'], [/bootcamp|hackathon|coding|techome/, 'bootcamp'], [/workshop|masterclass|training|clinic|seminar|webinar/, 'workshop'],

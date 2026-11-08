@@ -121,6 +121,22 @@ function render_head(array $o): void {
     $image = $o['image'] ?? (rtrim(SITE_URL, '/') . '/assets/og/og-default.png');
     $imageAlt = $o['image_alt'] ?? $title;
     $jsonld = $o['jsonld'] ?? [];
+    /* A page may pass one node rather than a list of them. Taken as a list,
+       its keys became the graph ('@context', 'WebPage', a URL…) and search
+       engines threw the whole block away (the mentor page did exactly this). */
+    if ($jsonld && !array_is_list($jsonld)) $jsonld = [$jsonld];
+    $jsonld = array_map(static function ($n) { unset($n['@context']); return $n; }, $jsonld);
+    /* A page that says nothing still says what it is and whose it is, so every
+       indexable page tells a search engine — or an AI assistant reading it —
+       the organisation behind it. A noindex page stays silent. */
+    if (!$jsonld && !str_contains((string) ($o['robots'] ?? ''), 'noindex') && $canonical !== '' && function_exists('schema_org')) {
+        $jsonld = [schema_org(), schema_website(), [
+            '@type' => 'WebPage', '@id' => $canonical . '#webpage', 'url' => $canonical,
+            'name' => $title, 'description' => $desc, 'inLanguage' => 'en-NG',
+            'isPartOf' => ['@id' => rtrim(SITE_URL, '/') . '/#website'],
+            'about' => ['@id' => rtrim(SITE_URL, '/') . '/#organization'],
+        ]];
+    }
     $site = av_chrome_mode((string) ($o['chrome'] ?? 'site')) === 'site';
     if (function_exists('send_security_headers')) send_security_headers('public'); ?>
 <!DOCTYPE html>
@@ -166,7 +182,7 @@ function render_head(array $o): void {
 
   <link rel="alternate" type="application/rss+xml" title="The Afrovanguard Diary" href="<?= e(diary_url('feed.xml')) ?>" />
   <link rel="sitemap" type="application/xml" href="<?= e(diary_url('sitemap.xml')) ?>" />
-<?php if ($jsonld): ?>  <script type="application/ld+json"><?= json_encode(count($jsonld) === 1 ? $jsonld[0] : ['@context' => 'https://schema.org', '@graph' => $jsonld], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
+<?php if ($jsonld): ?>  <script type="application/ld+json"><?= json_encode(count($jsonld) === 1 ? ['@context' => 'https://schema.org'] + $jsonld[0] : ['@context' => 'https://schema.org', '@graph' => $jsonld], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 <?php endif; ?>  <?= $site ? THEME_BOOT_SITE : THEME_BOOT ?>
 
 <?php /* G-06: Cormorant Garamond and Source Sans 3, self-hosted. The old
@@ -639,7 +655,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
       <a href="<?= e(AV_VOLUNTEER_URL) ?>" class="btn btn-primary" style="width:100%;">Join the Movement</a>
       <a href="/donate.html" class="btn btn-outline" style="width:100%;">Donate</a>
       <div class="avd-social">
-        <a href="https://www.instagram.com/afrovanguard/" aria-label="Instagram" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.64.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.64-.07-4.85s.01-3.58.07-4.85C2.4 3.93 3.92 2.38 7.15 2.23 8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 2.7.27.28 2.69.08 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.35-2.62-6.78-6.98-6.98C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 100 12.32 6.16 6.16 0 000-12.32zM12 16a4 4 0 110-8 4 4 0 010 8zm6.41-11.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg></a>
+        <a href="https://www.instagram.com/afro.vanguard/" aria-label="Instagram" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.64.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.64-.07-4.85s.01-3.58.07-4.85C2.4 3.93 3.92 2.38 7.15 2.23 8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 2.7.27.28 2.69.08 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.35-2.62-6.78-6.98-6.98C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 100 12.32 6.16 6.16 0 000-12.32zM12 16a4 4 0 110-8 4 4 0 010 8zm6.41-11.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg></a>
         <a href="https://twitter.com/afrovanguard" aria-label="X" target="_blank" rel="noopener"><?= Icons::X ?></a>
         <a href="https://www.linkedin.com/company/afrovanguard/" aria-label="LinkedIn" target="_blank" rel="noopener"><?= Icons::LI ?></a>
       </div>
@@ -699,11 +715,11 @@ function av_footer_inner(): void {
           <div class="footer-logo-mark"><span class="afro">Afro</span><span class="van">vanguard</span></div>
           <p class="footer-tagline">Ambassadors for Community, Tech &amp; Cultural Advancements. Raising 1 million incorruptible African leaders by 2040.</p>
           <div class="footer-socials">
-            <a href="https://www.instagram.com/afrovanguard/" class="footer-social-link" aria-label="Instagram" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>
+            <a href="https://www.instagram.com/afro.vanguard/" class="footer-social-link" aria-label="Instagram" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>
             <a href="https://twitter.com/afrovanguard" class="footer-social-link" aria-label="Twitter / X" target="_blank" rel="noopener"><?= Icons::X ?></a>
             <a href="https://www.facebook.com/afrovanguard/" class="footer-social-link" aria-label="Facebook" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>
             <a href="https://www.linkedin.com/company/afrovanguard/" class="footer-social-link" aria-label="LinkedIn" target="_blank" rel="noopener"><?= Icons::LI ?></a>
-            <a href="https://www.youtube.com/@afrovanguard" class="footer-social-link" aria-label="YouTube" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a>
+            <a href="https://www.youtube.com/@afrovanguardism" class="footer-social-link" aria-label="YouTube" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a>
           </div>
         </div>
         <div class="footer-col">

@@ -388,8 +388,39 @@ SQL;
                 "SELECT * FROM av_appeals WHERE status IN ('live','paused','funded')
                  ORDER BY featured DESC, sort ASC, id DESC LIMIT " . $limit);
             $st->execute();
-            return array_map([self::class, 'shape'], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+            $rows = array_map([self::class, 'shape'], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+            /* A live appeal is listed only inside its own dates. Before
+               `starts_on` it is scheduled; after `ends_on` it has run its
+               course. Either way it stays reachable by its link (isPublic),
+               and its page says which — but it is not advertised. */
+            return array_values(array_filter($rows, static fn (array $a): bool =>
+                (string) $a['status'] !== 'live' || self::window($a) === 'running'));
         } catch (Throwable $e) { return []; }
+    }
+
+    /**
+     * Where an appeal stands against its own dates, in Lagos days, both ends
+     * inclusive: 'upcoming' before `starts_on`, 'ended' after `ends_on`,
+     * otherwise 'running'. An appeal with no dates is always 'running'.
+     *
+     * This is what times a campaign: set the dates and leave it live, and it
+     * appears on the morning it opens and comes down the day after it ends,
+     * with nobody having to remember to switch it.
+     */
+    public static function window(array $a, ?string $today = null): string
+    {
+        $today ??= self::today();
+        $s = (string) ($a['starts_on'] ?? '');
+        $e = (string) ($a['ends_on'] ?? '');
+        if ($s !== '' && $today < $s) return 'upcoming';
+        if ($e !== '' && $today > $e) return 'ended';
+        return 'running';
+    }
+
+    /** Live and inside its dates: shown everywhere appeals are listed, and taking gifts. */
+    public static function isRunning(array $a, ?string $today = null): bool
+    {
+        return (string) ($a['status'] ?? '') === 'live' && self::window($a, $today) === 'running';
     }
 
     /**
@@ -1397,7 +1428,13 @@ SQL;
             'match_left'  => $matchLeft,
             'match_ngn'   => (int) ($a['match_ngn'] ?? 0),
             'sponsor'     => (string) ($a['match_sponsor'] ?? ''),
-            'accepting'   => (string) ($a['status'] ?? '') === 'live',
+            /* Taking gifts: live AND inside its dates. A scheduled appeal
+               that somebody reached early, or one whose end date has passed
+               while its status still says live, shows its page but no form. */
+            'accepting'   => self::isRunning($a),
+            'window'      => self::window($a),
+            'upcoming'    => self::window($a) === 'upcoming',
+            'opens_on'    => (string) ($a['starts_on'] ?? ''),
             'spent'       => (int) ($a['spent_ngn'] ?? 0),
         ];
     }

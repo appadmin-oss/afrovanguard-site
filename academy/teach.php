@@ -90,11 +90,17 @@ if ($course) {
     $stats = $lms->courseStats((int) $course['id']);
     $roster = $lms->roster((int) $course['id']);
     $funnel = $lms->lessonFunnel((int) $course['id']);
-    /* Grades and questions — the two halves an instructor could not see at
-       all. quiz_attempts was write-only, and there were no discussions. */
-    $book = $lms->gradebook((int) $course['id']);
-    $asks = (new LmsDiscussion())->unanswered((int) $course['id'], 25);
-    $unanswered = count(array_filter($asks, static fn($a) => $a['replies'] === 0));
+    /* THE GRADEBOOK. A learner can see their own grades (academy/grades.php)
+       and an instructor could see nobody's. The figures are LmsCourseware
+       ::grades() — the same weighted answer the certificate is issued on, so
+       the roster and the learner cannot disagree about what somebody scored.
+
+       The questions are the course's own forum threads, unanswered first: a
+       thread nobody with an answer reads is worse than no thread at all. */
+    $cw = new LmsCourseware(null, $lms);
+    $book = $cw->gradebook((int) $course['id'], $course);
+    $asks = array_values(array_filter($cw->threads((int) $course['id']), static fn($t) => (int) ($t['replies'] ?? 0) === 0));
+    $unanswered = count($asks);
     // Learner status buckets, for the filter chips + summary.
     $notStarted = 0; $active = 0; $done = 0;
     foreach ($roster as $r) { if ($r['pct'] >= 100) $done++; elseif ($r['done'] > 0) $active++; else $notStarted++; }
@@ -112,7 +118,7 @@ if ($course) {
         <div class="tstat"><span class="tn"><?= (int) $stats['completed'] ?></span><span class="tl">Completed</span></div>
         <div class="tstat"><span class="tn"><?= (int) $stats['avg_pct'] ?>%</span><span class="tl">Avg. progress</span></div>
 <?php if ($book['average'] !== null): ?>
-        <div class="tstat"><span class="tn"><?= (int) $book['average'] ?>%</span><span class="tl">Avg. quiz score</span></div>
+        <div class="tstat"><span class="tn"><?= (int) $book['average'] ?>%</span><span class="tl">Avg. grade</span></div>
 <?php endif; ?>
 <?php if ($unanswered): ?>
         <div class="tstat tstat--ask"><span class="tn"><?= (int) $unanswered ?></span><span class="tl">Unanswered</span></div>
@@ -132,10 +138,11 @@ if ($course) {
         </div>
         <ul class="ask-list">
 <?php foreach (array_slice($asks, 0, 8) as $a): ?>
-          <li class="ask<?= $a['replies'] === 0 ? ' is-open' : '' ?>">
-            <p class="ask-by"><b><?= e($a['author']) ?></b> on <a href="<?= e(academy_url($course['slug'] . '/learn/' . $a['lesson_slug'])) ?>#avle-disc"><?= e($a['lesson_title']) ?></a>
-              <span class="ask-n"><?= $a['replies'] ? (int) $a['replies'] . ' ' . ($a['replies'] === 1 ? 'reply' : 'replies') : 'No reply yet' ?></span></p>
-            <p class="ask-b"><?= e(mb_strimwidth($a['body'], 0, 260, '…')) ?></p>
+          <li class="ask is-open">
+            <p class="ask-by"><b><?= e((string) ($a['author'] ?? 'A learner')) ?></b>
+              <a href="<?= e(academy_url($course['slug'] . '/discussions/' . (int) $a['id'])) ?>"><?= e((string) $a['title']) ?></a>
+              <span class="ask-n">No reply yet</span></p>
+            <p class="ask-b"><?= e(mb_strimwidth((string) ($a['body'] ?? ''), 0, 260, '…')) ?></p>
           </li>
 <?php endforeach; ?>
         </ul>
@@ -146,26 +153,32 @@ if ($course) {
          Best attempt per learner per graded lesson. An instructor had no
          way to see a score at all before this, though every one has been
          recorded since the LMS shipped. */ ?>
-<?php if ($book['lessons'] && $book['learners']): ?>
+<?php if ($book['items'] && $book['learners']): ?>
       <section class="teach-grades">
         <div class="funnel-head">
           <h2>Gradebook</h2>
-          <p>The <strong>best</strong> attempt counts — a retake can only help a learner. A dash means they have not attempted it yet.</p>
+          <p>The same weighted figures the learner sees on their own grades page, and the ones a certificate is issued on. The <strong>best</strong> attempt at a quiz counts, so a retake can only help. A dash means not attempted yet.</p>
         </div>
         <div class="gb-scroll">
           <table class="gb">
-            <caption class="av-sr">Best quiz score for each learner on each graded lesson</caption>
+            <caption class="av-sr">Each learner's grade on each graded item of <?= e((string) $course['title']) ?></caption>
             <thead><tr><th scope="col">Learner</th>
-<?php foreach ($book['lessons'] as $bl): ?>              <th scope="col" class="gb-n" title="<?= e($bl['title']) ?>"><?= e(mb_strimwidth($bl['title'], 0, 22, '…')) ?><span class="gb-pass">pass <?= (int) $bl['pass'] ?>%</span></th>
+<?php foreach ($book['items'] as $bl): ?>              <th scope="col" class="gb-n" title="<?= e((string) $bl['title']) ?>"><?= e(mb_strimwidth((string) $bl['title'], 0, 22, '…')) ?><span class="gb-pass">pass <?= (int) $bl['pass'] ?>%<?= (int) $bl['weight'] > 1 ? ' · ×' . (int) $bl['weight'] : '' ?></span></th>
 <?php endforeach; ?>
-              <th scope="col" class="gb-n">Average</th></tr></thead>
+              <th scope="col" class="gb-n">Overall</th></tr></thead>
             <tbody>
-<?php foreach ($book['learners'] as $bu): ?>
+<?php foreach ($book['learners'] as $bu): $bg = $bu['grade']; ?>
               <tr><th scope="row"><?= e((string) $bu['name']) ?><span class="gb-em"><?= e((string) $bu['email']) ?></span></th>
-<?php foreach ($bu['cells'] as $ci => $cell): ?>
-                <td class="gb-n<?= $cell ? ($cell['passed'] ? ' is-pass' : ' is-fail') : '' ?>"><?= $cell ? (int) $cell['best'] . '%' : '—' ?><?= $cell && $cell['tries'] > 1 ? '<span class="gb-t">' . (int) $cell['tries'] . ' tries</span>' : '' ?></td>
+<?php foreach ($bg['items'] as $cell): ?>
+                <td class="gb-n<?= $cell['status'] === 'passed' ? ' is-pass' : ($cell['status'] === 'failed' ? ' is-fail' : '') ?>"><?php
+                  if ($cell['score'] !== null) { echo (int) $cell['score'], '%'; }
+                  elseif ($cell['status'] === 'pending') { echo '<span class="gb-w">to mark</span>'; }
+                  elseif ($cell['status'] === 'returned') { echo '<span class="gb-w">returned</span>'; }
+                  else { echo '—'; }
+                  if (($cell['tries'] ?? 0) > 1) echo '<span class="gb-t">', (int) $cell['tries'], ' tries</span>';
+                ?></td>
 <?php endforeach; ?>
-                <td class="gb-n gb-avg"><?= $bu['average'] === null ? '—' : (int) $bu['average'] . '%' ?></td></tr>
+                <td class="gb-n gb-avg<?= $bg['passed'] ? ' is-pass' : '' ?>"><?= $bu['started'] ? (int) $bg['overall'] . '%' : '—' ?></td></tr>
 <?php endforeach; ?>
             </tbody>
           </table>
@@ -242,6 +255,8 @@ $totCerts = array_sum(array_map(fn($c) => (int) $c['stats']['completed'], $cours
     <div class="container teach">
       <span class="diary-eyebrow">Instructor dashboard</span>
       <h1 class="teach-h1">Welcome, <?= e(explode(' ', $user['name'])[0]) ?></h1>
+<?php $waiting = count((new LmsCourseware(null, $lms))->queue($user['role'] === 'admin' || LmsAuth::atLeast($user, 'coordinator') ? null : array_map(static fn($x) => (int) $x['id'], $lms->coursesForInstructor((int) $user['id'])))); ?>
+      <p><a class="btn btn-primary" href="/academy/teach/grading">Grading queue<?= $waiting ? ' (' . $waiting . ' waiting)' : '' ?> →</a></p>
       <div class="teach-stats">
         <div class="tstat"><span class="tn"><?= count($courses) ?></span><span class="tl"><?= $user['role'] === 'admin' ? 'All programmes' : 'My programmes' ?></span></div>
         <div class="tstat"><span class="tn"><?= (int) $totLearners ?></span><span class="tl">Total learners</span></div>

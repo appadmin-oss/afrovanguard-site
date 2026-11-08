@@ -6,8 +6,16 @@ require_once AV_ROOT . '/lib/partials.php';
 
 $serial = trim((string) ($_GET['serial'] ?? ''));
 // Rate-limit lookups so a serial can't be brute-forced against this public endpoint.
-$cert = ($serial !== '' && av_rate_ok('cert_verify', 40, 600))
-    ? (new LmsRepository())->certificateBySerial($serial) : null;
+$cert = null;
+if ($serial !== '' && av_rate_ok('cert_verify', 40, 600)) {
+    /* AVP- serials are programme certificates (a series of courses); AV- are courses. */
+    if (stripos($serial, 'AVP-') === 0) {
+        $pc = (new LmsCourseware())->programmeCertBySerial($serial);
+        if ($pc) $cert = ['learner' => $pc['learner'], 'course' => $pc['programme_title'] . ' (programme)', 'issued_at' => $pc['issued_at'], 'serial' => $pc['serial']];
+    } else {
+        $cert = (new LmsRepository())->certificateBySerial($serial);
+    }
+}
 
 render_head([
     'title' => 'Verify a certificate — Afrovanguard Academy',

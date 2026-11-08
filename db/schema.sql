@@ -102,7 +102,13 @@ CREATE TABLE IF NOT EXISTS courses (
   price_ngn     INTEGER NOT NULL DEFAULT 0,
   instructor_id INTEGER,
   pass_code     TEXT NOT NULL DEFAULT '',        -- access_type=restricted: any member holding this pass gets in
-  cover_is_dark INTEGER NOT NULL DEFAULT -1      -- -1 unknown, 0 light, 1 dark (colour-aware overlay text)
+  cover_is_dark INTEGER NOT NULL DEFAULT -1,     -- -1 unknown, 0 light, 1 dark (colour-aware overlay text)
+  language      VARCHAR(64) NOT NULL DEFAULT 'English',
+  skills        TEXT NOT NULL DEFAULT '',        -- newline-separated: "Skills you'll gain"
+  prerequisites TEXT NOT NULL DEFAULT '',        -- newline-separated; empty = none
+  pass_mark     INTEGER NOT NULL DEFAULT 70,     -- overall weighted grade needed to pass (0-100)
+  pace_weeks    INTEGER NOT NULL DEFAULT 0,      -- suggested weeks to finish; 0 = one week per module
+  sequential    INTEGER NOT NULL DEFAULT 0       -- 1 = items open in order, each once the one before is done
 );
 CREATE INDEX IF NOT EXISTS idx_courses_status ON courses(status);
 
@@ -144,7 +150,9 @@ CREATE TABLE IF NOT EXISTS modules (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   course_id   INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
   title       TEXT NOT NULL,
-  position    INTEGER NOT NULL DEFAULT 0
+  position    INTEGER NOT NULL DEFAULT 0,
+  summary     TEXT NOT NULL DEFAULT '',          -- what this module covers
+  objectives  TEXT NOT NULL DEFAULT ''           -- newline-separated learning objectives
 );
 CREATE TABLE IF NOT EXISTS lessons (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -160,8 +168,15 @@ CREATE TABLE IF NOT EXISTS lessons (
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
   quiz_json    TEXT,                           -- optional quiz spec (also added by ensureAcademy)
-  ai_summary      TEXT,                        -- lib/LmsCoach.php: the generated key points
-  ai_summary_hash VARCHAR(64)                  -- of the body it was written from, so an edit regenerates it
+  kind         VARCHAR(32) NOT NULL DEFAULT '',  -- '' = from content (video|reading|quiz) · assignment · discussion
+  weight       INTEGER NOT NULL DEFAULT 1,       -- share of the course grade, for graded items
+  assignment_json TEXT,                          -- assignment spec: {"pass": 70}
+  transcript   TEXT NOT NULL DEFAULT '',         -- a video's transcript, shown beside it
+  captions_url TEXT,                             -- WebVTT captions for an uploaded video
+  resources_json TEXT,                           -- downloads: [{"title": …, "url": …}]
+  available_at VARCHAR(32) NOT NULL DEFAULT '',  -- release date (LmsDrip); '' = open
+  ai_summary      TEXT,                          -- lib/LmsCoach.php: the lesson's generated key points
+  ai_summary_hash VARCHAR(64)                    -- of the body they were written from, so an edit regenerates them
 );
 CREATE INDEX IF NOT EXISTS idx_lessons_course ON lessons(course_id);
 CREATE TABLE IF NOT EXISTS lesson_progress (
@@ -230,24 +245,89 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
   passed     INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- Lesson discussions (lib/LmsDiscussion.php). One thread per lesson,
--- replies one level deep. A removal keeps the row and darkens the body.
-CREATE TABLE IF NOT EXISTS lesson_posts (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  course_id       INTEGER NOT NULL,
-  lesson_id       INTEGER NOT NULL,
-  user_id         INTEGER NOT NULL,
-  parent_id       INTEGER NOT NULL DEFAULT 0,   -- 0 = a question, otherwise the question it answers
-  body            TEXT NOT NULL DEFAULT '',
-  status          VARCHAR(16) NOT NULL DEFAULT 'visible',  -- visible | deleted (by author) | removed (by a moderator)
-  removed_by      INTEGER NOT NULL DEFAULT 0,
-  removed_reason  VARCHAR(200) NOT NULL DEFAULT '',
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+-- ── Academy courseware: assignments, discussions, reviews, programmes ──
+-- One current submission per learner per assignment; a resubmission replaces it.
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  lesson_id   INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  course_id   INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  body        TEXT NOT NULL DEFAULT '',
+  link_url    TEXT NOT NULL DEFAULT '',
+  status      VARCHAR(32) NOT NULL DEFAULT 'submitted',   -- submitted | graded | returned
+  score       INTEGER,                                    -- 0-100 once graded
+  feedback    TEXT NOT NULL DEFAULT '',
+  graded_by   INTEGER,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  graded_at   TEXT,
+  UNIQUE (user_id, lesson_id)
 );
-CREATE INDEX IF NOT EXISTS idx_lesson_posts_lesson ON lesson_posts (lesson_id, parent_id, id);
-CREATE INDEX IF NOT EXISTS idx_lesson_posts_course ON lesson_posts (course_id, id);
+CREATE TABLE IF NOT EXISTS forum_threads (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id    INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  lesson_id    INTEGER,                                   -- set for a lesson's thread / a discussion item's prompt
+  user_id      INTEGER NOT NULL DEFAULT 0,                -- 0 = the course itself (a discussion prompt)
+  title        TEXT NOT NULL,
+  body         TEXT NOT NULL DEFAULT '',
+  pinned       INTEGER NOT NULL DEFAULT 0,
+  locked       INTEGER NOT NULL DEFAULT 0,
+  hidden       INTEGER NOT NULL DEFAULT 0,
+  reply_count  INTEGER NOT NULL DEFAULT 0,
+  last_post_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS forum_posts (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  thread_id   INTEGER NOT NULL REFERENCES forum_threads(id) ON DELETE CASCADE,
+  course_id   INTEGER NOT NULL,
+  user_id     INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  body        TEXT NOT NULL,
+  hidden      INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS course_reviews (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  course_id   INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  rating      INTEGER NOT NULL DEFAULT 5,                 -- 1-5
+  body        TEXT NOT NULL DEFAULT '',
+  hidden      INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_id, course_id)
+);
+-- A programme is a series of courses with its own certificate.
+CREATE TABLE IF NOT EXISTS programmes (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug        VARCHAR(191) UNIQUE NOT NULL,
+  title       TEXT NOT NULL,
+  summary     TEXT NOT NULL DEFAULT '',
+  body_html   TEXT NOT NULL DEFAULT '',
+  cover_url   TEXT,
+  status      VARCHAR(32) NOT NULL DEFAULT 'draft',       -- draft | published
+  sort        INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS programme_courses (
+  programme_id INTEGER NOT NULL REFERENCES programmes(id) ON DELETE CASCADE,
+  course_id    INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  position     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (programme_id, course_id)
+);
+CREATE TABLE IF NOT EXISTS programme_certificates (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id      INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  programme_id INTEGER NOT NULL REFERENCES programmes(id) ON DELETE CASCADE,
+  serial       VARCHAR(191) UNIQUE NOT NULL,
+  issued_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_id, programme_id)
+);
+CREATE INDEX IF NOT EXISTS idx_asub_course ON assignment_submissions(course_id, status);
+CREATE INDEX IF NOT EXISTS idx_fthread_course ON forum_threads(course_id, last_post_at);
+CREATE INDEX IF NOT EXISTS idx_fpost_thread ON forum_posts(thread_id, id);
+CREATE INDEX IF NOT EXISTS idx_review_course ON course_reviews(course_id);
 CREATE TABLE IF NOT EXISTS payments (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   reference   TEXT UNIQUE NOT NULL,

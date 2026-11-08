@@ -299,7 +299,7 @@ ck('mission: the owner\'s sentence is printed exactly as written, curly '
  && str_contains($mission, 'Don’t just watch the future.'));
 ck('mission: all four buttons are there', substr_count($mission, 'avd-mbtn') === 5);  // 4 + the gold modifier
 ck('mission: Join is the gold one and goes to volunteering',
-    str_contains($mission, 'class="avd-mbtn avd-mbtn--gold" href="/volunteer/"'));
+    str_contains($mission, 'class="avd-mbtn avd-mbtn--gold" href="https://cacentre.afrovanguard.org.ng/volunteer"'));
 ck('mission: Mentor goes to the mentor sign-up named in the spec',
     str_contains($mission, 'href="/mentorship/become-a-mentor/"'));
 

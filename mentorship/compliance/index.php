@@ -35,7 +35,7 @@ $doneWord = [
     'accepted' => 'Done. The member has been told.', 'dismissed' => 'Dismissed, with your reason on the record.',
     'promoted' => 'Promoted. The member and their Quest mentor have been told.', 'deferred' => 'Set aside, with your reason.',
     'journey' => 'Journey level saved.', 'finding' => 'Finding recorded.', 'resolved' => 'Finding resolved. It stays on the record.',
-    'bracket' => 'Saved.', 'month' => 'The month has been run.', 'advice' => 'The advisor has answered — below.', 'applied' => 'Applied. It is in the catalogue\'s history.',
+    'bracket' => 'Saved.', 'month' => 'The week has been run.', 'advice' => 'The advisor has answered — below.', 'applied' => 'Applied. It is in the catalogue\'s history.',
 ];
 
 $ptheme = (($_COOKIE['av_portal_theme'] ?? 'light') === 'dark') ? 'dark' : 'light';

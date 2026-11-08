@@ -310,6 +310,11 @@
         <button class="btn btn-primary" id="newCourseBtn">+ New programme</button>
       </div>
     </div>
+    <div class="ac-tools" role="search">
+      <input type="search" id="acFind" placeholder="Find a programme" aria-label="Find a programme" autocomplete="off" />
+      <select id="acShow" aria-label="Show"><option value="">All</option><option value="published">Published</option><option value="draft">Drafts</option></select>
+      <span class="muted" id="acCount" aria-live="polite"></span>
+    </div>
     <div class="entry-list" id="courseList"></div>
   </main>
 
@@ -1829,11 +1834,11 @@
   </main>
 
   <div class="toast" id="toast"></div>
-  <!-- Self-hosted TinyMCE (same-origin, so it loads under a strict 'self' CSP).
-       Upload the TinyMCE 7 self-hosted package to /assets/vendor/tinymce/ — see
-       assets/vendor/tinymce/README.md. If it's missing, admin/app.js falls back
-       to a plain textarea, so the editor still works (without the toolbar). -->
-  <script src="/assets/vendor/tinymce/tinymce.min.js"></script>
+  <!-- TinyMCE (self-hosted, /assets/vendor/tinymce/) is NOT loaded here: it is
+       485 KB parsed before anything else on the page could run, on every visit,
+       including the sign-in screen. admin/app.js loads it the first time an
+       editor opens (initTiny); until then, and if it is missing, the field is a
+       plain textarea. -->
   <script src="/admin/app.js?v=<?= (int) @filemtime(__DIR__ . '/app.js') ?>" defer></script>
   <script src="/assets/site/avc-photo.js?v=<?= (int) @filemtime(dirname(__DIR__) . '/assets/site/avc-photo.js') ?>" defer></script>
   <script src="/admin/card-photo.js?v=<?= (int) @filemtime(__DIR__ . '/card-photo.js') ?>" defer></script>

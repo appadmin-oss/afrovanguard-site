@@ -35,7 +35,7 @@ final class Ngv
 
             'seo' => [
                 'title'    => 'NextGen Vanguard — Learn, Earn & Lead | Afrovanguard Academy',
-                'desc'     => 'NextGen Vanguard is Afrovanguard Academy\'s elite transformation programme for school leavers, NYSC corpers and IT students in Lagos. Learn future-ready tech, media, business and leadership skills, earn weekly stipends and six global certifications, and land a real internship. Stop scrolling — start earning.',
+                'desc'     => 'NextGen Vanguard: Afrovanguard Academy\'s programme for school leavers, NYSC corps members and IT students in Lagos. Learn tech, media, business and leadership.',
                 'keywords' => 'NextGen Vanguard, Afrovanguard Academy, free tech training Lagos, skills training Alimosho, Egbeda youth programme, NYSC skills Nigeria, school leaver training, learn and earn Nigeria, digital marketing training Lagos, tech internship Lagos, weekly stipend training, global certifications Nigeria, leadership programme for youths, music production training, data analysis training, AI training Nigeria, media and content creation, web development bootcamp Lagos, youth empowerment Nigeria, Okun Alimosho',
                 'og_image' => '/assets/site/ngv/ngv-flyer.png',
             ],
@@ -141,7 +141,7 @@ final class Ngv
             'fees_enabled' => true,
             'fees_title'   => 'Simple, purposeful commitment',
             'fees' => [
-                ['name' => 'Membership fee', 'amount' => '₦10,000 / year', 'desc' => 'A symbol of commitment. Covers your ID card & file setup, program starter pack, digital onboarding and induction/graduation prep. Paid on registration day.'],
+                ['name' => 'Membership fee', 'amount' => '₦10,000 / year', 'desc' => 'A symbol of commitment. Covers your ID card & file setup, programme starter pack, digital onboarding and induction/graduation prep. Paid on registration day.'],
                 ['name' => 'Commitment fee', 'amount' => '₦1,000 / month', 'desc' => 'Not for profit — a leadership-culture tool. Covers resource refreshers, guest-speaker honorariums, community outreach and facility upkeep.'],
             ],
             'fees_note' => 'No one is turned away for lack. If you\'re truly committed and need support, speak to your track lead or send a letter requesting consideration — we\'re here to help you rise, not shame you.',
@@ -168,7 +168,7 @@ final class Ngv
                 ['q' => 'How long is the programme?', 'a' => 'A structured journey of up to 12 months: Phase 1 is six months of training, Phase 2 is six months of service and internship. Free training-only and internship-only options are available.'],
                 ['q' => 'Do I really earn while I learn?', 'a' => 'Yes. Interns serve on real Afrovanguard projects and receive weekly stipends, alongside internship placement and free internet/workspace access.'],
                 ['q' => 'What will it cost me?', 'a' => 'Training-only and internship-only tracks are free (limited slots). The full programme is ₦240,000/year. A ₦10,000/year membership and ₦1,000/month commitment fee support your uniform, materials and community — and no one is turned away for lack.'],
-                ['q' => 'Where is it held?', 'a' => 'At CACENTRE Egbeda — 2 Abolude / Oremeji Street, Bakery Bus Stop, Egbeda, Lagos.'],
+                ['q' => 'Where is it held?', 'a' => 'At CACENTRE Egbeda — 2 Oremeji Street, off Akowonjo Road, Bakey Bus Stop, Egbeda, Lagos.'],
             ],
 
             'cta' => [
@@ -187,7 +187,7 @@ final class Ngv
             // Afrovanguard's two offices (editable list). Rendered on the page and
             // used in the Course location schema.
             'offices' => [
-                ['name' => 'CACENTRE Egbeda', 'address' => '2 Abolude / Oremeji Street, Bakery Bus Stop, Egbeda, Lagos'],
+                ['name' => 'CACENTRE Egbeda', 'address' => '2 Oremeji Street, off Akowonjo Road, Bakey Bus Stop, Egbeda, Lagos'],
                 ['name' => 'CACENTRE Okun Alimosho', 'address' => 'Okun Alimosho, Alimosho, Lagos'],
             ],
 

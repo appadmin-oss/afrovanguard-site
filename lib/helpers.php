@@ -271,6 +271,11 @@ function json_out($data, int $status = 200): void {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     header('X-Content-Type-Options: nosniff');
+    /* An API answer is the state of the database NOW. Without a header of its
+       own it took the host's default (max-age=604800), so the Studio and the
+       admin course list showed a week-old answer after an edit: "changes take
+       forever to reflect" was the browser's cache, not the save. */
+    if (!headers_sent()) { header('Cache-Control: no-store, private'); header_remove('Expires'); }
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
@@ -278,18 +283,44 @@ function json_out($data, int $status = 200): void {
 /* ── Schema.org / JSON-LD builders (shared, so structured data stays in sync) ── */
 
 function schema_org(): array {
+    /* The organisation, as search engines and AI assistants should describe it.
+       Every fact here is one the owner has confirmed (2026-11-05); index.html
+       carries the same node by hand, and tests/siteaudit.test.php holds the
+       two together. */
+    $S = rtrim(SITE_URL, '/');
     return [
         '@type' => ['Organization', 'NGO'],
-        '@id'   => SITE_URL . '/#organization',
+        '@id'   => $S . '/#organization',
         'name'  => 'Afrovanguard',
-        'url'   => rtrim(SITE_URL, '/') . '/',
-        'logo'  => rtrim(SITE_URL, '/') . '/Images/og-image.png',
+        'url'   => $S . '/',
+        'description' => 'Afrovanguard is a youth leadership nonprofit founded in 2017 in Alimosho, Lagos, Nigeria. Its seven projects — Street-To-Stardom, Techome, MediaPro, Kingdom Advancement Project, Africa GATES, Business Executive Club and Career Hub — train young people in technology, media, arts, enterprise and leadership, with the aim of raising one million incorruptible African leaders by 2040.',
+        'logo'  => ['@type' => 'ImageObject', 'url' => $S . '/assets/site/av-seal.png', 'width' => 640, 'height' => 640],
+        'image' => $S . '/assets/og/og-default.png',
+        'foundingDate' => '2017-11-09',
+        'foundingLocation' => ['@type' => 'Place', 'name' => 'Alimosho, Lagos, Nigeria'],
+        'address' => [
+            '@type' => 'PostalAddress',
+            'streetAddress' => 'CACENTRE Egbeda, 2 Oremeji Street, off Akowonjo Road, Bakey Bus Stop',
+            'addressLocality' => 'Egbeda, Alimosho',
+            'addressRegion' => 'Lagos',
+            'addressCountry' => 'NG',
+        ],
+        'areaServed' => ['@type' => 'Place', 'name' => 'Lagos, Nigeria'],
+        'email' => 'cacentre@afrovanguard.org.ng',
+        'telephone' => '+234 903 777 6318',
+        'contactPoint' => [
+            '@type' => 'ContactPoint', 'contactType' => 'general enquiries',
+            'email' => 'cacentre@afrovanguard.org.ng', 'telephone' => '+234 903 777 6318',
+            'url' => $S . '/contact.html', 'availableLanguage' => 'English',
+        ],
+        'knowsAbout' => ['Youth leadership', 'Mentorship', 'Digital skills', 'Media training', 'Creative arts', 'Entrepreneurship', 'Community development'],
         'sameAs' => [
-            'https://www.instagram.com/afrovanguard/',
+            'https://www.instagram.com/afro.vanguard/',
             'https://twitter.com/afrovanguard',
             'https://www.facebook.com/afrovanguard/',
             'https://www.linkedin.com/company/afrovanguard/',
-            'https://www.youtube.com/@afrovanguard',
+            'https://www.youtube.com/@afrovanguardism',
+            'https://www.youtube.com/@okunalimosho',
         ],
     ];
 }
@@ -297,13 +328,15 @@ function schema_org(): array {
 function schema_website(): array {
     return [
         '@type' => 'WebSite',
-        '@id'   => SITE_URL . '/#website',
+        '@id'   => rtrim(SITE_URL, '/') . '/#website',
         'url'   => rtrim(SITE_URL, '/') . '/',
         'name'  => 'Afrovanguard',
-        'publisher' => ['@id' => SITE_URL . '/#organization'],
+        'publisher' => ['@id' => rtrim(SITE_URL, '/') . '/#organization'],
+        'inLanguage' => 'en-NG',
         'potentialAction' => [
             '@type'       => 'SearchAction',
-            'target'      => ['@type' => 'EntryPoint', 'urlTemplate' => diary_url('?q={search_term_string}')],
+            // The site search (search.php serves a results page to a browser).
+            'target'      => ['@type' => 'EntryPoint', 'urlTemplate' => rtrim(SITE_URL, '/') . '/search.php?q={search_term_string}'],
             'query-input' => 'required name=search_term_string',
         ],
     ];
@@ -329,6 +362,14 @@ function require_same_origin(): void {
        "afrovanguard.org.ng.evil.example" passed as this site — and the public
        registration form relies on this check alone. */
     $h = strtolower((string) preg_replace('/:\d+$/', '', $host));
+    /* An Origin that names no host is not "no origin". Browsers send the literal
+       `Origin: null` from a sandboxed iframe, a data: page or some redirects:
+       exactly the contexts a cross-site forgery is launched from. It used to
+       parse to an empty host and pass. A browser that says the request is
+       cross-site is believed too. */
+    if ((isset($_SERVER['HTTP_ORIGIN']) && $oh === '') || strtolower((string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '')) === 'cross-site') {
+        json_out(['ok' => false, 'error' => 'Cross-origin request rejected.'], 403);
+    }
     if ($oh !== '' && $h !== '' && $oh !== $h) {
         json_out(['ok' => false, 'error' => 'Cross-origin request rejected.'], 403);
     }

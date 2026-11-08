@@ -218,3 +218,244 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:25}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* Courseware authoring: question types, programmes, module summaries */
+.qcard .q-type{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 8px;max-width:170px}
+.qcard .q-explain{width:100%;box-sizing:border-box;margin-top:8px;font:inherit;color:var(--ink);background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:8px 10px}
+.quiz-head{flex-wrap:wrap;gap:10px}
+.fld-help{font-size:12.5px;margin:-4px 0 10px}
+.mod-sum{display:block;font-size:12.5px;font-weight:400;margin-top:2px}
+.prog-courses{border:0;padding:0;margin:0}
+.prog-courses legend{font-weight:600;margin-bottom:4px}
+.prog-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line-2)}
+.prog-pos{width:72px;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.qopt input[type=checkbox]{accent-color:var(--gold)}
+
+/* Lesson media: upload rows, resources */
+.up-row{display:flex;gap:8px;align-items:center}
+.up-row input{flex:1;min-width:0}
+.media-box,.res-box{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:6px 0 12px}
+.res-box legend{font-weight:600;padding:0 4px}
+.res-row{display:grid;grid-template-columns:1fr 1.6fr auto auto;gap:8px;align-items:center;margin-bottom:8px}
+.res-row input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+@media (max-width:640px){.res-row{grid-template-columns:1fr auto}.res-row .r-url{grid-column:1/-1}}
+
+/* Outline editor: drag handles, drop targets, add-by-kind */
+.drag{cursor:grab;border:0;background:transparent;color:var(--muted);font-size:18px;min-width:32px;min-height:32px;border-radius:8px}
+.drag:focus-visible{outline:2px solid var(--gold);color:var(--ink)}
+.les.is-drag,.mod.is-drag{opacity:.45}
+.mod.is-over{outline:2px dashed var(--gold);outline-offset:4px}
+.les-open{border:0;background:none;padding:0;font:inherit;color:var(--ink);text-align:left;cursor:pointer;flex:1}
+.les-open:hover{text-decoration:underline}
+.mod-k{display:block;font-size:11.5px;font-weight:700;color:var(--muted)}
+.add-kinds{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+
+/* Item editor: one screen per kind */
+.modal-card--wide{max-width:860px;width:100%}
+.modal-head>div{display:flex;flex-direction:column;gap:4px}
+.kind-chip{align-self:flex-start;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2)}
+.ed-sec{display:flex;flex-direction:column;gap:10px;padding:16px 0;border-top:1px solid var(--line-2)}
+.ed-sec[hidden]{display:none}
+.ed-sec h3{margin:0;font-size:15px}
+.ed-more{border:1px solid var(--line);border-radius:12px;padding:0 14px;margin:8px 0}
+.ed-more summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:6px;font-weight:600}
+.ed-more[open]{padding-bottom:14px}
+.ed-more textarea{width:100%;box-sizing:border-box;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px}
+.ed-adv summary{color:var(--ink-2)}
+.src-pick,.mode-pick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.src-card,.mode-card{display:flex;flex-direction:column;gap:4px;text-align:left;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer}
+.src-card span,.mode-card span{font-size:13px;color:var(--ink-2)}
+.src-card--link{cursor:default}
+.src-card--link input{margin-top:6px;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.mode-card input{position:absolute;opacity:0;width:1px;height:1px}
+.mode-card{position:relative}
+.mode-card:has(input:checked){border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.mode-card:has(input:focus-visible){outline:2px solid var(--gold);outline-offset:2px}
+.file-ok{margin:0;font-weight:600;color:var(--ink)}
+.suffix{display:flex;align-items:center;gap:6px}
+.suffix input{width:90px}
+.qcard .q-n{font-weight:700;min-width:22px}
+.qcard .q-hint{margin:2px 0 4px;font-size:12.5px}
+.save-state{margin-right:auto}
+.tox-tinymce{border-radius:10px!important}
+@media (max-width:640px){.src-pick,.mode-pick{grid-template-columns:1fr}}
+
+/* Readiness checklist */
+.ready{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:16px;background:var(--surface)}
+.ready h3{margin:0 0 6px;font-size:15px}
+.ready.is-ok h3::before{content:"✓ ";color:var(--ok)}
+.ready ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.ready li{display:flex;align-items:center;gap:8px;font-size:14px}
+.ready .r-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.ready .r-fix .r-dot{background:var(--warn)}
+.ready .link-btn{text-align:left}
+
+/* Course form: steps, a cover preview */
+.ed-step{border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;background:var(--surface)}
+.ed-step h2{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:17px}
+.ed-step h2 span{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-2);border:1px solid var(--line);font-size:13px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.cover-row{display:flex;gap:16px;align-items:center;margin-top:6px}
+.cover-prev{width:160px;aspect-ratio:1200/630;border-radius:10px;background:var(--surface-2) center/cover no-repeat;border:1px dashed var(--line);flex-shrink:0}
+.cover-prev.has{border-style:solid}
+@media (max-width:760px){.grid3{grid-template-columns:1fr}.cover-row{flex-direction:column;align-items:flex-start}}
+
+#lessonModal .modal-head,#modModal .modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+#lessonForm{display:flex;flex-direction:column}
+#lessonForm.is-quiz>.fld:first-child{order:-3}
+#lessonForm.is-quiz>.ed-sec[data-for="quiz"]{order:-2}
+.qcard .q-prompt,.qcard .q-explain{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.qcard .q-prompt{font-weight:600}
+
+/* Writing boxes read as writing, not code */
+.fld textarea,.ed-more textarea{font-family:inherit;line-height:1.5}
+
+/* Search, list tools, folding */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.top-search{display:flex;align-items:center;gap:10px;min-width:280px;min-height:40px;padding:0 12px;margin:0 16px 0 auto;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--muted);font:inherit;font-size:14px;cursor:pointer}
+.top-search svg,.palette-in svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;flex-shrink:0}
+.top-search span{flex:1;text-align:left}
+kbd{font:600 11.5px/1 ui-monospace,monospace;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink-2)}
+.list-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 14px}
+.find input{min-width:260px;min-height:40px;padding:0 12px;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{min-height:38px;padding:0 12px;border:0;background:var(--surface);color:var(--ink-2);font:inherit;font-size:13.5px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.sortby{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--muted)}
+.sortby select{min-height:38px;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 8px}
+.list-count{margin-left:auto;font-size:13px}
+.c-row{display:flex;align-items:center;gap:12px}
+.c-thumb{width:56px;height:30px;border-radius:6px;object-fit:cover;flex-shrink:0;background:var(--surface-2)}
+.c-thumb--none{display:inline-block;border:1px dashed var(--line)}
+.c-row .c-title{font-weight:600;text-align:left;color:var(--ink)}
+.c-row .c-meta{display:block;font-size:12.5px}
+.more{position:relative}
+.more summary{list-style:none}
+.more summary::-webkit-details-marker{display:none}
+.more-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:180px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:var(--shadow)}
+.more-menu a,.more-menu button{display:block;width:100%;text-align:left;padding:8px 10px;border:0;border-radius:6px;background:none;color:var(--ink);font:inherit;font-size:14px;text-decoration:none;cursor:pointer}
+.more-menu a:hover,.more-menu button:hover{background:var(--surface-2)}
+.more-menu .danger{color:var(--danger)}
+.fold{border:0;background:none;color:var(--muted);font-size:14px;min-width:28px;min-height:32px;cursor:pointer;transition:transform .15s}
+.fold[aria-expanded="false"]{transform:rotate(-90deg)}
+.mod.is-folded .mod-lessons,.mod.is-folded .add-kinds{display:none}
+.les.is-hit .les-title{background:color-mix(in srgb,var(--gold) 22%,transparent);border-radius:4px}
+.palette{place-items:start center;padding-top:12vh}
+.palette-card{max-width:640px;width:100%;padding:0;overflow:hidden}
+.palette-in{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);color:var(--muted)}
+.palette-in input{flex:1;border:0;background:none;font:inherit;font-size:17px;color:var(--ink);outline:none}
+.palette-res{max-height:52vh;overflow:auto;padding:6px}
+.palette-hint{padding:14px 12px;margin:0}
+.palette-gh{font-size:12px;font-weight:700;color:var(--muted);padding:10px 10px 4px}
+.palette-hit{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;padding:9px 10px;border:0;border-radius:8px;background:none;color:var(--ink);font:inherit;cursor:pointer}
+.palette-hit span{font-size:13px;color:var(--ink-2)}
+.palette-hit.is-on{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--gold)}
+.palette-foot{margin:0;padding:8px 14px;border-top:1px solid var(--line);font-size:12.5px;display:flex;gap:6px;align-items:center}
+@media (max-width:900px){.top-search{min-width:0}.top-search span,.top-search kbd{display:none}.find input{min-width:0;width:100%}.find{flex:1 1 100%}}
+.c-row .c-title{padding:0;border:0;background:none;font-size:14.5px;cursor:pointer}
+.c-row .c-title:hover{text-decoration:underline}
+
+/* Course builder: the editor docks beside the outline on a wide screen */
+@media (min-width:1180px){
+  #lessonModal{background:transparent;pointer-events:none;place-items:stretch end;padding:0;animation:none}
+  #lessonModal .modal-card{pointer-events:auto;width:min(660px,46vw);max-width:none;height:100vh;max-height:none;border-radius:0;border-left:1px solid var(--line);box-shadow:-12px 0 40px rgba(11,17,32,.12);display:flex;flex-direction:column}
+  #lessonModal .modal-body{flex:1;overflow:auto}
+  body.is-editing .main{padding-right:min(660px,46vw)}
+}
+.draft-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 20px;padding:10px 14px;border-radius:10px;background:color-mix(in srgb,var(--gold) 16%,var(--surface));font-size:14px}
+.draft-bar span{flex:1 1 220px}
+/* Outline rows */
+.les-warn{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--warn);color:#fff;font-size:12px;font-weight:800;flex-shrink:0;cursor:help}
+.les .row-actions{display:flex;align-items:center;gap:4px}
+.more-move{display:flex;flex-direction:column;gap:4px;padding:6px 10px;font-size:12.5px;color:var(--muted)}
+.more-move select{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px}
+.mod-name{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--ink);text-align:left;cursor:pointer}
+.mod-name:hover{text-decoration:underline}
+.inline-name{font:inherit;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--gold);border-radius:6px;padding:4px 8px;min-width:240px;flex:1}
+.bulk{margin:8px 0 4px;padding:12px;border:1px dashed var(--line);border-radius:10px;display:flex;flex-direction:column;gap:8px}
+.bulk label{display:flex;flex-direction:column;gap:6px;font-size:13.5px;font-weight:600}
+.bulk textarea{font:inherit;font-weight:400;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.bulk-foot{display:flex;gap:8px}
+.plan{border:1px solid var(--line);border-radius:14px;padding:20px;background:var(--surface);margin-bottom:14px}
+.plan h3{margin:0 0 4px}
+.plan-pick{grid-template-columns:repeat(3,1fr);margin-top:12px}
+.plan-pick .mode-card:hover{border-color:var(--gold)}
+@media (max-width:760px){.plan-pick{grid-template-columns:1fr}}
+
+/* While an item is open beside it, the outline goes compact: one line an item. */
+body.is-editing .les-tags,body.is-editing .mod-sum,body.is-editing #viewSub,body.is-editing .add-kinds .muted{display:none}
+body.is-editing .les{flex-wrap:nowrap}
+body.is-editing .les-open{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.is-editing .les .row-actions a{display:none}
+body.is-editing .mod-head{flex-wrap:wrap}
+body.is-editing .mod-head [data-mren]{order:9}
+body.is-editing .list-tools .find input{min-width:0}
+.les-open{flex:1;min-width:0}
+.ready .r-all{margin-top:6px;font-size:13.5px}
+
+/* ── Responsive builder ─────────────────────────────────────────────────
+   Wide: while an item is open the left menu folds to icons, so the outline
+   keeps room beside the editor. Tablet: the editor is a full-height panel.
+   Phone: the editor is the whole screen; item rows put the title on its own
+   line; lists become cards. Touch: every control is at least 44 px. */
+@media (min-width:1180px){
+  body.is-editing .shell{grid-template-columns:72px 1fr}
+  body.is-editing .side{padding:18px 10px}
+  body.is-editing .side-name,body.is-editing .side .nav-item span,body.is-editing .side .ghost span{display:none}
+  body.is-editing .side .nav-item,body.is-editing .side .ghost{justify-content:center;padding:11px 0}
+  body.is-editing .side-brand{justify-content:center;padding:6px 0 18px}
+}
+@media (min-width:761px) and (max-width:1179px){
+  #lessonModal{place-items:stretch end;padding:0}
+  #lessonModal .modal-card{width:min(680px,94vw);max-width:none;height:100vh;max-height:none;border-radius:0;display:flex;flex-direction:column}
+  #lessonModal .modal-body{flex:1;overflow:auto}
+}
+@media (max-width:760px){
+  .top-title p{display:none}
+  .top-title h1{font-size:22px}
+  #lessonModal,#modModal,#searchModal{padding:0;place-items:stretch}
+  #lessonModal .modal-card,#modModal .modal-card{width:100vw;max-width:none;height:100vh;height:100dvh;max-height:none;border-radius:0;display:flex;flex-direction:column}
+  #lessonModal .modal-body,#modModal .modal-body{flex:1;overflow:auto}
+  #searchModal{padding-top:0}
+  #searchModal .palette-card{width:100vw;max-width:none;height:100dvh;border-radius:0;display:flex;flex-direction:column}
+  #searchModal .palette-res{max-height:none;flex:1}
+  .draft-bar{margin:0 14px}
+  /* module header: the name gets the whole first line */
+  .mod-head{flex-wrap:wrap;padding:12px}
+  .mod-head{gap:4px}
+  .mod-head .mod-title{flex:1 1 calc(100% - 124px);min-width:0}
+  .mod-head [data-mren],.mod-head [data-mdel]{flex:0 0 auto}
+  /* item row: handle · title · actions, then type, flags and time beneath the title */
+  .les{flex-wrap:wrap;row-gap:4px;padding:8px 6px}
+  .les .drag{order:0}
+  .les .les-open{order:1;flex:1 1 calc(100% - 160px);min-width:0;white-space:normal}
+  .les .row-actions{order:2;margin-left:auto}
+  .les .les-type,.les .les-warn,.les .les-tags{order:3}
+  .les .les-type{margin-left:44px}
+  .add-kinds{gap:6px}
+  .add-kinds .btn{flex:1 1 calc(50% - 6px)}
+  .list-tools .seg{width:100%;overflow-x:auto}
+  .list-tools .seg button{flex:1 0 auto}
+  .list-count{margin-left:0}
+  /* lists: rows become cards */
+  #coursesTbl,#rosterTbl,#coursesTbl tbody,#rosterTbl tbody{display:block;width:100%;min-width:0}
+  #coursesTbl thead,#rosterTbl thead{display:none}
+  #coursesTbl tr,#rosterTbl tr{display:flex;flex-wrap:wrap;gap:6px 10px;padding:12px;border-bottom:1px solid var(--line)}
+  #coursesTbl td,#rosterTbl td{display:block;padding:0;border:0}
+  #coursesTbl td:first-child,#rosterTbl td:first-child{flex:1 1 100%}
+  #coursesTbl td:nth-child(4),#coursesTbl td:nth-child(5){color:var(--muted);font-size:13px}
+  #coursesTbl td:nth-child(4)::after{content:" items"}
+  #coursesTbl td:nth-child(5)::after{content:" learners"}
+  #coursesTbl td:last-child,#rosterTbl td:last-child{flex:1 1 100%}
+  #coursesTbl .row-actions,#rosterTbl .row-actions{flex-wrap:wrap;justify-content:flex-start}
+  .table-wrap{overflow:visible}
+}
+@media (pointer:coarse){
+  .drag,.fold,.more>summary,.les .btn-sm,.mod-head .btn-sm,.add-kinds .btn,.seg button,.row-actions .btn{min-height:44px;min-width:44px}
+  .les .les-open,.mod-name{min-height:44px}
+  .more-menu a,.more-menu button{min-height:44px}
+}
+/* the checklist: a tip reads as a tip, not a fault */
+.ready .link-btn{color:var(--ink);text-align:left}
+.ready .r-tip,.ready .r-tip .link-btn{color:var(--ink-2)}

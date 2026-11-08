@@ -194,6 +194,12 @@ if (!defined('AV_DB_PATH'))       define('AV_DB_PATH', getenv('AV_DB_PATH') ?: (
 // Organisation timezone. Data is stored UTC; this is the wall-clock members
 // live in (Nigeria = WAT, UTC+1, no DST). Per-user overrides via Prefs.
 if (!defined('AV_TZ'))            define('AV_TZ', getenv('AV_TZ') ?: 'Africa/Lagos');
+/* Stored timestamps are UTC, and so is everything that writes one. date() used
+   whatever the host's php.ini said, SQLite's datetime('now') is UTC and MySQL's
+   NOW() is the server's own zone, so one table could hold three clocks and a
+   "last 24 hours" query compared across them. The wall clock people read is
+   AV_TZ, applied when a time is shown (av_now_tz, av_today_tz). */
+date_default_timezone_set('UTC');
 
 // Admin token (config.php or AV_ADMIN_TOKEN env). Absent ⇒ admin disabled.
 if (!defined('ADMIN_TOKEN')) {
@@ -334,7 +340,10 @@ require_once __DIR__ . '/CacWifi.php';     /* and their Wi-Fi: CACENTRE runs it,
 require_once __DIR__ . '/Greeting.php';        /* the line at the top of Today: picked, not stored */
 require_once __DIR__ . '/GrowthSignature.php'; /* Today's growth signature, each bar from the record */
 require_once __DIR__ . '/LmsRepository.php';
-require_once __DIR__ . '/LmsDiscussion.php';
+require_once __DIR__ . '/LmsCourseware.php';
+require_once __DIR__ . '/Thumbs.php';
+require_once __DIR__ . '/Analytics.php';
+Analytics::start();   // the Google Analytics tag on every HTML page (lib/Analytics.php)
 require_once __DIR__ . '/LmsCoach.php';
 require_once __DIR__ . '/LmsDrip.php';
 require_once __DIR__ . '/GoogleAuth.php';
@@ -387,6 +396,8 @@ require_once __DIR__ . '/AdminMfa.php';   /* a second factor on the Studio, port
 require_once __DIR__ . '/SuperAdmin.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Sitemap.php';
+require_once __DIR__ . '/Reports.php';
+require_once __DIR__ . '/SiteFacts.php';     // the one fact sheet: llms.txt, Chioma, the community bot       // published reports: /reports/ (docs/REPORTS.md)
 require_once __DIR__ . '/AuthArt.php';
 require_once __DIR__ . '/Cloudinary.php';
 require_once __DIR__ . '/Drive.php';

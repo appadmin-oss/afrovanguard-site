@@ -86,7 +86,9 @@ to a finished campaign in the first cut:
 | | `isPublic()` — may be opened | `published()` — appears in lists |
 |---|---|---|
 | `draft` | no | no |
-| `live` / `paused` / `funded` | yes | yes |
+| `live`, inside its dates | yes | yes |
+| `live`, before `starts_on` or after `ends_on` | yes | no |
+| `paused` / `funded` | yes | yes |
 | `closed` | **yes** | no |
 
 A closed appeal is not advertised any more, but it stays reachable: people
@@ -94,6 +96,38 @@ follow old links, a poster outlives the campaign printed on it, and how a thing
 ended is the most persuasive page on the site. It is sent `noindex, follow` so
 it stops competing in search with the appeals still asking, and it is absent
 from the sitemap and the feed.
+
+## Campaigns are appeals, timed by their dates
+
+_Owner's decision, 2026-11-05, after the LCASP 2026 campaign stayed on the
+Donate, Projects and Home pages after it had ended._
+
+A campaign (LCASP, a School Storm season, an equipment drive) is an appeal.
+Its **Starts** and **Ends** dates in the console do the timing; nobody has to
+remember to switch anything:
+
+| Today (Lagos) | On Donate, Projects, Give, the project page, the feed | Its own page |
+|---|---|---|
+| before Starts | not shown | "This appeal opens on …", no giving form |
+| Starts … Ends (both inclusive) | shown, taking gifts | giving form |
+| after Ends | not shown | "This appeal has ended", no giving form |
+
+`Appeals::window()` decides it, `Appeals::isRunning()` is live-and-inside-its-
+dates. The console marks a live appeal "scheduled · opens …" or "ended … · no
+longer shown", so the list says what the public sees. When a campaign has
+ended, set it to `closed` at leisure; the dates have already taken it down.
+
+**Where a running campaign appears.** The Donate page's "Where your gift goes"
+block shows the first running appeal (featured first) with what it has raised,
+and "Direct my gift to" lists every running appeal; the Projects page's
+"Running now" shows up to two, and hides itself when none is running. All
+three are static pages, so they read `/give/feed.json` in the browser; if that
+fails they show general text, never a past campaign.
+
+**Adding the next one:** create the appeal, give it a cover image, a tagline,
+a goal, its project and its Starts/Ends dates, and set it live. It will appear
+on its first day.
+
 
 ## Promotion
 

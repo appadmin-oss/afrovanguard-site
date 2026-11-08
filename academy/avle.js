@@ -193,8 +193,10 @@
       const mc = mod && $('[data-avle-modcount]', mod);
       if (mc) mc.textContent = $$('.avle-item.is-done', mod).length + '/' + $$('.avle-item', mod).length + ' complete';
     }
-    const fin = $('[data-avle-done]'); if (fin) fin.hidden = !p.complete;
-    if (p.complete) toast('Course complete. Claim your certificate.');
+    const won = p.certified === undefined ? p.complete : p.certified;
+    const fin = $('[data-avle-done]'); if (fin) fin.hidden = !won;
+    if (won) toast('Course complete. Claim your certificate.');
+    else if (p.complete) toast('Every item done. Check your grades to see what’s left to pass.');
   };
 
   /* Up next: counts down, then moves on; Cancel keeps the learner here. */
@@ -247,25 +249,169 @@
     const form = $('[data-avle-quiz]'); if (!form) return;
     const out = $('[data-avle-quiz-out]', form);
     const say = (m, ok) => { if (!out) return; out.textContent = m; out.classList.toggle('is-ok', !!ok); out.classList.toggle('is-err', !ok); };
+    const graded = form.dataset.graded === '1';
     form.addEventListener('submit', e => {
       e.preventDefault();
       const qs = $$('fieldset.avle-q', form);
-      const answers = qs.map((fs, i) => { const s = $('input[name="q' + i + '"]:checked', fs); return s ? parseInt(s.value, 10) : -1; });
-      const missing = answers.indexOf(-1);
+      const answers = qs.map(fs => {
+        const picked = $$('input:checked', fs).map(i => parseInt(i.value, 10));
+        return fs.dataset.type === 'multi' ? picked : (picked.length ? picked[0] : -1);
+      });
+      const missing = answers.findIndex(a => (Array.isArray(a) ? a.length === 0 : a === -1));
       if (missing > -1) { say('Please answer every question.', false); const f = $('input', qs[missing]); if (f) f.focus(); return; }
       const b = $('button[type=submit]', form); if (b) b.disabled = true;
       post('quiz_submit', { course, lesson, answers })
         .then(d => {
           if (!d || !d.ok) { say((d && d.error) || 'Please sign in.', false); if (d && /sign in/i.test(d.error || '')) goLogin(); return; }
-          say('You scored ' + d.score + '%. ' + (d.passed ? 'Passed — lesson complete.' : 'You need ' + d.pass + '% to pass. Try again.'), d.passed);
+          (d.marks || []).forEach((m, i) => {
+            const fs = qs[i]; if (!fs) return;
+            fs.classList.toggle('is-right', m.correct); fs.classList.toggle('is-wrong', !m.correct);
+            $$('.avle-opt', fs).forEach(l => l.classList.toggle('is-key', false));
+            if (m.answer !== null && m.answer !== undefined) {
+              [].concat(m.answer).forEach(k => { const l = $('.avle-opt[data-opt="' + k + '"]', fs); if (l) l.classList.add('is-key'); });
+            }
+            const fb = $('[data-avle-qfb]', fs);
+            if (fb) { fb.hidden = false; fb.textContent = (m.correct ? 'Correct.' : 'Not quite.') + (m.explain ? ' ' + m.explain : ''); }
+          });
+          const left = d.attempts_left === null || d.attempts_left === undefined ? '' : ' ' + d.attempts_left + ' attempt' + (d.attempts_left === 1 ? '' : 's') + ' left.';
+          if (!graded) say('You scored ' + d.score + '%. Practice complete.' + left, true);
+          else say('You scored ' + d.score + '%. ' + (d.passed ? 'Passed.' : 'You need ' + d.pass + '% to pass.') + left, d.passed);
           const st = $('[data-avle-qstatus]');
-          if (st && d.passed) { st.textContent = 'Completed ✓'; st.classList.add('is-done'); }
-          if (b) b.textContent = 'Retake quiz';
-          paint(d.progress, d.passed ? true : undefined);
-          if (d.passed && d.progress && !d.progress.complete) showUp();
+          const doneNow = d.passed || !graded;
+          if (st && doneNow) { st.textContent = 'Completed ✓'; st.classList.add('is-done'); }
+          if (b) { b.textContent = 'Try again'; if (d.attempts_left === 0) b.hidden = true; }
+          paint(d.progress, doneNow ? true : undefined);
+          if (doneNow && d.progress && !d.progress.complete) showUp();
         })
         .catch(() => say('Network error — please try again.', false))
         .finally(() => { if (b) b.disabled = false; });
+    });
+  });
+
+  /* Assignment: submit or resubmit; the instructor grades it. */
+  run('assignment', () => {
+    const form = $('[data-avle-asg]'); if (!form) return;
+    const out = $('[data-avle-asg-out]', form);
+    const tell = (m, ok) => { if (out) { out.textContent = m; out.className = 'avle-quiz-out ' + (ok ? 'is-ok' : 'is-err'); } };
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const b = $('button[type=submit]', form); if (b) b.disabled = true;
+      post('assignment_submit', { course, lesson, body: form.elements.body.value, url: form.elements.url.value })
+        .then(d => {
+          if (!d || !d.ok) { tell((d && d.error) || 'Could not submit.', false); return; }
+          tell('Submitted — your instructor will grade it.', true);
+          if (b) b.textContent = 'Resubmit';
+          const st = $('[data-avle-asg-state]');
+          if (st) { st.className = 'avle-asg-state is-submitted'; st.textContent = ''; const k = document.createElement('b'); k.textContent = 'Submitted'; st.append(k, ' Waiting for your instructor to grade it.'); }
+        })
+        .catch(() => tell('Network error — please try again.', false))
+        .finally(() => { if (b) b.disabled = false; });
+    });
+  });
+
+  /* Discussion item: posting a response completes it. */
+  run('discussion', () => {
+    const form = $('[data-avle-disc]'); if (!form) return;
+    const out = $('[data-avle-disc-out]', form);
+    const tell = (m, ok) => { if (out) { out.textContent = m; out.className = 'avle-quiz-out ' + (ok ? 'is-ok' : 'is-err'); } };
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const ta = form.elements.body; const text = ta.value.trim(); if (!text) return;
+      const b = $('button[type=submit]', form); if (b) b.disabled = true;
+      post('forum_reply', { course, lesson, body: text })
+        .then(d => {
+          if (!d || !d.ok) { tell((d && d.error) || 'Could not post.', false); return; }
+          const list = $('.avle-posts');
+          const none = list && $('.avle-posts-none', list); if (none) none.hidden = true;
+          if (list) {
+            const li = document.createElement('li');
+            const h = document.createElement('div'); h.className = 'avle-post-h';
+            const who = document.createElement('b'); who.textContent = 'You';
+            const when = document.createElement('span'); when.className = 'av-num'; when.textContent = 'Just now';
+            h.append(who, when);
+            const bd = document.createElement('div'); bd.className = 'avle-post-b'; bd.textContent = text;
+            li.append(h, bd); list.prepend(li);
+          }
+          ta.value = '';
+          tell('Posted.', true);
+          const st = $('[data-avle-qstatus]'); if (st) { st.textContent = 'Completed ✓'; st.classList.add('is-done'); }
+          if (d.progress) { paint(d.progress, true); if (!d.progress.complete) showUp(); }
+        })
+        .catch(() => tell('Network error — please try again.', false))
+        .finally(() => { if (b) b.disabled = false; });
+    });
+  });
+
+  /* Native video: speed, resume where you left off, a transcript that follows
+     the captions (click a line to jump there), and the item completes itself
+     once 90% has been watched — without leaving the page. */
+  run('video', () => {
+    const v = $('[data-avle-video]'); if (!v) return;
+    const key = v.dataset.key || '';
+    const store = (k, val) => { try { if (val === null) localStorage.removeItem(k); else localStorage.setItem(k, val); } catch (e) { /* private mode */ } };
+    const read = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+
+    const speeds = $$('[data-avle-speed]');
+    const setSpeed = r => {
+      v.playbackRate = r;
+      speeds.forEach(b => b.setAttribute('aria-pressed', String(parseFloat(b.dataset.avleSpeed) === r)));
+      store('av.vspeed', String(r));
+    };
+    speeds.forEach(b => b.addEventListener('click', () => setSpeed(parseFloat(b.dataset.avleSpeed))));
+    const sp = parseFloat(read('av.vspeed') || '1'); if (sp && sp !== 1) setSpeed(sp);
+
+    v.addEventListener('loadedmetadata', () => {
+      const t = parseFloat(read(key) || '0');
+      if (t > 5 && v.duration && t < v.duration - 10) v.currentTime = t;
+    }, { once: true });
+    let last = 0, sent = false;
+    v.addEventListener('timeupdate', () => {
+      const now = v.currentTime;
+      if (Math.abs(now - last) > 5) { last = now; store(key, String(Math.floor(now))); }
+      if (!sent && v.dataset.autocomplete === '1' && v.duration && now / v.duration >= 0.9) {
+        sent = true;
+        post('lesson_complete', { course, lesson }).then(d => {
+          if (!d || !d.ok) { sent = false; return; }
+          const b = $('[data-avle-complete]');
+          if (b) { b.dataset.done = '1'; b.textContent = 'Completed ✓'; }
+          paint(d.progress, true);
+        }).catch(() => { sent = false; });
+      }
+    });
+    v.addEventListener('ended', () => store(key, null));
+
+    /* Transcript from the caption track's cues. */
+    const box = $('[data-avle-trans][data-cues]');
+    const list = box && $('[data-avle-cues]', box);
+    const track = v.textTracks && v.textTracks[0];
+    if (!list || !track) return;
+    track.mode = track.mode === 'showing' ? 'showing' : 'hidden';
+    const fmt = s => { const m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ':' + String(r).padStart(2, '0'); };
+    const build = () => {
+      const cues = track.cues ? Array.from(track.cues) : [];
+      if (!cues.length || list.childElementCount) return;
+      cues.forEach(c => {
+        const li = document.createElement('li');
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'avle-cue'; b.dataset.start = String(c.startTime);
+        const t = document.createElement('span'); t.className = 'avle-cue-t av-num'; t.textContent = fmt(c.startTime);
+        const x = document.createElement('span'); x.textContent = String(c.text || '').replace(/<[^>]*>/g, '');
+        b.append(t, x);
+        b.addEventListener('click', () => { v.currentTime = c.startTime; v.play().catch(() => {}); });
+        li.appendChild(b); list.appendChild(li);
+      });
+      list.hidden = false;
+      const txt = $('[data-avle-trans-text]', box); if (txt) txt.hidden = true;
+    };
+    const el = v.querySelector('track');
+    if (el) el.addEventListener('load', build);
+    build();
+    track.addEventListener('cuechange', () => {
+      const act = track.activeCues && track.activeCues[0];
+      $$('.avle-cue', list).forEach(b => {
+        const on = !!act && Math.abs(parseFloat(b.dataset.start) - act.startTime) < 0.01;
+        b.classList.toggle('is-on', on);
+        if (on && box.open) list.scrollTop = Math.max(0, b.parentNode.offsetTop - list.clientHeight / 3);
+      });
     });
   });
 
@@ -308,6 +454,10 @@
     if (closeBtn) closeBtn.addEventListener('click', () => p.set(false, true));
     onMq(desk, () => { if (p.isOpen()) p.set(false, false); });
 
+    /* Where a person is: the course's own forum (academy/forum.php). The
+       coach always offers it, and must offer the REAL one rather than a
+       second discussion of its own. */
+    const FORUM = el.dataset.forum || '';
     const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     const para = t => esc(t).split(/\n{2,}/).map(x => '<p>' + x.replace(/\n/g, '<br>') + '</p>').join('');
@@ -342,14 +492,14 @@
           if (wait.parentNode) wait.parentNode.removeChild(wait);
           if (!j.ok) {
             bubble('coach', '<p class="avle-cm-err">' + esc(j.error || 'No answer just now.')
-              + ' <a href="#avle-disc" data-avle-coach-disc>Ask in the discussion</a></p>', 'is-err');
+              + ' <a href="' + esc(FORUM) + '" data-avle-coach-disc>Ask in the discussions</a></p>', 'is-err');
             return;
           }
           const foot = j.mode === 'quiz'
             ? '<p class="avle-cm-foot">Practice only -- nothing here is marked or recorded.</p>'
             : (j.grounded
-                ? '<p class="avle-cm-foot">From this lesson. If it reads wrong, trust the lesson and <a href="#avle-disc" data-avle-coach-disc>ask a person</a>.</p>'
-                : '<p class="avle-cm-foot">The lesson does not cover that -- <a href="#avle-disc" data-avle-coach-disc>ask in the discussion</a>, your instructor sees it.</p>');
+                ? '<p class="avle-cm-foot">From this lesson. If it reads wrong, trust the lesson and <a href="' + esc(FORUM) + '" data-avle-coach-disc>ask a person</a>.</p>'
+                : '<p class="avle-cm-foot">The lesson does not cover that -- <a href="' + esc(FORUM) + '" data-avle-coach-disc>ask in the discussions</a>, your instructor sees it.</p>');
           bubble('coach', para(j.text) + foot);
           if (shown) turns.push({ role: 'learner', text: shown });
           turns.push({ role: 'coach', text: j.text });
@@ -392,170 +542,6 @@
     el.addEventListener('click', ev => {
       if (ev.target.closest('[data-avle-coach-disc]') && !desk.matches) p.set(false, false);
     });
-  });
-
-  /* ── Discussion ──────────────────────────────────────────────────────
-     Loads on demand: most readers never open it, and it should cost them
-     nothing on a slow connection. Every write returns the whole thread, so
-     the list is drawn from what the server knows rather than patched
-     optimistically and drifting from it. */
-  run('discussion', () => {
-    const sec = $('[data-avle-disc]');
-    if (!sec) return;
-    const list = $('[data-avle-disc-list]', sec);
-    const count = $('[data-avle-disc-n]', sec);
-    const form = $('[data-avle-disc-new]', sec);
-    const msg = $('[data-avle-disc-msg]', sec);
-    const dCourse = sec.dataset.course, dLesson = sec.dataset.lesson;
-    let state = { posts: [], can_moderate: false, loaded: false };
-
-    const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-    /* A body is plain text: line breaks are kept, nothing else is. Posting
-       is open to every learner, so anything that renders markup here is a
-       way to put markup on somebody else's screen. */
-    const text = x => esc(x).replace(/\n/g, '<br>');
-    const when = iso => {
-      const t = Date.parse((iso || '').replace(' ', 'T') + 'Z');
-      if (!t) return '';
-      const d = Math.floor((Date.now() - t) / 86400000);
-      if (d <= 0) return 'today';
-      if (d === 1) return 'yesterday';
-      if (d < 30) return d + ' days ago';
-      return new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-    };
-    const one = (p, isReply) => {
-      if (p.removed) {
-        return '<li class="avle-post is-gone' + (isReply ? ' is-reply' : '') + '">'
-          + '<p class="avle-post-gone">' + (p.removed_as === 'deleted'
-              ? 'The author deleted this.' : 'Removed by the instructor.') + '</p></li>';
-      }
-      return '<li class="avle-post' + (isReply ? ' is-reply' : '') + '" data-post="' + p.id + '">'
-        + '<p class="avle-post-by"><b>' + esc(p.author) + '</b>'
-        + (p.is_staff ? '<span class="avle-post-tag">Instructor</span>' : '')
-        + '<span class="avle-post-at">' + esc(when(p.at)) + '</span></p>'
-        + '<div class="avle-post-b">' + text(p.body) + '</div>'
-        + '<p class="avle-post-acts">'
-        + (sec.dataset.signedIn === '1' && !isReply ? '<button type="button" data-disc-reply="' + p.id + '">Reply</button>' : '')
-        + (p.can_delete ? '<button type="button" data-disc-del="' + p.id + '" data-mine="' + (p.mine ? '1' : '0') + '">'
-            + (p.mine ? 'Delete' : 'Remove') + '</button>' : '')
-        + '</p></li>';
-    };
-    const draw = () => {
-      const n = state.posts.filter(p => !p.removed).length;
-      if (count) count.textContent = n ? n + (n === 1 ? ' question' : ' questions') : 'No questions yet';
-      if (!state.posts.length) {
-        list.innerHTML = '<p class="avle-disc-empty">No questions on this lesson yet. If something here is not clear, '
-          + 'asking is the useful thing to do — somebody else is almost certainly stuck on it too.</p>';
-        return;
-      }
-      list.innerHTML = '<ul class="avle-posts">' + state.posts.map(p =>
-        one(p, false) + (p.replies || []).map(r => one(r, true)).join('')).join('') + '</ul>';
-    };
-    const load = () => {
-      list.innerHTML = '<p class="avle-disc-empty">Loading the discussion…</p>';
-      return fetch(API + '?action=discussion&course=' + encodeURIComponent(dCourse) + '&lesson=' + encodeURIComponent(dLesson),
-                   { credentials: 'same-origin' })
-        .then(r => r.json())
-        .then(j => {
-          if (!j.ok) throw new Error(j.error || 'The discussion could not be loaded.');
-          state = { posts: j.posts || [], can_moderate: !!j.can_moderate, loaded: true };
-          draw();
-        })
-        .catch(e => {
-          /* An honest error with a way back, never a silent empty list —
-             "no questions yet" over a failed request is a lie. */
-          list.innerHTML = '<p class="avle-disc-empty">' + esc(e.message)
-            + ' <button type="button" class="avle-btn avle-btn--line" data-avle-disc-open>Try again</button></p>';
-        });
-    };
-
-    sec.addEventListener('click', ev => {
-      const open = ev.target.closest('[data-avle-disc-open]');
-      if (open) { ev.preventDefault(); load(); return; }
-      const rep = ev.target.closest('[data-disc-reply]');
-      if (rep) {
-        ev.preventDefault();
-        const li = rep.closest('.avle-post');
-        if ($('.avle-disc-reply', li)) { $('.avle-disc-reply textarea', li).focus(); return; }
-        const f = document.createElement('form');
-        f.className = 'avle-disc-reply';
-        f.innerHTML = '<label class="av-sr">Your reply</label>'
-          + '<textarea rows="2" maxlength="4000" placeholder="Answer, or add what you found"></textarea>'
-          + '<div class="avle-disc-foot"><button type="submit" class="avle-btn">Post reply</button>'
-          + '<button type="button" class="avle-btn avle-btn--line" data-disc-cancel>Cancel</button>'
-          + '<span class="avle-disc-msg" role="status" aria-live="polite"></span></div>';
-        li.appendChild(f);
-        f.querySelector('textarea').focus();
-        f.addEventListener('submit', e2 => {
-          e2.preventDefault();
-          send(f.querySelector('textarea').value, +rep.getAttribute('data-disc-reply'), f.querySelector('.avle-disc-msg'), f);
-        });
-        f.addEventListener('click', e2 => { if (e2.target.closest('[data-disc-cancel]')) f.remove(); });
-        return;
-      }
-      /* Taking a post down asks IN THE PAGE. A browser dialog cannot be
-         styled, cannot be read by the page's own live region, and on a
-         phone arrives detached from the thing it is about — which is why
-         the Academy's scripts do not use one. */
-      const del = ev.target.closest('[data-disc-del]');
-      if (del) {
-        ev.preventDefault();
-        const li = del.closest('.avle-post');
-        if ($('.avle-disc-kill', li)) return;
-        const mine = del.getAttribute('data-mine') === '1';
-        const id = +del.getAttribute('data-disc-del');
-        const f = document.createElement('form');
-        f.className = 'avle-disc-kill';
-        f.innerHTML = mine
-          ? '<p class="avle-disc-ask">Delete this? The thread will show that you removed it.</p>'
-            + '<div class="avle-disc-foot"><button type="submit" class="avle-btn avle-btn--warn">Delete it</button>'
-            + '<button type="button" class="avle-btn avle-btn--line" data-kill-cancel>Keep it</button>'
-            + '<span class="avle-disc-msg" role="status" aria-live="polite"></span></div>'
-          : '<p class="avle-disc-ask">Removing somebody else\u2019s post. Why? Kept on the record for the next moderator — the room is only told it was removed.</p>'
-            + '<label class="av-sr" for="kill-' + id + '">Reason</label>'
-            + '<input id="kill-' + id + '" maxlength="200" placeholder="e.g. posted an exam answer">'
-            + '<div class="avle-disc-foot"><button type="submit" class="avle-btn avle-btn--warn">Remove it</button>'
-            + '<button type="button" class="avle-btn avle-btn--line" data-kill-cancel>Cancel</button>'
-            + '<span class="avle-disc-msg" role="status" aria-live="polite"></span></div>';
-        li.appendChild(f);
-        const field = $('input', f);
-        (field || $('button[type=submit]', f)).focus();
-        f.addEventListener('click', e2 => { if (e2.target.closest('[data-kill-cancel]')) { f.remove(); del.focus(); } });
-        f.addEventListener('submit', e2 => {
-          e2.preventDefault();
-          const out = $('.avle-disc-msg', f);
-          const reason = field ? (field.value || '').trim() : '';
-          if (!mine && !reason) { out.textContent = 'Say why — it goes on the record.'; field.focus(); return; }
-          out.textContent = 'Removing…';
-          post('discussion_remove', { course: dCourse, lesson: dLesson, id: id, reason: reason })
-            .then(j => {
-              if (!j.ok) { out.textContent = j.error || 'Not removed.'; return; }
-              state.posts = j.posts || []; state.can_moderate = !!j.can_moderate; draw();
-            })
-            .catch(() => { out.textContent = 'No connection — nothing was removed.'; });
-        });
-      }
-    });
-
-    const send = (bodyText, parent, out, f) => {
-      const t = (bodyText || '').trim();
-      if (!t) { if (out) out.textContent = 'Write your question first.'; return; }
-      if (out) out.textContent = 'Posting…';
-      post('discussion_post', { course: dCourse, lesson: dLesson, body: t, parent: parent || 0 })
-        .then(j => {
-          if (!j.ok) { if (out) out.textContent = j.error || 'Not posted.'; return; }
-          state = { posts: j.posts || [], can_moderate: !!j.can_moderate, loaded: true };
-          if (f && f !== form) f.remove(); else if (form) form.reset();
-          if (out && out !== (f && f.querySelector('.avle-disc-msg'))) out.textContent = 'Posted.';
-          draw();
-        })
-        .catch(() => { if (out) out.textContent = 'No connection — nothing was posted.'; });
-    };
-    if (form) form.addEventListener('submit', ev => { ev.preventDefault(); send($('textarea', form).value, 0, msg, form); });
-
-    /* A link straight to the discussion opens it. */
-    if (location.hash === '#avle-disc') load();
   });
 
   run('keys', () => {

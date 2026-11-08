@@ -136,6 +136,29 @@
 
   run('hero', () => {
     const hero = $('[data-avh-hero]'); if (!hero) return;
+    /* A seasonal slide (the anniversary) shows only between its dates, by the
+       calendar in Lagos (lib/SiteHome.php::SEASONS). Out of season, it and its
+       dot leave before anything below reads the slides, and the next slide
+       becomes the first. Without the script, every slide stays. */
+    (() => {
+      let today = '';
+      try { today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' }).slice(5); } catch (e) { return; }
+      if (!/^\d{2}-\d{2}$/.test(today)) return;
+      const all = $$('.avh-hero-img', hero), dotEls = $$('[data-avh-dot]', hero);
+      const off = all.map(s => { const f = s.dataset.seasonFrom, t = s.dataset.seasonTo;
+        if (!f || !t) return false;
+        return f <= t ? (today < f || today > t) : (today < f && today > t); });
+      if (!off.some(Boolean) || off.every(Boolean)) return;   // never empty the hero
+      const wasOn = all.findIndex(s => s.classList.contains('is-on'));
+      all.forEach((s, k) => { if (off[k]) { s.remove(); if (dotEls[k]) dotEls[k].remove(); } });
+      const left = $$('.avh-hero-img', hero), dl = $$('[data-avh-dot]', hero);
+      dl.forEach((d, k) => { d.dataset.avhDot = String(k); d.setAttribute('aria-label', 'Story ' + (k + 1) + ' of ' + dl.length); d.toggleAttribute('aria-current', k === 0); if (k === 0) d.setAttribute('aria-current', 'true'); });
+      if (off[wasOn] && left[0]) {
+        left[0].classList.add('is-on'); left[0].loading = 'eager'; left[0].setAttribute('fetchpriority', 'high');
+        const d = left[0].dataset, a = $('[data-avh-hero-link]', hero);
+        if (a) { a.href = d.href; $('[data-avh-hero-eyebrow]', hero).textContent = d.eyebrow; $('[data-avh-hero-title]', hero).textContent = d.title; $('[data-avh-hero-sub]', hero).textContent = d.sub; }
+      }
+    })();
     const slides = $$('.avh-hero-img', hero);
     const link = $('[data-avh-hero-link]', hero), eb = $('[data-avh-hero-eyebrow]', hero);
     const title = $('[data-avh-hero-title]', hero), sub = $('[data-avh-hero-sub]', hero);
@@ -483,7 +506,7 @@
 
   run('events', () => {
     // GET /events-feed.php → {events:[…]} (our events and Africa GATES', lib/SiteEvents.php::shape / AvEvents::norm).
-    // Nothing coming up, an error or offline → the design's four cards stay. Text only, never markup.
+    // Nothing coming up → a card saying so. An error or offline → the undated fallback card stays. Text only, never markup.
     const rail = $('[data-avh-events]'); if (!rail || !window.fetch) return;
     const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null && text !== '') n.textContent = String(text); return n; };
     const safe = (u, d) => (typeof u === 'string' && /^(\/(?!\/)|https:\/\/)/.test(u)) ? u : d;
@@ -504,7 +527,12 @@
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(d => {
         const ev = ((d && d.events) || []).filter(x => x && x.title && !x.cancelled).slice(0, 4);
-        if (!ev.length) return;
+        if (!ev.length) {   // nothing coming up: say so, rather than leave an undated card that reads like a promise
+          const none = el('a', 'avh-card avh-card--none'); none.href = '/events/';
+          const body = el('div', 'avh-card-body');
+          body.append(el('div', 'avh-tag', 'Events'), el('h3', null, 'Nothing scheduled right now'), el('div', 'avh-card-meta', 'See the events we have held, and check back soon'));
+          none.appendChild(body); rail.replaceChildren(none); return;
+        }
         rail.replaceChildren(...ev.map(card));
       })
       .catch(() => {});

@@ -40,6 +40,8 @@ final class DbMigrateJob
 {
     private const META = 'db_migrate_job';
     private const SLICE = 400;
+    /** The most one step may run, whatever the browser asks for: under a shared host's 30-second cut-off. */
+    private const BUDGET_MAX = 20.0;
 
     /** Every table in the source, FK-safe names first, then whatever else is there. */
     public static function tables(PDO $src): array { return Migrator::allTables($src); }
@@ -120,6 +122,7 @@ final class DbMigrateJob
            it cut the articles table in two — MySQL refused the first half with a
            1064, and the migration stopped before a single row was copied. */
         $sql = (string) preg_replace('/--[^\n]*/', '', (string) file_get_contents($f));
+        if ($driver === 'mysql') $sql = Database::mysqlDdl($sql);   // strict MySQL 8 refuses a literal TEXT default
         foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
             if ($stmt === '' || str_starts_with($stmt, '--')) continue;
             try { $dst->exec($stmt); $n++; }
@@ -160,6 +163,18 @@ final class DbMigrateJob
                 $why = Migrator::createLike($src, $dst, $t);
                 if ($why !== null) $refused[] = $t . ': ' . $why;
             }
+        } elseif (Migrator::driver($dst) === 'pgsql' && Migrator::driver($src) === 'sqlite') {
+            /* Postgres had no such step, so every table the schema file does not
+               list — av_settings with the stored secrets, the diary tables — was
+               left out, and the job still said "verified". The source's own DDL,
+               translated, makes each one. */
+            foreach (Migrator::allTables($src) as $t) {
+                if (Migrator::tableExists($dst, $t)) continue;
+                $ddl = (string) ($src->query("SELECT sql FROM sqlite_master WHERE type='table' AND name = " . $src->quote($t))->fetchColumn() ?: '');
+                if ($ddl === '') { $refused[] = $t . ': the source has no definition for it'; continue; }
+                try { $dst->exec(Database::translateDDL($ddl, 'pgsql')); }
+                catch (Throwable $e) { $refused[] = $t . ': ' . $e->getMessage(); }
+            }
         }
         if ($refused) {
             throw new RuntimeException('The target would not create ' . count($refused) . ' table(s) — nothing has been copied. ' . implode(' | ', array_slice($refused, 0, 5)));
@@ -170,6 +185,13 @@ final class DbMigrateJob
                 . '. Tick "replace what is there" to empty those tables first, or point at an empty database.');
         }
 
+        /* Every source table has a home on the target or the job does not start.
+           A table quietly dropped from the copy is data left behind under a
+           report that says the counts matched. */
+        if ($plan['missing']) {
+            throw new RuntimeException('The target has no table for: ' . implode(', ', array_slice($plan['missing'], 0, 12))
+                . (count($plan['missing']) > 12 ? ' and ' . (count($plan['missing']) - 12) . ' more' : '') . ' — nothing has been copied.');
+        }
         $tables = [];
         foreach ($plan['tables'] as $r) {
             if (!$r['exists']) continue;
@@ -192,7 +214,7 @@ final class DbMigrateJob
 
         $s = ['v' => 1, 'started' => gmdate('c'), 'target' => self::label($conf), 'replace' => $replace,
               'order' => array_keys($tables), 'tables' => $tables, 'phase' => 'copy', 'error' => '',
-              'skipped' => $plan['missing']];
+              'skipped' => []];
         self::put($s);
 
         return $s;
@@ -223,9 +245,19 @@ final class DbMigrateJob
         }
 
         /* The floor is small on purpose: the caller sets the budget from what
-           the host allows, and a budget below it would buy no work at all. */
-        $deadline = microtime(true) + max(0.05, $budgetSec);
+           the host allows, and a budget below it would buy no work at all. The
+           ceiling is the server's: the budget arrives from the browser, and a
+           request the host kills mid-slice is a slice copied and not recorded. */
+        $deadline = microtime(true) + min(self::BUDGET_MAX, max(0.05, $budgetSec));
         $slices = 0;
+        /* One step at a time. Two tabs, or a retry while the first request is
+           still running, read the same cursor and copied the same rows twice. */
+        $lock = @fopen(AV_ROOT . '/db/cache/db-migrate.lock', 'c');
+        if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
+            if ($lock) fclose($lock);
+            throw new RuntimeException('Another step of this migration is still running. Wait for it, then continue.');
+        }
+        $s = self::state() ?? $s;   // the state as the lock holder sees it, not as it was read before
         try {
             foreach ($s['order'] as $t) {
                 if (!empty($s['tables'][$t]['done'])) continue;
@@ -234,6 +266,8 @@ final class DbMigrateJob
                     $moved = self::slice($src, $dst, $t, $s['tables'][$t]['cursor']);
                     $s['tables'][$t]['copied'] += $moved['rows'];
                     $s['tables'][$t]['cursor']  = $moved['cursor'];
+                    if ($moved['rows'] < self::SLICE) $s['tables'][$t]['done'] = true;
+                    self::put($s);   // after EVERY slice: a cut-off request resumes after the last committed batch
                     $slices++;
                     $spent = $maxSlices > 0 && $slices >= $maxSlices;
                     if ($moved['rows'] < self::SLICE) { $s['tables'][$t]['done'] = true; break; }
@@ -242,6 +276,17 @@ final class DbMigrateJob
                 self::put($s);
                 if ($spent || microtime(true) >= $deadline) return $s;
             }
+            /* Rows were copied WITH their ids, so a Postgres serial still stands at
+               one and the first new row afterwards collides with a copied one. */
+            if (Migrator::driver($dst) === 'pgsql') {
+                foreach ($s['order'] as $t) {
+                    if (!in_array('id', Migrator::columns($dst, $t), true)) continue;
+                    try {
+                        $dst->exec("SELECT setval(pg_get_serial_sequence('" . $t . "','id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM "
+                            . Migrator::q($dst, $t) . "), 1), (SELECT COUNT(*) FROM " . Migrator::q($dst, $t) . ") > 0)");
+                    } catch (Throwable $e) { /* no serial on this table: nothing to move */ }
+                }
+            }
             $s['phase'] = 'done';
             $s['finished'] = gmdate('c');
             self::put($s);
@@ -249,6 +294,8 @@ final class DbMigrateJob
             $s['error'] = $e->getMessage();
             $s['phase'] = 'error';
             self::put($s);
+        } finally {
+            flock($lock, LOCK_UN); fclose($lock);
         }
 
         return $s;

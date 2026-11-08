@@ -31,11 +31,13 @@ final class SiteSettings
             'country'   => 'Nigeria',
             'copyright' => 'Afrovanguard © 2017–2026',
             'social'    => [
-                'instagram' => 'https://www.instagram.com/afrovanguard/',
+                'instagram' => 'https://www.instagram.com/afro.vanguard/',
                 'x'         => 'https://twitter.com/afrovanguard',
                 'facebook'  => 'https://www.facebook.com/afrovanguard/',
                 'linkedin'  => 'https://www.linkedin.com/company/afrovanguard/',
-                'youtube'   => 'https://www.youtube.com/@afrovanguard',
+                // AFROVANGUARD TV. (@afrovanguard, linked here until 2026-11-05,
+                // is somebody else's channel.)
+                'youtube'   => 'https://www.youtube.com/@afrovanguardism',
             ],
         ];
     }

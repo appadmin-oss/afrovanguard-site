@@ -126,6 +126,14 @@ $knownMetaKeys = [
     'av_rules_ver', 'ai_knowledge', 'ai_knowledge_ver',
     'ngv_content', 'ngv_content_prev',
     'superadmin_seed_fp', 'superadmin_initial_password',
+    // Reviewed, November audit. `superadmin_initial_password_at` dates the sealed
+    // one-time password so it expires. `schema_failed_at` records a failed schema
+    // run for Health; it does NOT gate one (a failed run leaves schema_state alone,
+    // so the next request retries). `lms_verify_backfill_upto` is a pending
+    // backfill, not a version stamp: present means "finish marking these
+    // accounts verified", and it is cleared when done. `mysql_fk_held` lists the
+    // foreign keys left off because rows already break them, for a person.
+    'superadmin_initial_password_at', 'schema_failed_at', 'lms_verify_backfill_upto', 'mysql_fk_held',
     'bday_sent', 'diary_ref_codes',
     // Accountability (§13/§14). Reviewed: neither gates a migration.
     // `accountability_from` is the cold-start watermark — escalations never look

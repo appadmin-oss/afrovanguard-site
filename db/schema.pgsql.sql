@@ -1,6 +1,5 @@
 -- GENERATED from db/schema.sql by Database::translateDDL().
 -- Validated against a live PostgreSQL 16 instance (see docs/db-portability.md).
-
 -- ============================================================
 --  The Afrovanguard Diary — database schema (SQLite / PDO)
 --  Single source of truth for diary content + engagement.
@@ -104,7 +103,13 @@ CREATE TABLE IF NOT EXISTS courses (
   price_ngn     INTEGER NOT NULL DEFAULT 0,
   instructor_id INTEGER,
   pass_code     TEXT NOT NULL DEFAULT '',        -- access_type=restricted: any member holding this pass gets in
-  cover_is_dark INTEGER NOT NULL DEFAULT -1       -- -1 unknown, 0 light, 1 dark (colour-aware overlay text)
+  cover_is_dark INTEGER NOT NULL DEFAULT -1,     -- -1 unknown, 0 light, 1 dark (colour-aware overlay text)
+  language      VARCHAR(64) NOT NULL DEFAULT 'English',
+  skills        TEXT NOT NULL DEFAULT '',        -- newline-separated: "Skills you'll gain"
+  prerequisites TEXT NOT NULL DEFAULT '',        -- newline-separated; empty = none
+  pass_mark     INTEGER NOT NULL DEFAULT 70,     -- overall weighted grade needed to pass (0-100)
+  pace_weeks    INTEGER NOT NULL DEFAULT 0,      -- suggested weeks to finish; 0 = one week per module
+  sequential    INTEGER NOT NULL DEFAULT 0       -- 1 = items open in order, each once the one before is done
 );
 CREATE INDEX IF NOT EXISTS idx_courses_status ON courses(status);
 
@@ -132,7 +137,8 @@ CREATE TABLE IF NOT EXISTS lms_users (
   last_login    TEXT,
   email_verified INTEGER NOT NULL DEFAULT 0,   -- email-verification (also added by ensureLmsVerify on old DBs)
   verify_hash    TEXT,                          -- sha256 of the pending verification token
-  verify_expires TEXT                           -- ISO expiry for the token
+  verify_expires TEXT,                          -- ISO expiry for the token
+  has_password   INTEGER NOT NULL DEFAULT 0     -- 1 once a member sets a real password (OTP/OAuth accounts stay 0)
 );
 CREATE TABLE IF NOT EXISTS lms_sessions (
   token_hash  VARCHAR(191) PRIMARY KEY,
@@ -145,7 +151,9 @@ CREATE TABLE IF NOT EXISTS modules (
   id          SERIAL PRIMARY KEY,
   course_id   INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
   title       TEXT NOT NULL,
-  position    INTEGER NOT NULL DEFAULT 0
+  position    INTEGER NOT NULL DEFAULT 0,
+  summary     TEXT NOT NULL DEFAULT '',          -- what this module covers
+  objectives  TEXT NOT NULL DEFAULT ''           -- newline-separated learning objectives
 );
 CREATE TABLE IF NOT EXISTS lessons (
   id           SERIAL PRIMARY KEY,
@@ -161,8 +169,15 @@ CREATE TABLE IF NOT EXISTS lessons (
   created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   quiz_json    TEXT,                           -- optional quiz spec (also added by ensureAcademy)
-  ai_summary      TEXT,                        -- lib/LmsCoach.php: the generated key points
-  ai_summary_hash VARCHAR(64)                  -- of the body it was written from, so an edit regenerates it
+  kind         VARCHAR(32) NOT NULL DEFAULT '',  -- '' = from content (video|reading|quiz) · assignment · discussion
+  weight       INTEGER NOT NULL DEFAULT 1,       -- share of the course grade, for graded items
+  assignment_json TEXT,                          -- assignment spec: {"pass": 70}
+  transcript   TEXT NOT NULL DEFAULT '',         -- a video's transcript, shown beside it
+  captions_url TEXT,                             -- WebVTT captions for an uploaded video
+  resources_json TEXT,                           -- downloads: [{"title": …, "url": …}]
+  available_at VARCHAR(32) NOT NULL DEFAULT '',  -- release date (LmsDrip); '' = open
+  ai_summary      TEXT,                          -- lib/LmsCoach.php: the lesson's generated key points
+  ai_summary_hash VARCHAR(64)                    -- of the body they were written from, so an edit regenerates them
 );
 CREATE INDEX IF NOT EXISTS idx_lessons_course ON lessons(course_id);
 CREATE TABLE IF NOT EXISTS lesson_progress (
@@ -178,6 +193,7 @@ CREATE TABLE IF NOT EXISTS course_enrolment (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (user_id, course_id)
 );
+-- Per-learner lesson notes (cross-device for signed-in members).
 CREATE TABLE IF NOT EXISTS lesson_notes (
   user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
   lesson_id  INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
@@ -210,7 +226,7 @@ CREATE TABLE IF NOT EXISTS member_passes (
   code       TEXT NOT NULL DEFAULT '',
   label      TEXT NOT NULL DEFAULT '',
   granted_by INTEGER NOT NULL DEFAULT 0,
-  expires_at TIMESTAMP,
+  expires_at TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (user_id, code)
 );
@@ -230,24 +246,89 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
   passed     INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- Lesson discussions (lib/LmsDiscussion.php). One thread per lesson,
--- replies one level deep. A removal keeps the row and darkens the body.
-CREATE TABLE IF NOT EXISTS lesson_posts (
-  id              SERIAL PRIMARY KEY,
-  course_id       INTEGER NOT NULL,
-  lesson_id       INTEGER NOT NULL,
-  user_id         INTEGER NOT NULL,
-  parent_id       INTEGER NOT NULL DEFAULT 0,
-  body            TEXT NOT NULL DEFAULT '',
-  status          VARCHAR(16) NOT NULL DEFAULT 'visible',
-  removed_by      INTEGER NOT NULL DEFAULT 0,
-  removed_reason  VARCHAR(200) NOT NULL DEFAULT '',
-  created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+-- ── Academy courseware: assignments, discussions, reviews, programmes ──
+-- One current submission per learner per assignment; a resubmission replaces it.
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  lesson_id   INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  course_id   INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  body        TEXT NOT NULL DEFAULT '',
+  link_url    TEXT NOT NULL DEFAULT '',
+  status      VARCHAR(32) NOT NULL DEFAULT 'submitted',   -- submitted | graded | returned
+  score       INTEGER,                                    -- 0-100 once graded
+  feedback    TEXT NOT NULL DEFAULT '',
+  graded_by   INTEGER,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  graded_at   TEXT,
+  UNIQUE (user_id, lesson_id)
 );
-CREATE INDEX IF NOT EXISTS idx_lesson_posts_lesson ON lesson_posts (lesson_id, parent_id, id);
-CREATE INDEX IF NOT EXISTS idx_lesson_posts_course ON lesson_posts (course_id, id);
+CREATE TABLE IF NOT EXISTS forum_threads (
+  id           SERIAL PRIMARY KEY,
+  course_id    INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  lesson_id    INTEGER,                                   -- set for a lesson's thread / a discussion item's prompt
+  user_id      INTEGER NOT NULL DEFAULT 0,                -- 0 = the course itself (a discussion prompt)
+  title        TEXT NOT NULL,
+  body         TEXT NOT NULL DEFAULT '',
+  pinned       INTEGER NOT NULL DEFAULT 0,
+  locked       INTEGER NOT NULL DEFAULT 0,
+  hidden       INTEGER NOT NULL DEFAULT 0,
+  reply_count  INTEGER NOT NULL DEFAULT 0,
+  last_post_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS forum_posts (
+  id          SERIAL PRIMARY KEY,
+  thread_id   INTEGER NOT NULL REFERENCES forum_threads(id) ON DELETE CASCADE,
+  course_id   INTEGER NOT NULL,
+  user_id     INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  body        TEXT NOT NULL,
+  hidden      INTEGER NOT NULL DEFAULT 0,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS course_reviews (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  course_id   INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  rating      INTEGER NOT NULL DEFAULT 5,                 -- 1-5
+  body        TEXT NOT NULL DEFAULT '',
+  hidden      INTEGER NOT NULL DEFAULT 0,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, course_id)
+);
+-- A programme is a series of courses with its own certificate.
+CREATE TABLE IF NOT EXISTS programmes (
+  id          SERIAL PRIMARY KEY,
+  slug        VARCHAR(191) UNIQUE NOT NULL,
+  title       TEXT NOT NULL,
+  summary     TEXT NOT NULL DEFAULT '',
+  body_html   TEXT NOT NULL DEFAULT '',
+  cover_url   TEXT,
+  status      VARCHAR(32) NOT NULL DEFAULT 'draft',       -- draft | published
+  sort        INTEGER NOT NULL DEFAULT 0,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS programme_courses (
+  programme_id INTEGER NOT NULL REFERENCES programmes(id) ON DELETE CASCADE,
+  course_id    INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  position     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (programme_id, course_id)
+);
+CREATE TABLE IF NOT EXISTS programme_certificates (
+  id           SERIAL PRIMARY KEY,
+  user_id      INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  programme_id INTEGER NOT NULL REFERENCES programmes(id) ON DELETE CASCADE,
+  serial       VARCHAR(191) UNIQUE NOT NULL,
+  issued_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, programme_id)
+);
+CREATE INDEX IF NOT EXISTS idx_asub_course ON assignment_submissions(course_id, status);
+CREATE INDEX IF NOT EXISTS idx_fthread_course ON forum_threads(course_id, last_post_at);
+CREATE INDEX IF NOT EXISTS idx_fpost_thread ON forum_posts(thread_id, id);
+CREATE INDEX IF NOT EXISTS idx_review_course ON course_reviews(course_id);
 CREATE TABLE IF NOT EXISTS payments (
   id          SERIAL PRIMARY KEY,
   reference   VARCHAR(191) UNIQUE NOT NULL,
@@ -309,5 +390,58 @@ CREATE TABLE IF NOT EXISTS lms_audit (
   action     TEXT NOT NULL,
   target     TEXT NOT NULL DEFAULT '',
   detail     TEXT NOT NULL DEFAULT '',
+  ip         TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_lms_audit_created ON lms_audit(id DESC);
+
+-- ── Diary engagement: how many read it, what they said, what they kept ──
+-- Views are stored per article per day, never per visitor: the counter on the
+-- card is the only thing anyone needs, and a per-visitor row would be a log of
+-- who read what. Which entries a reader has already been counted for lives in
+-- a signed cookie (lib/DiaryVisitor.php), not here.
+CREATE TABLE IF NOT EXISTS diary_views (
+  article_id INTEGER NOT NULL,
+  day        VARCHAR(10) NOT NULL,              -- YYYY-MM-DD (VARCHAR so MySQL can index it)
+  count      INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (article_id, day)
+);
+CREATE INDEX IF NOT EXISTS idx_diary_views_article ON diary_views(article_id);
+
+-- One level of replies only: parent_id always names a top-level comment, so a
+-- thread can be read top to bottom without recursion and cannot be nested into
+-- a column one character wide.
+CREATE TABLE IF NOT EXISTS diary_comments (
+  id         SERIAL PRIMARY KEY,
+  article_id INTEGER NOT NULL DEFAULT 0,
+  parent_id  INTEGER,                           -- NULL for a top-level comment
+  user_id    INTEGER NOT NULL DEFAULT 0,
+  name       VARCHAR(120) NOT NULL DEFAULT '',
+  email      TEXT NOT NULL DEFAULT '',          -- collected, never rendered
+  body       TEXT NOT NULL DEFAULT '',
+  status     VARCHAR(16) NOT NULL DEFAULT 'pending',   -- pending | published | removed
+  likes      INTEGER NOT NULL DEFAULT 0,
+  reports    INTEGER NOT NULL DEFAULT 0,
+  ip_hash    VARCHAR(64) NOT NULL DEFAULT '',   -- for abuse only; never joined to a person
+  owner_hash VARCHAR(64) NOT NULL DEFAULT '',   -- lets the author see their own pending comment
+  created_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_diary_comments_article ON diary_comments(article_id, status);
+CREATE INDEX IF NOT EXISTS idx_diary_comments_parent  ON diary_comments(parent_id);
+
+CREATE TABLE IF NOT EXISTS diary_comment_likes (
+  comment_id INTEGER NOT NULL,
+  voter_hash VARCHAR(64) NOT NULL,
+  PRIMARY KEY (comment_id, voter_hash)
+);
+
+-- A save belongs to an account when there is one, and to the reader's cookie
+-- when there is not — so Save works before sign-in instead of looking broken.
+CREATE TABLE IF NOT EXISTS diary_saves (
+  user_id      INTEGER NOT NULL DEFAULT 0,
+  article_id   INTEGER NOT NULL,
+  visitor_hash VARCHAR(64) NOT NULL DEFAULT '',
+  created_at   TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (user_id, article_id, visitor_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_diary_saves_article ON diary_saves(article_id);

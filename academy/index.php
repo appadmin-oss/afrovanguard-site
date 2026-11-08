@@ -46,6 +46,24 @@ $gridCats = array_values(array_filter($categories, static function ($cat) use ($
     foreach ($grid as $r) { if ((string) $r['course']['category'] === (string) $cat) return true; }
     return false;
 }));
+/* The filter, as the request states it (a filtered view is a shareable link,
+   and works with script off). Cards outside it render hidden, so the live
+   filter in avac.js can bring them back without a round trip. */
+$fq = [
+    'q' => mb_substr(trim((string) ($_GET['q'] ?? '')), 0, 80),
+    'track' => preg_replace('/[^a-z0-9-]/', '', strtolower((string) ($_GET['track'] ?? ''))),
+    'level' => preg_replace('/[^a-z0-9-]/', '', strtolower((string) ($_GET['level'] ?? ''))),
+    'price' => in_array($_GET['price'] ?? '', ['free', 'members', 'paid'], true) ? (string) $_GET['price'] : '',
+    'sort' => in_array($_GET['sort'] ?? '', ['recommended', 'popular', 'rating', 'newest', 'title', 'shortest'], true) ? (string) $_GET['sort'] : 'recommended',
+];
+$levels = [];
+foreach ($grid as $r) { $lv = trim((string) ($r['course']['level'] ?? '')); if ($lv !== '') $levels[slugify($lv)] = $lv; }
+ksort($levels);
+$shownIds = array_flip(array_map(static fn($r) => (int) $r['course']['id'], LmsCourseware::filter($grid, $fq)));
+if ($fq['sort'] !== 'recommended') $grid = LmsCourseware::filter($grid, ['sort' => $fq['sort']]);
+$shownCount = count($shownIds);
+$cw = new LmsCourseware(null, $lms);
+$programmes = array_values(array_filter($cw->programmes(true), static fn($p) => (int) $p['course_count'] > 0));
 
 $itemList = ['@type' => 'ItemList', 'itemListElement' => []];
 foreach ($courses as $i => $c) {
@@ -69,7 +87,7 @@ $projects = [
     ['/Images/bootcamp1.png', 'Technology', 'Techome', '/projects/techhome/'],
     ['/Images/summer4.png', 'Arts & Media', 'MediaPro', '/projects/mediapro/'],
     ['/Images/culture1.png', 'Arts & Media', 'Street-To-Stardom', '/projects/sts/'],
-    ['/Images/gates2.png', 'Leadership', 'Africa GATES', 'https://afg.afrovanguard.org.ng'],
+    ['/Images/gates1.png', 'Leadership', 'Africa GATES', 'https://afg.afrovanguard.org.ng'],
 ];
 ?>
 <body class="avh avac" id="top">
@@ -113,7 +131,7 @@ $projects = [
         </span>
         <span class="avac-gold">Explore NextGen Vanguard →</span>
       </span>
-      <img class="avac-ngv-img" src="/Images/gates2.png" alt="NextGen Vanguard cohort" loading="lazy" decoding="async">
+      <img class="avac-ngv-img" src="/assets/site/ngv/ngv-flyer.png" alt="NextGen Vanguard: learn and earn in six months" loading="lazy" decoding="async">
     </a>
   </div>
 </header>
@@ -148,32 +166,48 @@ $projects = [
 <?php endif; ?>
 
 <?php if ($grid): ?>
-    <div class="avac-tools">
+    <form class="avac-tools" method="get" action="/academy/#catalogue" role="search" aria-label="Find a course" data-avac-filter>
+      <input type="hidden" name="track" value="<?= e($fq['track']) ?>" data-avac-track-in>
       <div class="avac-tracks" role="group" aria-label="Filter courses by track">
-        <button type="button" class="avac-track" data-avac-track="all" aria-pressed="true">All tracks</button>
-<?php if (count($gridCats) > 1): foreach ($gridCats as $cat): ?>
-        <button type="button" class="avac-track" data-avac-track="<?= e(slugify((string) $cat)) ?>" aria-pressed="false"><?= e((string) $cat) ?></button>
+        <button type="button" class="avac-track" data-avac-track="all" aria-pressed="<?= $fq['track'] === '' ? 'true' : 'false' ?>">All tracks</button>
+<?php if (count($gridCats) > 1): foreach ($gridCats as $cat): $cs = slugify((string) $cat); ?>
+        <button type="button" class="avac-track" data-avac-track="<?= e($cs) ?>" aria-pressed="<?= $fq['track'] === $cs ? 'true' : 'false' ?>"><?= e((string) $cat) ?></button>
 <?php endforeach; endif; ?>
       </div>
-      <div class="avac-tools-r" role="search">
-        <label class="avac-search"><span class="av-sr">Search courses</span>
+      <div class="avac-tools-r">
+        <label class="avac-search"><span class="av-sr">Search courses and skills</span>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          <input type="search" placeholder="Search courses" data-avac-q autocomplete="off">
+          <input type="search" name="q" value="<?= e($fq['q']) ?>" placeholder="Search courses and skills" data-avac-q autocomplete="off">
         </label>
-        <label class="avac-sort"><span>Sort</span>
-          <select data-avac-sort>
-            <option value="featured">Recommended</option>
-            <option value="title">Title (A–Z)</option>
-            <option value="lessons">Most lessons</option>
+<?php if (count($levels) > 1): ?>
+        <label class="avac-sort"><span>Level</span>
+          <select name="level" data-avac-level>
+            <option value="">Any</option>
+<?php foreach ($levels as $k => $lv): ?>            <option value="<?= e($k) ?>"<?= $fq['level'] === $k ? ' selected' : '' ?>><?= e($lv) ?></option>
+<?php endforeach; ?>
           </select>
         </label>
+<?php endif; ?>
+        <label class="avac-sort"><span>Price</span>
+          <select name="price" data-avac-price>
+<?php foreach (['' => 'Any', 'free' => 'Free', 'members' => 'Members', 'paid' => 'Paid'] as $k => $lbl): ?>            <option value="<?= e($k) ?>"<?= $fq['price'] === $k ? ' selected' : '' ?>><?= e($lbl) ?></option>
+<?php endforeach; ?>
+          </select>
+        </label>
+        <label class="avac-sort"><span>Sort</span>
+          <select name="sort" data-avac-sort>
+<?php foreach (['recommended' => 'Recommended', 'popular' => 'Most popular', 'rating' => 'Highest rated', 'newest' => 'Newest', 'shortest' => 'Shortest', 'title' => 'Title (A–Z)'] as $k => $lbl): ?>            <option value="<?= e($k) ?>"<?= $fq['sort'] === $k ? ' selected' : '' ?>><?= e($lbl) ?></option>
+<?php endforeach; ?>
+          </select>
+        </label>
+        <noscript><button type="submit" class="avac-btn avac-btn--line">Apply</button></noscript>
       </div>
-    </div>
-    <p class="avac-count" data-avac-count role="status" aria-live="polite">Showing all <?= count($grid) ?></p>
+    </form>
+    <p class="avac-count" data-avac-count role="status" aria-live="polite"><?= $shownCount === count($grid) ? 'Showing all ' . count($grid) : 'Showing ' . $shownCount . ' of ' . count($grid) ?></p>
     <ul class="avac-grid" data-avac-grid>
-<?php foreach ($grid as $r) avac_card($r); ?>
+<?php foreach ($grid as $r) avac_card($r, !isset($shownIds[(int) $r['course']['id']])); ?>
     </ul>
-    <div class="avac-none" data-avac-none hidden>
+    <div class="avac-none" data-avac-none<?= $shownCount ? ' hidden' : '' ?>>
       <p>No courses match your search.</p>
       <button type="button" class="avac-btn avac-btn--line" data-avac-clear>Clear filters</button>
     </div>
@@ -192,11 +226,27 @@ $projects = [
   </div>
 </section>
 
+<?php if ($programmes): ?>
+<section class="avac-progs avh-pad" aria-labelledby="avac-progs-h">
+  <div class="avh-wrap">
+    <div class="avac-proj-head">
+      <div><div class="avac-eyebrow">Programmes</div><h2 class="avac-h2 avac-h2--sm" id="avac-progs-h">Earn a programme certificate</h2></div>
+      <a class="avac-more" href="/academy/programmes/">All programmes →</a>
+    </div>
+    <ul class="avac-prog-list">
+<?php foreach (array_slice($programmes, 0, 3) as $p): ?>
+      <li><a href="/academy/programmes/<?= e(rawurlencode((string) $p['slug'])) ?>/"><span class="avac-prog-k av-num"><?= e(avac_plural((int) $p['course_count'], 'course')) ?> series</span><span class="avac-prog-t"><?= e((string) $p['title']) ?></span><span class="avac-prog-d"><?= e((string) $p['summary']) ?></span></a></li>
+<?php endforeach; ?>
+    </ul>
+  </div>
+</section>
+<?php endif; ?>
+
 <section class="avac-proj avh-pad" aria-labelledby="avac-proj-h">
   <div class="avh-wrap">
     <div class="avac-proj-head">
       <div><div class="avac-eyebrow">Beyond the classroom</div><h2 class="avac-h2 avac-h2--sm" id="avac-proj-h">Learn by doing in our projects</h2></div>
-      <a class="avac-more" href="/projects/">All nine projects →</a>
+      <a class="avac-more" href="/projects/">All seven projects →</a>
     </div>
     <ul class="avac-proj-grid">
 <?php foreach ($projects as [$img, $k, $t, $h]): $ext = str_starts_with($h, 'http'); ?>
@@ -255,12 +305,12 @@ $projects = [
   <div class="avac-inv-ctas">
     <a class="avac-inv-gold" href="/donate.html">Donate</a>
     <a href="/contact.html">Volunteer</a>
-    <a href="/projects/">Apply to a program</a>
+    <a href="/projects/">Join a project</a>
   </div>
 </section>
 
 </main>
-<?php avh_footer(); ?>
+<?php avac_footer(); ?>
 </div>
 <div class="avac-toast" data-avac-toast role="status" aria-live="polite" hidden></div>
 <script src="<?= e(av_asset('/assets/site/chioma.js')) ?>" defer></script>

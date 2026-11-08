@@ -114,3 +114,15 @@ foreach (['admin/site.js', 'admin/index.php'] as $f) {
     $mine = $f === 'admin/index.php' ? substr($src2, strpos($src2, '<!-- SITE: one workspace'), strpos($src2, '<!-- DESIGN STUDIO') - strpos($src2, '<!-- SITE: one workspace')) : $src2;
     ck("studio: $f's content screens set no inline styles", !preg_match('/\sstyle\s*=|\.style\./', $mine));
 }
+
+/* ── seasonal slides (owner, 2026-11-06): the anniversary slide shows only 2–16 November ── */
+$sd = SiteHome::clean(SiteHome::defaults())['doc'];
+ck('home: the anniversary slide is marked for its season', $sd['slides'][0]['season'] === 'anniversary' && $sd['slides'][1]['season'] === '');
+ck('home: the season survives the Studio\'s save, and an unknown one is dropped',
+   SiteHome::clean(['slides' => [['image' => '/Images/summer6.jpg', 'title' => 'T', 'season' => 'anniversary']]])['doc']['slides'][0]['season'] === 'anniversary'
+   && SiteHome::clean(['slides' => [['image' => '/Images/summer6.jpg', 'title' => 'T', 'season' => 'christmas']]])['doc']['slides'][0]['season'] === '');
+ck('home: a seasonal slide carries its dates, from the anniversary\'s own (a week either side of 9 Nov)',
+   str_contains(SiteHome::heroHtml($sd), 'data-season="anniversary" data-season-from="11-02" data-season-to="11-16"'));
+ck('home: the browser removes an out-of-season slide by the date in Lagos',
+   str_contains((string) file_get_contents("$root/assets/site/avh.js"), "timeZone: 'Africa/Lagos'") && str_contains((string) file_get_contents("$root/assets/site/avh.js"), 'dataset.seasonFrom'));
+ck('home: the Studio can set when a slide shows', str_contains((string) file_get_contents("$root/admin/site.js"), '<select data-f="season">'));

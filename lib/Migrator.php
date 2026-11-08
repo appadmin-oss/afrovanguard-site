@@ -212,7 +212,12 @@ final class Migrator
             if ($max <= 191) $type = 'VARCHAR(191)'; else $prefix = true;
         }
         if ($type === 'TEXT' && !$keyed) $type = 'MEDIUMTEXT';
-        $line = self::q($dst, $n) . ' ' . $type . ((int) $c['notnull'] === 1 ? ' NOT NULL' : ' NULL');
+        /* A primary-key column is NOT NULL on MySQL whatever SQLite declared:
+           SQLite lets `key TEXT PRIMARY KEY` omit it, MySQL refuses the table
+           (1171), and app_meta and av_settings, the stored secrets, were the two
+           tables a MySQL move then could not make. */
+        $notNull = (int) $c['notnull'] === 1 || (int) ($c['pk'] ?? 0) > 0;
+        $line = self::q($dst, $n) . ' ' . $type . ($notNull ? ' NOT NULL' : ' NULL');
         $d = $c['dflt_value'];
         if ($d !== null && strtoupper(trim((string) $d)) !== 'NULL') {
             $d = trim((string) $d);
@@ -269,9 +274,12 @@ final class Migrator
         $log      = $opts['log'] ?? static function (): void {};
         $dstDrv   = self::driver($dst);
 
-        $tables = array_values(array_filter(self::allTables($src), static function ($t) use ($src, $dst, $only) {
-            return Migrator::tableExists($dst, $t) && (!$only || in_array($t, $only, true));
-        }));
+        $wanted = array_values(array_filter(self::allTables($src), static fn($t) => !$only || in_array($t, $only, true)));
+        $tables = array_values(array_filter($wanted, static fn($t) => Migrator::tableExists($dst, $t)));
+        /* A source table the target lacks is reported as a failure, never left
+           out: it used to be filtered away here, so its rows stayed behind and
+           the run still ended "all row counts verified". */
+        $missing = array_values(array_diff($wanted, $tables));
 
         if ($truncate && !$dryRun) {
             foreach (array_reverse($tables) as $t) {
@@ -282,6 +290,10 @@ final class Migrator
         }
 
         $report = [];
+        foreach ($missing as $t) {
+            $report[$t] = ['source' => self::count($src, $t), 'copied' => 0, 'target' => null, 'ok' => false, 'missing' => true];
+            $log(sprintf("  %-18s %6d rows ✗ NO SUCH TABLE ON THE TARGET\n", $t, $report[$t]['source']));
+        }
         foreach ($tables as $t) {
             $srcCount  = self::count($src, $t);
             $dstBefore = self::count($dst, $t);

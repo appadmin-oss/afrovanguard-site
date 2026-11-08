@@ -31,7 +31,9 @@ declare(strict_types=1);
 final class SuperAdmin
 {
     private const FP_KEY   = 'superadmin_seed_fp';   // fingerprint of the last-applied (email|password)
-    private const PW_KEY   = 'superadmin_initial_password'; // generated password, revealed once then cleared
+    private const PW_KEY   = 'superadmin_initial_password'; // generated password, sealed, revealed once then cleared
+    private const PW_AT    = 'superadmin_initial_password_at';
+    private const PW_TTL   = 7 * 86400;
     private static bool $done = false;
 
     public static function defaultEmail(): string
@@ -107,7 +109,7 @@ final class SuperAdmin
 
             // Stash a generated password for one-time reveal (env passwords are
             // never stored — the operator already knows them).
-            if ($revealPw !== null) Database::metaSet(self::PW_KEY, $revealPw);
+            if ($revealPw !== null) { Database::metaSet(self::PW_KEY, self::seal($revealPw)); Database::metaSet(self::PW_AT, (string) time()); }
             else Database::metaSet(self::PW_KEY, '');
 
             Database::metaSet(self::FP_KEY, $fp);
@@ -122,11 +124,44 @@ final class SuperAdmin
         }
     }
 
-    /** The one-time generated password, if one was minted and not yet cleared. */
+    /** The one-time generated password, if one was minted, not yet shown and not yet expired. */
     public static function pendingPassword(): string
     {
-        try { return (string) (Database::metaGet(self::PW_KEY) ?? ''); }
-        catch (Throwable $e) { return ''; }
+        try {
+            $v = (string) (Database::metaGet(self::PW_KEY) ?? '');
+            if ($v === '') return '';
+            /* It waits a week at most: a full-access password left in a table
+               is one a database dump hands to whoever holds the dump. */
+            $at = (int) (Database::metaGet(self::PW_AT) ?? 0);
+            if ($at > 0 && time() - $at > self::PW_TTL) { self::forgetPassword(); return ''; }
+            if (!str_starts_with($v, 'sp1:')) {          // written in the clear by an older version: seal it now
+                Database::metaSet(self::PW_KEY, self::seal($v));
+                if ($at === 0) Database::metaSet(self::PW_AT, (string) time());
+                return $v;
+            }
+            return self::unseal($v);
+        } catch (Throwable $e) { return ''; }
+    }
+
+    /**
+     * The generated password at rest: encrypted with the site key. It was stored
+     * in app_meta in plain text until revealed, so any backup or SQL export taken
+     * before somebody pressed "reveal" carried the superadmin's password.
+     */
+    private static function seal(string $pw): string
+    {
+        $k = hash('sha256', 'superadmin-pw|' . av_secret(), true);
+        $iv = random_bytes(12); $tag = '';
+        $c = openssl_encrypt($pw, 'aes-256-gcm', $k, OPENSSL_RAW_DATA, $iv, $tag);
+        return $c === false ? '' : 'sp1:' . base64_encode($iv . $tag . $c);
+    }
+    private static function unseal(string $v): string
+    {
+        $raw = base64_decode(substr($v, 4), true);
+        if ($raw === false || strlen($raw) < 29) return '';
+        $k = hash('sha256', 'superadmin-pw|' . av_secret(), true);
+        $p = openssl_decrypt(substr($raw, 28), 'aes-256-gcm', $k, OPENSSL_RAW_DATA, substr($raw, 0, 12), substr($raw, 12, 16));
+        return $p === false ? '' : $p;
     }
 
     /** Forget the stashed generated password (call after showing it once). */

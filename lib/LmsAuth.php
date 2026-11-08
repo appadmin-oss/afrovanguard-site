@@ -121,6 +121,10 @@ final class LmsAuth
         $u = $st->fetch();
         if (!$u) return null;
         $db->prepare('UPDATE lms_users SET email_verified = 1, verify_hash = NULL, verify_expires = NULL WHERE id = ?')->execute([$u['id']]);
+        /* The address is proven either way; a session is only for an active
+           account. A verification link used to sign in a suspended one, past
+           the refusal the password and the code both give. */
+        if (($u['status'] ?? 'active') !== 'active') return null;
         self::startSession((int) $u['id']);
         if (class_exists('Notify')) { try { Notify::welcome($u); } catch (Throwable $e) {} }
         return self::byId((int) $u['id']);
@@ -321,13 +325,34 @@ final class LmsAuth
            proof of control over it. Without this, somebody who never got
            round to verifying can complete a reset and still be told to
            verify — a dead end at the end of the road out of a dead end. */
+        /* The link is spent FIRST and only once: of two requests carrying it,
+           only the one that changed the row sets a password. */
+        $spend = $db->prepare("UPDATE lms_password_resets SET used_at = ? WHERE id = ? AND used_at = ''");
+        $spend->execute([gmdate('Y-m-d H:i:s'), (int) $row['id']]);
+        if ($spend->rowCount() !== 1) return ['ok' => false, 'error' => 'That reset link has expired or been used. Ask for a new one.'];
         $db->prepare('UPDATE lms_users SET password_hash = ?, has_password = 1, email_verified = 1 WHERE id = ?')
            ->execute([password_hash($password, PASSWORD_BCRYPT), (int) $row['user_id']]);
-        $db->prepare('UPDATE lms_password_resets SET used_at = ? WHERE id = ?')
-           ->execute([gmdate('Y-m-d H:i:s'), (int) $row['id']]);
+        /* A reset exists for the case where somebody else is reading the inbox.
+           Every other way in through that inbox ends with it: a sign-in code
+           taken from the mailbox beforehand is a complete credential that needs
+           no password, and it used to stay live for its whole window. */
+        try { Otp::ensure(); $db->prepare('UPDATE lms_otps SET consumed = 1 WHERE email = ? AND consumed = 0')->execute([strtolower((string) $row['email'])]); }
+        catch (Throwable $e) { error_log('[auth] reset: could not retire sign-in codes: ' . $e->getMessage()); }
         try { $db->prepare('DELETE FROM lms_sessions WHERE user_id = ?')->execute([(int) $row['user_id']]); }
         catch (Throwable $e) { error_log('[auth] reset: could not clear sessions: ' . $e->getMessage()); }
         if (class_exists('Events')) { try { Events::emit('member.password.reset', ['user_id' => (int) $row['user_id']]); } catch (Throwable $e) {} }
+        /* The only mail this flow sent was the one ASKING, which an attacker in
+           the inbox simply deletes. The notice after the fact is the one they
+           cannot pre-empt, and it says what to do instead of "reset it again". */
+        if (class_exists('Mailer')) {
+            try {
+                $first = htmlspecialchars(explode(' ', trim((string) $row['name']))[0] ?: 'there', ENT_QUOTES, 'UTF-8');
+                Mailer::send((string) $row['email'], 'Your Afrovanguard password was changed',
+                    '<p>Hello ' . $first . ',</p><p>The password on your Afrovanguard account was changed on '
+                    . htmlspecialchars(gmdate('j M Y, H:i') . ' UTC', ENT_QUOTES, 'UTF-8') . '. Every device was signed out.</p>'
+                    . '<p>If this was not you, someone may be able to read your email. Secure your email account first, then contact us at the Academy so we can lock the account.</p>');
+            } catch (Throwable $e) { error_log('[auth] reset notice: ' . $e->getMessage()); }
+        }
         return ['ok' => true, 'message' => 'Password changed. Sign in with it now.'];
     }
 

@@ -84,6 +84,8 @@ function av_embed_hosts(): array {
         'docs.google.com', 'drive.google.com', 'calendar.google.com', 'flo.uri.sh', 'public.flourish.studio',
         'www.facebook.com', 'web.facebook.com', 'anchor.fm', 'embed.music.apple.com',
         'www.canva.com', 'datawrapper.dwcdn.net',
+        // Course media: screen recordings, hosted video, Office documents.
+        'www.loom.com', 'fast.wistia.net', 'view.officeapps.live.com',
     ];
 }
 
@@ -94,7 +96,7 @@ function send_security_headers(string $page = 'public'): void {
     // Paystack (donations + dues): inline SDK, its API, and the checkout iframe.
     $paystack = 'https://js.paystack.co https://checkout.paystack.com https://api.paystack.co';
     /* Cloudflare's Web Analytics beacon, which Cloudflare adds to pages it serves. */
-    $script = "'self' 'unsafe-inline' https://static.cloudflareinsights.com https://cdn.jsdelivr.net https://ajax.googleapis.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://platform.instagram.com https://js.paystack.co";
+    $script = "'self' 'unsafe-inline' https://static.cloudflareinsights.com https://cdn.jsdelivr.net https://ajax.googleapis.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://platform.instagram.com https://js.paystack.co https://www.googletagmanager.com";
     $csp = [
         "default-src 'self'",
         "base-uri 'self'",
@@ -106,7 +108,7 @@ function send_security_headers(string $page = 'public'): void {
         "font-src 'self' https://fonts.gstatic.com data:",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
         "script-src $script",
-        "connect-src 'self' https://cloudflareinsights.com https://api.cloudinary.com https://res.cloudinary.com https://api.paystack.co",
+        "connect-src 'self' https://cloudflareinsights.com https://api.cloudinary.com https://res.cloudinary.com https://api.paystack.co https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
         "frame-src 'self' https://checkout.paystack.com $frame",
     ];
     header('Content-Security-Policy: ' . implode('; ', $csp));
@@ -369,6 +371,20 @@ function av_rate_ok(string $bucket, int $max, int $window): bool {
     // Opportunistic prune (~1% of calls) so stale buckets don't accumulate.
     if (($now % 97) === 0) { foreach ((array) @glob($dir . '/*.json') as $f) { if (@filemtime($f) < $now - 86400) @unlink($f); } }
     return true;
+}
+
+/**
+ * Is this bucket already full for this client? Reads, never counts. For pages
+ * that count only FAILED guesses (a receipt, a certificate): without this, a
+ * client past the limit still got a matching guess served, so the limit slowed
+ * the misses and let the hit through — the opposite of what it is for.
+ */
+function av_rate_spent(string $bucket, int $max, int $window): bool {
+    $key = AV_ROOT . '/db/cache/rl/' . preg_replace('/[^a-z0-9_]/i', '_', $bucket . '_' . av_client_ip()) . '.json';
+    if (!is_file($key)) return false;
+    $now = time();
+    $hits = array_filter(json_decode((string) @file_get_contents($key), true) ?: [], fn($t) => $t > $now - $window);
+    return count($hits) >= $max;
 }
 
 /**

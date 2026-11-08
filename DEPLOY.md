@@ -72,6 +72,36 @@ On a plain VM without Docker: it's a normal PHP app — point Apache/nginx+php-f
 at the repo root, ensure `mod_rewrite`/`.htaccess` is honoured, make `db/` and
 `uploads/` writable, and set the env vars.
 
+Docker keeps its data on volumes, never on `db/`: the SQLite files on
+`/var/lib/afrovanguard` (`AV_DB_PATH`, `AV_NGV_DB_PATH`), and `db/private` and
+`db/cache` on their own volumes. `db/` itself holds the schema and seed files
+each new image brings, so a volume over it hid every schema change behind the
+first deploy's copy. An install that used the old `app-db` volume: mount it at
+`/var/www/html/db-legacy` once (the line is in `docker-compose.yml`) and the
+entrypoint copies its databases across. `APP_KEY` is required; the container
+refuses to start without 32+ characters.
+
+### nginx
+
+nginx does not read `.htaccess`, so its rules have to be written out. These
+mirror the Apache ones: without them `db/` (the SQLite databases, the schema
+and the donor records in `db/private`), `lib/`, `data/` and every dotfile are
+downloadable.
+
+```nginx
+location ~ /\.(?!well-known/) { deny all; }
+location ~ ^/(lib|db|data|tools|scripts|bin|tests|deploy|docs|vendor|partials)(/|$) { deny all; }
+location ~ ^/projects/sts/ceo/api/data(/|$) { deny all; }
+location ~* \.(env|ini|sqlite|sqlite-wal|sqlite-shm|sql|log|lock|bak|dist|sh|md|yml|yaml|example)$ { deny all; }
+location ~* /(config|composer)\.[^/]*$ { deny all; }
+location ~* /(contacts|donations)\.json$ { deny all; }
+
+location / { try_files $uri $uri/ $uri.php?$query_string =404; }   # the pretty-URL rewrites in .htaccess need translating too
+location ~ \.php$ { include fastcgi_params; fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; fastcgi_pass unix:/run/php/php8.4-fpm.sock; }
+```
+
+Check it: `curl -I https://YOUR_DOMAIN/db/diary.sqlite` must answer 403 or 404.
+
 ---
 
 ## 3. Google Cloud

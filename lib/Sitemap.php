@@ -14,17 +14,31 @@ final class Sitemap
 {
     private const STATIC_PAGES = [
         ['', '1.0', 'weekly'],
-        ['about/', '0.8', 'monthly'],
+        ['about.html', '0.8', 'monthly'],
+        ['how-it-works', '0.7', 'monthly'],
+        ['people/', '0.6', 'monthly'],
         ['ethos/', '0.9', 'monthly'],
         ['academy/', '0.9', 'weekly'],
         ['academy/ngv/', '0.9', 'weekly'],
         ['academy/dns/', '0.9', 'weekly'],
         ['diary/', '0.9', 'weekly'],
-        ['projects', '0.7', 'monthly'],
+        ['projects/', '0.8', 'monthly'],
+        ['projects/sts/', '0.7', 'monthly'],
+        ['projects/techhome/', '0.7', 'monthly'],
+        ['projects/mediapro/', '0.7', 'monthly'],
+        ['projects/bec/', '0.6', 'monthly'],
+        ['projects/career-hub/', '0.6', 'monthly'],
+        ['projects/kap/', '0.6', 'monthly'],
+        ['franchise', '0.6', 'monthly'],
         ['events/', '0.7', 'weekly'],
         ['mentorship/become-a-mentor/', '0.7', 'monthly'],
-        ['contact/', '0.5', 'yearly'],
-        ['donate.html', '0.8', 'monthly'],
+        ['contact.html', '0.5', 'yearly'],
+        ['donate/', '0.8', 'monthly'],
+        ['reports/', '0.6', 'monthly'],
+        ['IQ/', '0.5', 'monthly'],
+        ['academy/programmes/', '0.7', 'weekly'],
+        ['privacy-policy/', '0.3', 'yearly'],
+        ['terms/', '0.3', 'yearly'],
         ['give/', '0.9', 'daily'],
     ];
 
@@ -200,7 +214,9 @@ final class Sitemap
             . "User-agent: *\nAllow: /\n\n"
             . "# Server internals (also blocked at directory level)\n"
             . "Disallow: /lib/\nDisallow: /db/\nDisallow: /admin/\nDisallow: /error.php\n\n"
-            . "# Sitemaps — custom first (authoritative), then WordPress core's own.\n"
-            . "Sitemap: $S/sitemap.xml\nSitemap: $S/diary/sitemap.xml\nSitemap: $S/academy/sitemap.xml\nSitemap: $S/wp-sitemap.xml\n";
+            . "# Search engines and AI assistants (GPTBot, ClaudeBot, PerplexityBot,\n"
+            . "# Google-Extended…) are welcome: the rules above apply to all. A plain\n"
+            . "# summary of who we are and where things are: $S/llms.txt\n\n"
+            . "Sitemap: $S/sitemap.xml\nSitemap: $S/diary/sitemap.xml\nSitemap: $S/academy/sitemap.xml\n";
     }
 }

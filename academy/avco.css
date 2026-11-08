@@ -132,27 +132,45 @@
 .no-js .avco .avco-panel[hidden]{display:flex!important;margin-top:56px}
 .no-js .avco .avco-q p[hidden]{display:block!important}
 
-/* ── Grades ───────────────────────────────────────────────────────────────
-   The best attempt, said plainly. quiz_attempts had been written since the
-   LMS shipped and read by nothing, so this table is the first time a learner
-   sees a score they earned more than two seconds ago. */
-.avco-grades{width:100%;border-collapse:collapse;font-size:15px}
-.avco-grades caption{text-align:left}
-.avco-grades th,.avco-grades td{padding:12px 10px;border-bottom:1px solid var(--av-line);text-align:left;vertical-align:top}
-.avco-grades thead th{font:600 12px var(--av-sans);letter-spacing:.07em;text-transform:uppercase;color:var(--av-muted-2);border-bottom-width:1px}
-.avco-grades tbody th{font-weight:600}
-.avco-grades tbody th a{color:inherit;text-decoration:none}
-.avco-grades tbody th a:hover{text-decoration:underline;text-underline-offset:3px}
-.avco-g-mod{display:block;font-weight:400;font-size:13px;color:var(--av-muted-2);margin-top:2px}
-.avco-g-n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-.avco-g-tag{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12.5px;font-weight:700;background:var(--av-stone,#f1efe9);color:var(--av-muted-2)}
-.avco-g-tag.is-pass{background:var(--av-gold-soft);color:var(--av-gold-text)}
-.avco-g-tag.is-again{background:rgba(220,38,38,.10);color:#B3261E}
-.avco-g-note{font-size:14px;color:var(--av-copy-3);margin:-24px 0 0;line-height:1.55}
-@media (max-width:620px){
-  /* The two reference columns go: on a phone the learner wants their score
-     and whether it counted, and a five-column table that scrolls sideways
-     gives them neither without a swipe. */
-  .avco-grades th:nth-child(3),.avco-grades td:nth-child(3),
-  .avco-grades th:nth-child(4),.avco-grades td:nth-child(4){display:none}
-}
+/* Courseware: skills, prerequisites, module detail, ratings and reviews */
+.avco-rating{margin:14px 0 0;display:flex;gap:12px;align-items:center;font-size:15px}
+.avco-rating a{color:var(--av-ink);text-decoration:underline}
+.avco-partof{margin:10px 0 0;font-size:15px;color:var(--av-copy-3)}
+.avco-partof a{color:var(--av-ink);font-weight:600;text-decoration:underline}
+.avco-skills{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.avco-skills li{padding:8px 14px;border-radius:var(--av-r-pill);background:var(--av-stone);font-size:15px}
+.avco-pre{margin:0;padding-left:20px;font-size:16px;line-height:1.6}
+.avco-kinds{margin:-28px 0 0;font-size:15px;color:var(--av-copy-3)}
+.avco-modbox{display:flex;flex-direction:column;gap:12px;padding-top:4px}
+.avco-modbox .avco-mod{margin:0}
+.avco-mod-k{display:block;font-size:13px;font-weight:700;color:var(--av-gold-text);margin-bottom:2px}
+.avco-mod-s{margin:0;font-size:15.5px;line-height:1.55;color:var(--av-copy-3)}
+.avco-objs{font-size:15px}
+.avco-objs summary{cursor:pointer;font-weight:600;min-height:32px}
+.avco-objs ul{margin:8px 0 0;padding-left:20px;line-height:1.6}
+.avco-sub--flat{margin:0}
+.avco-rsum{display:flex;flex-wrap:wrap;gap:28px;align-items:center}
+.avco-rsum-n{display:flex;flex-direction:column;gap:2px}
+.avco-rsum-n b{font-family:var(--av-serif);font-size:48px;font-weight:400;line-height:1}
+.avco-rsum-n span[aria-hidden]{color:var(--av-gold-text);font-size:20px}
+.avco-rsum-n span:last-child{font-size:14px;color:var(--av-copy-3)}
+.avco-rdist{list-style:none;margin:0;padding:0;flex:1;min-width:220px;display:flex;flex-direction:column;gap:6px}
+.avco-rdist li{display:grid;grid-template-columns:44px 1fr 44px;gap:10px;align-items:center;font-size:14px}
+.avco-rform{display:flex;flex-direction:column;gap:8px;padding:20px;border:1px solid var(--av-line);border-radius:var(--av-r-14)}
+.avco-rform fieldset{border:0;margin:0;padding:0}
+.avco-rform legend,.avco-rform label[for]{font-size:15px;font-weight:600}
+.avco-rform label span{font-weight:400;color:var(--av-copy-3)}
+.avco-stars{display:inline-flex;flex-direction:row-reverse;gap:2px;margin-top:6px}
+.avco-stars input{position:absolute;opacity:0;width:1px;height:1px}
+.avco-stars label{font-size:30px;line-height:1;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;color:var(--av-line-2);cursor:pointer}
+.avco-stars input:checked~label,.avco-stars label:hover,.avco-stars label:hover~label{color:var(--av-gold-text)}
+.avco-stars input:focus-visible+label{outline:3px solid var(--av-focus);outline-offset:2px}
+.avco-rform textarea{width:100%;box-sizing:border-box;font:16px/1.5 var(--av-sans);padding:12px 14px;border:1px solid var(--av-line-2);border-radius:var(--av-r-10)}
+.avco-rfoot{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.avco-reviews{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
+.avco-reviews li{padding:16px 0;border-bottom:1px solid var(--av-line)}
+.avco-reviews p{margin:8px 0 0;font-size:16px;line-height:1.55;overflow-wrap:anywhere}
+.avco-rv-h{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:14px}
+.avco-rv-h .av-num{color:var(--av-copy-3)}
+.avco-rv-s{color:var(--av-gold-text);letter-spacing:1px}
+.avco-rv-off{color:var(--av-line-2)}

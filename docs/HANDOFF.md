@@ -1107,6 +1107,114 @@ inside the location, went straight through.
 browser at the reported size and, more to the point, at a **417px card in a
 1400px window** — the case a media query cannot see.
 
+## 2026-11-04 — November audit: Academy, NGV, database layer
+
+Every finding of the audit is fixed; `tests/audit-2026-11.test.php` holds one
+case per finding. The database half was run for real against MySQL 8.0.46
+(strict mode) and PostgreSQL 16, not only read.
+
+- **Academy.** Pass codes never leave the server (`AcademyRepository::publicView`,
+  `PUBLIC_COLS`); learners act on published courses only; a quiz lesson is
+  completed by passing it and a certificate needs every quiz passed; an
+  instructor teaches their own courses (`LmsRepository::teaches`); links are read
+  as a browser reads them; a lesson video frames only `Embeds::iframeSrc()`;
+  JSON-LD is `JSON_HEX_TAG`; a live class's calendar entry is signed per
+  recipient (`LmsDrip::classSig`).
+- **Why edits took days to show.** The host stamps every response with
+  `max-age=604800`, and API answers carried no header of their own. `json_out`
+  is `no-store`, `.htaccess` gives HTML and JSON no lifetime, and the admin and
+  Studio fetch with `cache: 'no-store'`.
+- **NGV.** A new training fee releases a voided month (`NgvLedger::VOID_SLOT`);
+  a declined leave is fined; nobody changes their own enrolment, fee or fines;
+  the desk records the membership fee, not any sum.
+- **MySQL 8.** `Database::mysqlDdl()`: TEXT defaults as `DEFAULT ('…')`, inline
+  REFERENCES as table-level FOREIGN KEYs. An existing MySQL database gets its
+  keys where no row breaks them; the rest are listed on Health.
+- **Schema.** Server databases sync from `db/schema.sql` itself; a failed step
+  is retried, never stamped; the verification backfill finishes on a later run.
+- **Migration.** Every source table is created or named; progress saved per
+  slice under a lock with a 20s cap; Postgres serials reset; nothing is moved
+  out of a fallback database.
+- **Ops.** Docker data lives on volumes, never over `db/`; APP_KEY required;
+  PHP 8.4; nginx deny rules in DEPLOY.md; Postgres backups; busy_timeout
+  independent of WAL; timestamps UTC throughout; the one-time superadmin
+  password sealed and expiring after a week.
+- **Rotate the pass codes.** Every restricted course's pass code was readable
+  by anyone before this change. Set new ones in the Studio.
+
+### Deeper pass (same day)
+
+Traced what the first pass did not: every upload path, the payment
+confirmations, sign-in (password, code, Google, reset, verification),
+ownership checks on member and mentor records, server-side fetches, the
+admin role lists, webhooks and integrations, exports, redirects, API tokens.
+Seven defects, all fixed and pinned in `tests/audit-2026-11.test.php`:
+
+- `Otp::check` claims a try in the WHERE of its UPDATE and spends a code once.
+  Proven on MySQL 8 with 19 simultaneous guesses: the counter stops at the cap
+  and the right code is refused afterwards.
+- A password reset spends its link before setting the password, retires live
+  sign-in codes, and emails the owner afterwards.
+- A verification link no longer signs in a suspended account.
+- `finalizePayment` refuses a non-naira payment for a course or membership.
+- `AvWeb` pins cURL to the address it checked (`CURLOPT_RESOLVE`), closing DNS
+  rebinding past the private-address check.
+
+Checked and sound: uploads (bytes decide the extension, /uploads cannot run
+code, scans under data/), payment idempotency and ownership, Google state and
+nonce, account email changes, mentor and mentorship ownership, the editor
+deny-list (content only), XML parsing, CSV formula escaping, redirects,
+integration signatures and expiry, API token hashing and scopes.
+
+## 2026-11-04 — The Academy as a course platform
+
+The LMS was a reading list with optional quizzes. It now has the structure a
+learner expects from a course platform. `lib/LmsCourseware.php` holds the new
+parts; `tests/courseware.test.php` (125 checks) pins each promise; MySQL 8 and
+Postgres 16 were run for real, fresh and migrated.
+
+- **Items, not lessons.** A module has a summary and learning objectives. An
+  item is a video, reading, graded quiz, practice quiz, assignment or
+  discussion prompt (`LmsRepository::lessonType`, one resolver). Each has a
+  grade weight.
+- **Quizzes.** One answer, several answers or true/false, with an explanation
+  per question and an optional attempt limit. A practice quiz completes on any
+  score and never counts; a graded one completes on a pass. The answer key is
+  only shown on practice, once passed, or when attempts run out. Old quizzes
+  read as graded, unlimited and single-answer — what they always were. The
+  Studio saves through the same `normaliseQuestion()` the player reads with.
+- **Assignments.** Learners submit text and/or a link; instructors grade
+  (0–100) or return with feedback from `/academy/teach/grading`. A pass is
+  final; a fail or a return can be resubmitted. Permission is
+  `LmsRepository::teaches()` per submission, never the queue's list.
+- **A certificate certifies a pass.** Every item done, every graded item
+  passed, and the weighted grade at or above the course's `pass_mark`.
+  `requirementsMet()` is the one answer; the grades page, the issue path and
+  completion all ask it. A course with no graded work certifies on completion,
+  as before. An unearned certificate link now goes to the grades page.
+- **Discussions.** Every course has a forum (`/academy/<course>/discussions`);
+  a discussion item is completed by replying to its prompt. Instructors pin,
+  close and hide. A paid or restricted course's forum is read by its learners
+  only — the prompts are course content.
+- **Reviews.** 1–5 stars and text, one per learner who took the course;
+  summary, distribution and `aggregateRating` on the course page.
+- **Programmes.** A series of courses with its own certificate (`AVP-` serial,
+  checked by the same verify page). Built in the Studio's Programmes view.
+- **Course page.** Skills, prerequisites, language, total time, suggested pace,
+  the syllabus by module with objectives and item kinds, reviews, "part of"
+  a programme, and the pass rule stated wherever the certificate is mentioned.
+- **Catalogue.** Search covers skills and every word must match; filter by
+  track, level and price; sort by popularity, rating, newest or length. It is a
+  GET form, so a filtered view is a shareable link and works without script.
+  Its figures are grouped queries — it was four queries a course.
+- **My learning** (`/academy/my`): resume at the next item with a suggested
+  date (the course's pace spread over its modules; nothing locks), a "behind"
+  flag, assignment feedback, programmes, completed courses.
+- **Reserved slugs.** A course cannot be called `my`, `programmes`, `teach`…;
+  it would sit behind the page of that name. It gets `-course` appended.
+- **Postgres caught one.** `graded_at` stays text there while `updated_at` is
+  a timestamp, so they cannot be COALESCEd; grading stamps `updated_at` and
+  everything sorts on that.
 ---
 
 ## The Academy: grades, discussions and a study coach (2026-11-08)

@@ -29,10 +29,15 @@ final class Storage
         return is_array($i) && !empty($i['mime']) ? (string) $i['mime'] : 'application/octet-stream';
     }
 
-    /** 'image' | 'document', from MIME (preferred) then extension. */
+    /**
+     * 'image' | 'media' | 'document', from MIME (preferred) then extension.
+     * Video and WebVTT captions are 'media': a <video> must be able to play the
+     * URL, which a Drive "view" page never is, so they never go to Drive.
+     */
     public static function kindFor(string $mime, string $name = ''): string
     {
         if (str_starts_with($mime, 'image/')) return 'image';
+        if (str_starts_with($mime, 'video/') || $mime === 'text/vtt' || preg_match('/\.vtt$/i', $name)) return 'media';
         if ($mime === 'application/octet-stream' && preg_match('/\.(png|jpe?g|webp|gif|avif|svg)$/i', $name)) return 'image';
         return 'document';
     }
@@ -49,6 +54,17 @@ final class Storage
 
         if ($kind === 'image') {
             return Cloudinary::upload($tmp, $originalName, $folder) + ['kind' => 'image']; // Cloudinary or local
+        }
+        if ($kind === 'media') {
+            /* Video to Cloudinary's video pipeline when it is set up (streams,
+               transcodes); captions always local — a <track> must be served
+               as text/vtt, and same-origin needs no CORS. */
+            $isVtt = $mime === 'text/vtt' || preg_match('/\.vtt$/i', $originalName);
+            if (!$isVtt && Cloudinary::configured()) {
+                try { return Cloudinary::upload($tmp, $originalName, $folder, 'video') + ['kind' => 'media']; }
+                catch (Throwable $e) { error_log('[storage] Cloudinary video failed, using local: ' . $e->getMessage()); }
+            }
+            return self::local($tmp, $isVtt ? 'captions.vtt' : $originalName, 'media') + ['kind' => 'media'];
         }
 
         // documents → Drive, with a local fallback so the app never hard-fails
@@ -88,9 +104,12 @@ final class Storage
             'audio/mpeg' => 'mp3', 'audio/mp3' => 'mp3', 'audio/mp4' => 'm4a', 'audio/x-m4a' => 'm4a',
             'audio/aac' => 'aac', 'audio/ogg' => 'ogg', 'audio/wav' => 'wav', 'audio/x-wav' => 'wav',
             'audio/webm' => 'webm', 'video/mp4' => 'mp4', 'video/webm' => 'webm',
+            'video/quicktime' => 'mov', 'video/ogg' => 'ogv', 'video/x-m4v' => 'm4v', 'text/vtt' => 'vtt',
         ];
         static $inert = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'heif', 'pdf', 'epub', 'doc', 'docx', 'xls', 'xlsx',
-                         'ppt', 'pptx', 'txt', 'csv', 'mp3', 'm4a', 'aac', 'ogg', 'oga', 'wav', 'webm', 'mp4'];
+                         'ppt', 'pptx', 'txt', 'csv', 'mp3', 'm4a', 'aac', 'ogg', 'oga', 'wav', 'webm', 'mp4', 'mov', 'ogv', 'm4v', 'vtt'];
+        /* A caption file is plain text to finfo; its name is what says it is WebVTT. */
+        if (($mime === 'text/plain' || $mime === 'text/vtt') && preg_match('/\.vtt$/i', $originalName)) return 'vtt';
         $mime = strtolower(trim($mime));
         if (isset($byMime[$mime])) return $byMime[$mime];
         $ext = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
@@ -122,6 +141,7 @@ final class Storage
         . "<IfModule mod_php.c>\n  php_flag engine off\n</IfModule>\n"
         . "<IfModule mod_php7.c>\n  php_flag engine off\n</IfModule>\n"
         . "<IfModule mod_mime.c>\n  RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .pht .phar\n  RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .pht .phar\n</IfModule>\n"
+        . "<IfModule mod_mime.c>\n  AddType text/vtt .vtt\n  AddType video/mp4 .mp4 .m4v\n  AddType video/webm .webm\n  AddType video/quicktime .mov\n</IfModule>\n"
         . "<IfModule mod_headers.c>\n  Header always set X-Content-Type-Options \"nosniff\"\n  Header always set Content-Security-Policy \"default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox\"\n</IfModule>\n";
 
     private static function local(string $tmp, string $originalName, string $folder): array

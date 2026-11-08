@@ -57,7 +57,7 @@ if ($payment) {
            Paystack account, so asking Paystack about it finds nothing and
            would tell somebody who has just paid that they have not. */
         $v = Payments::verifyBy((string) ($payment['provider'] ?? 'paystack'), $reference);
-        if (!empty($v['paid']) && $lms->finalizePayment($reference, (int) ($v['amount_minor'] ?? 0))) {
+        if (!empty($v['paid']) && $lms->finalizePayment($reference, (int) ($v['amount_minor'] ?? 0), (string) ($v['currency'] ?? ''))) {
             $status = 'paid';
         }
     }

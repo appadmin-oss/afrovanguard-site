@@ -14,6 +14,10 @@
  */
 declare(strict_types=1);
 
+/** The anniversary: 9 November (owner, 2026-11-06), celebrated for the week either side. */
+if (!defined('AV_FOUNDING_MD')) define('AV_FOUNDING_MD', '11-09');
+if (!defined('AV_FOUNDING_SEASON_DAYS')) define('AV_FOUNDING_SEASON_DAYS', 7);
+
 /**
  * Built-in calendar. Each entry:
  *   key, name, md (MM-DD), scope (african|international|internal),
@@ -38,8 +42,9 @@ function av_celebration_calendar(?int $year = null): array
         ['peaceday',     'International Day of Peace',      '09-21', 'international', '🕊️', '#0ea5e9', 'Peace starts in communities like ours. Thank you for building it.'],
         ['independence', 'Happy Independence Day',          '10-01', 'african',       '🇳🇬', '#16a34a', $ng . ' years of Nigeria, and ' . $av . ' of Afrovanguard marching with the young people of Alimosho.'],
         ['girlchild',    'International Day of the Girl',   '10-11', 'international', '🌸', '#ec4899', 'Every girl deserves a mentor and a fair chance. Thank you for being one.'],
-        // Afrovanguard began on 14 November 2017 (owner, 2026-10-11).
-        ['founding',     ucfirst($av) . ' years of Afrovanguard', '11-14', 'internal', '🎂', '#f3b416', ucfirst($av) . ' years of raising incorruptible leaders. Thank you for being part of the story.'],
+        // The anniversary is 9 November (owner, 2026-11-06; was 14 November).
+        // The season around it is av_celebration_founding_week().
+        ['founding',     ucfirst($av) . ' years of Afrovanguard', AV_FOUNDING_MD, 'internal', '🎂', '#f3b416', ucfirst($av) . ' years of raising incorruptible leaders. Thank you for being part of the story.'],
         ['humanrights',  'Human Rights Day',                '12-10', 'international', '⚖️', '#0ea5e9', 'Dignity, equality and justice, for everyone, every day.'],
         ['christmas',    'Merry Christmas',                 '12-25', 'international', '🎄', '#16a34a', 'Peace and goodwill to you and your family this Christmas.'],
         // A Nigerian public holiday; not in the design's calendar, so its copy is ours.
@@ -240,19 +245,30 @@ function av_celebration_builtin_keys(): array
 }
 
 /**
- * The anniversary countdown: the seven days before 14 November each count down
- * to it, so the season is felt, not just the day. Not in the design's calendar,
- * so the copy is ours; the art is the anniversary's.
+ * The anniversary season: two weeks, centred on the day (owner, 2026-11-06).
+ * The week before counts down to 9 November ("Seven days to go" … "Tomorrow");
+ * the day itself is the 'founding' entry; the week after keeps celebrating, to
+ * 16 November. Every day of it wears the anniversary's art. Not in the
+ * design's calendar, so the copy is ours.
+ *
+ * One key for both weeks, so the Studio lists the season as one row and
+ * turning it off there turns off all of it.
  */
 function av_celebration_founding_week(int $year): array
 {
     $years = max(1, $year - AV_FOUNDED_YEAR);
+    $words = av_celebration_words($years);
+    $day   = strtotime(sprintf('%04d-%s 12:00:00', $year, AV_FOUNDING_MD));
+    $on    = date('j F', $day);
     $out = [];
-    for ($d = 7; $d >= 1; $d--) {
-        $date = date('Y-m-d', strtotime(sprintf('%04d-11-14 12:00:00', $year)) - $d * 86400);
+    for ($d = AV_FOUNDING_SEASON_DAYS; $d >= 1; $d--) {
         $left = $d === 1 ? 'Tomorrow' : ucfirst(av_celebration_words($d)) . ' days to go';
-        $out[] = [$date, 'foundingweek', $left . ': ' . av_celebration_words($years) . ' years of Afrovanguard', 'internal', '🎂', '#f3b416',
-            'On 14 November Afrovanguard turns ' . av_celebration_words($years) . '. Thank you for being part of the story.'];
+        $out[] = [date('Y-m-d', $day - $d * 86400), 'foundingweek', $left . ': ' . $words . ' years of Afrovanguard', 'internal', '🎂', '#f3b416',
+            'On ' . $on . ' Afrovanguard turns ' . $words . '. Thank you for being part of the story.'];
+    }
+    for ($d = 1; $d <= AV_FOUNDING_SEASON_DAYS; $d++) {
+        $out[] = [date('Y-m-d', $day + $d * 86400), 'foundingweek', 'Celebrating ' . $words . ' years of Afrovanguard', 'internal', '🎂', '#f3b416',
+            'Afrovanguard turned ' . $words . ' on ' . $on . '. Thank you for being part of the story.'];
     }
     return $out;
 }
@@ -320,8 +336,8 @@ function av_celebration_year_for_studio(PDO $pdo, int $year): array
         if ($h['key'] === 'foundingweek') {
             if ($seen) continue;
             $seen = true;
-            $h['title'] = 'Anniversary countdown, the seven days before 14 November';
-            $h['message'] = 'Each day counts down: “Seven days to go”, then on to “Tomorrow”.';
+            $h['title'] = 'Anniversary season: the week before and the week after 9 November';
+            $h['message'] = 'The week before counts down (“Seven days to go” … “Tomorrow”); the week after keeps celebrating, to 16 November.';
         }
         $out[] = $h;
     }

@@ -29,6 +29,13 @@ final class SiteHome
     public const KEY_LIVE = 'site_home';
     public const KEY_HIST = 'site_home_hist';
     public const SLIDES_MAX = 10;
+    /**
+     * When a slide shows. '' = all year; 'anniversary' = only during the
+     * anniversary season (lib/celebrations.php: the week before 9 November to
+     * the week after). index.html is static, so avh.js removes an out-of-season
+     * slide in the visitor's browser by the date in Lagos.
+     */
+    public const SEASONS = ['' => 'All year', 'anniversary' => 'Only during the anniversary season'];
     public const MARK_OPEN = '<!-- cms:hero -->';
     public const MARK_CLOSE = '<!-- /cms:hero -->';
 
@@ -38,13 +45,14 @@ final class SiteHome
 
     public static function defaults(): array
     {
+        require_once __DIR__ . '/avpj.php';   // avpj_img_alt(): what each photo shows
         $s = static fn(string $img, string $eb, string $t, string $sub, string $href) =>
-            ['image' => $img, 'alt' => $t, 'eyebrow' => $eb, 'title' => $t, 'sub' => $sub, 'href' => $href, 'hidden' => false];
+            ['image' => $img, 'alt' => avpj_img_alt($img, $t), 'eyebrow' => $eb, 'title' => $t, 'sub' => $sub, 'href' => $href, 'hidden' => false, 'season' => ''];
         return [
             'mode' => 'carousel',
             'interval' => 6,
             'slides' => [
-                $s('/Images/summer6.jpg', 'Ninth Anniversary · 2017 – 2026', 'Nine years of raising incorruptible leaders', 'From one community in Alimosho to young leaders across Africa — thank you for walking with us.', '/about.html'),
+                array_replace($s('/Images/summer6.jpg', 'Ninth Anniversary · 2017 – 2026', 'Nine years of raising incorruptible leaders', 'From one community in Alimosho to young leaders across Africa — thank you for walking with us.', '/about.html'), ['season' => 'anniversary']),
                 $s('/assets/ngg/p04.jpeg', '02 — Identity & Power', 'Global power without cultural surrender', 'Compete on the world stage without losing who you are. Relevance without imitation.', '/about.html'),
                 $s('/Images/alimosho.jpg', '03 — Community', "Build communities. Don't escape them.", 'Transform broken systems from within — street by street, mind by mind.', '/projects/index.html'),
                 $s('/Images/storm2.jpg', '04 — Disruption', 'Redesign the status quo', "When systems fail, we don't adapt — we rebuild. Quietly, strategically, relentlessly.", '/diary/'),
@@ -120,6 +128,7 @@ final class SiteHome
                 'sub' => self::text($s['sub'] ?? '', 240),
                 'href' => self::url($href) ?: '/',
                 'hidden' => !empty($s['hidden']),
+                'season' => isset(self::SEASONS[(string) ($s['season'] ?? '')]) ? (string) ($s['season'] ?? '') : '',
             ];
         }
         $v = (array) ($in['video'] ?? []);
@@ -215,6 +224,16 @@ final class SiteHome
     private static function e(string $s): string { return htmlspecialchars($s, ENT_COMPAT | ENT_SUBSTITUTE, 'UTF-8'); }
 
     /** The <header class="avh-hero"> block, exactly as avh.js expects it. */
+    /** ' data-season-from="11-02" data-season-to="11-16"' for a seasonal slide, '' otherwise. */
+    private static function seasonAttrs(array $s): string
+    {
+        if (($s['season'] ?? '') !== 'anniversary') return '';
+        require_once AV_ROOT . '/lib/celebrations.php';
+        $day = strtotime('2001-' . AV_FOUNDING_MD . ' 12:00:00');
+        return ' data-season="anniversary" data-season-from="' . date('m-d', $day - AV_FOUNDING_SEASON_DAYS * 86400)
+             . '" data-season-to="' . date('m-d', $day + AV_FOUNDING_SEASON_DAYS * 86400) . '"';
+    }
+
     public static function heroHtml(array $d): string
     {
         $e = [self::class, 'e'];
@@ -236,7 +255,7 @@ final class SiteHome
            . '  data-video-eyebrow="' . $e($v['eyebrow']) . '" data-video-title="' . $e($v['title']) . '" data-video-sub="' . $e($v['sub']) . '">' . "\n"
            . '  <video class="avh-hero-video" muted loop playsinline aria-hidden="true" hidden></video>' . "\n";
         foreach ($slides as $k => $s) {
-            $o .= '  <img class="avh-hero-img' . ($k === 0 ? ' is-on" fetchpriority="high" decoding="async"' : '"') . ' src="' . $e($s['image']) . '" alt="' . $e($s['alt']) . '" data-eyebrow="' . $e($s['eyebrow']) . '" data-title="' . $e($s['title']) . '" data-sub="' . $e($s['sub']) . '" data-href="' . $e($s['href']) . '"' . ($k === 0 ? '' : ' loading="lazy"') . ">\n";
+            $o .= '  <img class="avh-hero-img' . ($k === 0 ? ' is-on" fetchpriority="high" decoding="async"' : '"') . ' src="' . $e($s['image']) . '" alt="' . $e($s['alt']) . '" data-eyebrow="' . $e($s['eyebrow']) . '" data-title="' . $e($s['title']) . '" data-sub="' . $e($s['sub']) . '" data-href="' . $e($s['href']) . '"' . self::seasonAttrs($s) . ($k === 0 ? '' : ' loading="lazy"') . ">\n";
         }
         $o .= '  <div class="avh-hero-shade"></div>' . "\n"
             . '  <div class="avh-shapes avh-shapes--hero" data-avh-parallax aria-hidden="true"></div>' . "\n"

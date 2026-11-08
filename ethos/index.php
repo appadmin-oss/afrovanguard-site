@@ -83,7 +83,7 @@ if ($wantsText) {
 }
 
 $title = 'The Ethos of Afrovanguardism — The Force for Good';
-$desc  = 'The global ethos of Afrovanguardism: human dignity, selfless service, integrity, cultural heritage, good governance, peace, knowledge and environmental stewardship — nine commitments, a leadership model, seven core values and the Afrovanguard Creed.';
+$desc  = 'The global ethos of Afrovanguardism: dignity, selfless service, integrity, heritage, good governance, peace, knowledge and stewardship of the earth.';
 $jsonld = [
   schema_org(),
   ['@type' => 'Article', '@id' => $canonical . '#ethos', 'headline' => 'The Global Ethos of Afrovanguardism — The Force for Good',

@@ -8,8 +8,10 @@ Disallow: /db/
 Disallow: /admin/
 Disallow: /error.php
 
-# Sitemaps — custom first (authoritative), then WordPress core's own.
+# Search engines and AI assistants (GPTBot, ClaudeBot, PerplexityBot,
+# Google-Extended…) are welcome: the rules above apply to all. A plain
+# summary of who we are and where things are: https://afrovanguard.org.ng/llms.txt
+
 Sitemap: https://afrovanguard.org.ng/sitemap.xml
 Sitemap: https://afrovanguard.org.ng/diary/sitemap.xml
 Sitemap: https://afrovanguard.org.ng/academy/sitemap.xml
-Sitemap: https://afrovanguard.org.ng/wp-sitemap.xml

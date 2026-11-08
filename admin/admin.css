@@ -908,3 +908,8 @@ body.studio { --gold-deep: var(--av-gold-text); }
 .ps-row .badge.draft { color: #474d59; }   /* 4.5:1 or better on the grey tint at 11px */
 :root[data-theme="dark"] .ps-row .badge.draft { color: var(--muted); }
 .ev-past { margin-top: 18px; } .ev-past > summary { cursor: pointer; margin: 0 0 10px; }
+
+/* Academy list: find and filter */
+.ac-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 14px}
+.ac-tools input{flex:1 1 260px;min-height:40px;padding:0 12px;border:1px solid var(--divider);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+.ac-tools select{min-height:40px;padding:0 10px;border:1px solid var(--divider);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}

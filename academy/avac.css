@@ -194,3 +194,27 @@ html:has(body.avac){color-scheme:light}
 
 /* Phones: kickers to the 12px floor (see assets/site/avh.css). */
 @media (max-width:639px){.avac-kick,.avac-card-kick{font-size:12px}}
+
+/* Ratings on a card, and the programmes band */
+.avac-rate{display:inline-flex;align-items:center;gap:4px;font-size:14px;color:var(--av-ink)}
+.avac-rate span[aria-hidden]{color:var(--av-gold-text)}
+.avac-rate .av-num:last-of-type{color:var(--av-muted-2)}
+.avac-progs{padding-top:8px}
+.avac-prog-list{list-style:none;margin:0;padding:0;display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.avac-prog-list a{display:flex;flex-direction:column;gap:6px;height:100%;padding:20px;border:1px solid var(--av-line);border-radius:var(--av-r-14);background:var(--av-white);color:var(--av-ink);text-decoration:none}
+.avac-prog-list a:hover{border-color:var(--av-line-2)}
+.avac-prog-k{font-size:13px;font-weight:700;color:var(--av-gold-text)}
+.avac-prog-t{font-family:var(--av-serif);font-size:22px;font-weight:600}
+.avac-prog-d{font-size:15px;color:var(--av-text-2);line-height:1.5}
+
+/* The LMS footer: one row, the Academy's own links and the policies */
+.avac-foot{border-top:1px solid var(--av-line);background:var(--av-white)}
+.avac-foot-in{max-width:1280px;margin:0 auto;padding-top:28px;padding-bottom:28px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px 32px}
+.avac-foot-brand{display:inline-flex;align-items:center;gap:10px;font-family:var(--av-serif);font-size:20px;color:var(--av-ink);text-decoration:none}
+.avac-foot-mark{width:8px;height:8px;background:var(--av-gold);transform:rotate(45deg)}
+.avac-foot-nav{display:flex;flex-wrap:wrap;gap:4px 20px}
+.avac-foot-nav a,.avac-foot-legal a{color:var(--av-copy-3);font-size:14.5px;text-decoration:none;min-height:32px;display:inline-flex;align-items:center}
+.avac-foot-nav a:hover,.avac-foot-legal a:hover{color:var(--av-ink);text-decoration:underline}
+.avac-foot-legal{display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;width:100%;padding-top:14px;border-top:1px solid var(--av-line);font-size:13.5px;color:var(--av-muted-2);padding-right:72px}
+.avac-foot-legal span{margin-right:8px}
+@media (max-width:719px){.avac-foot-in{flex-direction:column;align-items:flex-start}}

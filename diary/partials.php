@@ -46,7 +46,7 @@ function avd_mission(): void { ?>
     <div class="avd-mission-actions">
       <p class="avd-eyebrow">Click to:</p>
       <div class="avd-mission-grid">
-        <a class="avd-mbtn avd-mbtn--gold" href="/volunteer/">Join.</a>
+        <a class="avd-mbtn avd-mbtn--gold" href="https://cacentre.afrovanguard.org.ng/volunteer">Join.</a>
         <a class="avd-mbtn" href="/mentorship/become-a-mentor/">Mentor.</a>
         <a class="avd-mbtn" href="/contact/">Partner.</a>
         <a class="avd-mbtn" href="/donate/">Donate.</a>

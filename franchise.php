@@ -25,7 +25,7 @@ $toc = [
 
 render_head([
     'title'     => 'Social Franchise & Governance Framework — Afrovanguard',
-    'desc'      => 'How competent leaders establish Afrovanguard Community Advancement Centres (CACENTREs) and run flagship projects — BEC, Africa GATES, Street-To-Stardom — in any community, under one vision, one governance framework and one operational standard.',
+    'desc'      => 'How competent leaders open Afrovanguard Community Advancement Centres (CACENTREs) and run its projects, under one vision, governance and standard.',
     'canonical' => rtrim(SITE_URL, '/') . '/franchise',
     'css'       => ['/assets/site/avfr.css'],
 ]);

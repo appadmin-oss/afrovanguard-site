@@ -50,6 +50,21 @@ RewriteRule ^projects/sts/ceo/api/data(/|$) - [F,L]
 # serving the page itself. The path and the query string are carried over, so
 # a link somebody has already shared lands on its own page over there.
 RewriteRule ^projects/africa-gates/?(.*)$ https://afg.afrovanguard.org.ng/$1 [R=301,L,QSA,NE]
+# /llms.txt — who we are and where things are, for AI assistants (llms.php).
+RewriteRule ^llms\.txt$ llms.php [L]
+# Street-To-Stardom's own site is sts.afrovanguard.org.ng. A copy of it used to
+# be served from here as well (two sites saying different things about one
+# programme); it was removed, and its old paths go to the real one — the
+# speaker-intake tool (ceo/) included, which runs on the STS site. What stays
+# under projects/sts/ is this site's programme page, the LCASP page and the two
+# published PDFs. The ceo/api/data deny above stays: a host deployed before the
+# removal may still hold that tool's backups, and git does not delete them.
+RewriteRule ^projects/sts/((?:about|team|impact|units|programs|get-involved|blog|contact|ceo)(?:/.*)?)$ https://sts.afrovanguard.org.ng/$1 [R=301,L,QSA,NE]
+# The LCASP 2026 campaign page, retired when the campaign ended (owner,
+# 2026-11-05). Campaigns are appeals now (give/manage.php), timed by their
+# dates; the page file stays as the record, not served. Above the real-file
+# guard, because the file exists.
+RewriteRule ^projects/sts/lcasp(?:\.html|/)?$ /projects/sts/ [R=301,L]
 
 # ── Clean URLs (work WITHOUT a file extension) ──────────────────────────────
 # Consolidated in the ROOT so routing works even when per-directory .htaccess
@@ -90,10 +105,18 @@ RewriteRule ^events/([a-z0-9-]+)/?$ events/view.php?slug=$1 [L,QSA]
 # Academy  (/academy/ and /academy/studio/ are real dirs → served above)
 RewriteRule ^academy/sitemap\.xml$ academy/sitemap.php [L]
 RewriteRule ^academy/og/([a-z0-9-]+)\.png$ academy/og.php?slug=$1 [L,QSA]
+RewriteRule ^academy/my/?$ academy/my.php [L,QSA]
+RewriteRule ^academy/programmes/?$ academy/programme.php [L,QSA]
+RewriteRule ^academy/programmes/([a-z0-9-]+)/?$ academy/programme.php?slug=$1 [L,QSA]
+RewriteRule ^academy/programmes/([a-z0-9-]+)/certificate/?$ academy/programme.php?slug=$1&cert=1 [L,QSA]
+RewriteRule ^academy/teach/grading/?$ academy/grading.php [L,QSA]
 RewriteRule ^academy/teach/?$ academy/teach.php [L,QSA]
 RewriteRule ^academy/teach/([a-z0-9-]+)/?$ academy/teach.php?course=$1 [L,QSA]
 RewriteRule ^academy/ngv/pay/?$ academy/ngv/pay.php [L,QSA]
 RewriteRule ^academy/([a-z0-9-]+)/certificate/?$ academy/certificate.php?course=$1 [L,QSA]
+RewriteRule ^academy/([a-z0-9-]+)/grades/?$ academy/grades.php?course=$1 [L,QSA]
+RewriteRule ^academy/([a-z0-9-]+)/discussions/?$ academy/forum.php?course=$1 [L,QSA]
+RewriteRule ^academy/([a-z0-9-]+)/discussions/([0-9]+)/?$ academy/forum.php?course=$1&thread=$2 [L,QSA]
 RewriteRule ^academy/([a-z0-9-]+)/learn/?$ academy/learn.php?course=$1 [L,QSA]
 RewriteRule ^academy/([a-z0-9-]+)/learn/([a-z0-9-]+)/?$ academy/learn.php?course=$1&lesson=$2 [L,QSA]
 RewriteRule ^academy/([a-z0-9-]+)/?$ academy/course.php?slug=$1 [L,QSA]
@@ -178,6 +201,16 @@ RewriteRule ^([a-z0-9_-]+)/?$ /$1.php [L,QSA]
   ExpiresByType application/javascript "access plus 0 seconds"
   ExpiresByType text/javascript "access plus 0 seconds"
   ExpiresByType text/css "access plus 0 seconds"
+  # Pages and API answers are built per request. The host's week-long default
+  # kept an edited course looking unedited on the admin, the Studio and the
+  # public course page (see json_out in lib/helpers.php).
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType application/json "access plus 0 seconds"
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "\.php$">
+    Header setifempty Cache-Control "no-cache"
+  </FilesMatch>
 </IfModule>
 <IfModule mod_headers.c>
   <FilesMatch "\.(js|mjs|css)$">
@@ -227,8 +260,12 @@ RewriteRule ^([a-z0-9_-]+)/?$ /$1.php [L,QSA]
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  # HSTS for the static pages too. lib/security.php already sends this on every
+  # PHP page (same value), but Home, About, Donate and Contact are .html that
+  # Apache serves without PHP, so they went out without it.
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
   Header always unset Content-Security-Policy
-  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://cacentre.afrovanguard.org.ng https://checkout.paystack.com; img-src 'self' data: blob: https:; media-src 'self' https: blob:; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://cdn.jsdelivr.net https://ajax.googleapis.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://platform.instagram.com https://js.paystack.co; connect-src 'self' https://cloudflareinsights.com https://api.cloudinary.com https://res.cloudinary.com https://api.paystack.co https://cdn.jsdelivr.net; frame-src 'self' https://checkout.paystack.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://open.spotify.com https://w.soundcloud.com https://player.soundcloud.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://www.google.com https://maps.google.com https://docs.google.com https://drive.google.com https://calendar.google.com https://flo.uri.sh https://public.flourish.studio https://www.facebook.com https://web.facebook.com https://anchor.fm https://embed.music.apple.com https://www.canva.com https://datawrapper.dwcdn.net"
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://cacentre.afrovanguard.org.ng https://checkout.paystack.com; img-src 'self' data: blob: https:; media-src 'self' https: blob:; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://cdn.jsdelivr.net https://ajax.googleapis.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://platform.instagram.com https://js.paystack.co https://www.googletagmanager.com; connect-src 'self' https://cloudflareinsights.com https://api.cloudinary.com https://res.cloudinary.com https://api.paystack.co https://cdn.jsdelivr.net https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; frame-src 'self' https://checkout.paystack.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://open.spotify.com https://w.soundcloud.com https://player.soundcloud.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://www.google.com https://maps.google.com https://docs.google.com https://drive.google.com https://calendar.google.com https://flo.uri.sh https://public.flourish.studio https://www.facebook.com https://web.facebook.com https://anchor.fm https://embed.music.apple.com https://www.canva.com https://datawrapper.dwcdn.net https://www.loom.com https://fast.wistia.net https://view.officeapps.live.com https://youtube.com https://instagram.com https://codepen.io"
 </IfModule>
 
 # ── Error pages ─────────────────────────────────────────────────────────────

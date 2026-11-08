@@ -1611,13 +1611,22 @@ final class MentorPortal
         return in_array(mb_strtolower(rtrim($t, '.!')), self::WEAK_WORDS, true);
     }
 
-    public function saveValues(int $pairingId, array $levels, array $evidence): array
+    /**
+     * Record the seven values. A mark of Demonstrated or Exemplary may also
+     * name ONE challenge in that value: the mark is then the proposal and its
+     * evidence for that challenge, and the compliance committee confirms it
+     * (the owner, 2 November 2026; van-quest doctrine/05-evidence.md). The
+     * mark on its own completes nothing.
+     *
+     * @param array<string,string> $challenges value key => challenge id
+     */
+    public function saveValues(int $pairingId, array $levels, array $evidence, array $challenges = []): array
     {
         if (!$this->ownsPairing($pairingId)) return ['ok' => false, 'error' => 'Not your mentee.'];
         $last = [];
         foreach ($this->valuesFor($pairingId) as $v) $last[$v['key']] = (int) $v['level'];
 
-        $clean = [];
+        $clean = []; $put = [];
         foreach (self::VALUES as $key => $label) {
             if (!array_key_exists($key, $levels)) return ['ok' => false, 'error' => 'Rate all seven values. Use Not seen if you didn’t see it.'];
             $lv = (int) $levels[$key];
@@ -1627,13 +1636,35 @@ final class MentorPortal
             if ($needs && self::evidenceWeak($ev))
                 return ['ok' => false, 'error' => 'Say what they did, not how good it was.', 'value' => $key];
             $clean[$key] = ['level' => $lv, 'evidence' => mb_substr($ev, 0, 1000)];
+
+            $cid = trim((string) ($challenges[$key] ?? ''));
+            if ($cid === '') continue;
+            if ($lv < 2) return ['ok' => false, 'error' => 'A challenge is put forward from Demonstrated or Exemplary, not below.', 'value' => $key];
+            if (!class_exists('Quest') || Quest::challenge($cid) === null || Quest::valueOf($cid) !== $key)
+                return ['ok' => false, 'error' => 'That challenge is not one of this value’s ten.', 'value' => $key];
+            if (mb_strlen($ev) < Conduct::EVIDENCE_MIN)
+                return ['ok' => false, 'error' => 'Say what they did, in a sentence or two — it is the evidence compliance reads for the challenge.', 'value' => $key];
+            $put[$key] = $cid;
         }
 
         $month = gmdate('Y-m'); $now = self::now();
         $ins = $this->db->prepare('INSERT INTO mentor_values (mentorship_id, value_key, level, evidence, month_key, observed_at) VALUES (?,?,?,?,?,?)');
         foreach ($clean as $key => $c) $ins->execute([$pairingId, $key, $c['level'], $c['evidence'], $month, $now]);
 
-        return ['ok' => true, 'next_id' => $this->nextUnobserved($pairingId)];
+        /* The observation is saved either way; a challenge that cannot be
+           proposed (not yet written, already proved, already waiting) is
+           reported back, not a reason to lose the marks. */
+        $proposed = []; $notProposed = [];
+        foreach ($put ?? [] as $key => $cid) {
+            $r = Conduct::propose($this->mentorId, $pairingId, [
+                'kind' => 'challenge', 'challenge_id' => $cid, 'occurred_on' => gmdate('Y-m-d'),
+                'evidence' => 'Marked ' . self::LEVELS[$clean[$key]['level']] . ' on ' . (self::VALUES[$key] ?? $key) . ': ' . $clean[$key]['evidence'],
+            ]);
+            if (!empty($r['ok'])) $proposed[] = $cid;
+            else $notProposed[$cid] = (string) ($r['error'] ?? 'It could not be put forward.');
+        }
+
+        return ['ok' => true, 'next_id' => $this->nextUnobserved($pairingId), 'proposed' => $proposed, 'not_proposed' => $notProposed];
     }
 
     /* ── Check-ins ─────────────────────────────────────────────────────────── */

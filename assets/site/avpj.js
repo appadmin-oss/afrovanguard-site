@@ -46,4 +46,32 @@
       });
     });
   });
+  run('open', () => {
+    /* The campaigns running now, from the appeals (live and inside their
+       dates). Text only; images and links only from this site or https. */
+    const wrap = document.querySelector('[data-avpj-open]'), list = document.querySelector('[data-avpj-open-list]');
+    if (!wrap || !list || !window.fetch) return;
+    const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text) n.textContent = String(text); return n; };
+    const safe = u => (typeof u === 'string' && /^(\/(?!\/)|https:\/\/)/.test(u)) ? u : '';
+    const day = iso => { try { return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); } catch (e) { return ''; } };
+    fetch('/give/feed.json?limit=4', { headers: { Accept: 'application/json' } })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => {
+        const ap = ((d && d.appeals) || []).filter(a => a && a.title && safe(a.url)).slice(0, 2);
+        if (!ap.length) return;
+        list.replaceChildren(...ap.map((a, n) => {
+          const card = el('a', 'avpj-open-card'); card.href = safe(a.url);
+          const src = safe(a.image);
+          if (src) { const img = el('img'); Object.assign(img, { src, alt: '', width: 1200, height: 675, loading: n ? 'lazy' : 'eager' }); card.appendChild(img); }
+          const cap = el('div', 'avpj-open-cap'), body = el('div');
+          const when = a.ends_on ? 'Open until ' + day(a.ends_on) : 'Open now';
+          body.append(el('div', 'avpj-kicker avpj-kicker--light', when), el('h3', null, a.title));
+          if (a.tagline) body.appendChild(el('p', null, a.tagline));
+          cap.append(body, el('span', 'avpj-open-cta', 'See the campaign'));
+          card.appendChild(cap); return card;
+        }));
+        wrap.hidden = false;
+      })
+      .catch(() => {});
+  });
 })();

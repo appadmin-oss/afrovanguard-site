@@ -249,42 +249,76 @@ body.avle{margin:0;background:var(--av-white);color:var(--av-ink);font-family:va
 .no-js [data-avle-coach-toggle],.no-js [data-avle-notes-toggle],.no-js [data-avle-side-toggle],.no-js [data-avle-share],.no-js [data-avle-complete]{display:none}
 @media (prefers-reduced-motion:reduce){.avle *{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 
-/* ── Discussion ───────────────────────────────────────────────────────────
-   Below the lesson, not in the notes drawer: notes are private and narrow,
-   and a conversation is neither. */
-.avle-disc{border-top:1px solid var(--av-line);padding-top:28px;display:flex;flex-direction:column;gap:16px}
-.avle-disc-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.avle-disc-hd h2{font:600 21px var(--av-serif,var(--av-sans));margin:0}
-.avle-disc-n{font-size:13.5px;color:var(--av-muted-2)}
-.avle-disc-new,.avle-disc-reply{display:flex;flex-direction:column;gap:10px}
-.avle-disc-new textarea,.avle-disc-reply textarea{width:100%;padding:12px 14px;border:1px solid var(--av-line);border-radius:12px;
-  font:inherit;font-size:15px;line-height:1.55;resize:vertical;background:var(--av-white);color:var(--av-ink)}
-.avle-disc-new textarea:focus,.avle-disc-reply textarea:focus{outline:3px solid var(--av-gold,#E0A82E);outline-offset:1px}
-.avle-disc-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.avle-disc-msg{font-size:13.5px;color:var(--av-muted-2)}
-.avle-disc-signin{font-size:15px;color:var(--av-copy-3)}
-.avle-disc-empty{font-size:15px;color:var(--av-copy-3);line-height:1.6;margin:0}
-.avle-disc-load{margin:0}
-.avle-posts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
-.avle-post{padding:14px 0;border-top:1px solid var(--av-line)}
-.avle-post:first-child{border-top:0}
-.avle-post.is-reply{margin-left:22px;padding-left:16px;border-top:0;border-left:2px solid var(--av-line)}
-.avle-post-by{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 4px;font-size:14.5px}
-.avle-post-tag{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
-  padding:2px 8px;border-radius:999px;background:var(--av-gold-soft);color:var(--av-gold-text)}
-.avle-post-at{font-size:13px;color:var(--av-muted-2)}
-.avle-post-b{font-size:15.5px;line-height:1.62;overflow-wrap:anywhere}
-.avle-post-gone{margin:0;font-size:14.5px;font-style:italic;color:var(--av-muted-2)}
-.avle-post-acts{display:flex;gap:14px;margin:8px 0 0}
-.avle-post-acts button{background:none;border:0;padding:4px 0;min-height:32px;font:inherit;font-size:13.5px;
-  font-weight:600;color:var(--av-muted-2);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
-.avle-post-acts button:hover{color:var(--av-ink)}
-.avle-disc-reply{margin-top:12px}
+/* Courseware items: quiz feedback, assignment, discussion */
+.avle-quiz-stat{margin:-14px 0 0;font-size:14px;color:var(--av-text-2)}
+.avle-q-fb{margin:10px 0 0;font-size:15px;line-height:1.5}
+.avle-q.is-right .avle-q-fb{color:var(--av-green)}
+.avle-q.is-wrong .avle-q-fb{color:var(--av-error)}
+.avle-opt.is-key{border-color:var(--av-green);background:var(--av-green-bg)}
+.avle-opt:has(input:disabled){cursor:default;opacity:.75}
+.avle-h2{font-family:var(--av-serif);font-size:24px;font-weight:600;margin:0 0 6px}
+.avle-asg,.avle-disc{margin-top:28px;border:1px solid var(--av-line-menu);border-radius:var(--av-r-14);padding:24px}
+.avle-asg-rule{margin:0 0 16px;font-size:15px;color:var(--av-text-2)}
+.avle-asg-state{margin:0 0 18px;padding:14px 16px;border-radius:var(--av-r-10);background:var(--av-paper);font-size:15px;line-height:1.5}
+.avle-asg-state b{margin-right:6px}
+.avle-asg-state.is-graded{background:var(--av-green-bg)}
+.avle-asg-state.is-returned{background:var(--av-red-bg)}
+.avle-asg-fb{margin-top:10px;padding-top:10px;border-top:1px solid var(--av-line)}
+.avle-asg-fb span{display:block;font-size:13px;font-weight:700;color:var(--av-text-2);margin-bottom:4px}
+.avle-asg-form{display:flex;flex-direction:column;gap:8px}
+.avle-asg-form label{font-size:15px;font-weight:600}
+.avle-asg-form label span{font-weight:400;color:var(--av-text-2)}
+.avle-asg-form textarea,.avle-asg-form input{width:100%;font:16px/1.5 var(--av-sans);padding:12px 14px;border:1.5px solid var(--av-line-menu);border-radius:var(--av-r-10);background:var(--av-white);color:var(--av-ink)}
+.avle-asg-form textarea{resize:vertical;min-height:120px}
+.avle-asg-foot{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:6px}
+@media (max-width:719px){.avle-hide-sm{display:none!important}}
 
-/* ── Key points and the study coach ───────────────────────────────────────
-   Both are labelled as written by a model, every time, with a way through to
-   a person. A learner must always be able to tell which answers came from
-   software. */
+/* Native video: speed, transcript, resources */
+.avle-video video{display:block;width:100%;height:100%;background:var(--av-ink)}
+.avle-vbar{max-width:1120px;margin:10px auto 0;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:14px;color:var(--av-text-2)}
+.avle-vbar span{margin-right:4px}
+.avle-speed{min-width:44px;min-height:36px;padding:0 10px;border:1px solid var(--av-line);border-radius:var(--av-r-pill);background:var(--av-white);color:var(--av-ink);font:600 14px var(--av-sans);cursor:pointer}
+.avle-speed[aria-pressed="true"]{background:var(--av-ink);border-color:var(--av-ink);color:var(--av-white)}
+.avle-trans{margin-top:22px;border:1px solid var(--av-line-menu);border-radius:var(--av-r-14);padding:0 20px}
+.avle-trans summary{cursor:pointer;min-height:52px;display:flex;align-items:center;font-weight:600;font-size:16px}
+.avle-trans-text{padding:0 0 18px;font-size:16px;line-height:1.65;max-height:420px;overflow:auto}
+.avle-cues{position:relative;list-style:none;margin:0;padding:0 0 14px;max-height:420px;overflow:auto}
+.avle-cue{display:grid;grid-template-columns:52px 1fr;gap:10px;width:100%;text-align:left;padding:8px 10px;border:0;border-radius:var(--av-r-8);background:transparent;color:var(--av-ink);font:15.5px/1.5 var(--av-sans);cursor:pointer}
+.avle-cue:hover{background:var(--av-stone)}
+.avle-cue.is-on{background:var(--av-gold-soft)}
+.avle-cue-t{color:var(--av-text-2);font-size:13.5px;padding-top:2px}
+.avle-res{margin-top:24px}
+.avle-res ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.avle-res a{display:flex;align-items:center;gap:12px;min-height:52px;padding:10px 14px;border:1px solid var(--av-line);border-radius:var(--av-r-10);font-size:15.5px}
+.avle-res a:hover{border-color:var(--av-line-2)}
+.avle-res-k{min-width:46px;text-align:center;padding:3px 6px;border-radius:var(--av-r-8);background:var(--av-stone);font-size:12px;font-weight:700}
+.embed-video{width:100%;display:block;background:var(--av-ink)}
+/* Embeds inside a lesson's text (Embeds::embedify) */
+.avle-body .embed{margin:28px 0}
+.avle-body .embed-16x9,.avle-body .embed-doc{position:relative;width:100%;border-radius:var(--av-r-14);overflow:hidden;background:var(--av-stone)}
+.avle-body .embed-16x9{aspect-ratio:16/9}
+.avle-body .embed-doc{aspect-ratio:4/3;max-height:80vh}
+.avle-body .embed-16x9 .embed-frame,.avle-body .embed-doc .embed-frame,.avle-body .embed-16x9 .embed-video{position:absolute;inset:0;width:100%;height:100%;border:0}
+.avle-body .embed-fixed .embed-frame{width:100%;border:0;border-radius:var(--av-r-14);display:block}
+.avle-body .embed figcaption{margin-top:10px;text-align:center;font-size:14px;color:var(--av-text-2)}
+.avle-body .embed-card-link{display:flex;flex-direction:column;gap:6px;border:1px solid var(--av-line);border-left:4px solid var(--av-gold);border-radius:var(--av-r-10);padding:18px 20px}
+.avle-body .embed-card-provider{font-size:13px;font-weight:700;color:var(--av-gold-text)}
+.avle-body .embed-card-label{font-weight:700;font-size:17px}
+.avle-body video,.avle-body audio{max-width:100%}
+.avle-body img{max-width:100%;height:auto;border-radius:var(--av-r-10)}
+
+.avle-modintro{margin:0 0 28px;padding:22px 24px;border-radius:var(--av-r-14);background:var(--av-paper);border:1px solid var(--av-line)}
+.avle-modintro-k{font-size:13px;font-weight:700;color:var(--av-gold-text);margin-bottom:4px}
+.avle-modintro p{margin:6px 0 0;font-size:16px;line-height:1.6}
+.avle-modintro h3{margin:16px 0 6px;font-size:15px}
+.avle-modintro ul{margin:0;padding-left:20px;line-height:1.6}
+
+/* -- "In short": the lesson's key points, generated once and cached against
+   a hash of the body (lib/LmsCoach.php). Labelled as written by a model, and
+   a way in rather than a replacement.
+
+   NOT .avle-keys: that is already the keyboard-shortcut hint, which is
+   display:none under 640px, so this box would have vanished on every phone. */
 .avle-brief{border-left:3px solid var(--av-gold,#E0A82E);background:var(--av-gold-soft,#fdf7e8);
   border-radius:0 12px 12px 0;padding:14px 18px;margin:0 0 4px}
 .avle-brief-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 8px;
@@ -292,11 +326,3 @@ body.avle{margin:0;background:var(--av-white);color:var(--av-ink);font-family:va
 .avle-brief-h span{font-weight:600;letter-spacing:0;text-transform:none;font-size:12.5px;color:var(--av-muted-2)}
 .avle-brief ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px}
 .avle-brief li{font-size:15px;line-height:1.55}
-
-.avle-disc-kill{margin-top:12px;padding:12px 14px;border:1px solid var(--av-line);border-radius:12px;
-  background:var(--av-stone,#f7f6f2);display:flex;flex-direction:column;gap:10px}
-.avle-disc-ask{margin:0;font-size:14px;line-height:1.5}
-.avle-disc-kill input{min-height:44px;padding:0 12px;border:1px solid var(--av-line);border-radius:10px;font:inherit;font-size:15px}
-.avle-disc-kill input:focus{outline:3px solid var(--av-gold,#E0A82E);outline-offset:1px}
-.avle-btn--warn{background:#B3261E;border-color:#B3261E;color:#fff}
-.avle-btn--warn:hover{background:#9a1f18}

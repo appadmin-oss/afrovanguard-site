@@ -35,6 +35,13 @@ if (str_ends_with(strtolower($uri), '.pdf')) {
 }
 
 // Serve existing static files (css, js, images, .html) directly.
+// /llms.txt for AI assistants (mirrors .htaccess).
+if ($uri === '/llms.txt') { require __DIR__ . '/llms.php'; return true; }
+
+// The retired LCASP 2026 campaign page (mirrors .htaccess). Before the
+// real-file branch below: the file still exists, as the record.
+if (preg_match('~^/projects/sts/lcasp(?:\.html|/)?$~', $uri)) { header('Location: /projects/sts/', true, 301); return true; }
+
 if ($uri !== '/' && is_file($path)) { return false; }
 
 // Serve real directories that ship their own index.php (e.g. /academy/studio/)
@@ -51,6 +58,13 @@ if ($uri !== '/' && is_dir($path) && is_file(rtrim($path, '/') . '/index.php')) 
 if (preg_match('~^/projects/africa-gates/?(.*)$~', $uri, $m)) {
     $qs = $_SERVER['QUERY_STRING'] ?? '';
     header('Location: https://afg.afrovanguard.org.ng/' . $m[1] . ($qs ? '?' . $qs : ''), true, 301);
+    return true;
+}
+
+// Street-To-Stardom's own site: the old copy's paths go there (mirrors .htaccess).
+if (preg_match('~^/projects/sts/((?:about|team|impact|units|programs|get-involved|blog|contact|ceo)(?:/.*)?)$~', $uri, $m)) {
+    $qs = $_SERVER['QUERY_STRING'] ?? '';
+    header('Location: https://sts.afrovanguard.org.ng/' . $m[1] . ($qs ? '?' . $qs : ''), true, 301);
     return true;
 }
 
@@ -127,6 +141,14 @@ if ($uri === '/academy/dns/og.png') { require __DIR__ . '/academy/dns/og.php'; r
 if ($uri === '/academy/dns/summit.ics') { require __DIR__ . '/academy/dns/summit.ics.php'; return true; }
 if (preg_match('~^/academy/og/([a-z0-9-]+)\.png$~', $uri, $m)) { $_GET['slug'] = $m[1]; require __DIR__ . '/academy/og.php'; return true; }
 if (preg_match('~^/academy/?$~', $uri)) { require __DIR__ . '/academy/index.php'; return true; }
+if (preg_match('~^/academy/my/?$~', $uri)) { require __DIR__ . '/academy/my.php'; return true; }
+if (preg_match('~^/academy/programmes/?$~', $uri)) { require __DIR__ . '/academy/programme.php'; return true; }
+if (preg_match('~^/academy/programmes/([a-z0-9-]+)/?$~', $uri, $m)) { $_GET['slug'] = $m[1]; require __DIR__ . '/academy/programme.php'; return true; }
+if (preg_match('~^/academy/programmes/([a-z0-9-]+)/certificate/?$~', $uri, $m)) { $_GET['slug'] = $m[1]; $_GET['cert'] = '1'; require __DIR__ . '/academy/programme.php'; return true; }
+if (preg_match('~^/academy/teach/grading/?$~', $uri)) { require __DIR__ . '/academy/grading.php'; return true; }
+if (preg_match('~^/academy/([a-z0-9-]+)/grades/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/grades.php'; return true; }
+if (preg_match('~^/academy/([a-z0-9-]+)/discussions/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/forum.php'; return true; }
+if (preg_match('~^/academy/([a-z0-9-]+)/discussions/([0-9]+)/?$~', $uri, $m)) { $_GET['course'] = $m[1]; $_GET['thread'] = $m[2]; require __DIR__ . '/academy/forum.php'; return true; }
 if (preg_match('~^/academy/teach/?$~', $uri)) { require __DIR__ . '/academy/teach.php'; return true; }
 if (preg_match('~^/academy/teach/([a-z0-9-]+)/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/teach.php'; return true; }
 if (preg_match('~^/academy/([a-z0-9-]+)/certificate/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/certificate.php'; return true; }

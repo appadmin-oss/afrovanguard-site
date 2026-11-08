@@ -93,7 +93,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
 <main id="main" tabindex="-1">
 
 <header class="avpj-hero">
-  <img class="avpj-hero-img" src="<?= e($P['img']) ?>" alt="<?= e($P['name']) ?>" fetchpriority="high">
+  <img class="avpj-hero-img" src="<?= e($P['img']) ?>" alt="<?= e(avpj_img_alt((string) $P['img'], (string) $P['name'])) ?>" fetchpriority="high">
   <div class="avpj-hero-shade" aria-hidden="true"></div>
   <div class="avpj-hero-in avh-pad">
     <div class="avpj-hero-copy">
@@ -128,6 +128,18 @@ if (function_exists('send_security_headers')) send_security_headers('public');
     </aside>
   </div>
 </section>
+
+<?php if ($v['programmes']): ?>
+<section class="avpj-appeals avh-pad" aria-labelledby="avpj-programmes-h">
+  <div class="avpj-wrap">
+    <div class="avpj-eyebrow">Programmes</div>
+    <h2 class="avpj-h2 avpj-h2--sm" id="avpj-programmes-h">What <?= e($P['abbr']) ?> runs</h2>
+    <ul class="avpj-pgm">
+<?php foreach ($v['programmes'] as [$pn, $ph, $pd]): $pext = preg_match('~^https?://~', $ph) === 1; ?>      <li><?php if ($ph === ''): ?><span class="avpj-pgm-name"><?= e($pn) ?></span><?php else: ?><a href="<?= e($ph) ?>"<?= $pext ? ' target="_blank" rel="noopener"' : '' ?>><?= e($pn) ?><?= $pext ? '<span class="av-sr"> (opens in a new tab)</span> <span aria-hidden="true">↗</span>' : ' <span aria-hidden="true">→</span>' ?></a><?php endif; ?><p><?= e($pd) ?></p></li>
+<?php endforeach; ?>    </ul>
+  </div>
+</section>
+<?php endif; ?>
 
 <?php if ($appeals): /* Kept from v1: live appeals filed against this project, hidden when there are none. */ ?>
 <section class="avpj-appeals avh-pad" aria-labelledby="avpj-appeals-h">
@@ -177,12 +189,12 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <div class="avpj-wrap">
     <div class="avpj-more-head">
       <h2 class="avpj-h2 avpj-h2--md" id="avpj-more-h">Other projects</h2>
-      <a class="avpj-link" href="/projects/">All nine projects →</a>
+      <a class="avpj-link" href="/projects/">All seven projects →</a>
     </div>
     <div class="avpj-others">
 <?php foreach ($v['others'] as $o): ?>
       <a class="avpj-card" href="<?= e($o['href']) ?>"<?= $o['ext'] ? ' target="_blank" rel="noopener"' : '' ?>>
-        <img src="<?= e($o['img']) ?>" alt="<?= e($o['name']) ?>" loading="lazy" decoding="async" width="580" height="363">
+        <img src="<?= e($o['img']) ?>" alt="<?= e(avpj_img_alt((string) $o['img'], (string) $o['name'])) ?>" loading="lazy" decoding="async" width="580" height="363">
         <div class="avpj-card-body">
           <div class="avpj-kicker"><?= e($o['cat']) ?></div>
           <div class="avpj-card-t"><?= e($o['name']) ?><?= $o['ext'] ? '<span class="av-sr"> (opens in a new tab)</span>' : '' ?></div>
@@ -202,7 +214,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <div class="avpj-inv-ctas">
     <a class="avpj-gold" href="/donate.html">Donate</a>
     <a href="/contact.html">Volunteer</a>
-    <a href="/projects/">Apply to a program</a>
+    <a href="/projects/">Join a project</a>
   </div>
 </section>
 

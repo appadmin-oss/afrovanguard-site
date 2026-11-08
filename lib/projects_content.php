@@ -1,6 +1,13 @@
 <?php
 /**
- * projects_content.php — the nine Afrovanguard projects, one source of truth.
+ * projects_content.php — the seven Afrovanguard projects, one source of truth.
+ *
+ * Projects, not programmes (owner, 2026-11-05): Street-To-Stardom, Techome,
+ * MediaPro, Kingdom Advancement Project, Africa GATES, Business Executive Club
+ * and Career Hub. Programmes run UNDER a project and are listed on it in
+ * 'programmes' — Next Generation Genius and LCASP (formerly the Alimosho Summer
+ * School) are Street-To-Stardom's. The Academy is the learning platform, not a
+ * project.
  *
  * Copy from design/Afrovanguard Projects.dc.html and Afrovanguard Project.dc.html
  * (REPLACEMENT_MAP row 6), ported as data. Read by:
@@ -11,7 +18,9 @@
  * Keys: abbr, name, cat (filter category), status, selective (gold dot +
  * application entry; otherwise green dot + open registration), img, href,
  * ext (another site: opens in a new tab), local (has a page here), d, tags,
- * mail (Talk to the team), gallery (optional, How to join images).
+ * mail (Talk to the team), gallery (optional, How to join images),
+ * programmes (optional: [name, href, description] for each programme run under it;
+ *            href '' when the programme has no page of its own).
  * Order is the design's card order.
  */
 declare(strict_types=1);
@@ -26,14 +35,12 @@ return [
         'd' => 'Where raw talent meets relentless refinement. STS channels music, dance and performing arts into professional-grade careers.',
         'tags' => ['Music', 'Dance', 'Performing Arts', 'Free'],
         'mail' => 'sts@afrovanguard.org.ng',
-    ],
-    'ngg' => [
-        'abbr' => 'NGG', 'name' => 'Next Generation Genius', 'cat' => 'Leadership',
-        'status' => 'Selective entry', 'selective' => true,
-        'img' => '/assets/ngg/p04.jpeg', 'href' => 'https://next.afrovanguard.org.ng/', 'ext' => true, 'local' => false,
-        'd' => 'Born from STS, NGG accelerates exceptional talent through competitive challenges, scholarships and stretching programming.',
-        'tags' => ['Competitive', 'Scholarships', 'Residential'],
-        'mail' => 'cacentre@afrovanguard.org.ng',
+        'programmes' => [
+            ['Next Generation Genius', 'https://next.afrovanguard.org.ng/',
+             'Accelerates exceptional talent through competitive challenges, scholarships and stretching programming.'],
+            ['LCASP — Lagos Community Advancement School Project', '',
+             'Formerly the Alimosho Summer School, renamed as it grows beyond Alimosho: skills, values and mentorship at community centres across Lagos.'],
+        ],
     ],
     'techhome' => [
         'abbr' => 'Techome', 'name' => 'Techome', 'cat' => 'Technology',
@@ -62,7 +69,7 @@ return [
     'africa-gates' => [
         'abbr' => 'GATES', 'name' => 'Africa GATES', 'cat' => 'Leadership',
         'status' => 'Open to apply', 'selective' => false,
-        'img' => $img('gates2.png'), 'href' => 'https://afg.afrovanguard.org.ng', 'ext' => true, 'local' => false,
+        'img' => $img('gates1.png'), 'href' => 'https://afg.afrovanguard.org.ng', 'ext' => true, 'local' => false,
         'd' => 'Curating international scholarships and fellowships, then walking applicants through every step of the journey.',
         'tags' => ['Scholarships', 'Fellowships', 'Global'],
         'mail' => 'gates@afrovanguard.org.ng',
@@ -83,13 +90,5 @@ return [
         'd' => 'CV workshops, interview coaching, sector mentorship, and direct connections to employers hiring young Nigerians.',
         'tags' => ['CV Coaching', 'Mentorship', 'Job Placement'],
         'mail' => 'careers@afrovanguard.org.ng',
-    ],
-    'ngv' => [
-        'abbr' => 'NGV', 'name' => 'Afrovanguard Academy', 'cat' => 'Leadership',
-        'status' => 'Forming NGV cohort', 'selective' => true,
-        'img' => $img('summer1.png'), 'href' => '/academy/', 'ext' => false, 'local' => false,
-        'd' => 'Where Vanguards are made — structured leadership formation, practical training and doctrine for the Next Generation Vanguard cohort.',
-        'tags' => ['Leadership', 'Doctrine', 'NGV Cohort'],
-        'mail' => 'cacentre@afrovanguard.org.ng',
     ],
 ];

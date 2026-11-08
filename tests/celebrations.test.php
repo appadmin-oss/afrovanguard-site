@@ -57,18 +57,23 @@ $t = av_celebration_theme($celPdo, '2026-12-26');
 ck('Celebrations: Boxing Day themes the page in Christmas art', $t && $t['key'] === 'boxingday' && $t['art'] === 'christmas' && $t['today'] === true);
 ck('Celebrations: no theme far from a holiday', av_celebration_theme($celPdo, '2026-09-03') === null);
 
-/* ── the year's holidays (owner, 2026-10-11): anniversary on 14 Nov, Nigerian public holidays, the countdown ── */
+/* ── the year's holidays: the anniversary on 9 Nov (owner, 2026-11-06), celebrated a week either side ── */
 $fd = array_values(array_filter(av_celebration_calendar(2026), fn($r) => $r[0] === 'founding'))[0];
-ck('Celebrations: the anniversary is 14 November', $fd[2] === '11-14');
-$c = av_celebration_today($celPdo, '2026-11-14');
-ck('Celebrations: on 14 Nov 2026 the card is the ninth anniversary', $c && $c['primary']['key'] === 'founding' && $c['primary']['title'] === 'Nine years of Afrovanguard');
+ck('Celebrations: the anniversary is 9 November', $fd[2] === '11-09');
+$c = av_celebration_today($celPdo, '2026-11-09');
+ck('Celebrations: on 9 Nov 2026 the card is the ninth anniversary', $c && $c['primary']['key'] === 'founding' && $c['primary']['title'] === 'Nine years of Afrovanguard');
 ck('Celebrations: nothing on 1 July any more', av_celebration_today($celPdo, '2026-07-01') === null);
-$c = av_celebration_today($celPdo, '2026-11-10');
+$c = av_celebration_today($celPdo, '2026-11-05');
 ck('Celebrations: the week before counts down', $c && $c['primary']['key'] === 'foundingweek' && $c['primary']['title'] === 'Four days to go: nine years of Afrovanguard' && $c['primary']['art'] === 'founding');
-$c = av_celebration_today($celPdo, '2026-11-13');
+$c = av_celebration_today($celPdo, '2026-11-08');
 ck('Celebrations: …to “Tomorrow”', $c && $c['primary']['title'] === 'Tomorrow: nine years of Afrovanguard');
-ck('Celebrations: …starting seven days out', av_celebration_today($celPdo, '2026-11-07') !== null && av_celebration_today($celPdo, '2026-11-06') === null);
-$c = av_celebration_today($celPdo, '2027-11-14');
+ck('Celebrations: …starting seven days out (2 Nov), not before', av_celebration_today($celPdo, '2026-11-02') !== null && av_celebration_today($celPdo, '2026-11-01') === null);
+$c = av_celebration_today($celPdo, '2026-11-12');
+ck('Celebrations: the week after keeps celebrating', $c && $c['primary']['key'] === 'foundingweek' && $c['primary']['title'] === 'Celebrating nine years of Afrovanguard'
+    && $c['primary']['message'] === 'Afrovanguard turned nine on 9 November. Thank you for being part of the story.' && $c['primary']['art'] === 'founding');
+ck('Celebrations: …to 16 Nov, and not after', av_celebration_today($celPdo, '2026-11-16') !== null && av_celebration_today($celPdo, '2026-11-17') === null);
+ck('Celebrations: the old date (14 Nov) is just a day of the season now', (av_celebration_today($celPdo, '2026-11-14')['primary']['title'] ?? '') === 'Celebrating nine years of Afrovanguard');
+$c = av_celebration_today($celPdo, '2027-11-09');
 ck('Celebrations: and next year it counts ten', $c && $c['primary']['title'] === 'Ten years of Afrovanguard');
 $c = av_celebration_today($celPdo, '2026-12-26');
 ck('Celebrations: Boxing Day is a holiday', $c && $c['primary']['key'] === 'boxingday');
@@ -77,9 +82,9 @@ ck('Celebrations: Eid-el-Maulud is computed (26 Aug 2026)', $c && $c['primary'][
 $yr = av_celebration_year($celPdo, 2026);
 $dates = array_column($yr, 'date');
 $sorted = $dates; sort($sorted);
-ck('Celebrations: the year lists every holiday with its date, in order', count($yr) === 29 && $dates === $sorted
+ck('Celebrations: the year lists every holiday with its date, in order', count($yr) === 36 && $dates === $sorted
     && in_array('2026-03-20', $dates, true) && in_array('2026-04-05', $dates, true) && in_array('2026-05-27', $dates, true));
-ck('Celebrations: the Studio shows the countdown as one row', count(array_filter(av_celebration_year_for_studio($celPdo, 2026), fn($h) => $h['key'] === 'foundingweek')) === 1);
+ck('Celebrations: the Studio shows the anniversary season as one row', count(array_filter(av_celebration_year_for_studio($celPdo, 2026), fn($h) => $h['key'] === 'foundingweek')) === 1);
 ck('Celebrations: every listed holiday has art to wear', !array_filter($yr, fn($h) => $h['art'] === ''));
 
 /* overrides: turn one off, move a fixed date, set this year's Eid */

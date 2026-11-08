@@ -117,7 +117,7 @@ $desc  = 'Sign in to your Afrovanguard account to continue learning, track your 
         <li>Mentorship &amp; community</li>
       </ul>
     </div>
-    <span class="avsi-est">Est. 2018 · Alimosho, Lagos</span>
+    <span class="avsi-est">Est. 2017 · Alimosho, Lagos</span>
   </aside>
 
   <section class="avsi-col" aria-labelledby="avsi-h">

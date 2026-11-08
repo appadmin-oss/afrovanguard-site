@@ -11,7 +11,12 @@ services:
       PORT: "8080"
       SITE_URL: "http://localhost:8080"
       AV_ORG_DOMAIN: "afrovanguard.org.ng"
-      APP_KEY: "${APP_KEY:-change-me-32+chars-in-production}"
+      # Required: `docker compose up` stops here until APP_KEY is set (32+ random characters).
+      APP_KEY: "${APP_KEY:?Set APP_KEY to 32+ random characters before starting}"
+      # The databases live on the data volume, not in db/. db/ holds the schema and
+      # seed files that each new image brings, so it must never be a volume.
+      AV_DB_PATH: "/var/lib/afrovanguard/diary.sqlite"
+      AV_NGV_DB_PATH: "/var/lib/afrovanguard/ngv.sqlite"
       # ── Email (see config.example.php) ─────────────────────────────
       # SMTP_HOST: "smtp.gmail.com"
       # SMTP_USERNAME: "donations@afrovanguard.org.ng"
@@ -30,8 +35,16 @@ services:
       # AV_DB_PASS: "afro"
       # AV_DB_STRICT: "1"                # fail loudly instead of falling back to SQLite
     volumes:
-      - app-db:/var/www/html/db         # persist the SQLite DB across restarts
+      # Data only. db/ used to be the volume, so the schema and seed files baked
+      # into a new image were hidden behind the old volume's copies and a deploy
+      # never received a new table or column.
+      - app-data:/var/lib/afrovanguard               # SQLite databases
+      - app-private:/var/www/html/db/private         # runtime records the app writes
+      - app-cache:/var/www/html/db/cache             # rate limits, locks
       - app-uploads:/var/www/html/uploads
+      # An install that ran with the old `app-db` volume: mount it here once and
+      # the entrypoint copies its databases across (then this line can go).
+      # - app-db:/var/www/html/db-legacy:ro
     # depends_on: [db]
     restart: unless-stopped
 
@@ -47,6 +60,9 @@ services:
   #   restart: unless-stopped
 
 volumes:
-  app-db:
+  app-data:
+  app-private:
+  app-cache:
   app-uploads:
+  # app-db:           # the old whole-db/ volume, only while moving off it
   # db-data:

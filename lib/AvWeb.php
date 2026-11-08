@@ -205,7 +205,7 @@ final class AvWeb
             if (isset($seen[$url])) return ['error' => 'Redirect loop.'];
             $seen[$url] = true;
 
-            $r = self::rawGet($url);
+            $r = self::rawGet($url, 0, '', (string) ($guard['pin'] ?? ''));
             if (isset($r['error'])) return $r;
 
             if ($r['status'] >= 300 && $r['status'] < 400 && $r['location'] !== '') {
@@ -256,9 +256,10 @@ final class AvWeb
         for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
             if (isset($seen[$url])) return null;              // redirect loop
             $seen[$url] = true;
-            if (isset(self::guard($url)['error'])) return null;
+            $g = self::guard($url);
+            if (isset($g['error'])) return null;
 
-            $r = self::rawGet($url, $maxBytes, 'image/*,*/*;q=0.8');
+            $r = self::rawGet($url, $maxBytes, 'image/*,*/*;q=0.8', (string) ($g['pin'] ?? ''));
             if (isset($r['error'])) return null;
 
             if ($r['status'] >= 300 && $r['status'] < 400 && $r['location'] !== '') {
@@ -336,7 +337,12 @@ final class AvWeb
                 return ['error' => 'That address is on a private or reserved network and will not be fetched.'];
             }
         }
-        return ['ok' => true];
+        /* The address that was checked is the one connected to. cURL resolves
+           the name again on its own, so a name that answered with a public
+           address here and a private one a moment later (DNS rebinding, a TTL
+           of zero) reached the private one. CURLOPT_RESOLVE pins it. */
+        $pin = filter_var($host, FILTER_VALIDATE_IP) ? '' : $host . ':' . $port . ':' . (str_contains($ips[0], ':') ? '[' . $ips[0] . ']' : $ips[0]);
+        return ['ok' => true, 'pin' => $pin];
     }
 
     /** True only for a genuinely public, routable address. */
@@ -355,7 +361,7 @@ final class AvWeb
     }
 
     /** One HTTP GET, no redirect following, bounded body. */
-    private static function rawGet(string $url, int $maxBytes = 0, string $accept = ''): array
+    private static function rawGet(string $url, int $maxBytes = 0, string $accept = '', string $pin = ''): array
     {
         if (!function_exists('curl_init')) return ['error' => 'cURL is unavailable.'];
         $cap = $maxBytes > 0 ? $maxBytes : self::MAX_BYTES;
@@ -371,6 +377,7 @@ final class AvWeb
             CURLOPT_HTTPHEADER     => ['Accept: ' . $accept],
             CURLOPT_COOKIEFILE     => '',             // send no cookies, keep none
             CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_RESOLVE        => $pin !== '' ? [$pin] : [],
             // Stop reading once the cap is passed rather than buffering a whole
             // multi-megabyte page into memory.
             CURLOPT_BUFFERSIZE     => 16384,

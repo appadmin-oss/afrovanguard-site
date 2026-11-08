@@ -74,6 +74,10 @@ ck('record: a member with nothing against them holds integrity', QuestRecord::ho
 ck('record: a mentor cannot record a finding', !QuestRecord::raiseFinding($A, 'resources', $detail, $mentor)['ok']);
 ck('record: a verdict is not a finding', !QuestRecord::raiseFinding($A, 'resources', 'He is dishonest.', $decider)['ok']);
 ck('record: a finding needs a kind', !QuestRecord::raiseFinding($A, 'vibes', $detail, $decider)['ok']);
+ck('record: seven kinds of finding, and only these (the owner, 2 November 2026)',
+   array_keys(QuestRecord::FINDING_KINDS) === ['dishonesty', 'commitments', 'resources', 'bribery', 'theft', 'abuse', 'violence']);
+ck('record: "other" can no longer be raised', !QuestRecord::raiseFinding($A, 'other', $detail, $decider)['ok']);
+ck('record: …but an old "other" finding still reads', QuestRecord::findingLabel('other') !== 'Finding' && QuestRecord::findingLabel('theft') === 'Theft or fraud');
 ck('record: nobody records a finding about themselves',
    !QuestRecord::raiseFinding($D, 'resources', $detail, $decider)['ok']);
 

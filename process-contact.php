@@ -254,12 +254,12 @@ function adminNotifyHtml(array $d): string {
    PURPOSE LABELS
    ═══════════════════════════════════════════════════════════ */
 $PURPOSE_LABELS = [
-    'volunteer' => 'Volunteering — Street-To-Stardom / Summer School',
+    'volunteer' => 'Volunteering — Street-To-Stardom / LCASP',
     'business'  => 'Business — BEC / Partnerships',
     'tech'      => 'Technology — Techome',
     'media'     => 'Media — Mediapro',
     'career'    => 'Career Development — Career Hub',
-    'creative'  => 'Creative / Cultural — Africa GATES',
+    'creative'  => 'Scholarships & fellowships — Africa GATES',
     'kingdom'   => 'Kingdom Advancement Project',
     'donation'  => 'Donation Enquiry',
     'general'   => 'General Enquiry',
@@ -595,7 +595,7 @@ if ($action === 'newsletter') {
         'Welcome to the Afrovanguard community',
         [
             "You've been added to our newsletter. You'll receive weekly updates on programs, events, and impact stories from across the movement.",
-            'Follow us: <a href="https://www.instagram.com/afrovanguard/" style="color:#8A6406;text-decoration:underline">@afrovanguard</a>',
+            'Follow us: <a href="https://www.instagram.com/afro.vanguard/" style="color:#8A6406;text-decoration:underline">@afro.vanguard</a>',
             'Warm regards,<br><strong>The Afrovanguard Team</strong>',
         ],
         ['text' => 'See what we are building', 'url' => 'https://afrovanguard.org.ng/'],

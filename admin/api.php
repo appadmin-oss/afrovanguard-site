@@ -373,12 +373,23 @@ try {
             // Email/delivery health, distilled from the same signals as the System page.
             $mailReady = Mailer::configured();
             $mailHost  = defined('SMTP_HOST') ? (string) SMTP_HOST : '';
-            $health = ['ok' => 0, 'warn' => 0, 'off' => 0];
-            foreach (Config::diagnostics() as $g) {
-                foreach (($g['checks'] ?? []) as $c) {
-                    $st = $c['state'] ?? 'info';
-                    if (isset($health[$st])) $health[$st]++;
+            /* The three health numbers come from the full diagnostics, which
+               decrypt every setting, count information_schema and ask each
+               provider how it is set up — work the System page needs live and
+               the landing view does not, on every console load. Kept 15 minutes;
+               ?fresh=1 (the System page's refresh) recomputes. */
+            $health = null;
+            $hc = json_decode((string) (Database::metaGet('dash_health') ?? ''), true);
+            if (is_array($hc) && empty($_GET['fresh']) && (int) ($hc['at'] ?? 0) > time() - 900 && is_array($hc['h'] ?? null)) $health = $hc['h'];
+            if ($health === null) {
+                $health = ['ok' => 0, 'warn' => 0, 'off' => 0];
+                foreach (Config::diagnostics() as $g) {
+                    foreach (($g['checks'] ?? []) as $c) {
+                        $st = $c['state'] ?? 'info';
+                        if (isset($health[$st])) $health[$st]++;
+                    }
                 }
+                try { Database::metaSet('dash_health', json_encode(['at' => time(), 'h' => $health])); } catch (Throwable $e) { /* best effort */ }
             }
             json_out(['ok' => true, 'stats' => [
                 'diary_published'   => $cnt("SELECT COUNT(*) FROM articles WHERE status='published'"),
@@ -1044,6 +1055,14 @@ try {
                 json_out(['ok' => false, 'error' => 'This site is already running on '
                     . strtoupper(Database::driver()) . '. There is nothing to move.'], 422);
             }
+            /* Running on SQLite because the configured server database is DOWN is
+               not running on SQLite: the file is a stale fallback, and a replace
+               copy from it would empty the live database and refill it with old
+               rows. Never move data out of a fallback. */
+            if (Database::fellBack() !== null) {
+                json_out(['ok' => false, 'error' => 'The site is on its fallback copy because ' . strtoupper((string) Database::fellBack())
+                    . ' could not be reached. Nothing is moved from a fallback: fix the connection first.'], 409);
+            }
             try { $dst = DbMigrateJob::connect($conf); }
             catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Could not connect: ' . $e->getMessage()], 502); }
             $src = Database::pdo();
@@ -1081,6 +1100,10 @@ try {
             require_once AV_ROOT . '/lib/Migrator.php';
             $to   = strtolower(trim((string) ($body['driver'] ?? '')));
             if (!in_array($to, ['mysql', 'pgsql'], true)) json_out(['ok' => false, 'error' => 'Choose a MySQL or PostgreSQL target.'], 422);
+            if ($action === 'db_migrate' && Database::fellBack() !== null) {
+                json_out(['ok' => false, 'error' => 'The site is on its fallback copy because ' . strtoupper((string) Database::fellBack())
+                    . ' could not be reached. Nothing is moved from a fallback: fix the connection first.'], 409);
+            }
             $host = trim((string) ($body['host'] ?? '')) ?: '127.0.0.1';
             $port = trim((string) ($body['port'] ?? '')) ?: ($to === 'pgsql' ? '5432' : '3306');
             $name = trim((string) ($body['name'] ?? ''));
@@ -1115,6 +1138,7 @@ try {
                 $file = AV_ROOT . "/db/schema.$to.sql";
                 if (!is_file($file)) json_out(['ok' => false, 'error' => "Schema file missing: db/schema.$to.sql"], 500);
                 $sql = preg_replace('/--[^\n]*/', '', (string) file_get_contents($file));
+                if ($to === 'mysql') $sql = Database::mysqlDdl((string) $sql);   // strict MySQL 8 refuses a literal TEXT default
                 /* "Already there" is not a failure. MySQL has no
                    CREATE INDEX IF NOT EXISTS, so re-applying this schema always
                    raises 1061 Duplicate key name on the first index — and this
@@ -1818,6 +1842,9 @@ try {
         case 'upload':
             if ($method !== 'POST' || empty($_FILES['file'])) json_out(['ok' => false, 'error' => 'No file.'], 400);
             $f = $_FILES['file'];
+            /* The host's own limit refuses a big video before this code sees it; say so plainly. */
+            if (in_array($f['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true))
+                json_out(['ok' => false, 'error' => 'Too large for this server (limit ' . ini_get('upload_max_filesize') . '). Upload the video to YouTube, Vimeo or Loom and paste its link instead.'], 413);
             if ($f['error'] !== UPLOAD_ERR_OK) json_out(['ok' => false, 'error' => 'Upload error.'], 400);
             $mime = Storage::mime($f['tmp_name']);
             $imageOk = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
@@ -1832,12 +1859,23 @@ try {
             $isAudio  = in_array($mime, $audioOk, true)
                      || ($mime === 'application/octet-stream' && in_array($ext, ['mp3', 'm4a', 'aac', 'ogg', 'oga', 'wav'], true));
             // Audio narrations can be large; everything else stays at 25 MB.
-            $cap = $isAudio ? 60 : 25;
+            $videoOk = ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'video/x-m4v'];
+            $isVideo = in_array($mime, $videoOk, true);
+            /* WebVTT is plain text to finfo; the extension and the header line say it is captions. */
+            $isVtt = $ext === 'vtt' && in_array($mime, ['text/plain', 'text/vtt'], true)
+                  && str_starts_with(ltrim((string) @file_get_contents($f['tmp_name'], false, null, 0, 16), "\xEF\xBB\xBF"), 'WEBVTT');
+            // Course video is large; narrations next; everything else stays at 25 MB.
+            $cap = $isVideo ? 500 : ($isAudio ? 60 : 25);
             if ($f['size'] > $cap * 1024 * 1024) json_out(['ok' => false, 'error' => 'Max ' . $cap . ' MB.'], 413);
-            if (!$isAudio && !in_array($mime, array_merge($imageOk, $docOk), true)) json_out(['ok' => false, 'error' => 'Unsupported file type.'], 415);
+            if (!$isAudio && !$isVideo && !$isVtt && !in_array($mime, array_merge($imageOk, $docOk), true)) json_out(['ok' => false, 'error' => 'Unsupported file type.'], 415);
             // images/audio → Cloudinary (resource_type auto), documents → Drive (each with a local fallback)
             $res = Storage::put($f['tmp_name'], $f['name'], 'auto');
-            json_out(['ok' => true, 'url' => $res['url'], 'location' => $res['url'], 'provider' => $res['provider'], 'kind' => $res['kind'] ?? ($isAudio ? 'audio' : 'image')]);
+            /* A local image gets its common thumbnails now, so the first page to
+               show it does not wait on the resize. Cloudinary resizes itself. */
+            if (in_array($mime, $imageOk, true) && str_starts_with((string) ($res['url'] ?? ''), '/uploads/')) {
+                foreach ([160, 640] as $tw) { try { Thumbs::make((string) $res['url'], $tw); } catch (Throwable $e) { /* made on first view instead */ } }
+            }
+            json_out(['ok' => true, 'url' => $res['url'], 'location' => $res['url'], 'provider' => $res['provider'], 'kind' => $res['kind'] ?? ($isVideo || $isVtt ? 'media' : ($isAudio ? 'audio' : 'image'))]);
 
         case 'save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
@@ -1920,7 +1958,20 @@ try {
         }
 
         /* ── Academy ── */
-        case 'ac_list':       json_out(['ok' => true, 'courses' => $ac->allForAdmin()]);
+        case 'ac_list': {
+            /* Each row carries a thumbnail URL: the list shows covers 64 px wide,
+               and loading each upload at full size was the whole of this page's
+               weight (52 MB for 46 courses on a test catalogue). */
+            $rows = $ac->allForAdmin();
+            $lst = (new LmsCourseware(null, $lms))->stats(array_column($rows, 'id'));   // grouped: four queries for the whole list
+            foreach ($rows as &$r) {
+                $r['cover_thumb'] = Thumbs::url((string) ($r['cover_url'] ?? ''), 160);
+                $r['items'] = $lst[(int) $r['id']]['lessons'] ?? 0;
+                $r['learners'] = $lst[(int) $r['id']]['enrolled'] ?? 0;
+            }
+            unset($r);
+            json_out(['ok' => true, 'courses' => $rows]);
+        }
         case 'ac_overview': {
             $pdo = Database::pdo();
             $cnt = function (string $sql) use ($pdo): int { try { return (int) $pdo->query($sql)->fetchColumn(); } catch (Throwable $e) { return 0; } };
@@ -1942,7 +1993,9 @@ try {
         case 'ac_roster': {
             $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
             if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
-            json_out(['ok' => true, 'course' => ['slug' => $cs['slug'], 'title' => $cs['title'], 'lessons' => $lms->lessonCount((int) $cs['id'])], 'roster' => $lms->roster((int) $cs['id'])]);
+            $rst = in_array($_GET['state'] ?? '', ['not_started', 'in_progress', 'finished', 'certified'], true) ? (string) $_GET['state'] : '';
+            json_out(['ok' => true, 'course' => ['slug' => $cs['slug'], 'title' => $cs['title'], 'lessons' => $lms->lessonCount((int) $cs['id']), 'enrolled' => $lms->enrolledCount((int) $cs['id'])],
+                      'roster' => $lms->roster((int) $cs['id'], 300, (string) ($_GET['q'] ?? ''), $rst)]);
         }
         case 'ac_export': {
             $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
@@ -2037,6 +2090,10 @@ try {
                 'access_type' => (string) ($body['access_type'] ?? 'open'), 'price_ngn' => (int) ($body['price_ngn'] ?? 0),
                 'pass_code' => (string) ($body['pass_code'] ?? ''),
             ];
+            // Course details and grading, only when the Studio sends them.
+            foreach (['language', 'skills', 'prerequisites', 'pass_mark', 'pace_weeks', 'sequential'] as $k) {
+                if (array_key_exists($k, $body)) $fields[$k] = $body[$k];
+            }
             // Resolve an instructor by email (must already have an Academy account).
             $instructorMsg = null;
             if (array_key_exists('instructor_email', $body)) {
@@ -2114,10 +2171,15 @@ try {
         case 'mod_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $title = trim((string) ($body['title'] ?? '')); if ($title === '') json_out(['ok' => false, 'error' => 'Title required.'], 422);
-            if (!empty($body['id'])) { $lms->renameModule((int) $body['id'], $title); json_out(['ok' => true, 'id' => (int) $body['id']]); }
-            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
-            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
-            json_out(['ok' => true, 'id' => $lms->addModule((int) $cs['id'], $title)]);
+            if (!empty($body['id'])) { $mid = (int) $body['id']; $lms->renameModule($mid, $title); }
+            else {
+                $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
+                if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+                $mid = $lms->addModule((int) $cs['id'], $title);
+            }
+            if (array_key_exists('summary', $body) || array_key_exists('objectives', $body))
+                $lms->describeModule($mid, (string) ($body['summary'] ?? ''), (string) ($body['objectives'] ?? ''));
+            json_out(['ok' => true, 'id' => $mid]);
         case 'mod_delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $lms->deleteModule((int) ($body['id'] ?? 0)); json_out(['ok' => true]);
@@ -2129,30 +2191,97 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             if (trim((string) ($body['title'] ?? '')) === '') json_out(['ok' => false, 'error' => 'A title is required.'], 422);
             $lbody = Embeds::sanitize(Embeds::embedify((string) ($body['body_html'] ?? '')));
-            // Validate + normalise the optional quiz
+            /* Validate + normalise the optional quiz with the SAME rule the player
+               reads it by (LmsRepository::normaliseQuestion), so a question saved
+               here can never mean something else on the learner's screen. */
+            $kind = in_array($body['kind'] ?? '', ['assignment', 'discussion'], true) ? (string) $body['kind'] : '';
             $quizJson = null;
-            if (!empty($body['quiz']) && is_array($body['quiz']) && !empty($body['quiz']['questions'])) {
+            if ($kind === '' && !empty($body['quiz']) && is_array($body['quiz']) && !empty($body['quiz']['questions'])) {
                 $qs = [];
-                foreach ($body['quiz']['questions'] as $q) {
-                    $prompt = trim((string) ($q['q'] ?? ''));
-                    $opts = array_values(array_filter(array_map(fn($o) => trim((string) $o), (array) ($q['options'] ?? [])), fn($o) => $o !== ''));
-                    if ($prompt === '' || count($opts) < 2) continue;
-                    $ans = max(0, min(count($opts) - 1, (int) ($q['answer'] ?? 0)));
-                    $qs[] = ['q' => $prompt, 'options' => $opts, 'answer' => $ans];
+                foreach ((array) $body['quiz']['questions'] as $q) {
+                    $n = is_array($q) ? LmsRepository::normaliseQuestion($q) : null;
+                    if ($n) $qs[] = $n;
                 }
-                if ($qs) $quizJson = json_encode(['pass' => max(1, min(100, (int) ($body['quiz']['pass'] ?? 70))), 'questions' => $qs]);
+                if ($qs) $quizJson = json_encode([
+                    'pass' => max(1, min(100, (int) ($body['quiz']['pass'] ?? 70))),
+                    'graded' => !array_key_exists('graded', $body['quiz']) || !empty($body['quiz']['graded']),
+                    'attempts' => max(0, min(99, (int) ($body['quiz']['attempts'] ?? 0))),
+                    'questions' => $qs,
+                ], JSON_UNESCAPED_UNICODE);
             }
-            $id = $lms->saveLesson([
-                'id' => (int) ($body['id'] ?? 0), 'module_id' => (int) ($body['module_id'] ?? 0),
-                'slug' => trim((string) ($body['slug'] ?? '')), 'title' => trim((string) $body['title']),
-                'body_html' => $lbody, 'video_url' => trim((string) ($body['video_url'] ?? '')),
-                'duration_min' => (int) ($body['duration_min'] ?? 0), 'is_preview' => !empty($body['is_preview']),
-                'quiz_json' => $quizJson,
-            ]);
+            $vurl = trim((string) ($body['video_url'] ?? ''));
+            if ($vurl !== '' && Embeds::lessonVideo($vurl) === null)
+                json_out(['ok' => false, 'error' => 'That video can’t be shown. Upload a video, or use a YouTube, Vimeo, Loom, Wistia or Google Drive link.'], 422);
+            $capUrl = trim((string) ($body['captions_url'] ?? ''));
+            if ($capUrl !== '' && Embeds::captionsFile($capUrl) === null)
+                json_out(['ok' => false, 'error' => 'Captions must be a .vtt file.'], 422);
+            /* Only what the editor sent: a field it does not send is kept (saveLesson). */
+            $ld = ['id' => (int) ($body['id'] ?? 0), 'module_id' => (int) ($body['module_id'] ?? 0)];
+            foreach (['slug', 'title', 'video_url', 'duration_min', 'is_preview', 'kind', 'weight', 'assignment_pass', 'transcript'] as $k)
+                if (array_key_exists($k, $body)) $ld[$k] = is_string($body[$k]) ? trim($body[$k]) : $body[$k];
+            if (array_key_exists('body_html', $body)) $ld['body_html'] = $lbody;
+            if (array_key_exists('captions_url', $body)) $ld['captions_url'] = $capUrl;
+            if (array_key_exists('resources', $body)) $ld['resources'] = is_array($body['resources']) ? $body['resources'] : [];
+            if (array_key_exists('quiz', $body) || array_key_exists('kind', $body)) $ld['quiz_json'] = $quizJson;
+            $id = $lms->saveLesson($ld);
             json_out(['ok' => true, 'id' => $id]);
+        case 'ac_search': {
+            /* Learners are people's names and emails: only roles that may see
+               the roster (management and up) get them back. */
+            $people = in_array(function_exists('av_admin_role') ? av_admin_role() : 'superadmin', ['admin', 'superadmin'], true);
+            json_out(['ok' => true] + (new LmsCourseware(null, $lms))->search((string) ($_GET['q'] ?? ''), $people));
+        }
+        case 'ac_readiness': {
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            json_out(['ok' => true, 'items' => (new LmsCourseware(null, $lms))->readiness($cs)]);
+        }
+        case 'outline_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            if (!$lms->saveOutline((int) $cs['id'], (array) ($body['modules'] ?? [])))
+                json_out(['ok' => false, 'error' => 'The outline changed in another tab. Reload and try again.'], 409);
+            json_out(['ok' => true, 'modules' => $lms->curriculum((int) $cs['id'])]);
+        }
+        case 'lesson_duplicate': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $nid = $lms->duplicateLesson((int) ($body['id'] ?? 0));
+            json_out($nid ? ['ok' => true, 'id' => $nid] : ['ok' => false, 'error' => 'Not found.'], $nid ? 200 : 404);
+        }
         case 'lesson_delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $lms->deleteLesson((int) ($body['id'] ?? 0)); json_out(['ok' => true]);
+
+        /* ── Programmes (series of courses) ── */
+        case 'prog_list':
+            json_out(['ok' => true, 'programmes' => (new LmsCourseware(null, $lms))->programmes(false)]);
+        case 'prog_get': {
+            $pcw = new LmsCourseware(null, $lms);
+            $pg = $pcw->programme(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
+            if (!$pg) json_out(['ok' => false, 'error' => 'Not found.'], 404);
+            json_out(['ok' => true, 'programme' => $pg, 'courses' => array_map(static fn($c) => ['slug' => $c['slug'], 'title' => $c['title']], $pcw->programmeCourses((int) $pg['id'], true))]);
+        }
+        case 'prog_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (trim((string) ($body['title'] ?? '')) === '') json_out(['ok' => false, 'error' => 'A title is required.'], 422);
+            $pslug = (new LmsCourseware(null, $lms))->saveProgramme([
+                '_editing' => preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['editing'] ?? ''))),
+                'title' => (string) $body['title'], 'slug' => (string) ($body['slug'] ?? ''), 'summary' => (string) ($body['summary'] ?? ''),
+                'body_html' => Embeds::sanitize(Embeds::embedify((string) ($body['body_html'] ?? ''))),
+                'cover_url' => av_safe_asset_url((string) ($body['cover_url'] ?? '')),
+                'status' => (string) ($body['status'] ?? 'draft'), 'sort' => (int) ($body['sort'] ?? 0),
+            ], array_values(array_filter(array_map(static fn($x) => preg_replace('/[^a-z0-9\-]/', '', strtolower((string) $x)), (array) ($body['courses'] ?? [])))));
+            $lms->audit('prog_save', $pslug, 'programme');
+            json_out(['ok' => true, 'slug' => $pslug]);
+        }
+        case 'prog_delete': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $pslug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? '')));
+            $r = (new LmsCourseware(null, $lms))->deleteProgramme($pslug, !empty($body['force']));
+            if (!empty($r['ok'])) $lms->audit('prog_delete', $pslug, 'programme');
+            json_out($r, !empty($r['ok']) ? 200 : (!empty($r['needs_confirm']) ? 409 : 404));
+        }
 
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);

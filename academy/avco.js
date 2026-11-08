@@ -47,4 +47,32 @@
       });
     }));
   });
+  /* Ratings and reviews: save, then reload so the summary and list agree. */
+  run('review', () => {
+    const form = document.querySelector('[data-avco-review]'); if (!form) return;
+    const msg = form.querySelector('[data-avco-review-msg]');
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const r = form.querySelector('input[name="rating"]:checked');
+      if (!r) { if (msg) { msg.hidden = false; msg.textContent = 'Choose a star rating.'; } return; }
+      const b = form.querySelector('button[type=submit]'); if (b) b.disabled = true;
+      fetch('/academy/api.php?action=review_save', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ course: form.dataset.avcoReview, rating: parseInt(r.value, 10), body: form.elements.body.value }) })
+        .then(x => x.json())
+        .then(d => {
+          if (msg) { msg.hidden = false; msg.textContent = d && d.ok ? 'Thanks — your review is saved.' : ((d && d.error) || 'Could not save.'); }
+          if (d && d.ok) setTimeout(() => { location.hash = 'reviews'; location.reload(); }, 600);
+        })
+        .catch(() => { if (msg) { msg.hidden = false; msg.textContent = 'Network error — please try again.'; } })
+        .finally(() => { if (b) b.disabled = false; });
+    });
+  });
+
+  /* A link into a tab ("Read reviews") opens that tab. */
+  run('goto', () => {
+    $$('[data-avco-goto]').forEach(a => a.addEventListener('click', e => {
+      const t = document.querySelector('[data-avco-tab="' + a.dataset.avcoGoto + '"]');
+      if (t) { e.preventDefault(); t.click(); t.scrollIntoView({ block: 'start' }); t.focus(); }
+    }));
+  });
 })();
