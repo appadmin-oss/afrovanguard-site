@@ -6,6 +6,9 @@
  *  Accounts:   GET me | POST register | POST login | POST logout
  *  Learning:   POST join {slug} | POST lesson_complete {course,lesson}
  *              POST lesson_uncomplete | GET progress&course=slug
+ *  Discussion: GET discussion&course=&lesson= | POST discussion_post
+ *              POST discussion_remove {id,reason}
+ *  Coach:      POST coach_ask {course,lesson,q,mode,history}
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
@@ -179,6 +182,75 @@ try {
             }
             $res['progress'] = $lms->progress((int) $u['id'], (int) $c['id']);
             json_out($res);
+
+        /* ── The study coach ──────────────────────────────────────────────
+           Grounded in the lesson the learner is reading, gated on the same
+           access as the lesson, and rate-limited because each question is a
+           model call somebody pays for. It never marks work — see
+           lib/LmsCoach.php, which has no path to a grade. */
+        case 'coach_ask': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            $c = $slug ? $ac->bySlug($slug, true) : null;
+            $lesson = $c ? $lms->lesson((int) $c['id'], preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['lesson'] ?? '')))) : null;
+            if (!$lesson) json_out(['ok' => false, 'error' => 'Lesson not found.'], 404);
+            if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access to this lesson.'], 403);
+            if (!LmsCoach::available()) json_out(['ok' => false, 'error' => 'The study coach is not switched on.'], 503);
+            if (!av_rate_ok('lms_coach', LmsCoach::RATE_ASKS, LmsCoach::RATE_WINDOW)) {
+                json_out(['ok' => false, 'error' => 'That is a lot of questions in a short time. Take a few minutes, or ask in the discussion.'], 429);
+            }
+            $r = LmsCoach::ask($lesson, $c, (string) ($body['q'] ?? ''), [
+                'actor'   => 'u' . (int) $u['id'],
+                /* The mode is matched against a server-side list inside
+                   LmsCoach — a free string reaching the model's instructions
+                   would be somebody else's prompt running on our bill. */
+                'mode'    => (string) ($body['mode'] ?? 'ask'),
+                'history' => is_array($body['history'] ?? null) ? $body['history'] : [],
+            ]);
+            json_out($r, empty($r['ok']) ? 400 : 200);
+        }
+
+        /* ── Lesson discussions ───────────────────────────────────────────
+           Reading and writing are gated on the LESSON, not on something
+           looser: a discussion is part of the lesson it belongs to, so a
+           paid course's questions are not public and a preview lesson is as
+           open as the lesson itself. */
+        case 'discussion':
+        case 'discussion_post':
+        case 'discussion_remove': {
+            $u = LmsAuth::user();
+            $c = $slug ? $ac->bySlug($slug, true) : null;
+            $lesson = $c ? $lms->lesson((int) $c['id'], preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['lesson'] ?? $body['lesson'] ?? '')))) : null;
+            if (!$lesson) json_out(['ok' => false, 'error' => 'Lesson not found.'], 404);
+            if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access to this lesson.'], 403);
+            $disc = new LmsDiscussion();
+            $mod  = LmsDiscussion::canModerate($u, $c);
+
+            if ($action === 'discussion') {
+                json_out(['ok' => true, 'can_post' => (bool) $u, 'can_moderate' => $mod,
+                          'posts' => $disc->thread((int) $lesson['id'], 50, (int) ($u['id'] ?? 0), $mod)]);
+            }
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+
+            if ($action === 'discussion_post') {
+                if (!av_rate_ok('lms_discuss', LmsDiscussion::RATE_POSTS, LmsDiscussion::RATE_WINDOW)) {
+                    json_out(['ok' => false, 'error' => 'That is a lot of posts in a short time — try again shortly.'], 429);
+                }
+                $r = $disc->post((int) $u['id'], (int) $c['id'], (int) $lesson['id'],
+                                 (string) ($body['body'] ?? ''), (int) ($body['parent'] ?? 0));
+                if (empty($r['ok'])) json_out($r, 400);
+                json_out(['ok' => true, 'can_post' => true, 'can_moderate' => $mod,
+                          'posts' => $disc->thread((int) $lesson['id'], 50, (int) $u['id'], $mod)]);
+            }
+
+            $r = $disc->remove((int) ($body['id'] ?? 0), (int) $u['id'], $mod, (string) ($body['reason'] ?? ''));
+            if (empty($r['ok'])) json_out($r, ($r['code'] ?? '') === 'not_yours' ? 403 : 400);
+            json_out(['ok' => true, 'can_post' => true, 'can_moderate' => $mod,
+                      'posts' => $disc->thread((int) $lesson['id'], 50, (int) $u['id'], $mod)]);
+        }
 
         case 'progress':
             $u = LmsAuth::user();

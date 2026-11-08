@@ -40,6 +40,11 @@ $access = (string) ($c['access_type'] ?? 'open');
 $am = avac_access($access);
 $progress = ($user && $lessonTotal) ? $lms->progress((int) $user['id'], $id) : null;
 $doneIds = $progress['ids'] ?? [];
+/* Grades. quiz_attempts has been written since the LMS shipped and read by
+   nothing — a learner saw a score for the two seconds the page held it. The
+   tab is drawn only when there is something in it to see. */
+$grades = $user ? $lms->gradesFor((int) $user['id'], $id) : null;
+if ($grades && !$grades['graded']) $grades = null;
 $firstLesson = $ordered[0]['slug'] ?? '';
 $moduleCount = count($curriculum);
 $totalMins = 0;
@@ -164,6 +169,8 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
         <button type="button" class="avco-tab" role="tab" id="avco-t-overview" aria-controls="avco-p-overview" aria-selected="true" data-avco-tab="overview">Overview</button>
 <?php if ($curriculum): ?>        <button type="button" class="avco-tab" role="tab" id="avco-t-curriculum" aria-controls="avco-p-curriculum" aria-selected="false" tabindex="-1" data-avco-tab="curriculum">Curriculum</button>
 <?php endif; ?>
+<?php if ($grades): ?>        <button type="button" class="avco-tab" role="tab" id="avco-t-grades" aria-controls="avco-p-grades" aria-selected="false" tabindex="-1" data-avco-tab="grades">Grades</button>
+<?php endif; ?>
         <button type="button" class="avco-tab" role="tab" id="avco-t-certificate" aria-controls="avco-p-certificate" aria-selected="false" tabindex="-1" data-avco-tab="certificate">Certificate</button>
       </div>
 
@@ -214,6 +221,38 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 <?php endforeach; ?>
         </ol>
 <?php endforeach; ?>
+      </section>
+<?php endif; ?>
+
+<?php if ($grades): ?>
+      <?php /* GRADES. The best attempt counts, not the last: the quiz copy
+               invites a retake ("you can retake it"), and a scheme that then
+               reads the most recent attempt punishes somebody for trying
+               again. The average is over what they have ATTEMPTED and says
+               so — counting an unreached quiz as nought tells a learner
+               three lessons in that they are failing. */ ?>
+      <section class="avco-panel" role="tabpanel" id="avco-p-grades" aria-labelledby="avco-t-grades" data-avco-panel="grades" hidden>
+        <h2 class="avco-h2 avco-h2--tight">Grades</h2>
+        <p class="avco-sub av-num"><?= (int) $grades['passed'] ?> of <?= (int) $grades['graded'] ?> passed<?= $grades['average'] !== null ? ' · ' . (int) $grades['average'] . '% average across what you have attempted' : '' ?></p>
+<?php if ($grades['complete']): ?>
+        <div class="avco-done">Every graded lesson passed.<?= $complete ? ' <a href="' . e($certUrl) . '" target="_blank" rel="noopener">Get your certificate →</a>' : ' Finish the remaining lessons for your certificate.' ?></div>
+<?php endif; ?>
+        <table class="avco-grades">
+          <caption class="av-sr">Your score on each graded lesson in <?= e((string) $c['title']) ?></caption>
+          <thead><tr><th scope="col">Lesson</th><th scope="col" class="avco-g-n">Best</th><th scope="col" class="avco-g-n">To pass</th><th scope="col" class="avco-g-n">Attempts</th><th scope="col">Status</th></tr></thead>
+          <tbody>
+<?php foreach ($grades['lessons'] as $gl): ?>
+            <tr>
+              <th scope="row"><a href="<?= e(academy_url($c['slug'] . '/learn/' . $gl['slug'])) ?>"><?= e((string) $gl['title']) ?></a><?php if ($gl['module'] !== ''): ?><span class="avco-g-mod"><?= e((string) $gl['module']) ?></span><?php endif; ?></th>
+              <td class="avco-g-n av-num"><?= $gl['best'] === null ? '—' : (int) $gl['best'] . '%' ?></td>
+              <td class="avco-g-n av-num"><?= (int) $gl['pass'] ?>%</td>
+              <td class="avco-g-n av-num"><?= $gl['tries'] ? (int) $gl['tries'] : '—' ?></td>
+              <td><?php if ($gl['passed']): ?><span class="avco-g-tag is-pass">Passed</span><?php elseif ($gl['tries']): ?><span class="avco-g-tag is-again">Not yet — retake it</span><?php else: ?><span class="avco-g-tag">Not attempted</span><?php endif; ?></td>
+            </tr>
+<?php endforeach; ?>
+          </tbody>
+        </table>
+        <p class="avco-g-note">Your <strong>best</strong> attempt is the one that counts, so a retake can only help you. Only a graded lesson appears here; the rest of the programme is marked complete as you go.</p>
       </section>
 <?php endif; ?>
 

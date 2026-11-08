@@ -370,6 +370,15 @@ final class Database
             try { self::$pdo->exec('ALTER TABLE lessons ADD COLUMN quiz_json TEXT'); }
             catch (Throwable $e) { error_log('[db] add lessons.quiz_json: ' . $e->getMessage()); }
         }
+        /* The lesson's generated summary, cached against a hash of the body
+           so editing a lesson regenerates it and reading one costs nothing
+           (lib/LmsCoach.php). */
+        foreach (['ai_summary' => 'TEXT', 'ai_summary_hash' => 'VARCHAR(64)'] as $col => $type) {
+            if (self::tableExists('lessons') && !self::columnExists('lessons', $col)) {
+                try { self::$pdo->exec('ALTER TABLE lessons ADD COLUMN ' . $col . ' ' . $type); }
+                catch (Throwable $e) { error_log('[db] add lessons.' . $col . ': ' . $e->getMessage()); }
+            }
+        }
 
         // Seed the starter catalogue once — best-effort, so a seed hiccup never
         // aborts the schema migration above (which is what actually keeps the site up).

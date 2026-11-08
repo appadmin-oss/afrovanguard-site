@@ -790,9 +790,29 @@ final class LmsRepository
         $s = $this->db->prepare('SELECT * FROM lms_users WHERE email = ?'); $s->execute([strtolower(trim($email))]);
         return $s->fetch() ?: null;
     }
-    public function promoteToInstructor(int $userId): void
+    /**
+     * Give somebody the instructor role.
+     *
+     * This used to promote ONLY a row whose role was exactly 'learner'. An
+     * account is created as a learner and becomes a 'member' the moment they
+     * join or pay — which is most of them — so assigning a course to a real
+     * person set courses.instructor_id, left their role alone, reported
+     * success, and locked them out of the dashboard for the course they had
+     * just been given. Nothing anywhere said so.
+     *
+     * Now: anybody BELOW instructor is promoted, and nobody at or above it is
+     * touched — so assigning a course to an admin or a coordinator cannot
+     * quietly demote them to instructor, which the obvious fix would do.
+     */
+    public function promoteToInstructor(int $userId): bool
     {
-        $this->db->prepare("UPDATE lms_users SET role='instructor' WHERE id = ? AND role='learner'")->execute([$userId]);
+        $s = $this->db->prepare('SELECT role FROM lms_users WHERE id = ?');
+        $s->execute([$userId]);
+        $role = $s->fetchColumn();
+        if ($role === false) return false;
+        if (LmsAuth::rank((string) $role) >= LmsAuth::ROLE_RANK['instructor']) return true;  // already teaches, or outranks it
+        $this->db->prepare("UPDATE lms_users SET role = 'instructor' WHERE id = ?")->execute([$userId]);
+        return true;
     }
     public function instructorName(?int $userId): ?string
     {
@@ -824,6 +844,152 @@ final class LmsRepository
             $avg = (int) round(min(100, $doneRows / ($enrolled * $total) * 100));
         }
         return ['lessons' => $total, 'enrolled' => $enrolled, 'completed' => $completed, 'avg_pct' => $avg];
+    }
+
+
+    /* ══ Grades ═══════════════════════════════════════════════════════════
+       quiz_attempts was WRITE-ONLY. gradeQuiz() has recorded every attempt
+       since the LMS shipped and nothing ever read one back: a learner saw a
+       score for the two seconds the page held it, and an instructor could
+       not see a score at all. Everything below reads that table.
+
+       A grade here is the BEST attempt, not the last. Retaking is encouraged
+       in the copy ("you can retake it"), and a scheme that then counts the
+       most recent attempt punishes the learner for trying again. */
+
+    /** Every graded lesson in a course, in curriculum order. */
+    public function gradedLessons(int $courseId): array
+    {
+        $s = $this->db->prepare(
+            "SELECT l.id, l.slug, l.title, l.quiz_json, m.title AS module, m.position AS mpos, l.position AS lpos
+               FROM lessons l LEFT JOIN modules m ON m.id = l.module_id
+              WHERE l.course_id = ? AND COALESCE(l.quiz_json, '') <> ''
+              ORDER BY m.position, l.position, l.id"
+        );
+        $s->execute([$courseId]);
+        $out = [];
+        foreach ($s->fetchAll() as $r) {
+            $q = json_decode((string) $r['quiz_json'], true);
+            if (!is_array($q) || empty($q['questions'])) continue;
+            $out[] = ['id' => (int) $r['id'], 'slug' => (string) $r['slug'], 'title' => (string) $r['title'],
+                      'module' => (string) ($r['module'] ?? ''), 'questions' => count($q['questions']),
+                      'pass' => (int) ($q['pass'] ?? 70)];
+        }
+        return $out;
+    }
+
+    /**
+     * One learner's grades for one course.
+     *
+     * ONE query for the attempts, not one per lesson: a course with twenty
+     * quizzes on a roster of two hundred is where a per-row query stops being
+     * a slow path and becomes an outage.
+     */
+    public function gradesFor(int $userId, int $courseId): array
+    {
+        $lessons = $this->gradedLessons($courseId);
+        if (!$lessons) {
+            return ['lessons' => [], 'graded' => 0, 'attempted' => 0, 'passed' => 0,
+                    'average' => null, 'complete' => false];
+        }
+        $ids = array_column($lessons, 'id');
+        $in  = implode(',', array_fill(0, count($ids), '?'));
+        $s = $this->db->prepare(
+            "SELECT lesson_id, score, passed, created_at FROM quiz_attempts
+              WHERE user_id = ? AND lesson_id IN ($in) ORDER BY created_at, id"
+        );
+        $s->execute(array_merge([$userId], $ids));
+        $by = [];
+        foreach ($s->fetchAll() as $a) {
+            $lid = (int) $a['lesson_id'];
+            $by[$lid] ??= ['tries' => 0, 'best' => null, 'last' => null, 'passed' => false, 'at' => ''];
+            $by[$lid]['tries']++;
+            $score = (int) $a['score'];
+            $by[$lid]['best'] = $by[$lid]['best'] === null ? $score : max($by[$lid]['best'], $score);
+            $by[$lid]['last'] = $score;
+            if ((int) $a['passed'] === 1) $by[$lid]['passed'] = true;
+            $by[$lid]['at'] = (string) $a['created_at'];
+        }
+        $sum = 0; $attempted = 0; $passed = 0;
+        foreach ($lessons as $i => $l) {
+            $a = $by[$l['id']] ?? null;
+            $lessons[$i] += ['tries' => $a['tries'] ?? 0, 'best' => $a['best'] ?? null, 'last' => $a['last'] ?? null,
+                             'passed' => (bool) ($a['passed'] ?? false), 'at' => (string) ($a['at'] ?? '')];
+            if ($a) { $attempted++; $sum += (int) $a['best']; if ($a['passed']) $passed++; }
+        }
+        return [
+            'lessons'   => $lessons,
+            'graded'    => count($lessons),
+            'attempted' => $attempted,
+            'passed'    => $passed,
+            /* The average is over what they have ATTEMPTED, and the screen
+               says so. Averaging an unattempted quiz as a zero tells somebody
+               three lessons in that they are failing a course they have not
+               reached the end of. */
+            'average'   => $attempted ? (int) round($sum / $attempted) : null,
+            'complete'  => $passed >= count($lessons),
+        ];
+    }
+
+    /**
+     * The gradebook for a whole course: one row per enrolled learner, one
+     * column per graded lesson. TWO queries whatever the size of the roster.
+     */
+    public function gradebook(int $courseId, int $limit = 500): array
+    {
+        $lessons = $this->gradedLessons($courseId);
+        $limit = max(1, min(2000, $limit));
+        $s = $this->db->prepare(
+            "SELECT u.id, u.name, u.email FROM course_enrolment e JOIN lms_users u ON u.id = e.user_id
+              WHERE e.course_id = ? ORDER BY u.name LIMIT ?"
+        );
+        $s->bindValue(1, $courseId, PDO::PARAM_INT); $s->bindValue(2, $limit, PDO::PARAM_INT); $s->execute();
+        $learners = $s->fetchAll();
+        if (!$learners || !$lessons) return ['lessons' => $lessons, 'learners' => [], 'average' => null];
+
+        $uids = array_map(static fn($l) => (int) $l['id'], $learners);
+        $lids = array_column($lessons, 'id');
+        $uin  = implode(',', array_fill(0, count($uids), '?'));
+        $lin  = implode(',', array_fill(0, count($lids), '?'));
+        $a = $this->db->prepare(
+            "SELECT user_id, lesson_id, MAX(score) AS best, MAX(passed) AS passed, COUNT(*) AS tries
+               FROM quiz_attempts WHERE user_id IN ($uin) AND lesson_id IN ($lin)
+              GROUP BY user_id, lesson_id"
+        );
+        $a->execute(array_merge($uids, $lids));
+        $cell = [];
+        foreach ($a->fetchAll() as $r) {
+            $cell[(int) $r['user_id']][(int) $r['lesson_id']] =
+                ['best' => (int) $r['best'], 'passed' => (int) $r['passed'] === 1, 'tries' => (int) $r['tries']];
+        }
+        $all = 0; $allN = 0;
+        foreach ($learners as $i => $u) {
+            $row = []; $sum = 0; $n = 0; $passed = 0;
+            foreach ($lessons as $l) {
+                $c = $cell[(int) $u['id']][$l['id']] ?? null;
+                $row[] = $c;
+                if ($c) { $sum += $c['best']; $n++; if ($c['passed']) $passed++; }
+            }
+            $learners[$i]['cells']     = $row;
+            $learners[$i]['attempted'] = $n;
+            $learners[$i]['passed']    = $passed;
+            $learners[$i]['average']   = $n ? (int) round($sum / $n) : null;
+            if ($n) { $all += $sum; $allN += $n; }
+        }
+        return ['lessons' => $lessons, 'learners' => $learners, 'average' => $allN ? (int) round($all / $allN) : null];
+    }
+
+    /** One learner's attempts at one lesson, newest first — the working. */
+    public function attempts(int $userId, int $lessonId, int $limit = 20): array
+    {
+        $s = $this->db->prepare(
+            'SELECT score, passed, created_at FROM quiz_attempts
+              WHERE user_id = ? AND lesson_id = ? ORDER BY created_at DESC, id DESC LIMIT ?'
+        );
+        $s->bindValue(1, $userId, PDO::PARAM_INT); $s->bindValue(2, $lessonId, PDO::PARAM_INT);
+        $s->bindValue(3, max(1, min(100, $limit)), PDO::PARAM_INT); $s->execute();
+        return array_map(static fn($r) => ['score' => (int) $r['score'], 'passed' => (int) $r['passed'] === 1,
+                                           'at' => (string) $r['created_at']], $s->fetchAll());
     }
 
     /** Per-learner roster for one course (enrolled learners + their progress). */

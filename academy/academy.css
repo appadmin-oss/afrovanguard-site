@@ -548,3 +548,33 @@ body.academy .course-hero h1 { color: var(--ink); font-family: var(--font-headin
 .dns-promo .ngv-promo-copy strong{color:#fff}
 .dns-promo .ngv-promo-sub{color:rgba(222,210,187,.82)}
 .dns-promo .ngv-promo-cta{background:linear-gradient(96deg,#d93a10,#cf1f22 52%,#c2102b)}
+
+/* ── Gradebook and questions (instructor) ─────────────────────────────────
+   Both are new: quiz_attempts had been written since the LMS shipped and
+   read by nothing, and there were no discussions at all. */
+.tstat--ask .tn { color: #B3261E; }
+.teach-asks, .teach-grades { margin: 0 0 32px; }
+.ask-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.ask { padding: 14px 16px; border: 1px solid var(--divider); border-radius: var(--radius-lg); background: var(--surface); }
+.ask.is-open { border-left: 3px solid #B3261E; }
+.ask-by { margin: 0 0 4px; font-size: 14px; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.ask-by a { color: inherit; }
+.ask-n { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-left: auto; white-space: nowrap; }
+.ask.is-open .ask-n { color: #B3261E; }
+.ask-b { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--copy, inherit); }
+
+/* The table scrolls on its own, inside the page — a course with twelve
+   quizzes is wider than any phone, and scrolling the whole page sideways
+   to read one row takes the learner's name off the screen with it. */
+.gb-scroll { overflow-x: auto; border: 1px solid var(--divider); border-radius: var(--radius-lg); background: var(--surface); }
+.gb { border-collapse: collapse; width: 100%; font-size: 14px; }
+.gb th, .gb td { padding: 10px 12px; border-bottom: 1px solid var(--divider); text-align: left; white-space: nowrap; }
+.gb thead th { font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); vertical-align: bottom; }
+.gb tbody th { font-weight: 600; position: sticky; left: 0; background: var(--surface); }
+.gb-em { display: block; font-weight: 400; font-size: 12.5px; color: var(--muted); }
+.gb-pass { display: block; font-weight: 400; font-size: 11px; letter-spacing: 0; text-transform: none; color: var(--muted); }
+.gb-n { text-align: right; font-variant-numeric: tabular-nums; }
+.gb-n.is-pass { color: #166534; font-weight: 700; }
+.gb-n.is-fail { color: #B3261E; font-weight: 700; }
+.gb-t { display: block; font-size: 11px; font-weight: 400; color: var(--muted); }
+.gb-avg { font-weight: 700; }

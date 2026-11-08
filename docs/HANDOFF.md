@@ -1106,3 +1106,64 @@ inside the location, went straight through.
 7,276 assertions across 176 files. Four guards mutation-tested. Verified in a
 browser at the reported size and, more to the point, at a **417px card in a
 1400px window** — the case a media query cannot see.
+
+---
+
+## The Academy: grades, discussions and a study coach (2026-11-08)
+
+Audited the Academy end to end as a learner and as an instructor. The player
+itself is good — contents, notes, quizzes, up-next, keyboard shortcuts. What
+was missing is what a course is for once there is more than one person on it.
+`docs/academy-learning.md` is the reference.
+
+**Grades were write-only.** `quiz_attempts` has been written on every
+submission since the LMS shipped and read back by NOTHING. A learner saw a
+score for the two seconds the page held it; an instructor could not see one
+at all. There is a Grades tab now, and a gradebook. The best attempt counts,
+never the last — the quiz copy invites a retake and a scheme that reads the
+most recent attempt punishes somebody for taking it. The average is over what
+has been attempted, because averaging an unreached quiz as a nought tells a
+learner three lessons in that they are failing.
+
+**There were no discussions at all.** `lib/LmsDiscussion.php`: one thread per
+lesson, replies one level deep, gated on exactly who may read the lesson —
+a discussion is part of its lesson, so it cannot be a looser gate. A removal
+keeps the row and darkens the body, because a row that silently disappears
+makes a reply to it read as a reply to nothing. The instructor's half is the
+reason it is worth having: unanswered questions first, on their dashboard.
+
+**Instructors could not reach their own dashboard.** `promoteToInstructor()`
+promoted only a row whose role was exactly `'learner'`. Accounts become
+`'member'` on joining or paying — 25 of 28 here — so assigning a course to a
+real person set `courses.instructor_id`, left the role alone, reported
+success, and locked them out of the course they had just been given. Fixed to
+promote anybody below instructor while never demoting anybody above it.
+
+**The study coach.** First pass was a one-shot ask box at the bottom of the
+lesson; the owner sent it back, correctly, as not what a course coach is. It
+is a drawer on the lesson's own rail now, opened from a control always on
+screen, holding a conversation whose earlier turns travel with each message,
+with four quick actions — summarise, explain simply, give an example, quiz me
+— and practice that gives feedback and records nothing.
+
+Three properties hold it up, and the third is the one to keep:
+
+- Grounded in the lesson text, with a FIXED refusal sentence that the screen
+  reads to offer the discussion instead. The wording is a contract between
+  the prompt and the code.
+- Labelled on every answer, with a link to a person.
+- **It cannot grade.** Not as a promise in a prompt: the file cannot reach
+  `gradeQuiz`, `markComplete`, `issueCertificate` or any table behind them,
+  and the test asserts those strings are absent from it. Off by default
+  (`academy.coach`), silent with no provider configured.
+
+Two things caught by the repo's own standards while building: `avac.test.php`
+rejected the native `confirm`/`prompt` I had used for moderation (replaced
+with in-page confirmation, which is better anyway), and `.avle-keys` was
+already the keyboard-hint class that is hidden under 640px — the summary box
+would have vanished on every phone.
+
+7,352 assertions across 177 files. Five guards mutation-tested: best-vs-last
+attempt, the average's denominator, the promotion rule, removal-keeps-the-row,
+and the history relabelling. Driven in a browser throughout, including the
+coach end to end against a stub speaking the real provider wire format.

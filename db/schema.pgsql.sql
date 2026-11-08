@@ -160,7 +160,9 @@ CREATE TABLE IF NOT EXISTS lessons (
   position     INTEGER NOT NULL DEFAULT 0,
   created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  quiz_json    TEXT                            -- optional quiz spec (also added by ensureAcademy)
+  quiz_json    TEXT,                           -- optional quiz spec (also added by ensureAcademy)
+  ai_summary      TEXT,                        -- lib/LmsCoach.php: the generated key points
+  ai_summary_hash VARCHAR(64)                  -- of the body it was written from, so an edit regenerates it
 );
 CREATE INDEX IF NOT EXISTS idx_lessons_course ON lessons(course_id);
 CREATE TABLE IF NOT EXISTS lesson_progress (
@@ -228,6 +230,24 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
   passed     INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Lesson discussions (lib/LmsDiscussion.php). One thread per lesson,
+-- replies one level deep. A removal keeps the row and darkens the body.
+CREATE TABLE IF NOT EXISTS lesson_posts (
+  id              SERIAL PRIMARY KEY,
+  course_id       INTEGER NOT NULL,
+  lesson_id       INTEGER NOT NULL,
+  user_id         INTEGER NOT NULL,
+  parent_id       INTEGER NOT NULL DEFAULT 0,
+  body            TEXT NOT NULL DEFAULT '',
+  status          VARCHAR(16) NOT NULL DEFAULT 'visible',
+  removed_by      INTEGER NOT NULL DEFAULT 0,
+  removed_reason  VARCHAR(200) NOT NULL DEFAULT '',
+  created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_lesson_posts_lesson ON lesson_posts (lesson_id, parent_id, id);
+CREATE INDEX IF NOT EXISTS idx_lesson_posts_course ON lesson_posts (course_id, id);
 CREATE TABLE IF NOT EXISTS payments (
   id          SERIAL PRIMARY KEY,
   reference   VARCHAR(191) UNIQUE NOT NULL,

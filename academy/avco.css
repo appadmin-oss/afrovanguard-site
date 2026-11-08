@@ -131,3 +131,28 @@
 .no-js .avco-tabs{display:none}
 .no-js .avco .avco-panel[hidden]{display:flex!important;margin-top:56px}
 .no-js .avco .avco-q p[hidden]{display:block!important}
+
+/* ── Grades ───────────────────────────────────────────────────────────────
+   The best attempt, said plainly. quiz_attempts had been written since the
+   LMS shipped and read by nothing, so this table is the first time a learner
+   sees a score they earned more than two seconds ago. */
+.avco-grades{width:100%;border-collapse:collapse;font-size:15px}
+.avco-grades caption{text-align:left}
+.avco-grades th,.avco-grades td{padding:12px 10px;border-bottom:1px solid var(--av-line);text-align:left;vertical-align:top}
+.avco-grades thead th{font:600 12px var(--av-sans);letter-spacing:.07em;text-transform:uppercase;color:var(--av-muted-2);border-bottom-width:1px}
+.avco-grades tbody th{font-weight:600}
+.avco-grades tbody th a{color:inherit;text-decoration:none}
+.avco-grades tbody th a:hover{text-decoration:underline;text-underline-offset:3px}
+.avco-g-mod{display:block;font-weight:400;font-size:13px;color:var(--av-muted-2);margin-top:2px}
+.avco-g-n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.avco-g-tag{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12.5px;font-weight:700;background:var(--av-stone,#f1efe9);color:var(--av-muted-2)}
+.avco-g-tag.is-pass{background:var(--av-gold-soft);color:var(--av-gold-text)}
+.avco-g-tag.is-again{background:rgba(220,38,38,.10);color:#B3261E}
+.avco-g-note{font-size:14px;color:var(--av-copy-3);margin:-24px 0 0;line-height:1.55}
+@media (max-width:620px){
+  /* The two reference columns go: on a phone the learner wants their score
+     and whether it counted, and a five-column table that scrolls sideways
+     gives them neither without a swipe. */
+  .avco-grades th:nth-child(3),.avco-grades td:nth-child(3),
+  .avco-grades th:nth-child(4),.avco-grades td:nth-child(4){display:none}
+}

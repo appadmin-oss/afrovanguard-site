@@ -160,7 +160,9 @@ CREATE TABLE IF NOT EXISTS lessons (
   position     INTEGER NOT NULL DEFAULT 0,
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  quiz_json    TEXT                            -- optional quiz spec (also added by ensureAcademy)
+  quiz_json    TEXT,                           -- optional quiz spec (also added by ensureAcademy)
+  ai_summary      TEXT,                        -- lib/LmsCoach.php: the generated key points
+  ai_summary_hash VARCHAR(64)                  -- of the body it was written from, so an edit regenerates it
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX idx_lessons_course ON lessons(course_id);
 CREATE TABLE IF NOT EXISTS lesson_progress (
@@ -227,6 +229,24 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
   score      INTEGER NOT NULL DEFAULT 0,
   passed     INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Lesson discussions (lib/LmsDiscussion.php). One thread per lesson,
+-- replies one level deep. A removal keeps the row and darkens the body.
+CREATE TABLE IF NOT EXISTS lesson_posts (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  course_id       INT NOT NULL,
+  lesson_id       INT NOT NULL,
+  user_id         INT NOT NULL,
+  parent_id       INT NOT NULL DEFAULT 0,
+  body            TEXT NOT NULL,
+  status          VARCHAR(16) NOT NULL DEFAULT 'visible',
+  removed_by      INT NOT NULL DEFAULT 0,
+  removed_reason  VARCHAR(200) NOT NULL DEFAULT '',
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_lesson_posts_lesson (lesson_id, parent_id, id),
+  KEY idx_lesson_posts_course (course_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS payments (
   id          INTEGER PRIMARY KEY AUTO_INCREMENT,

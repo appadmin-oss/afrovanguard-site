@@ -284,6 +284,280 @@
     update();
   });
 
+  /* -- Study coach ----------------------------------------------------
+     A drawer beside the lesson, opened by a control that is always on
+     screen: a learner who is stuck is stuck HERE, and a panel they must
+     scroll past the whole lesson to find is one they do not use.
+
+     It is a CONVERSATION. The turns so far travel with each message, so
+     "say that again, simpler" means something. The four quick actions are
+     the four things people actually ask for.
+
+     "Quiz me" is PRACTICE. It records nothing -- no attempt, no score, no
+     progress -- and the panel says so where it cannot be missed. */
+  run('coach', () => {
+    const el = $('[data-avle-coach]');
+    if (!el) return;
+    const log = $('[data-avle-coach-log]', el);
+    const form = $('[data-avle-coach-form]', el);
+    const area = $('#avle-coach-q', el);
+    const sendBtn = $('[data-avle-coach-send]', el);
+    const acts = $('[data-avle-coach-acts]', el);
+    const p = panel(el, $$('[data-avle-coach-toggle]'), { apply: on => { el.hidden = !on; }, focus: () => area, escOnDesk: true });
+    const closeBtn = $('[data-avle-coach-close]', el);
+    if (closeBtn) closeBtn.addEventListener('click', () => p.set(false, true));
+    onMq(desk, () => { if (p.isOpen()) p.set(false, false); });
+
+    const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const para = t => esc(t).split(/\n{2,}/).map(x => '<p>' + x.replace(/\n/g, '<br>') + '</p>').join('');
+    let turns = [];      /* what the model is told about earlier turns */
+    let answering = false;  /* a practice question is open, awaiting an answer */
+    let busy = false;
+
+    const bubble = (who, html, extra) => {
+      const d = document.createElement('div');
+      d.className = 'avle-cm is-' + who + (extra ? ' ' + extra : '');
+      d.innerHTML = html;
+      log.appendChild(d);
+      log.scrollTop = log.scrollHeight;
+      return d;
+    };
+    const setBusy = on => {
+      busy = on;
+      sendBtn.disabled = on;
+      acts.querySelectorAll('button').forEach(b => { b.disabled = on; });
+    };
+    const ask = (mode, typed) => {
+      if (busy) return;
+      const label = { summarise: 'Summarise this lesson', simpler: 'Explain it more simply',
+                      example: 'Give me an example', quiz: 'Ask me a practice question' }[mode];
+      const shown = typed || label || '';
+      if (shown) bubble('me', para(shown));
+      setBusy(true);
+      const wait = bubble('coach', '<p class="avle-cm-wait">Reading the lesson...</p>');
+      post('coach_ask', { course: el.dataset.course, lesson: el.dataset.lesson,
+                          q: typed || '', mode: mode, history: turns })
+        .then(j => {
+          if (wait.parentNode) wait.parentNode.removeChild(wait);
+          if (!j.ok) {
+            bubble('coach', '<p class="avle-cm-err">' + esc(j.error || 'No answer just now.')
+              + ' <a href="#avle-disc" data-avle-coach-disc>Ask in the discussion</a></p>', 'is-err');
+            return;
+          }
+          const foot = j.mode === 'quiz'
+            ? '<p class="avle-cm-foot">Practice only -- nothing here is marked or recorded.</p>'
+            : (j.grounded
+                ? '<p class="avle-cm-foot">From this lesson. If it reads wrong, trust the lesson and <a href="#avle-disc" data-avle-coach-disc>ask a person</a>.</p>'
+                : '<p class="avle-cm-foot">The lesson does not cover that -- <a href="#avle-disc" data-avle-coach-disc>ask in the discussion</a>, your instructor sees it.</p>');
+          bubble('coach', para(j.text) + foot);
+          if (shown) turns.push({ role: 'learner', text: shown });
+          turns.push({ role: 'coach', text: j.text });
+          if (turns.length > 8) turns = turns.slice(-8);
+          /* After a practice question the next thing typed is an ANSWER, so
+             it is sent as one and comes back as feedback rather than as a
+             fresh question. */
+          answering = j.mode === 'quiz';
+          area.placeholder = answering ? 'Your answer...' : 'Ask about this lesson...';
+        })
+        .catch(() => {
+          if (wait.parentNode) wait.parentNode.removeChild(wait);
+          bubble('coach', '<p class="avle-cm-err">No connection.</p>', 'is-err');
+        })
+        .finally(() => { setBusy(false); area.focus(); });
+    };
+
+    acts.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-coach-mode]');
+      if (b) { ev.preventDefault(); ask(b.getAttribute('data-coach-mode'), ''); }
+    });
+    form.addEventListener('submit', ev => {
+      ev.preventDefault();
+      const t = (area.value || '').trim();
+      if (!t) { area.focus(); return; }
+      area.value = '';
+      ask(answering ? 'quiz_mark' : 'ask', t);
+    });
+    /* Enter sends, Shift+Enter is a new line: the shape of every other
+       message box a learner has used. */
+    area.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter' && !ev.shiftKey) {
+        ev.preventDefault();
+        if (form.requestSubmit) form.requestSubmit();
+        else form.dispatchEvent(new Event('submit', { cancelable: true }));
+      }
+    });
+    /* A link to the discussion closes the drawer on a phone, where the two
+       would otherwise sit on top of each other. */
+    el.addEventListener('click', ev => {
+      if (ev.target.closest('[data-avle-coach-disc]') && !desk.matches) p.set(false, false);
+    });
+  });
+
+  /* ── Discussion ──────────────────────────────────────────────────────
+     Loads on demand: most readers never open it, and it should cost them
+     nothing on a slow connection. Every write returns the whole thread, so
+     the list is drawn from what the server knows rather than patched
+     optimistically and drifting from it. */
+  run('discussion', () => {
+    const sec = $('[data-avle-disc]');
+    if (!sec) return;
+    const list = $('[data-avle-disc-list]', sec);
+    const count = $('[data-avle-disc-n]', sec);
+    const form = $('[data-avle-disc-new]', sec);
+    const msg = $('[data-avle-disc-msg]', sec);
+    const dCourse = sec.dataset.course, dLesson = sec.dataset.lesson;
+    let state = { posts: [], can_moderate: false, loaded: false };
+
+    const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    /* A body is plain text: line breaks are kept, nothing else is. Posting
+       is open to every learner, so anything that renders markup here is a
+       way to put markup on somebody else's screen. */
+    const text = x => esc(x).replace(/\n/g, '<br>');
+    const when = iso => {
+      const t = Date.parse((iso || '').replace(' ', 'T') + 'Z');
+      if (!t) return '';
+      const d = Math.floor((Date.now() - t) / 86400000);
+      if (d <= 0) return 'today';
+      if (d === 1) return 'yesterday';
+      if (d < 30) return d + ' days ago';
+      return new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    };
+    const one = (p, isReply) => {
+      if (p.removed) {
+        return '<li class="avle-post is-gone' + (isReply ? ' is-reply' : '') + '">'
+          + '<p class="avle-post-gone">' + (p.removed_as === 'deleted'
+              ? 'The author deleted this.' : 'Removed by the instructor.') + '</p></li>';
+      }
+      return '<li class="avle-post' + (isReply ? ' is-reply' : '') + '" data-post="' + p.id + '">'
+        + '<p class="avle-post-by"><b>' + esc(p.author) + '</b>'
+        + (p.is_staff ? '<span class="avle-post-tag">Instructor</span>' : '')
+        + '<span class="avle-post-at">' + esc(when(p.at)) + '</span></p>'
+        + '<div class="avle-post-b">' + text(p.body) + '</div>'
+        + '<p class="avle-post-acts">'
+        + (sec.dataset.signedIn === '1' && !isReply ? '<button type="button" data-disc-reply="' + p.id + '">Reply</button>' : '')
+        + (p.can_delete ? '<button type="button" data-disc-del="' + p.id + '" data-mine="' + (p.mine ? '1' : '0') + '">'
+            + (p.mine ? 'Delete' : 'Remove') + '</button>' : '')
+        + '</p></li>';
+    };
+    const draw = () => {
+      const n = state.posts.filter(p => !p.removed).length;
+      if (count) count.textContent = n ? n + (n === 1 ? ' question' : ' questions') : 'No questions yet';
+      if (!state.posts.length) {
+        list.innerHTML = '<p class="avle-disc-empty">No questions on this lesson yet. If something here is not clear, '
+          + 'asking is the useful thing to do — somebody else is almost certainly stuck on it too.</p>';
+        return;
+      }
+      list.innerHTML = '<ul class="avle-posts">' + state.posts.map(p =>
+        one(p, false) + (p.replies || []).map(r => one(r, true)).join('')).join('') + '</ul>';
+    };
+    const load = () => {
+      list.innerHTML = '<p class="avle-disc-empty">Loading the discussion…</p>';
+      return fetch(API + '?action=discussion&course=' + encodeURIComponent(dCourse) + '&lesson=' + encodeURIComponent(dLesson),
+                   { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(j => {
+          if (!j.ok) throw new Error(j.error || 'The discussion could not be loaded.');
+          state = { posts: j.posts || [], can_moderate: !!j.can_moderate, loaded: true };
+          draw();
+        })
+        .catch(e => {
+          /* An honest error with a way back, never a silent empty list —
+             "no questions yet" over a failed request is a lie. */
+          list.innerHTML = '<p class="avle-disc-empty">' + esc(e.message)
+            + ' <button type="button" class="avle-btn avle-btn--line" data-avle-disc-open>Try again</button></p>';
+        });
+    };
+
+    sec.addEventListener('click', ev => {
+      const open = ev.target.closest('[data-avle-disc-open]');
+      if (open) { ev.preventDefault(); load(); return; }
+      const rep = ev.target.closest('[data-disc-reply]');
+      if (rep) {
+        ev.preventDefault();
+        const li = rep.closest('.avle-post');
+        if ($('.avle-disc-reply', li)) { $('.avle-disc-reply textarea', li).focus(); return; }
+        const f = document.createElement('form');
+        f.className = 'avle-disc-reply';
+        f.innerHTML = '<label class="av-sr">Your reply</label>'
+          + '<textarea rows="2" maxlength="4000" placeholder="Answer, or add what you found"></textarea>'
+          + '<div class="avle-disc-foot"><button type="submit" class="avle-btn">Post reply</button>'
+          + '<button type="button" class="avle-btn avle-btn--line" data-disc-cancel>Cancel</button>'
+          + '<span class="avle-disc-msg" role="status" aria-live="polite"></span></div>';
+        li.appendChild(f);
+        f.querySelector('textarea').focus();
+        f.addEventListener('submit', e2 => {
+          e2.preventDefault();
+          send(f.querySelector('textarea').value, +rep.getAttribute('data-disc-reply'), f.querySelector('.avle-disc-msg'), f);
+        });
+        f.addEventListener('click', e2 => { if (e2.target.closest('[data-disc-cancel]')) f.remove(); });
+        return;
+      }
+      /* Taking a post down asks IN THE PAGE. A browser dialog cannot be
+         styled, cannot be read by the page's own live region, and on a
+         phone arrives detached from the thing it is about — which is why
+         the Academy's scripts do not use one. */
+      const del = ev.target.closest('[data-disc-del]');
+      if (del) {
+        ev.preventDefault();
+        const li = del.closest('.avle-post');
+        if ($('.avle-disc-kill', li)) return;
+        const mine = del.getAttribute('data-mine') === '1';
+        const id = +del.getAttribute('data-disc-del');
+        const f = document.createElement('form');
+        f.className = 'avle-disc-kill';
+        f.innerHTML = mine
+          ? '<p class="avle-disc-ask">Delete this? The thread will show that you removed it.</p>'
+            + '<div class="avle-disc-foot"><button type="submit" class="avle-btn avle-btn--warn">Delete it</button>'
+            + '<button type="button" class="avle-btn avle-btn--line" data-kill-cancel>Keep it</button>'
+            + '<span class="avle-disc-msg" role="status" aria-live="polite"></span></div>'
+          : '<p class="avle-disc-ask">Removing somebody else\u2019s post. Why? Kept on the record for the next moderator — the room is only told it was removed.</p>'
+            + '<label class="av-sr" for="kill-' + id + '">Reason</label>'
+            + '<input id="kill-' + id + '" maxlength="200" placeholder="e.g. posted an exam answer">'
+            + '<div class="avle-disc-foot"><button type="submit" class="avle-btn avle-btn--warn">Remove it</button>'
+            + '<button type="button" class="avle-btn avle-btn--line" data-kill-cancel>Cancel</button>'
+            + '<span class="avle-disc-msg" role="status" aria-live="polite"></span></div>';
+        li.appendChild(f);
+        const field = $('input', f);
+        (field || $('button[type=submit]', f)).focus();
+        f.addEventListener('click', e2 => { if (e2.target.closest('[data-kill-cancel]')) { f.remove(); del.focus(); } });
+        f.addEventListener('submit', e2 => {
+          e2.preventDefault();
+          const out = $('.avle-disc-msg', f);
+          const reason = field ? (field.value || '').trim() : '';
+          if (!mine && !reason) { out.textContent = 'Say why — it goes on the record.'; field.focus(); return; }
+          out.textContent = 'Removing…';
+          post('discussion_remove', { course: dCourse, lesson: dLesson, id: id, reason: reason })
+            .then(j => {
+              if (!j.ok) { out.textContent = j.error || 'Not removed.'; return; }
+              state.posts = j.posts || []; state.can_moderate = !!j.can_moderate; draw();
+            })
+            .catch(() => { out.textContent = 'No connection — nothing was removed.'; });
+        });
+      }
+    });
+
+    const send = (bodyText, parent, out, f) => {
+      const t = (bodyText || '').trim();
+      if (!t) { if (out) out.textContent = 'Write your question first.'; return; }
+      if (out) out.textContent = 'Posting…';
+      post('discussion_post', { course: dCourse, lesson: dLesson, body: t, parent: parent || 0 })
+        .then(j => {
+          if (!j.ok) { if (out) out.textContent = j.error || 'Not posted.'; return; }
+          state = { posts: j.posts || [], can_moderate: !!j.can_moderate, loaded: true };
+          if (f && f !== form) f.remove(); else if (form) form.reset();
+          if (out && out !== (f && f.querySelector('.avle-disc-msg'))) out.textContent = 'Posted.';
+          draw();
+        })
+        .catch(() => { if (out) out.textContent = 'No connection — nothing was posted.'; });
+    };
+    if (form) form.addEventListener('submit', ev => { ev.preventDefault(); send($('textarea', form).value, 0, msg, form); });
+
+    /* A link straight to the discussion opens it. */
+    if (location.hash === '#avle-disc') load();
+  });
+
   run('keys', () => {
     document.addEventListener('keydown', e => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;

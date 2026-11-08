@@ -175,6 +175,40 @@ body.avle{margin:0;background:var(--av-white);color:var(--av-ink);font-family:va
 .avle-notes textarea::placeholder{color:var(--av-faint-text)}
 .avle-notes textarea:focus{border-color:var(--av-ink)}
 
+/* -- Study coach ----------------------------------------------------------
+   A drawer on the same rail as the notes, because it is the same kind of
+   thing: a panel the lesson stays visible beside. Its transcript scrolls,
+   its composer does not. */
+.avle-coach{width:360px;max-width:88vw;flex-shrink:0;border-left:1px solid var(--av-line);background:var(--av-paper);
+  position:sticky;top:60px;height:calc(100vh - 60px);padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.avle-coach[hidden]{display:none}
+.avle-coach-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.avle-coach-hd h2{margin:0;font-size:16px;font-weight:600}
+.avle-coach-tag{margin:2px 0 0;font-size:12px;color:var(--av-muted-2);line-height:1.4}
+.avle-coach-log{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:2px}
+.avle-coach-hello{margin:0;font-size:14px;line-height:1.6;color:var(--av-copy-3)}
+.avle-cm{font-size:14.5px;line-height:1.6;border-radius:12px;padding:10px 12px;max-width:100%;overflow-wrap:anywhere}
+.avle-cm p{margin:0 0 8px}
+.avle-cm p:last-child{margin:0}
+.avle-cm.is-me{background:var(--av-ink);color:var(--av-white);align-self:flex-end;max-width:85%}
+.avle-cm.is-coach{background:var(--av-white);border:1px solid var(--av-line)}
+.avle-cm.is-err{border-color:#B3261E}
+.avle-cm-wait,.avle-cm-err{margin:0;color:var(--av-muted-2);font-size:13.5px}
+.avle-cm-err{color:#B3261E}
+.avle-cm-foot{margin:8px 0 0!important;padding-top:7px;border-top:1px solid var(--av-line);
+  font-size:12.5px;line-height:1.45;color:var(--av-muted-2)}
+.avle-coach-acts{display:flex;flex-wrap:wrap;gap:6px}
+.avle-chip{min-height:34px;padding:0 12px;border:1px solid var(--av-line);border-radius:999px;background:var(--av-white);
+  color:var(--av-ink);font:600 13px var(--av-sans);cursor:pointer;white-space:nowrap}
+.avle-chip:hover:not(:disabled){border-color:var(--av-ink)}
+.avle-chip:disabled{opacity:.5;cursor:default}
+.avle-chip:focus-visible{outline:3px solid var(--av-gold,#E0A82E);outline-offset:1px}
+.avle-coach-form{display:flex;gap:8px;align-items:flex-end}
+.avle-coach-form textarea{flex:1;min-width:0;min-height:44px;max-height:140px;padding:11px 12px;border:1px solid var(--av-line-2);
+  border-radius:var(--av-r-10);background:var(--av-white);color:var(--av-ink);font:15px/1.5 var(--av-sans);resize:vertical}
+.avle-coach-form textarea:focus{border-color:var(--av-ink)}
+.avle-coach-form .avle-btn{flex-shrink:0}
+
 .avle-scrim{position:fixed;inset:0;background:var(--av-scrim);z-index:40}
 .avle-toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:70;max-width:calc(100% - 32px);background:var(--av-ink);color:var(--av-white);font-size:15px;font-weight:600;padding:12px 18px;border-radius:var(--av-r-10);box-shadow:var(--av-shadow)}
 
@@ -184,10 +218,11 @@ body.avle{margin:0;background:var(--av-white);color:var(--av-ink);font-family:va
 }
 /* Phone + tablet: contents and notes are drawers */
 @media (max-width:959px){
-  .js .avle-side,.js .avle-notes{position:fixed;top:0;bottom:0;height:auto;z-index:50;box-shadow:var(--av-shadow-drawer);transition:transform .25s ease,visibility .25s}
+  .js .avle-side,.js .avle-notes,.js .avle-coach{position:fixed;top:0;bottom:0;height:auto;z-index:50;box-shadow:var(--av-shadow-drawer);transition:transform .25s ease,visibility .25s}
   .js .avle-side{left:0;transform:translateX(-100%);visibility:hidden}
   .js .avle-side.is-open{transform:none;visibility:visible}
-  .js .avle-notes{right:0}
+  .js .avle-notes,.js .avle-coach{right:0}
+  .js .avle-coach{width:min(380px,92vw)}
   .js .avle-side-x{display:inline-flex}
   .no-js .avle-shell{flex-direction:column}
   .no-js .avle-side{order:2;position:static;width:auto;max-width:none;height:auto;border-right:0;border-top:1px solid var(--av-line)}
@@ -205,11 +240,63 @@ body.avle{margin:0;background:var(--av-white);color:var(--av-ink);font-family:va
   .avle .avle-btn--lg{padding:0 14px;font-size:14.5px}
   .js .avle-bar-r:has([data-avle-complete]) [data-avle-next]{display:none}
   .avle-pill{height:44px}
-  .avle-pass input,.avle-notes textarea{font-size:16px}
+  .avle-pass input,.avle-notes textarea,.avle-coach-form textarea{font-size:16px}
   .avle-mod-h,.avle-item{min-height:44px}
 }
 @media (max-width:379px){
   .avle-brand span:last-child{display:none}
 }
-.no-js [data-avle-notes-toggle],.no-js [data-avle-side-toggle],.no-js [data-avle-share],.no-js [data-avle-complete]{display:none}
+.no-js [data-avle-coach-toggle],.no-js [data-avle-notes-toggle],.no-js [data-avle-side-toggle],.no-js [data-avle-share],.no-js [data-avle-complete]{display:none}
 @media (prefers-reduced-motion:reduce){.avle *{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+
+/* ── Discussion ───────────────────────────────────────────────────────────
+   Below the lesson, not in the notes drawer: notes are private and narrow,
+   and a conversation is neither. */
+.avle-disc{border-top:1px solid var(--av-line);padding-top:28px;display:flex;flex-direction:column;gap:16px}
+.avle-disc-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.avle-disc-hd h2{font:600 21px var(--av-serif,var(--av-sans));margin:0}
+.avle-disc-n{font-size:13.5px;color:var(--av-muted-2)}
+.avle-disc-new,.avle-disc-reply{display:flex;flex-direction:column;gap:10px}
+.avle-disc-new textarea,.avle-disc-reply textarea{width:100%;padding:12px 14px;border:1px solid var(--av-line);border-radius:12px;
+  font:inherit;font-size:15px;line-height:1.55;resize:vertical;background:var(--av-white);color:var(--av-ink)}
+.avle-disc-new textarea:focus,.avle-disc-reply textarea:focus{outline:3px solid var(--av-gold,#E0A82E);outline-offset:1px}
+.avle-disc-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.avle-disc-msg{font-size:13.5px;color:var(--av-muted-2)}
+.avle-disc-signin{font-size:15px;color:var(--av-copy-3)}
+.avle-disc-empty{font-size:15px;color:var(--av-copy-3);line-height:1.6;margin:0}
+.avle-disc-load{margin:0}
+.avle-posts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.avle-post{padding:14px 0;border-top:1px solid var(--av-line)}
+.avle-post:first-child{border-top:0}
+.avle-post.is-reply{margin-left:22px;padding-left:16px;border-top:0;border-left:2px solid var(--av-line)}
+.avle-post-by{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 4px;font-size:14.5px}
+.avle-post-tag{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:2px 8px;border-radius:999px;background:var(--av-gold-soft);color:var(--av-gold-text)}
+.avle-post-at{font-size:13px;color:var(--av-muted-2)}
+.avle-post-b{font-size:15.5px;line-height:1.62;overflow-wrap:anywhere}
+.avle-post-gone{margin:0;font-size:14.5px;font-style:italic;color:var(--av-muted-2)}
+.avle-post-acts{display:flex;gap:14px;margin:8px 0 0}
+.avle-post-acts button{background:none;border:0;padding:4px 0;min-height:32px;font:inherit;font-size:13.5px;
+  font-weight:600;color:var(--av-muted-2);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.avle-post-acts button:hover{color:var(--av-ink)}
+.avle-disc-reply{margin-top:12px}
+
+/* ── Key points and the study coach ───────────────────────────────────────
+   Both are labelled as written by a model, every time, with a way through to
+   a person. A learner must always be able to tell which answers came from
+   software. */
+.avle-brief{border-left:3px solid var(--av-gold,#E0A82E);background:var(--av-gold-soft,#fdf7e8);
+  border-radius:0 12px 12px 0;padding:14px 18px;margin:0 0 4px}
+.avle-brief-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 8px;
+  font:700 12px var(--av-sans);letter-spacing:.07em;text-transform:uppercase;color:var(--av-gold-text,#6B5320)}
+.avle-brief-h span{font-weight:600;letter-spacing:0;text-transform:none;font-size:12.5px;color:var(--av-muted-2)}
+.avle-brief ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px}
+.avle-brief li{font-size:15px;line-height:1.55}
+
+.avle-disc-kill{margin-top:12px;padding:12px 14px;border:1px solid var(--av-line);border-radius:12px;
+  background:var(--av-stone,#f7f6f2);display:flex;flex-direction:column;gap:10px}
+.avle-disc-ask{margin:0;font-size:14px;line-height:1.5}
+.avle-disc-kill input{min-height:44px;padding:0 12px;border:1px solid var(--av-line);border-radius:10px;font:inherit;font-size:15px}
+.avle-disc-kill input:focus{outline:3px solid var(--av-gold,#E0A82E);outline-offset:1px}
+.avle-btn--warn{background:#B3261E;border-color:#B3261E;color:#fff}
+.avle-btn--warn:hover{background:#9a1f18}

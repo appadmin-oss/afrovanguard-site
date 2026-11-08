@@ -90,6 +90,11 @@ if ($course) {
     $stats = $lms->courseStats((int) $course['id']);
     $roster = $lms->roster((int) $course['id']);
     $funnel = $lms->lessonFunnel((int) $course['id']);
+    /* Grades and questions — the two halves an instructor could not see at
+       all. quiz_attempts was write-only, and there were no discussions. */
+    $book = $lms->gradebook((int) $course['id']);
+    $asks = (new LmsDiscussion())->unanswered((int) $course['id'], 25);
+    $unanswered = count(array_filter($asks, static fn($a) => $a['replies'] === 0));
     // Learner status buckets, for the filter chips + summary.
     $notStarted = 0; $active = 0; $done = 0;
     foreach ($roster as $r) { if ($r['pct'] >= 100) $done++; elseif ($r['done'] > 0) $active++; else $notStarted++; }
@@ -106,8 +111,67 @@ if ($course) {
         <div class="tstat"><span class="tn"><?= (int) $stats['enrolled'] ?></span><span class="tl">Learners</span></div>
         <div class="tstat"><span class="tn"><?= (int) $stats['completed'] ?></span><span class="tl">Completed</span></div>
         <div class="tstat"><span class="tn"><?= (int) $stats['avg_pct'] ?>%</span><span class="tl">Avg. progress</span></div>
+<?php if ($book['average'] !== null): ?>
+        <div class="tstat"><span class="tn"><?= (int) $book['average'] ?>%</span><span class="tl">Avg. quiz score</span></div>
+<?php endif; ?>
+<?php if ($unanswered): ?>
+        <div class="tstat tstat--ask"><span class="tn"><?= (int) $unanswered ?></span><span class="tl">Unanswered</span></div>
+<?php endif; ?>
         <div class="tstat"><span class="tn"><?= (int) $stats['lessons'] ?></span><span class="tl">Lessons</span></div>
       </div>
+
+<?php /* ── QUESTIONS WAITING ───────────────────────────────────────────
+         Unanswered first, because a thread nobody with an answer reads is
+         worse than no thread at all — it is a room where asking visibly
+         does nothing. */ ?>
+<?php if ($asks): ?>
+      <section class="teach-asks">
+        <div class="funnel-head">
+          <h2>Questions from your learners</h2>
+          <p><?= $unanswered ? '<strong>' . (int) $unanswered . ' waiting for an answer</strong> — those come first.' : 'Every question has at least one reply. Nice.' ?></p>
+        </div>
+        <ul class="ask-list">
+<?php foreach (array_slice($asks, 0, 8) as $a): ?>
+          <li class="ask<?= $a['replies'] === 0 ? ' is-open' : '' ?>">
+            <p class="ask-by"><b><?= e($a['author']) ?></b> on <a href="<?= e(academy_url($course['slug'] . '/learn/' . $a['lesson_slug'])) ?>#avle-disc"><?= e($a['lesson_title']) ?></a>
+              <span class="ask-n"><?= $a['replies'] ? (int) $a['replies'] . ' ' . ($a['replies'] === 1 ? 'reply' : 'replies') : 'No reply yet' ?></span></p>
+            <p class="ask-b"><?= e(mb_strimwidth($a['body'], 0, 260, '…')) ?></p>
+          </li>
+<?php endforeach; ?>
+        </ul>
+      </section>
+<?php endif; ?>
+
+<?php /* ── GRADEBOOK ───────────────────────────────────────────────────
+         Best attempt per learner per graded lesson. An instructor had no
+         way to see a score at all before this, though every one has been
+         recorded since the LMS shipped. */ ?>
+<?php if ($book['lessons'] && $book['learners']): ?>
+      <section class="teach-grades">
+        <div class="funnel-head">
+          <h2>Gradebook</h2>
+          <p>The <strong>best</strong> attempt counts — a retake can only help a learner. A dash means they have not attempted it yet.</p>
+        </div>
+        <div class="gb-scroll">
+          <table class="gb">
+            <caption class="av-sr">Best quiz score for each learner on each graded lesson</caption>
+            <thead><tr><th scope="col">Learner</th>
+<?php foreach ($book['lessons'] as $bl): ?>              <th scope="col" class="gb-n" title="<?= e($bl['title']) ?>"><?= e(mb_strimwidth($bl['title'], 0, 22, '…')) ?><span class="gb-pass">pass <?= (int) $bl['pass'] ?>%</span></th>
+<?php endforeach; ?>
+              <th scope="col" class="gb-n">Average</th></tr></thead>
+            <tbody>
+<?php foreach ($book['learners'] as $bu): ?>
+              <tr><th scope="row"><?= e((string) $bu['name']) ?><span class="gb-em"><?= e((string) $bu['email']) ?></span></th>
+<?php foreach ($bu['cells'] as $ci => $cell): ?>
+                <td class="gb-n<?= $cell ? ($cell['passed'] ? ' is-pass' : ' is-fail') : '' ?>"><?= $cell ? (int) $cell['best'] . '%' : '—' ?><?= $cell && $cell['tries'] > 1 ? '<span class="gb-t">' . (int) $cell['tries'] . ' tries</span>' : '' ?></td>
+<?php endforeach; ?>
+                <td class="gb-n gb-avg"><?= $bu['average'] === null ? '—' : (int) $bu['average'] . '%' ?></td></tr>
+<?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </section>
+<?php endif; ?>
 <?php if (!$roster): ?>
       <p class="teach-empty">No learners have enrolled yet. Share your programme to get started.</p>
 <?php else: ?>
