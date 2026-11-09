@@ -7,8 +7,8 @@
  *   GET  ?action=whoami                                        → { ok, user, device }
  *   POST ?action=start     {meet_code, title, url, meeting_id?, consent_shown}
  *   POST ?action=chunk     multipart: rec, seg, idx, sha256, data(file)
- *   POST ?action=segment   {rec, seg, chunks, offset, mime}     → assembles, or lists missing chunks
- *   POST ?action=finish    {rec, segments, marks?: [seconds…]}
+ *   POST ?action=segment   {rec, seg, chunks, offset, mime, talk?: [[start, end, "me"|"them"]…]}     → assembles, or lists missing chunks
+ *   POST ?action=finish    {rec, segments, marks?: [seconds…], people?: most people Meet showed}
  *   GET  ?action=status&rec=N
  *   POST ?action=cancel    {rec}
  *
@@ -46,7 +46,7 @@ if (in_array($action, $gets, true) && $method !== 'GET') $out(['ok' => false, 'e
 $body = [];
 if ($method === 'POST' && $action !== 'chunk') {
     $raw = (string) file_get_contents('php://input');
-    if (strlen($raw) > 65536) $out(['ok' => false, 'error' => 'Too large.'], 413);
+    if (strlen($raw) > 262144) $out(['ok' => false, 'error' => 'Too large.'], 413);
     $body = json_decode($raw, true);
     if (!is_array($body)) $body = [];
 }
@@ -90,9 +90,9 @@ try {
                 strtolower((string) ($_POST['sha256'] ?? '')), (string) $f['tmp_name'], (int) $f['size']));
         case 'segment':
             $reply(Recorder::segmentDone($device, $rec, (int) ($body['seg'] ?? -1), (int) ($body['chunks'] ?? 0),
-                (int) ($body['offset'] ?? 0), (string) ($body['mime'] ?? 'audio/webm')));
+                (int) ($body['offset'] ?? 0), (string) ($body['mime'] ?? 'audio/webm'), is_array($body['talk'] ?? null) ? $body['talk'] : []));
         case 'finish':
-            $reply(Recorder::finish($device, $rec, (int) ($body['segments'] ?? 0), is_array($body['marks'] ?? null) ? $body['marks'] : []));
+            $reply(Recorder::finish($device, $rec, (int) ($body['segments'] ?? 0), is_array($body['marks'] ?? null) ? $body['marks'] : [], (int) ($body['people'] ?? 0)));
         case 'status':
             $reply(Recorder::status($device, $rec));
         case 'cancel':

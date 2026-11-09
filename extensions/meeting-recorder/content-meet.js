@@ -23,11 +23,26 @@
     return !!leave;
   }
 
+  /* How many people the call shows (tiles carry a participant id). Only a
+     count, never names: it lets the recorder name the other person in a
+     one-to-one call, and stops it doing so when a third person joins. */
+  var peopleMax = 0;
+  function people() {
+    var ids = {};
+    var tiles = document.querySelectorAll('[data-participant-id]');
+    for (var i = 0; i < tiles.length; i++) ids[tiles[i].getAttribute('data-participant-id')] = 1;
+    return Object.keys(ids).length;
+  }
+
   function report() {
     var now = inCall();
-    if (now === last) return;
+    var n = now ? people() : 0;
+    var grew = n > peopleMax;
+    if (grew) peopleMax = n;
+    if (now === last && !grew) return;
+    var changed = now !== last;
     last = now;
-    try { chrome.runtime.sendMessage({ type: 'meet-state', code: code(), inCall: now, title: document.title }); } catch (e) { /* extension reloaded */ }
+    try { chrome.runtime.sendMessage(changed ? { type: 'meet-state', code: code(), inCall: now, title: document.title, people: peopleMax } : { type: 'meet-state', code: code(), people: peopleMax }); } catch (e) { /* extension reloaded */ }
   }
 
   function banner(state) {
@@ -67,6 +82,11 @@
   chrome.runtime.onMessage.addListener(function (m) {
     if (!m || m.from !== 'av-recorder' || m.type !== 'banner') return;
     if (m.state === 'recording' || m.state === 'paused') dismissed = false;
+    // Recording just started: say how many people the call has shown, even if that did not change.
+    if (m.state === 'recording') {
+      peopleMax = Math.max(peopleMax, people());
+      try { chrome.runtime.sendMessage({ type: 'meet-state', code: code(), people: peopleMax }); } catch (e) { /* extension reloaded */ }
+    }
     banner(m.state);
   });
 

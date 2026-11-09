@@ -34,6 +34,8 @@ export class SegmentedRecorder {
     this.pausedTotal = 0;
     this.tabDeadSince = 0;
     this.micDeadSince = 0;
+    this.talk = {};          // per segment: [[start, end, 'me'|'them'], …] in seconds of that segment's audio
+    this.segAudioStart = {};
   }
 
   async start() {
@@ -58,6 +60,7 @@ export class SegmentedRecorder {
     this.silentSince = this.tabDeadSince = this.micDeadSince = Date.now();
     await this.nextSegment();
     this.levelTimer = setInterval(() => this.tickLevels(), 1000);
+    this.talkTimer = setInterval(() => this.sampleTalk(), 250);
   }
 
   meter(src) {
@@ -69,6 +72,32 @@ export class SegmentedRecorder {
   }
 
   /** Seconds recorded, not counting pauses. */
+  /** Milliseconds recorded, not counting pauses: the clock the audio itself keeps. */
+  elapsedMs(now = Date.now()) {
+    return now - this.startedAt - this.pausedTotal - (this.paused ? now - this.pausedAt : 0);
+  }
+
+  /**
+   * Who is talking, four times a second. The microphone and the meeting tab
+   * are separate sources here, so "the person recording" versus "someone in
+   * the call" needs no guessing and no reading of Meet's page. Echo
+   * cancellation keeps the call's sound out of the microphone; the 1.5×
+   * margin settles what little is left.
+   */
+  sampleTalk() {
+    if (this.paused || this.stopping || this.seg < 0) return;
+    const tab = this.levels.tab ? this.levels.tab() : 0;
+    const mic = this.levels.mic ? this.levels.mic() : 0;
+    const who = mic > 0.02 && mic > tab * 1.5 ? 'me' : tab > 0.015 ? 'them' : null;
+    if (!who) return;
+    const seg = this.seg;
+    const pos = (this.elapsedMs() - this.segAudioStart[seg]) / 1000;
+    const runs = this.talk[seg] || (this.talk[seg] = []);
+    const last = runs[runs.length - 1];
+    if (last && last[2] === who && pos - last[1] <= 0.8) last[1] = +(pos + 0.25).toFixed(2);
+    else runs.push([+pos.toFixed(2), +(pos + 0.25).toFixed(2), who]);
+  }
+
   elapsed(now = Date.now()) {
     return Math.round((now - this.startedAt - this.pausedTotal - (this.paused ? now - this.pausedAt : 0)) / 1000);
   }
@@ -124,7 +153,10 @@ export class SegmentedRecorder {
   /** Close the current segment (if any) and open the next, on the same mixed stream. */
   async nextSegment() {
     const prev = this.mr;
-    const seg = ++this.seg;
+    const seg = this.seg + 1;
+    this.segAudioStart[seg] = this.elapsedMs();
+    this.talk[seg] = [];
+    this.seg = seg;
     const offset = Math.round((Date.now() - this.startedAt) / 1000);
     await store.put('segments', { rec: this.o.rec, seg, offset, mime: this.mime, closed: false, slices: 0, nextSlice: 0, chunks: 0, serverDone: false });
     await store.update('recordings', this.o.rec, (r) => r && Object.assign(r, { segments: seg + 1 }));
@@ -143,7 +175,10 @@ export class SegmentedRecorder {
     };
     mr.onstop = () => {
       this.writes = this.writes.then(async () => {
-        await store.update('segments', [this.o.rec, seg], (s) => s && Object.assign(s, { closed: true }));
+        // A blip under half a second is noise, not a turn.
+        const talk = (this.talk[seg] || []).filter((r) => r[1] - r[0] >= 0.5);
+        delete this.talk[seg];
+        await store.update('segments', [this.o.rec, seg], (s) => s && Object.assign(s, { closed: true, talk }));
         this.o.emit({ type: 'segment-closed', seg });
       });
     };
@@ -162,6 +197,7 @@ export class SegmentedRecorder {
     this.stopping = true;
     clearTimeout(this.segTimer);
     clearInterval(this.levelTimer);
+    clearInterval(this.talkTimer);
     this.stopped = (async () => {
       if (this.mr && this.mr.state !== 'inactive') {
         await new Promise((res) => { this.mr.addEventListener('stop', res, { once: true }); this.mr.stop(); });

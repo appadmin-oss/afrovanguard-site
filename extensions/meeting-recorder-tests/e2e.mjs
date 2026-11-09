@@ -98,7 +98,7 @@ try {
   ck('the recorded-time clock holds still while paused', pz.whilePaused - pz.atPause <= 1 && pz.after - pz.whilePaused >= 2, JSON.stringify([pz.atPause, pz.whilePaused, pz.after]));
   ck('a paused recorder never counts towards the silence stop', pz.pausedLevel && pz.pausedLevel.paused === true && pz.pausedLevel.silentFor === 0);
   ck('a tab sending nothing at all is seen as dead', pz.maxDead >= 2, JSON.stringify(pz));
-  const rec = await h.evaluate(() => window.runRecording({ seconds: 7.5, segmentSeconds: 3, sliceMs: 500, marksAt: [1, 4.2] }));
+  const rec = await h.evaluate(() => window.runRecording({ seconds: 7.5, segmentSeconds: 3, sliceMs: 500, marksAt: [1, 4.2], turns: [[0, 2.4, 'them'], [2.6, 5.4, 'me'], [5.6, 7.5, 'them']] }));
   ck('Alt+Shift+M marks are taken by the background worker', rec.marked.length === 2 && rec.marked.every((m) => m && m.ok), JSON.stringify(rec.marked));
   ck('and saved with the recording, in seconds', rec.marks.length === 2 && rec.marks[0] >= 0 && rec.marks[0] <= 2 && rec.marks[1] >= 3 && rec.marks[1] <= 6, JSON.stringify(rec.marks));
   ck('three segments were recorded', rec.segments === 3, JSON.stringify(rec));
@@ -117,13 +117,19 @@ try {
     echo json_encode($out);`));
   ck('the server assembled three segment files', files.length === 3, JSON.stringify(files));
   ck('each is a standalone WebM file (EBML header)', files.every((f) => f.ebml));
+  const talk = JSON.parse(php(`echo json_encode(array_map(static fn($t) => json_decode((string) $t, true), Database::pdo()->query("SELECT talk FROM recording_segments s JOIN recordings r ON r.id = s.recording_id WHERE r.title = 'Weekly standup' ORDER BY s.seg_no")->fetchAll(PDO::FETCH_COLUMN)));`));
+  const whoIn = (seg) => [...new Set((talk[seg] || []).map((r) => r[2]))].sort().join(',');
+  ck('each part carries who was talking: the call, then the person recording, then the call', whoIn(0) === 'me,them' || whoIn(0) === 'them', JSON.stringify(talk));
+  ck('the microphone turn is heard as the person recording', (talk[1] || []).some((r) => r[2] === 'me' && r[1] - r[0] >= 1.5), JSON.stringify(talk[1]));
+  ck('and the call\'s turn as someone else', (talk[2] || []).some((r) => r[2] === 'them' && r[1] - r[0] >= 1), JSON.stringify(talk[2]));
   ck('their start times are in order', files[0].offset === 0 && files[1].offset >= 2 && files[2].offset > files[1].offset, JSON.stringify(files.map((f) => f.offset)));
 
   console.log('\n# minutes');
-  const sweep = JSON.parse(php(`echo json_encode(Recorder::sweep(20, static fn($b, $m) => ['ok' => true, 'text' => 'Heard ' . strlen($b) . ' bytes of ' . $m]));`));
+  const sweep = JSON.parse(php(`echo json_encode(Recorder::sweep(20, static fn($b, $m) => ['ok' => true, 'text' => 'Heard ' . strlen($b) . ' bytes of ' . $m, 'segments' => [['start' => 0, 'end' => 1, 'text' => 'Heard ' . strlen($b) . ' bytes of ' . $m . '.'], ['start' => 1, 'end' => 2, 'text' => 'Second.'], ['start' => 2, 'end' => 3, 'text' => 'Third.']]]));`));
   ck('the cron transcribes all three parts and writes the minutes', sweep.transcribed === 3 && sweep.finalised === 1, JSON.stringify(sweep));
   const tr = php(`echo (string) Database::pdo()->query("SELECT raw_text FROM meeting_transcripts t JOIN meetings m ON m.id = t.meeting_id WHERE m.title = 'Weekly standup'")->fetchColumn();`);
-  ck('the meeting has the stitched transcript', /^\[00:00:00\]\nHeard \d+ bytes of audio\/webm/.test(tr) && (tr.match(/\[00:00:0\d\]/g) || []).length === 3, JSON.stringify(tr.slice(0, 120)));
+  ck('the minutes name the person recording and mark the call\'s side', /Tess Tester: /.test(tr) && /Others: /.test(tr), JSON.stringify(tr));
+  ck('the meeting has the stitched transcript', /^\[00:00:00\]\n(Others: |Tess Tester: )?Heard \d+ bytes of audio\/webm/.test(tr) && (tr.match(/\[00:00:0\d\]/g) || []).length === 3, JSON.stringify(tr.slice(0, 120)));
   ck('the marked moments are in the minutes\' transcript', (tr.match(/★ Marked as important/g) || []).length === 2, JSON.stringify(tr));
   ck('the transcriber was given the meeting context', php(`echo json_encode(Recorder::hints((int) Database::pdo()->query("SELECT id FROM recordings ORDER BY id LIMIT 1")->fetchColumn(), 1));`).includes('Weekly standup'));
   const done = await until(async () => { await h.evaluate(() => window.sync()); const l = await h.evaluate((r) => window.local(r), rec.rec); return l.rec.state === 'done' && l; }, 15000, 800);

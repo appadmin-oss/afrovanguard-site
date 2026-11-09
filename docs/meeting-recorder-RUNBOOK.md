@@ -1,6 +1,6 @@
 # Meeting Recorder: runbook
 
-Owner: **to be named** (the person who holds the signing key) · Version date: 2026-11-09 · Extension version: 1.1.0
+Owner: **to be named** (the person who holds the signing key) · Version date: 2026-11-09 · Extension version: 1.2.0
 
 The Meeting Recorder is a Chrome extension that records a meeting from the
 browser tab (the meeting's sound plus your microphone) and turns it into
@@ -88,7 +88,16 @@ extension. Personal Chrome profiles, mentors and partners don't (see §6).
      the meeting.
 4. To stop: press Alt+Shift+R again, click *Stop*, leave the call, or close
    the tab. It also stops by itself after 10 minutes of silence.
-5. The minutes appear on the meeting in the portal (*Meetings*), usually a
+5. **Speaker names.** In the transcript, your own lines carry your name. In a
+   one-to-one call (the meeting has exactly one other person, and Meet never
+   showed more than two), the other person's lines carry theirs. In a group
+   call, everyone else's lines are labelled **Others**. The recorder does not
+   guess who in the call is speaking, because a wrong name on an action item
+   is worse than none. A line where both sides talked over each other stays
+   unlabelled. For named speakers in a large group call, use Google Meet's
+   own transcript (the meeting's *Pull Google Meet transcript*), which knows
+   every speaker.
+6. The minutes appear on the meeting in the portal (*Meetings*), usually a
    few minutes after the upload finishes, and a Chrome notification says so.
 
 If the meeting was scheduled in the portal, the recording attaches to it (by
@@ -162,7 +171,14 @@ requires before it will capture a tab. So after a release, do one real
 - Meet's page changes without notice. If it does, the *in-call reminder* and
   *stop when you leave* may go quiet. Recording itself, stop on tab close and
   stop on silence don't depend on Meet's page.
-- Speakers are labelled "Speaker 1, 2…" (Gemini uses a name when someone is clearly addressed). Whisper does not separate speakers at all. No Zoom or Teams prompts yet, though
+- Speaker names: you, and the other person in a one-to-one call. Others in a
+  group call are "Others" (Gemini may still use a name when someone is clearly
+  addressed). Telling them apart would need Meet's page, which changes without
+  notice.
+- Telling you from the call relies on Chrome's echo cancellation. On loud
+  laptop speakers with no headset, some of the call can leak into your
+  microphone. The recorder needs your voice to be clearly louder than the call
+  before it calls a moment yours. No Zoom or Teams prompts yet, though
   recording those tabs already works.
 - The "tell everyone" notice is shown to the person recording, not posted
   into the call.

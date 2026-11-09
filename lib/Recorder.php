@@ -106,6 +106,13 @@ final class Recorder
         // v1.1: moments the person recording marked as important (JSON list of seconds).
         try { Database::pdo()->query('SELECT marks FROM recordings LIMIT 1'); }
         catch (Throwable $e) { Database::pdo()->exec("ALTER TABLE recordings ADD COLUMN marks VARCHAR(2000) NOT NULL DEFAULT ''"); }
+        // v1.2: who was talking. Per part, the times the recording person's
+        // microphone or the call was speaking; Whisper's timed sentences; and
+        // the most people Meet showed in the call.
+        foreach ([['recording_segments', 'talk', 'TEXT'], ['recording_segments', 'utterances', 'TEXT'], ['recordings', 'people_max', 'INTEGER NOT NULL DEFAULT 0']] as [$t, $c, $decl]) {
+            try { Database::pdo()->query("SELECT $c FROM $t LIMIT 1"); }
+            catch (Throwable $e) { Database::pdo()->exec("ALTER TABLE $t ADD COLUMN $c $decl"); }
+        }
     }
 
     private static function now(): string { return gmdate('Y-m-d H:i:s'); }
@@ -398,8 +405,9 @@ final class Recorder
     }
 
     /** Join a segment's chunks into one playable file. Says which are missing if any. */
-    public static function segmentDone(array $device, int $rid, int $seg, int $chunks, int $offsetSec, string $mime): array
+    public static function segmentDone(array $device, int $rid, int $seg, int $chunks, int $offsetSec, string $mime, array $talk = []): array
     {
+        $talkJson = json_encode(self::cleanTalk($talk));
         self::ensure();
         $r = self::own($device, $rid);
         if (!$r) return ['ok' => false, 'error' => 'Not your recording.', 'status' => 404];
@@ -408,8 +416,8 @@ final class Recorder
         if (self::segmentRow($rid, $seg)) return ['ok' => true, 'already' => true];
         if ($chunks === 0) {
             // Stop pressed just after a segment began: an empty part, nothing to transcribe.
-            Database::pdo()->prepare("INSERT INTO recording_segments (recording_id, seg_no, state, offset_sec, bytes, mime, path, updated_at) VALUES (?,?,'done',?,0,'audio/webm','',?)")
-               ->execute([$rid, $seg, max(0, $offsetSec), self::now()]);
+            Database::pdo()->prepare("INSERT INTO recording_segments (recording_id, seg_no, state, offset_sec, bytes, mime, path, updated_at, talk) VALUES (?,?,'done',?,0,'audio/webm','',?,?)")
+               ->execute([$rid, $seg, max(0, $offsetSec), self::now(), $talkJson]);
             self::touch($rid);
             return ['ok' => true, 'bytes' => 0];
         }
@@ -434,8 +442,8 @@ final class Recorder
         if ($bytes > self::MAX_SEGMENT_BYTES) { @unlink($path . '.tmp'); return ['ok' => false, 'error' => 'The segment is too large to transcribe.', 'status' => 413]; }
         @rename($path . '.tmp', $path);
         try {
-            Database::pdo()->prepare('INSERT INTO recording_segments (recording_id, seg_no, state, offset_sec, bytes, mime, path, updated_at) VALUES (?,?,?,?,?,?,?,?)')
-               ->execute([$rid, $seg, 'ready', max(0, $offsetSec), $bytes, $mime, $path, self::now()]);
+            Database::pdo()->prepare('INSERT INTO recording_segments (recording_id, seg_no, state, offset_sec, bytes, mime, path, updated_at, talk) VALUES (?,?,?,?,?,?,?,?,?)')
+               ->execute([$rid, $seg, 'ready', max(0, $offsetSec), $bytes, $mime, $path, self::now(), $talkJson]);
         } catch (Throwable $e) {
             if (self::segmentRow($rid, $seg)) return ['ok' => true, 'already' => true];   // a racing twin got there first
             throw $e;
@@ -446,7 +454,7 @@ final class Recorder
     }
 
     /** The extension has stopped. Says which segments it still owes, if any. */
-    public static function finish(array $device, int $rid, int $segments, array $marks = []): array
+    public static function finish(array $device, int $rid, int $segments, array $marks = [], int $people = 0): array
     {
         self::ensure();
         $r = self::own($device, $rid);
@@ -459,6 +467,7 @@ final class Recorder
         }
         $marks = self::cleanMarks($marks);
         if ($marks) Database::pdo()->prepare('UPDATE recordings SET marks = ? WHERE id = ?')->execute([json_encode($marks), $rid]);
+        if ($people > 0) Database::pdo()->prepare('UPDATE recordings SET people_max = ? WHERE id = ?')->execute([min(500, $people), $rid]);
         $have = self::segmentNumbers($rid);
         $missing = array_values(array_diff(range(0, max(0, $segments - 1)), $have));
         if ($segments === 0) $missing = [];
@@ -551,8 +560,9 @@ final class Recorder
                 $bytes = is_file((string) $s['path']) ? (string) file_get_contents((string) $s['path']) : '';
                 $res = $bytes === '' ? ['ok' => false, 'error' => 'The audio file is missing.'] : $transcriber($bytes, (string) $s['mime'], self::hints((int) $s['recording_id'], (int) $s['seg_no']));
                 if (!empty($res['ok'])) {
-                    $db->prepare("UPDATE recording_segments SET state = 'done', text = ?, error = '', updated_at = ? WHERE id = ?")
-                       ->execute([trim((string) $res['text']), self::now(), (int) $s['id']]);
+                    $utt = !empty($res['segments']) && is_array($res['segments']) ? json_encode(array_values($res['segments']), JSON_UNESCAPED_UNICODE) : null;
+                    $db->prepare("UPDATE recording_segments SET state = 'done', text = ?, utterances = ?, error = '', updated_at = ? WHERE id = ?")
+                       ->execute([trim((string) $res['text']), $utt, self::now(), (int) $s['id']]);
                     $out['transcribed']++;
                 } else {
                     $final = (int) $s['attempts'] + 1 >= self::MAX_ATTEMPTS || $bytes === '';
@@ -625,14 +635,102 @@ final class Recorder
             . ($names ? 'People in it: ' . implode(', ', array_slice($names, 0, 30)) . '. ' : '')
             . 'Spell these exactly: ' . implode(', ', $terms) . '. '
             . ($prev !== '' ? 'This recording continues from a previous part that ended: "' . $prev . '". Do not repeat that text.' : '');
+        // Who is talking when: Gemini labels lines itself, so it gets the timeline.
+        $sp = self::speakers($rid);
+        $tk = $db->prepare('SELECT talk FROM recording_segments WHERE recording_id = ? AND seg_no = ?');
+        $tk->execute([$rid, $segNo]);
+        $runs = self::cleanTalk(json_decode((string) $tk->fetchColumn(), true) ?: []);
+        $mine = array_values(array_filter($runs, static fn($r) => $r[2] === 'me'));
+        if ($sp['me'] !== '' && $mine) {
+            $gemini .= ' Start each line with the speaker\'s name and a colon. ' . $sp['me'] . ' is the person recording, heard through their own microphone; they are speaking at about these times (seconds from the start of this audio): '
+                . implode(', ', array_map(static fn($r) => round($r[0]) . '–' . round($r[1]), array_slice($mine, 0, 120))) . '. '
+                . ($sp['them'] !== '' ? 'The only other person in the call is ' . $sp['them'] . '; label their lines with that name.' : 'Everyone else is heard through the call: label them Speaker 2, Speaker 3 … unless they are clearly named.');
+        }
         return ['whisper' => $whisper, 'gemini' => $gemini];
+    }
+
+    /**
+     * The names that are safe to put on lines. "me" is the person who recorded
+     * (their microphone is a separate source, so this is reliable). "them" is
+     * filled only for a one-to-one call: the meeting has exactly one other
+     * named person, and Meet never showed more than two people in it. Anyone
+     * else stays unnamed: a wrong name on an action item is worse than none.
+     */
+    public static function speakers(int $rid): array
+    {
+        $db = Database::pdo();
+        $st = $db->prepare('SELECT r.user_id, r.meeting_id, r.people_max, m.creator_id FROM recordings r LEFT JOIN meetings m ON m.id = r.meeting_id WHERE r.id = ?');
+        $st->execute([$rid]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$r) return ['me' => '', 'them' => ''];
+        $me = self::userRow((int) $r['user_id']);
+        $myName = trim((string) ($me['name'] ?? ''));
+        $myEmail = strtolower((string) ($me['email'] ?? ''));
+        $people = [];
+        $a = $db->prepare('SELECT lower(email) FROM meeting_attendees WHERE meeting_id = ?');
+        $a->execute([(int) $r['meeting_id']]);
+        foreach ($a->fetchAll(PDO::FETCH_COLUMN) ?: [] as $e) $people[(string) $e] = true;
+        $c = self::userRow((int) ($r['creator_id'] ?? 0));
+        if ($c && !empty($c['email'])) $people[strtolower((string) $c['email'])] = true;
+        unset($people[$myEmail]);
+        $them = '';
+        if (count($people) === 1 && (int) $r['people_max'] <= 2) {
+            $n = $db->prepare('SELECT name FROM lms_users WHERE lower(email) = ?');
+            $n->execute([array_key_first($people)]);
+            $them = trim((string) $n->fetchColumn());
+        }
+        return ['me' => $myName, 'them' => $them];
+    }
+
+    /** Talk runs: [[start, end, "me"|"them"], …] in seconds of the part's audio; at most 3000. */
+    public static function cleanTalk(array $talk): array
+    {
+        $out = [];
+        foreach ($talk as $t) {
+            if (!is_array($t) || count($t) < 3 || !is_numeric($t[0]) || !is_numeric($t[1]) || !in_array($t[2], ['me', 'them'], true)) continue;
+            $a = max(0.0, (float) $t[0]); $b = (float) $t[1];
+            if ($b <= $a || $a > 7200) continue;
+            $out[] = [round($a, 2), round(min($b, 7200.0), 2), $t[2]];
+            if (count($out) >= 3000) break;
+        }
+        usort($out, static fn($x, $y) => $x[0] <=> $y[0]);
+        return $out;
+    }
+
+    /**
+     * Put names on Whisper's timed sentences: a sentence is "me" or "them"
+     * when that side was talking for most of it, and unlabelled when it is
+     * not clear (crosstalk, silence detection missed it). Consecutive lines
+     * of one speaker become one paragraph. Returns '' when there is nothing
+     * to go on, and the plain text is used instead.
+     */
+    public static function labelled(array $utterances, array $talk, array $names): string
+    {
+        $talk = self::cleanTalk($talk);
+        if (!$utterances || !$talk || ($names['me'] ?? '') === '') return '';
+        $label = ['me' => (string) $names['me'], 'them' => (string) (($names['them'] ?? '') !== '' ? $names['them'] : 'Others')];
+        $lines = [];
+        foreach ($utterances as $u) {
+            $a = (float) ($u['start'] ?? 0); $b = max($a + 0.1, (float) ($u['end'] ?? 0));
+            $over = ['me' => 0.0, 'them' => 0.0];
+            foreach ($talk as [$s, $e, $who]) { $o = min($b, $e) - max($a, $s); if ($o > 0) $over[$who] += $o; }
+            $heard = $over['me'] + $over['them'];
+            $who = '';
+            if ($heard >= 0.3 * ($b - $a)) foreach (['me', 'them'] as $k) if ($over[$k] >= 0.65 * $heard) $who = $k;
+            $text = trim((string) ($u['text'] ?? ''));
+            if ($text === '') continue;
+            $last = count($lines) - 1;
+            if ($last >= 0 && $lines[$last][0] === $who) $lines[$last][1] .= ' ' . $text;
+            else $lines[] = [$who, $text];
+        }
+        return implode("\n", array_map(static fn($l) => ($l[0] !== '' ? $label[$l[0]] . ': ' : '') . $l[1], $lines));
     }
 
     /** Whisper first, Gemini as the fallback — the same order as Meetings::transcribeAudio. */
     public static function transcribe(string $bytes, string $mime, array $hints = []): array
     {
         $res = null;
-        if (class_exists('OpenAi') && OpenAi::configured()) $res = OpenAi::transcribeAudio($bytes, $mime, (string) ($hints['whisper'] ?? ''));
+        if (class_exists('OpenAi') && OpenAi::configured()) $res = OpenAi::transcribeAudio($bytes, $mime, (string) ($hints['whisper'] ?? ''), true);
         if ((!$res || empty($res['ok'])) && class_exists('Gemini') && Gemini::configured()) {
             $g = Gemini::transcribeAudio($bytes, $mime, (string) ($hints['gemini'] ?? ''));
             if (!empty($g['ok']) || !$res) $res = $g;
@@ -645,7 +743,7 @@ final class Recorder
     {
         $rid = (int) $r['id'];
         $db = Database::pdo();
-        $st = $db->prepare('SELECT seg_no, state, offset_sec, text FROM recording_segments WHERE recording_id = ? ORDER BY seg_no');
+        $st = $db->prepare('SELECT seg_no, state, offset_sec, text, talk, utterances FROM recording_segments WHERE recording_id = ? ORDER BY seg_no');
         $st->execute([$rid]);
         $segs = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
         $have = array_map('intval', array_column($segs, 'seg_no'));
@@ -655,7 +753,7 @@ final class Recorder
         if (!$late && $expected > 0 && count(array_diff(range(0, $expected - 1), $have)) > 0) return false;
         foreach ($segs as $s) if (!in_array((string) $s['state'], ['done', 'failed'], true)) return false;
 
-        $text = self::stitch($segs, json_decode((string) ($r['marks'] ?? ''), true) ?: []);
+        $text = self::stitch($segs, json_decode((string) ($r['marks'] ?? ''), true) ?: [], self::speakers($rid));
         $failed = count(array_filter($segs, static fn($s) => (string) $s['state'] === 'failed'));
         $note = $failed ? $failed . ' of ' . count($segs) . ' parts could not be transcribed.' : (string) $r['note'];
         if ($text === '') {
@@ -701,7 +799,7 @@ final class Recorder
      * moment the person recording marked is noted at the end of its part, so
      * the minutes can give it weight.
      */
-    public static function stitch(array $segs, array $marks = []): string
+    public static function stitch(array $segs, array $marks = [], array $names = []): string
     {
         usort($segs, static fn($a, $b) => (int) $a['seg_no'] <=> (int) $b['seg_no']);
         $marks = self::cleanMarks($marks);
@@ -709,6 +807,10 @@ final class Recorder
         foreach ($segs as $i => $s) {
             $t = trim((string) ($s['text'] ?? ''));
             if ((string) ($s['state'] ?? 'done') !== 'done') $t = '';
+            if ($t !== '' && $names) {
+                $named = self::labelled(json_decode((string) ($s['utterances'] ?? ''), true) ?: [], json_decode((string) ($s['talk'] ?? ''), true) ?: [], $names);
+                if ($named !== '') $t = $named;
+            }
             $o = max(0, (int) ($s['offset_sec'] ?? 0));
             $next = isset($segs[$i + 1]) ? (int) $segs[$i + 1]['offset_sec'] : PHP_INT_MAX;
             $here = array_filter($marks, static fn($m) => ($i === 0 || $m >= $o) && $m < $next);

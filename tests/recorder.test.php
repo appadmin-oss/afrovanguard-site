@@ -245,3 +245,47 @@ ck('Whisper\'s prompt stays inside what it reads', mb_strlen($seen[1]['whisper']
 $tx = (string) $db->query("SELECT raw_text FROM meeting_transcripts WHERE meeting_id = $hm")->fetchColumn();
 ck('a marked moment is noted in its own part', (bool) preg_match("~\\[00:00:00\\]\nWe agreed the venue is Ikeja\\.\n★ Marked as important by the person recording, at 00:00:30\\.~u", $tx));
 ck('and a later one in the later part', str_contains($tx, "Next, the grants.\n★ Marked as important by the person recording, at 00:11:40."));
+
+/* ── v1.2: speaker names ────────────────────────────────────────────── */
+$v = OpenAi::parseVerbose(json_encode(['text' => 'Hello there. Fine thanks.', 'segments' => [
+    ['start' => 0.0, 'end' => 1.4, 'text' => ' Hello there.'], ['start' => 1.6, 'end' => 3.0, 'text' => ' Fine thanks.'], ['start' => 'x', 'end' => 2, 'text' => 'bad']]]));
+ck("Whisper's timed sentences are read", $v['ok'] && count($v['segments']) === 2 && $v['segments'][1] === ['start' => 1.6, 'end' => 3.0, 'text' => 'Fine thanks.']);
+ck('an empty Whisper answer is a failure', empty(OpenAi::parseVerbose('{"text":""}')['ok']));
+ck('the talk timeline is cleaned and ordered', Recorder::cleanTalk([[5, 6, 'them'], [1, 2, 'me'], [3, 2, 'me'], [1, 2, 'who'], 'x', [-1, 0.5, 'me']]) === [[0.0, 0.5, 'me'], [1.0, 2.0, 'me'], [5.0, 6.0, 'them']]);
+
+$utt = [['start' => 0, 'end' => 2, 'text' => 'Good morning.'], ['start' => 2, 'end' => 4, 'text' => 'Shall we start?'],
+        ['start' => 4.2, 'end' => 6, 'text' => 'Yes, the budget first.'], ['start' => 6, 'end' => 8, 'text' => 'Mm.'], ['start' => 8, 'end' => 9, 'text' => 'Agreed.']];
+$talk = [[0, 4.1, 'me'], [4.3, 6, 'them'], [6, 7, 'me'], [7, 8, 'them'], [8.1, 9, 'them']];
+ck('lines are named by who was talking, and one speaker\'s lines join up', Recorder::labelled($utt, $talk, ['me' => 'Ada', 'them' => 'Bode'])
+    === "Ada: Good morning. Shall we start?\nBode: Yes, the budget first.\nMm.\nBode: Agreed.");
+ck('in a group call the others are "Others", never a guess', str_starts_with(Recorder::labelled($utt, $talk, ['me' => 'Ada', 'them' => '']) , 'Ada: ') && str_contains(Recorder::labelled($utt, $talk, ['me' => 'Ada', 'them' => '']), "\nOthers: Yes"));
+ck('without a timeline nothing is labelled', Recorder::labelled($utt, [], ['me' => 'Ada', 'them' => '']) === '');
+
+// One-to-one: the meeting has exactly one other person.
+$db->exec('DELETE FROM meeting_attendees');
+$db->prepare("INSERT INTO meetings (creator_id,title,agenda,scheduled_at,duration_min,frequency,context,context_id,status,created_at,meet_code) VALUES (1,'Mentoring','',?,30,'once','workspace',0,'scheduled',?,'one-oneo-one')")
+   ->execute([gmdate('Y-m-d H:i:s'), gmdate('Y-m-d H:i:s')]);
+$mm = (int) $db->lastInsertId();
+$db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?),(?,?)')->execute([$mm, 'a@x.co', $mm, 'b@x.co']);
+$r1 = (int) Recorder::start($devH, ['meet_code' => 'one-oneo-one'])['recording_id'];
+ck('a one-to-one call names both people', Recorder::speakers($r1) === ['me' => 'Adaeze Okonkwo', 'them' => 'Babatunde Fashola']);
+$db->exec("UPDATE recordings SET people_max = 3 WHERE id = $r1");
+ck('but not once Meet showed a third person', Recorder::speakers($r1)['them'] === '');
+$db->exec("UPDATE recordings SET people_max = 0 WHERE id = $r1");
+$db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)')->execute([$mm, 'c@x.co']);
+ck('and not when the meeting has more than one other person', Recorder::speakers($r1)['them'] === '' && Recorder::speakers($r1)['me'] === 'Adaeze Okonkwo');
+$db->exec("DELETE FROM meeting_attendees WHERE email = 'c@x.co'");
+
+// The whole way: a talk timeline with the part, Whisper's timing, the minutes.
+$send($devH, $r1, 0, 0, 'mentoring-audio');
+Recorder::segmentDone($devH, $r1, 0, 1, 0, 'audio/webm', [[0, 4.1, 'me'], [4.3, 9, 'them'], ['junk']]);
+ck('the part keeps its talk timeline', (string) $db->query("SELECT talk FROM recording_segments WHERE recording_id = $r1")->fetchColumn() === '[[0,4.1,"me"],[4.3,9,"them"]]');
+$h1 = Recorder::hints($r1, 0);
+ck('Gemini is told who the person recording is and when they speak', str_contains($h1['gemini'], 'Adaeze Okonkwo is the person recording') && str_contains($h1['gemini'], '0–4'));
+ck('and, one-to-one, who the other person is', str_contains($h1['gemini'], 'The only other person in the call is Babatunde Fashola'));
+Recorder::finish($devH, $r1, 1, [], 2);
+ck('finish keeps how many people Meet showed', (int) $db->query("SELECT people_max FROM recordings WHERE id = $r1")->fetchColumn() === 2);
+Recorder::sweep(20, static fn() => ['ok' => true, 'text' => 'Good morning. Yes, the budget first.', 'segments' => [['start' => 0, 'end' => 4, 'text' => 'Good morning.'], ['start' => 4.3, 'end' => 9, 'text' => 'Yes, the budget first.']]]);
+$tx1 = (string) $db->query("SELECT raw_text FROM meeting_transcripts WHERE meeting_id = $mm")->fetchColumn();
+ck('the minutes\' transcript carries the names', $tx1 === "[00:00:00]\nAdaeze Okonkwo: Good morning.\nBabatunde Fashola: Yes, the budget first.");
+ck('the timed sentences are kept with the part', str_contains((string) $db->query("SELECT utterances FROM recording_segments WHERE recording_id = $r1")->fetchColumn(), '"start":4.3'));

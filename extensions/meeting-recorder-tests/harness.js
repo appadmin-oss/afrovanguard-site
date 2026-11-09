@@ -33,14 +33,27 @@ window.runPauseAndSilence = async function () {
   return { paused, atPause, whilePaused, after, kinds: [...new Set(kinds)], pausedLevel: lastPausedLevel, maxDead: Math.max(...dead), lastDead: dead[dead.length - 1] };
 };
 
-window.runRecording = async function ({ seconds, segmentSeconds, sliceMs, marksAt = [] }) {
+window.runRecording = async function ({ seconds, segmentSeconds, sliceMs, marksAt = [], turns = null }) {
   const ctx = new AudioContext();
   const osc = ctx.createOscillator(); osc.frequency.value = 440;
-  const dest = ctx.createMediaStreamDestination(); osc.connect(dest); osc.start();
+  const tabGain = ctx.createGain();
+  const dest = ctx.createMediaStreamDestination(); osc.connect(tabGain); tabGain.connect(dest); osc.start();
+  /* turns: [[from, to, 'me'|'them'], …] seconds — "them" plays on the tab, "me" on a
+     separate microphone source, the way a real call and a real microphone arrive. */
+  let mic = null;
+  if (turns) {
+    const micOsc = ctx.createOscillator(); micOsc.frequency.value = 220;
+    const micGain = ctx.createGain(); const micDest = ctx.createMediaStreamDestination();
+    micOsc.connect(micGain); micGain.connect(micDest); micOsc.start();
+    const t0 = ctx.currentTime + 0.05;
+    tabGain.gain.setValueAtTime(0, ctx.currentTime); micGain.gain.setValueAtTime(0, ctx.currentTime);
+    for (const [a, b, who] of turns) { const g = (who === 'me' ? micGain : tabGain).gain; g.setValueAtTime(0.5, t0 + a); g.setValueAtTime(0, t0 + b); }
+    mic = micDest.stream;
+  }
   const rec = crypto.randomUUID();
   await store.put('recordings', { rec, state: 'recording', startedAt: Date.now(), meetCode: 'abc-defg-hij', url: 'https://meet.google.com/abc-defg-hij', title: 'E2E standup', segments: 0, consentShown: true });
   const events = [];
-  const r = new SegmentedRecorder({ rec, tab: dest.stream, mic: null, segmentSeconds, sliceMs, bits: 32000, playback: false, emit: (e) => { if (e.type !== 'levels') events.push(e.type); } });
+  const r = new SegmentedRecorder({ rec, tab: dest.stream, mic, segmentSeconds, sliceMs, bits: 32000, playback: false, emit: (e) => { if (e.type !== 'levels') events.push(e.type); } });
   await r.start();
   // Marks go through the real background worker, as the shortcut does.
   await chrome.storage.session.set({ live: { rec, tabId: -1, startedAt: Date.now(), marks: 0, warn: {} } });

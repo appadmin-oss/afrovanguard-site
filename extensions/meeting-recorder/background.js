@@ -291,6 +291,11 @@ function onRecEvent(ev) {
 const prompted = new Set();
 async function onMeetState(tab, m) {
   const live = await session.get();
+  if (live && live.tabId === tab.id && m.people > 0) {
+    // The most people Meet showed: a one-to-one call may name the other person, a bigger one never does.
+    await store.update('recordings', live.rec, (r) => r && (r.peopleMax || 0) < m.people && Object.assign(r, { peopleMax: Math.min(500, m.people) }));
+  }
+  if (live && live.tabId === tab.id && m.inCall === undefined) return;
   if (live && live.tabId === tab.id) {
     // Left the call: give Meet a moment (it redraws while reconnecting) before stopping.
     clearTimeout(leftTimer);
