@@ -91,6 +91,13 @@ if (class_exists('Meetings')) {
     try { $result['meeting_bots'] = Meetings::dispatchDueBots(); }
     catch (Throwable $e) { error_log('[cron] meeting bots: ' . $e->getMessage()); }
 }
+// The Meeting Recorder extension: transcribe uploaded segments, one at a time
+// within the tick's budget (a shared host's web-cron is short), then write the
+// minutes for recordings that are complete and delete audio past retention.
+if (class_exists('Recorder')) {
+    try { $result['recorder'] = Recorder::sweep(20); }
+    catch (Throwable $e) { error_log('[cron] recorder: ' . $e->getMessage()); }
+}
 // Collect transcripts from bots that have finished. Polling rather than waiting
 // for a webhook means a site on shared hosting needs no public callback URL.
 if (class_exists('Meetings')) {

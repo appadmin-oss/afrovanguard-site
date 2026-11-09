@@ -1,6 +1,7 @@
 # Afrovanguard Meeting Recorder: Chrome extension plan
 
-Status: proposal, awaiting decisions in §10 · Owner: to be named · Version date: 2026-11-09
+Status: **v1 built** (phases 1–3, distribution by the Admin console) · Owner: to be named · Version date: 2026-11-09
+How to run and release it: `docs/meeting-recorder-RUNBOOK.md`.
 
 ## 1. What it is, in one paragraph
 
@@ -150,36 +151,26 @@ Chrome allows:
   time, so it must never break recording.
 - **Self-healing upload:** the queue resumes after crashes, sleep and offline
   periods. Each failure carries a plain-language reason in the popup.
-- **Side panel:** live timer, level meters (so "my mic was muted" is caught
+- **Popup** (v1; a side panel can come later): live timer, level meters (so "my mic was muted" is caught
   in the first 10 seconds), segment and upload status, and a link to the
   minutes when they're ready.
 
-## 8. Chrome Web Store: what to prepare
+## 8. Distribution: Google Admin console, not the Web Store (decided 2026-11-09)
 
-- **Developer account:** one-time US$5 fee. Register it to an organisation
-  Google account, not a person's, so the listing outlives any one staffer.
-- **Distribution choice (decision §10):**
-  - *Private to the afrovanguard.org.ng Google Workspace domain* is the
-    fastest, lightest review. Admins can **force-install** it for staff from
-    the Admin console, so nobody has to find it.
-  - *Unlisted*: anyone with the link can install it (mentors, partners).
-  - *Public* has the strictest review and the most listing work.
-- **Permissions, kept to the minimum:** `tabCapture`, `offscreen`,
-  `storage`, `unlimitedStorage` (IndexedDB buffer), `alarms`,
-  `notifications`, `sidePanel`, `activeTab`. Host permissions only for
-  `https://meet.google.com/*` and the portal origin. Zoom and Teams web
-  origins come later, as optional permissions requested when needed. Each
-  permission needs a one-sentence justification in the dashboard.
-- **Policy items:** a single-purpose statement ("records meetings into your
-  Afrovanguard meeting record"), a privacy policy URL (extend
-  `/privacy-policy/` with a recording section), and Limited Use data
-  disclosures (audio, name, email). No remote code: everything bundled, no
-  CDN scripts.
-- **Listing assets:** 128×128 icon, at least one 1280×800 screenshot, a
-  440×280 promo tile, and a short and long description.
-- **Release pipeline:** `extensions/meeting-recorder/` in this repo, a
-  `bin/` script that zips a versioned build, and later the Chrome Web Store
-  API for upload from CI. Version numbers follow `manifest.json`.
+Free, and nothing to find: the extension is **self-hosted** on the site and
+**force-installed** for staff from the Google Admin console.
+
+- `tools/build-recorder.php` signs a CRX3 package with the organisation's
+  key (kept out of the repository) and writes `updates.xml`. Both are served
+  from `/downloads/meeting-recorder/`. Chrome checks the URL and updates
+  installed copies by itself.
+- Admin console → Chrome → Apps & extensions → *Add by ID → From a custom
+  URL* with the ID and `updates.xml` URL → *Force install*.
+- Permissions kept to the minimum: `tabCapture`, `offscreen`, `storage`,
+  `unlimitedStorage`, `alarms`, `notifications`, `activeTab`. Host access
+  only to the site and `meet.google.com`. No remote code.
+- The Web Store (US$5, public or unlisted) remains open later, for people
+  outside the Workspace domain. The same package works there.
 
 ## 9. Phases
 
@@ -198,17 +189,15 @@ extension, a Playwright run with the unpacked build against a local Meet-like
 page (Playwright can load extensions in Chromium) covers segment rotation and
 the resume-after-kill path.
 
-## 10. Decisions needed from you
+## 10. Decisions (defaults built in v1; each is a setting, see the runbook §6)
 
-1. **Distribution:** private to the Workspace domain (recommended first),
-   unlisted, or public?
-2. **Who records:** staff only, or mentors and members too?
-3. **Audio only, or offer video?** (Recommendation: audio only in v1.)
-4. **Where recordings live:** Google Drive (recommended, `lib/Drive.php`
-   exists) or the host's disk, and for how long (default 30 days for audio,
-   transcripts kept)?
-5. **CACENTRE:** should its staff use the same extension in v1 (signing in
-   through the existing CACENTRE → Afrovanguard SSO), or later?
+1. **Distribution:** ✅ decided: Admin console force-install for the Workspace domain.
+2. **Who records:** members by default (`AV_REC_AUDIENCE=all` opens it to everyone signed in).
+3. **Audio only, or offer video?** Audio only in v1.
+4. **Where recordings live:** the host's private disk by default, Drive with
+   `AV_REC_STORAGE=drive`. Audio is deleted 30 days after the minutes
+   (`AV_REC_RETAIN_DAYS`), and transcripts are kept.
+5. **CACENTRE:** still open. Not in v1.
 
 ## 11. The Five Operating Tests
 

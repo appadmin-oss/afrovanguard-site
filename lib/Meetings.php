@@ -874,7 +874,7 @@ final class Meetings
         $rawText = trim($rawText);
         if ($rawText === '') return ['ok' => false, 'error' => 'Paste the transcript text first.'];
         $rawText = mb_substr($rawText, 0, 60000);
-        $source  = in_array($source, ['paste', 'upload', 'google', 'bot'], true) ? $source : 'paste';
+        $source  = in_array($source, ['paste', 'upload', 'google', 'bot', 'recorder'], true) ? $source : 'paste';
         $db = Database::pdo();
         $db->prepare('DELETE FROM meeting_transcripts WHERE meeting_id = ?')->execute([$id]);
         $db->prepare('INSERT INTO meeting_transcripts (meeting_id, source, raw_text, structured, created_at) VALUES (?,?,?,0,?)')

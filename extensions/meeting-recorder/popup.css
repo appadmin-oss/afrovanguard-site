@@ -1,0 +1,20 @@
+body { width: 340px }
+main { padding: 14px 16px 12px }
+.top { display: flex; align-items: center; gap: 8px; margin-bottom: 12px }
+.tabname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.rec { display: flex; align-items: center; gap: 8px; font-size: 15px }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); animation: pulse 1.4s ease-in-out infinite }
+@keyframes pulse { 50% { opacity: .3 } }
+@media (prefers-reduced-motion: reduce) { .dot { animation: none } }
+.meters { display: grid; gap: 6px; margin: 8px 0 12px; font-size: 12px; color: var(--muted) }
+.meters label { display: grid; grid-template-columns: 70px 1fr; align-items: center }
+.bar { height: 6px; background: var(--soft); border-radius: 3px; overflow: hidden }
+.bar i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .3s }
+.queue { list-style: none; margin: 0; padding: 0 }
+.queue li { border-top: 1px solid var(--line); padding: 8px 0; font-size: 13px }
+.queue li:first-child { border-top: 0 }
+.queue .t { font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.queue .s { color: var(--muted); font-size: 12px }
+.queue button { margin-top: 4px }
+.foot { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; display: grid; gap: 4px }
+.foot p { margin: 4px 0 0 }

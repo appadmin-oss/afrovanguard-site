@@ -96,6 +96,7 @@
       wrap += '<span class="meet-tr-msg" role="status" aria-live="polite"></span>';
       wrap += '</div>';
       wrap += '<p class="meet-tr-help">' + (AUDIO ? 'A recording of up to about 19 MB is transcribed, then turned into minutes.' : 'Uploading a recording needs a transcription key (OpenAI or Gemini) in Studio → Setup → AI. Google’s own transcript and a pasted one work without it.') + '</p>';
+      if (AUDIO) wrap += '<p class="meet-tr-help">Longer meeting, or the notetaker could not join? Record it from Chrome with the <a href="/portal/recorder.php">Meeting Recorder</a> — the minutes appear here on their own.</p>';
       wrap += '</details>';
     }
     return wrap + '</div>';

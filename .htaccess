@@ -230,6 +230,9 @@ RewriteRule ^([a-z0-9_-]+)/?$ /$1.php [L,QSA]
 # cached for a year. An unstamped request revalidates hourly against the ETag.
 <IfModule mod_mime.c>
   AddType application/pdf .pdf
+  # The Meeting Recorder, self-hosted for the Google Admin console
+  # (tools/build-recorder.php): Chrome installs a .crx only with this type.
+  AddType application/x-chrome-extension .crx
 </IfModule>
 <IfModule mod_setenvif.c>
   SetEnvIfNoCase Request_URI "\.pdf$" no-gzip dont-vary

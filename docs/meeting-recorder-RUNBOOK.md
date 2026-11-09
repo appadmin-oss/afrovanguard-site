@@ -1,0 +1,155 @@
+# Meeting Recorder: runbook
+
+Owner: **to be named** (the person who holds the signing key) · Version date: 2026-11-09 · Extension version: 1.0.0
+
+The Meeting Recorder is a Chrome extension that records a meeting from the
+browser tab (the meeting's sound plus your microphone) and turns it into
+minutes on the meeting in the portal. It is installed for staff from the
+Google Admin console, at no cost, without the Chrome Web Store.
+
+| Part | Where |
+|---|---|
+| Extension source | `extensions/meeting-recorder/` |
+| Build and sign | `tools/build-recorder.php` |
+| What Chrome downloads | `downloads/meeting-recorder/` (built, committed, deployed) |
+| Server API | `integrations/recorder.php` → `lib/Recorder.php` |
+| Connect page | `/portal/recorder.php` |
+| Transcription | `tasks/cron.php` → `Recorder::sweep()` (the existing web-cron) |
+| Tests | `php tests/run.php recorder` · `node extensions/meeting-recorder-tests/e2e.mjs` |
+| Plan and design | `docs/meeting-recorder-extension-PLAN.md` |
+
+---
+
+## 1. First release (once)
+
+You need PHP 8.1+ with the `openssl` and `zip` extensions (the same PHP the site uses).
+
+1. **Make the signing key.**
+   ```bash
+   php tools/build-recorder.php --new-key
+   ```
+   This writes `~/.afrovanguard/meeting-recorder-key.pem`. **Back it up now**
+   in the organisation's password manager or secrets vault. The extension's
+   ID comes from this key. Every installed copy only accepts updates signed
+   with it. If it is lost, the only fix is a new extension with a new ID,
+   re-added in the Admin console.
+2. **Commit and deploy** `downloads/meeting-recorder/` (the `.crx`,
+   `updates.xml`, `extension-id.txt`). Check that both URLs load in a browser:
+   `https://afrovanguard.org.ng/downloads/meeting-recorder/updates.xml` and the
+   `.crx` it names.
+3. **Add it in the Google Admin console.** admin.google.com → Devices →
+   Chrome → Apps & extensions → Users & browsers → choose the staff
+   organisational unit → yellow **+** → *Add Chrome app or extension by ID* →
+   *From a custom URL*. ID = `extension-id.txt`, URL = the `updates.xml` URL
+   above. Installation policy: **Force install** (and *Pin to browser
+   toolbar*).
+4. **Check it reached people.** On a staff laptop signed in to Chrome with
+   a work account, `chrome://extensions` shows *Afrovanguard Meeting Recorder*
+   (installed by policy) within about an hour. Force a refresh with
+   `chrome://policy` → *Reload policies*.
+5. **Transcription key.** Recordings are transcribed by Whisper (`OPENAI_API_KEY`)
+   or Gemini (`AV_GEMINI_API_KEY`), set in Studio → Setup → AI. Without one,
+   recordings upload and wait. They are transcribed as soon as a key is set.
+6. **Cron.** Nothing new: the existing web-cron (`tools/cpanel-cron-setup.md`)
+   now also runs the recorder's queue. Every 5 minutes or more often is right.
+
+Only Chrome signed in with an afrovanguard.org.ng Google account gets the
+extension. Personal Chrome profiles, mentors and partners don't (see §6).
+
+## 2. Releasing an update
+
+1. Change the code in `extensions/meeting-recorder/`.
+2. Raise `"version"` in `extensions/meeting-recorder/manifest.json` (e.g. 1.0.0 → 1.0.1).
+   Chrome ignores a package whose version did not go up.
+3. Run the tests (§5).
+4. `php tools/build-recorder.php` (it finds the key at the default path, or pass `--key=`).
+5. Commit `downloads/meeting-recorder/` with the source change, deploy.
+   Chrome updates installed copies within a few hours.
+
+## 3. What staff do
+
+1. First time only: the set-up page opens by itself. Click *Allow the
+   microphone*, then *Connect*. Connect opens `/portal/recorder.php` while
+   signed in and links the browser to the account.
+2. In a meeting: click the red icon → **Record this meeting**, or press
+   **Alt+Shift+R**. On Google Meet a reminder appears when the call starts.
+   **Tell the others the meeting is being recorded.**
+3. To stop: press the shortcut again, click *Stop*, leave the call, or close
+   the tab. It also stops by itself after 10 minutes of silence.
+4. The minutes appear on the meeting in the portal (*Meetings*), usually a
+   few minutes after the upload finishes, and a Chrome notification says so.
+
+If the meeting was scheduled in the portal, the recording attaches to it (by
+the Meet code). Otherwise the recorder makes a meeting record titled with the
+call's name and date, with the person recording as an attendee. It never
+opens a new Meet room.
+
+## 4. When something is wrong
+
+| What you see | Why | What to do |
+|---|---|---|
+| Badge shows **!** | Not connected, or the device was disconnected in the portal | Click the icon → Connect |
+| Badge shows **↑** for a long time | Uploads waiting: offline, or the site is down | Nothing; they resume on their own. The audio is kept in the browser until the server has it |
+| *"Your microphone is not being recorded"* | Permission not given | Open the set-up page from the popup link and allow it |
+| Upload done but no minutes | No transcription key, or the cron is not running | Studio → Setup → AI; check the cron's last run |
+| *"Kept with the meeting"* | The notetaker or Google already wrote the minutes | By design: the existing minutes are never overwritten. The recorder's transcript is in `recordings.transcript` |
+| A lost laptop | Its token can still upload | The user (portal → Meeting Recorder → *Disconnect*) or an admin revokes it |
+| Chrome says the extension is *corrupted* | The `.crx` was served with the wrong type or modified | Check `.htaccess` has `AddType application/x-chrome-extension .crx`; rebuild |
+
+Server-side state is in four tables: `recorder_devices`, `recorder_pairings`,
+`recordings`, `recording_segments`. Audio is in `db/private/recordings/<id>/`,
+which the web can't reach.
+
+## 5. Tests (run before every release)
+
+```bash
+php tests/run.php recorder academyroutes
+```
+
+```bash
+node extensions/meeting-recorder-tests/e2e.mjs
+```
+
+The second one starts the site on a throwaway database, builds the extension
+with a throwaway key, and loads it into Chromium (Playwright). It connects
+through the real portal page, records three segments, uploads them, survives
+the server going away mid-meeting, has the cron write the minutes, and checks
+the popup: 30 checks. It **cannot** press the toolbar button, which Chrome
+requires before it will capture a tab. So after a release, do one real
+2-minute Meet call on a staff laptop and confirm the minutes arrive.
+
+## 6. Settings
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `AV_REC_AUDIENCE` | members | `all` lets any signed-in account connect a recorder |
+| `AV_REC_RETAIN_DAYS` | 30 | Days audio is kept after the minutes are written; `0` keeps it. Transcripts are kept |
+| `AV_REC_STORAGE` | local | `drive` moves finished audio to Google Drive (uses the existing `AV_GDRIVE_*`) |
+| `AV_REC_CHUNK_MAX` | 1 MB | Largest upload piece. Never above what the host's `upload_max_filesize` allows: the server lowers it on its own |
+| `AV_REC_DIR` | `db/private/recordings` | Where audio is kept on the server |
+
+## 7. For the privacy policy (draft: needs the owner's approval before it goes on `/privacy-policy/`)
+
+> **Meeting recordings.** Afrovanguard staff may record meetings with our
+> Meeting Recorder browser extension. A recording contains what is said in
+> the meeting. It is sent only to Afrovanguard's own servers, where it is
+> transcribed by our transcription provider (OpenAI or Google) to write the
+> meeting's minutes. The audio is deleted 30 days after the minutes are
+> written. The minutes are kept with the meeting record and can be read by
+> the meeting's organiser and attendees. People recording are asked to tell
+> everyone in the meeting before they start. To ask about or remove a
+> recording, contact us at the address below.
+
+## 8. Known limits (v1)
+
+- Chromium browsers only (Chrome, Edge, Brave). Firefox and Safari have no tab capture.
+- Starting a recording always takes one click or the shortcut. Chrome does
+  not let any extension record a tab on its own. Hands-free recording stays
+  with the notetaker bot.
+- Meet's page changes without notice. If it does, the *in-call reminder* and
+  *stop when you leave* may go quiet. Recording itself, stop on tab close and
+  stop on silence don't depend on Meet's page.
+- No speaker names in the transcript yet. No Zoom or Teams prompts yet, though
+  recording those tabs already works.
+- The "tell everyone" notice is shown to the person recording, not posted
+  into the call.
