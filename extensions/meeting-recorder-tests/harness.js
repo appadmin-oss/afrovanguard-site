@@ -4,7 +4,36 @@
 import { SegmentedRecorder } from './recorder.js';
 import * as store from './idb.js';
 
-window.runRecording = async function ({ seconds, segmentSeconds, sliceMs }) {
+/* A paused recorder holds its clock; a silent source reads as "dead". */
+window.runPauseAndSilence = async function () {
+  const ctx = new AudioContext();
+  const silent = ctx.createConstantSource(); silent.offset.value = 0;
+  const dest = ctx.createMediaStreamDestination(); silent.connect(dest); silent.start();
+  const rec = crypto.randomUUID();
+  await store.put('recordings', { rec, state: 'recording', startedAt: Date.now(), title: 'Pause test', segments: 0 });
+  const levels = [], kinds = [];
+  const r = new SegmentedRecorder({ rec, tab: dest.stream, mic: null, segmentSeconds: 60, sliceMs: 500, bits: 32000, playback: false,
+    emit: (e) => { if (e.type === 'levels') levels.push(e); else kinds.push(e.type); } });
+  await r.start();
+  await new Promise((res) => setTimeout(res, 2200));
+  const paused = r.pause();
+  const atPause = r.elapsed();
+  await new Promise((res) => setTimeout(res, 2500));
+  const whilePaused = r.elapsed();
+  const lastPausedLevel = levels[levels.length - 1];
+  r.resume();
+  await new Promise((res) => setTimeout(res, 3200));
+  const after = r.elapsed();
+  await r.stop('user');
+  await ctx.close();
+  // Not a recording to send: remove it so the uploader never sees it.
+  for (const st of ['slices', 'chunks', 'segments']) await store.delRange(st, [rec]);
+  await store.del('recordings', rec);
+  const dead = levels.filter((l) => !l.paused).map((l) => l.tabDeadFor);
+  return { paused, atPause, whilePaused, after, kinds: [...new Set(kinds)], pausedLevel: lastPausedLevel, maxDead: Math.max(...dead), lastDead: dead[dead.length - 1] };
+};
+
+window.runRecording = async function ({ seconds, segmentSeconds, sliceMs, marksAt = [] }) {
   const ctx = new AudioContext();
   const osc = ctx.createOscillator(); osc.frequency.value = 440;
   const dest = ctx.createMediaStreamDestination(); osc.connect(dest); osc.start();
@@ -13,13 +42,18 @@ window.runRecording = async function ({ seconds, segmentSeconds, sliceMs }) {
   const events = [];
   const r = new SegmentedRecorder({ rec, tab: dest.stream, mic: null, segmentSeconds, sliceMs, bits: 32000, playback: false, emit: (e) => { if (e.type !== 'levels') events.push(e.type); } });
   await r.start();
-  await new Promise((res) => setTimeout(res, seconds * 1000));
+  // Marks go through the real background worker, as the shortcut does.
+  await chrome.storage.session.set({ live: { rec, tabId: -1, startedAt: Date.now(), marks: 0, warn: {} } });
+  const t0 = Date.now(); const marked = [];
+  for (const at of marksAt) { await new Promise((res) => setTimeout(res, Math.max(0, t0 + at * 1000 - Date.now()))); marked.push(await chrome.runtime.sendMessage({ type: 'mark' })); }
+  await new Promise((res) => setTimeout(res, Math.max(0, t0 + seconds * 1000 - Date.now())));
   const segments = await r.stop('user');
+  await chrome.storage.session.remove('live');
   osc.stop(); await ctx.close();
   await store.update('recordings', rec, (x) => Object.assign(x, { state: 'stopped', segments }));
   const segs = await store.range('segments', [rec]);
   const slices = await store.range('slices', [rec]);
-  return { rec, segments, closed: segs.filter((s) => s.closed).length, slices: slices.length, bytes: slices.reduce((n, s) => n + s.blob.size, 0), events: [...new Set(events)] };
+  return { rec, marked, marks: ((await store.get('recordings', rec)) || {}).marks || [], segments, closed: segs.filter((s) => s.closed).length, slices: slices.length, bytes: slices.reduce((n, s) => n + s.blob.size, 0), events: [...new Set(events)] };
 };
 window.sync = () => chrome.runtime.sendMessage({ type: 'sync' });
 window.local = async (rec) => ({ rec: await store.get('recordings', rec), slices: (await store.range('slices', [rec])).length, segs: await store.range('segments', [rec]) });

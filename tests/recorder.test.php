@@ -206,3 +206,42 @@ ck('stitch of nothing but failures is empty', Recorder::stitch([['seg_no' => 0, 
 ck('stitch passes an hour', str_contains(Recorder::stitch([['seg_no' => 0, 'state' => 'done', 'offset_sec' => 3725, 'text' => 'x']]), '[01:02:05]'));
 
 putenv('AV_REC_RETAIN_DAYS'); putenv('AV_REC_CHUNK_MAX'); putenv('AV_REC_DIR');
+
+/* ── v1.1: what the transcriber is told, and marked moments ─────────── */
+reset_users();
+foreach (['recordings', 'recording_segments', 'meeting_transcripts', 'meeting_attendees', 'meetings'] as $t) $db->exec('DELETE FROM ' . $t);
+$db->exec("UPDATE lms_users SET name = 'Adaeze Okonkwo' WHERE id = 1");
+$db->exec("UPDATE lms_users SET name = 'Babatunde Fashola' WHERE id = 2");
+$db->prepare("INSERT INTO meetings (creator_id,title,agenda,scheduled_at,duration_min,frequency,context,context_id,status,created_at,meet_code) VALUES (1,'VanQuest budget review','Q4 grants; venue for the summit',?,60,'once','workspace',0,'scheduled',?,'hhh-hhhh-hhh')")
+   ->execute([gmdate('Y-m-d H:i:s'), gmdate('Y-m-d H:i:s')]);
+$hm = (int) $db->lastInsertId();
+$db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)')->execute([$hm, 'b@x.co']);
+$p5 = Recorder::pair(Recorder::createPairing(1), 'Ada');
+$devH = Recorder::device('Bearer ' . $p5['token']);
+$rh = (int) Recorder::start($devH, ['meet_code' => 'hhh-hhhh-hhh'])['recording_id'];
+
+$h0 = Recorder::hints($rh, 0);
+ck('the transcriber is told the meeting title', str_contains($h0['whisper'], 'VanQuest budget review') && str_contains($h0['gemini'], 'VanQuest budget review'));
+ck('and the names of the people in it, organiser included', str_contains($h0['whisper'], 'Babatunde Fashola') && str_contains($h0['whisper'], 'Adaeze Okonkwo'));
+ck('and the organisation\'s own words', str_contains($h0['whisper'], 'Afrovanguard') && str_contains($h0['gemini'], 'CACENTRE'));
+ck('Gemini is told about Nigerian English and Pidgin, and not to translate', str_contains($h0['gemini'], 'Pidgin') && str_contains($h0['gemini'], 'do not translate'));
+ck('Gemini sees the agenda', str_contains($h0['gemini'], 'Q4 grants'));
+ck('the first part has no "previous words"', !str_contains($h0['gemini'], 'continues from'));
+putenv('AV_REC_VOCAB=Ikeja hub, Ndukwe');
+ck('AV_REC_VOCAB adds terms', str_contains(Recorder::hints($rh, 0)['whisper'], 'Ikeja hub'));
+putenv('AV_REC_VOCAB');
+
+foreach ([0, 1] as $n) { $send($devH, $rh, $n, 0, "audio$n"); Recorder::segmentDone($devH, $rh, $n, 1, $n * 600, 'audio/webm'); }
+Recorder::finish($devH, $rh, 2, [700, 30, 'x', -5, 30, 999999]);
+ck('marks are cleaned and kept in order', (string) $db->query("SELECT marks FROM recordings WHERE id = $rh")->fetchColumn() === '[30,700]');
+$seen = [];
+Recorder::sweep(20, static function (string $b, string $m, array $hint = []) use (&$seen): array {
+    $seen[] = $hint;
+    return ['ok' => true, 'text' => count($seen) === 1 ? 'We agreed the venue is Ikeja.' : 'Next, the grants.'];
+});
+ck('the cron passes the hints to the transcriber', isset($seen[0]['whisper'], $seen[0]['gemini']));
+ck('the second part is told how the first one ended', isset($seen[1]) && str_contains($seen[1]['whisper'], 'the venue is Ikeja') && str_contains($seen[1]['gemini'], 'Do not repeat'));
+ck('Whisper\'s prompt stays inside what it reads', mb_strlen($seen[1]['whisper']) <= 800);
+$tx = (string) $db->query("SELECT raw_text FROM meeting_transcripts WHERE meeting_id = $hm")->fetchColumn();
+ck('a marked moment is noted in its own part', (bool) preg_match("~\\[00:00:00\\]\nWe agreed the venue is Ikeja\\.\n★ Marked as important by the person recording, at 00:00:30\\.~u", $tx));
+ck('and a later one in the later part', str_contains($tx, "Next, the grants.\n★ Marked as important by the person recording, at 00:11:40."));

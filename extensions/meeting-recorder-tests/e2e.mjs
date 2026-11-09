@@ -93,7 +93,14 @@ try {
   await h.waitForFunction(() => document.getElementById('out').textContent === 'ready');
   const forged = await h.evaluate(() => chrome.runtime.sendMessage({ type: 'pair', code: 'a'.repeat(32) }));
   ck('a pairing code from anywhere but the portal page is refused', forged && forged.ok === false, JSON.stringify(forged));
-  const rec = await h.evaluate(() => window.runRecording({ seconds: 7.5, segmentSeconds: 3, sliceMs: 500 }));
+  const pz = await h.evaluate(() => window.runPauseAndSilence());
+  ck('pause works and is reported', pz.paused === true && pz.kinds.includes('paused') && pz.kinds.includes('resumed'), JSON.stringify(pz.kinds));
+  ck('the recorded-time clock holds still while paused', pz.whilePaused - pz.atPause <= 1 && pz.after - pz.whilePaused >= 2, JSON.stringify([pz.atPause, pz.whilePaused, pz.after]));
+  ck('a paused recorder never counts towards the silence stop', pz.pausedLevel && pz.pausedLevel.paused === true && pz.pausedLevel.silentFor === 0);
+  ck('a tab sending nothing at all is seen as dead', pz.maxDead >= 2, JSON.stringify(pz));
+  const rec = await h.evaluate(() => window.runRecording({ seconds: 7.5, segmentSeconds: 3, sliceMs: 500, marksAt: [1, 4.2] }));
+  ck('Alt+Shift+M marks are taken by the background worker', rec.marked.length === 2 && rec.marked.every((m) => m && m.ok), JSON.stringify(rec.marked));
+  ck('and saved with the recording, in seconds', rec.marks.length === 2 && rec.marks[0] >= 0 && rec.marks[0] <= 2 && rec.marks[1] >= 3 && rec.marks[1] <= 6, JSON.stringify(rec.marks));
   ck('three segments were recorded', rec.segments === 3, JSON.stringify(rec));
   ck('every segment was closed', rec.closed === 3);
   ck('slices were saved to IndexedDB as they came', rec.slices >= 12 && rec.bytes > 5000, rec.slices + ' slices, ' + rec.bytes + ' B');
@@ -117,6 +124,8 @@ try {
   ck('the cron transcribes all three parts and writes the minutes', sweep.transcribed === 3 && sweep.finalised === 1, JSON.stringify(sweep));
   const tr = php(`echo (string) Database::pdo()->query("SELECT raw_text FROM meeting_transcripts t JOIN meetings m ON m.id = t.meeting_id WHERE m.title = 'Weekly standup'")->fetchColumn();`);
   ck('the meeting has the stitched transcript', /^\[00:00:00\]\nHeard \d+ bytes of audio\/webm/.test(tr) && (tr.match(/\[00:00:0\d\]/g) || []).length === 3, JSON.stringify(tr.slice(0, 120)));
+  ck('the marked moments are in the minutes\' transcript', (tr.match(/★ Marked as important/g) || []).length === 2, JSON.stringify(tr));
+  ck('the transcriber was given the meeting context', php(`echo json_encode(Recorder::hints((int) Database::pdo()->query("SELECT id FROM recordings ORDER BY id LIMIT 1")->fetchColumn(), 1));`).includes('Weekly standup'));
   const done = await until(async () => { await h.evaluate(() => window.sync()); const l = await h.evaluate((r) => window.local(r), rec.rec); return l.rec.state === 'done' && l; }, 15000, 800);
   ck('the extension learns the minutes are ready', !!done);
 

@@ -29,10 +29,25 @@ function render() {
     $('btn-start').textContent = t && t.meetCode ? 'Record this meeting' : 'Record this tab';
   }
   if (st.live) {
-    $('live-name').textContent = st.live.title || st.live.meetCode || '';
-    show('mic-warn', st.settings.mic && st.live.mic === false);
+    const L = st.live;
+    $('live-name').textContent = L.title || L.meetCode || '';
+    show('mic-warn', st.settings.mic && L.mic === false);
+    $('rec-word').textContent = L.paused ? 'Paused' : 'Recording';
+    $('rec-line').classList.toggle('is-paused', !!L.paused);
+    $('btn-pause').textContent = L.paused ? 'Resume' : 'Pause';
+    $('marks').textContent = L.marks ? L.marks + (L.marks === 1 ? ' moment' : ' moments') + ' marked as important.' : '';
+    const w = L.warn || {};
+    const warn = w.mic ? 'Your microphone is sending no sound. Check it is not muted, or pick the right one.'
+      : w.tab ? 'No sound from the meeting tab yet. Is the meeting in another tab?' : '';
+    $('live-warn').textContent = warn; show('live-warn', !!warn);
+    const q = st.queue.find((r) => r.rec === L.rec);
+    const info = q && q.notetakerActive ? 'The notetaker is also in this meeting. Its minutes come first; yours are kept with the recording.'
+      : q && q.othersRecording ? 'Someone else is recording this meeting too.'
+      : q && q.hasTranscript ? 'This meeting already has minutes. Your transcript will be kept with the recording.' : '';
+    $('live-info').textContent = info; show('live-info', !!info);
     clearInterval(clock);
-    const tick = () => { $('timer').textContent = fmt((Date.now() - st.live.startedAt) / 1000); };
+    // The clock counts recorded time: it holds still while paused.
+    const tick = () => { if (st.levels && typeof st.levels.elapsed === 'number') $('timer').textContent = fmt(st.levels.elapsed); else $('timer').textContent = fmt((Date.now() - L.startedAt) / 1000); };
     tick(); clock = setInterval(tick, 1000);
     if (st.levels) levels(st.levels);
   } else clearInterval(clock);
@@ -85,13 +100,21 @@ $('btn-start').onclick = async () => {
   if (!r.ok) error(r.error);
   refresh();
 };
+$('btn-mark').onclick = async () => {
+  const r = await send('mark');
+  if (!r.ok) { error(r.error); return; }
+  $('btn-mark').textContent = '★ Marked at ' + fmt(r.at);
+  setTimeout(() => { $('btn-mark').textContent = '★ Mark this moment'; }, 2500);
+  refresh();
+};
+$('btn-pause').onclick = async () => { const r = await send(st.live && st.live.paused ? 'resume' : 'pause'); if (!r.ok) error(r.error); refresh(); };
 $('btn-stop').onclick = async () => { $('btn-stop').disabled = true; await send('stop'); $('btn-stop').disabled = false; refresh(); };
 $('set-mic').onchange = (e) => send('settings', { settings: { mic: e.target.checked } }).then(refresh);
 $('set-prompt').onchange = (e) => send('settings', { settings: { prompt: e.target.checked } }).then(refresh);
 
 chrome.runtime.onMessage.addListener((m) => {
   if (m.target !== 'popup') return;
-  if (m.type === 'levels' && st && st.live) levels(m.levels);
+  if (m.type === 'levels' && st && st.live) { st.levels = m.levels; levels(m.levels); }
   if (m.type === 'refresh') refresh();
 });
 

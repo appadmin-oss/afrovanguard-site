@@ -18,3 +18,6 @@ main { padding: 14px 16px 12px }
 .queue button { margin-top: 4px }
 .foot { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; display: grid; gap: 4px }
 .foot p { margin: 4px 0 0 }
+.row { display: flex; gap: 8px; margin: 4px 0 6px }
+.row .btn { flex: 1; text-align: center }
+.rec.is-paused .dot { background: var(--muted); animation: none }

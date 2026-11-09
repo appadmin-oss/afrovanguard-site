@@ -103,6 +103,9 @@ final class Recorder
         );
         CREATE UNIQUE INDEX IF NOT EXISTS idx_recseg ON recording_segments(recording_id, seg_no);
         CREATE INDEX IF NOT EXISTS idx_recseg_state ON recording_segments(state);");
+        // v1.1: moments the person recording marked as important (JSON list of seconds).
+        try { Database::pdo()->query('SELECT marks FROM recordings LIMIT 1'); }
+        catch (Throwable $e) { Database::pdo()->exec("ALTER TABLE recordings ADD COLUMN marks VARCHAR(2000) NOT NULL DEFAULT ''"); }
     }
 
     private static function now(): string { return gmdate('Y-m-d H:i:s'); }
@@ -443,7 +446,7 @@ final class Recorder
     }
 
     /** The extension has stopped. Says which segments it still owes, if any. */
-    public static function finish(array $device, int $rid, int $segments): array
+    public static function finish(array $device, int $rid, int $segments, array $marks = []): array
     {
         self::ensure();
         $r = self::own($device, $rid);
@@ -454,6 +457,8 @@ final class Recorder
             Database::pdo()->prepare("UPDATE recordings SET status = 'finished', segments_expected = ?, finished_at = ?, updated_at = ? WHERE id = ?")
                ->execute([$segments, self::now(), self::now(), $rid]);
         }
+        $marks = self::cleanMarks($marks);
+        if ($marks) Database::pdo()->prepare('UPDATE recordings SET marks = ? WHERE id = ?')->execute([json_encode($marks), $rid]);
         $have = self::segmentNumbers($rid);
         $missing = array_values(array_diff(range(0, max(0, $segments - 1)), $have));
         if ($segments === 0) $missing = [];
@@ -544,7 +549,7 @@ final class Recorder
                 $claim->execute([self::now(), (int) $s['id']]);
                 if ($claim->rowCount() !== 1) continue;
                 $bytes = is_file((string) $s['path']) ? (string) file_get_contents((string) $s['path']) : '';
-                $res = $bytes === '' ? ['ok' => false, 'error' => 'The audio file is missing.'] : $transcriber($bytes, (string) $s['mime']);
+                $res = $bytes === '' ? ['ok' => false, 'error' => 'The audio file is missing.'] : $transcriber($bytes, (string) $s['mime'], self::hints((int) $s['recording_id'], (int) $s['seg_no']));
                 if (!empty($res['ok'])) {
                     $db->prepare("UPDATE recording_segments SET state = 'done', text = ?, error = '', updated_at = ? WHERE id = ?")
                        ->execute([trim((string) $res['text']), self::now(), (int) $s['id']]);
@@ -572,13 +577,64 @@ final class Recorder
         return $out;
     }
 
+    /**
+     * What the transcriber should know about this part, to spell names and
+     * terms right and to carry on from where the previous part stopped:
+     * the meeting's title and agenda, the people in it, the organisation's own
+     * words (AV_REC_VOCAB adds more), and the last words of the part before.
+     * Whisper reads a short "prompt" as text that came before; Gemini gets a
+     * full instruction. Returns ['whisper' => …, 'gemini' => …].
+     */
+    public static function hints(int $rid, int $segNo): array
+    {
+        $db = Database::pdo();
+        $st = $db->prepare('SELECT r.meeting_id, m.title, m.agenda, m.creator_id, m.organiser_name FROM recordings r LEFT JOIN meetings m ON m.id = r.meeting_id WHERE r.id = ?');
+        $st->execute([$rid]);
+        $m = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+        $names = [];
+        if (!empty($m['meeting_id'])) {
+            $p = $db->prepare('SELECT u.name FROM meeting_attendees a JOIN lms_users u ON lower(u.email) = lower(a.email) WHERE a.meeting_id = ? LIMIT 40');
+            $p->execute([(int) $m['meeting_id']]);
+            $names = $p->fetchAll(PDO::FETCH_COLUMN) ?: [];
+            $c = $db->prepare('SELECT name FROM lms_users WHERE id = ?');
+            $c->execute([(int) ($m['creator_id'] ?? 0)]);
+            $names[] = (string) $c->fetchColumn();
+            $names[] = (string) ($m['organiser_name'] ?? '');
+        }
+        $names = array_values(array_unique(array_filter(array_map(static fn($n) => trim(preg_replace('/\s+/u', ' ', (string) $n) ?? ''), $names))));
+        $vocab = array_filter(array_map('trim', explode(',', (string) (getenv('AV_REC_VOCAB') ?: '')))) ;
+        $terms = array_values(array_unique(array_merge(['Afrovanguard', 'CACENTRE', 'NextGen Vanguard', "D'Vanguard", 'VanQuest', 'Africa GATES'], $vocab)));
+        $title = trim((string) ($m['title'] ?? ''));
+        $agenda = trim(mb_substr(preg_replace('/\s+/u', ' ', (string) ($m['agenda'] ?? '')) ?? '', 0, 200));
+
+        $prev = '';
+        if ($segNo > 0) {
+            $q = $db->prepare("SELECT text FROM recording_segments WHERE recording_id = ? AND seg_no = ? AND state = 'done'");
+            $q->execute([$rid, $segNo - 1]);
+            $prev = trim((string) $q->fetchColumn());
+            $prev = $prev !== '' ? mb_substr($prev, -300) : '';
+        }
+
+        // Whisper reads only the last ~224 tokens of its prompt: the glossary stays short and the previous words come last, nearest the audio.
+        $gloss = ($title !== '' ? $title . '. ' : '') . ($names ? 'With ' . implode(', ', array_slice($names, 0, 15)) . '. ' : '') . implode(', ', $terms) . '.';
+        $whisper = mb_substr($gloss, 0, 420) . ($prev !== '' ? ' … ' . $prev : '');
+        $gemini = 'Transcribe this meeting audio verbatim, as plain text only. Label speakers as Speaker 1, Speaker 2, … when distinguishable'
+            . ($names ? ', and use a name instead when someone is clearly addressed or introduces themself' : '') . '. '
+            . 'People may speak Nigerian English, Pidgin, or Yoruba, Igbo or Hausa words: write them as spoken, do not translate. '
+            . ($title !== '' ? 'The meeting: ' . $title . '. ' : '') . ($agenda !== '' ? 'Agenda: ' . $agenda . '. ' : '')
+            . ($names ? 'People in it: ' . implode(', ', array_slice($names, 0, 30)) . '. ' : '')
+            . 'Spell these exactly: ' . implode(', ', $terms) . '. '
+            . ($prev !== '' ? 'This recording continues from a previous part that ended: "' . $prev . '". Do not repeat that text.' : '');
+        return ['whisper' => $whisper, 'gemini' => $gemini];
+    }
+
     /** Whisper first, Gemini as the fallback — the same order as Meetings::transcribeAudio. */
-    public static function transcribe(string $bytes, string $mime): array
+    public static function transcribe(string $bytes, string $mime, array $hints = []): array
     {
         $res = null;
-        if (class_exists('OpenAi') && OpenAi::configured()) $res = OpenAi::transcribeAudio($bytes, $mime);
+        if (class_exists('OpenAi') && OpenAi::configured()) $res = OpenAi::transcribeAudio($bytes, $mime, (string) ($hints['whisper'] ?? ''));
         if ((!$res || empty($res['ok'])) && class_exists('Gemini') && Gemini::configured()) {
-            $g = Gemini::transcribeAudio($bytes, $mime);
+            $g = Gemini::transcribeAudio($bytes, $mime, (string) ($hints['gemini'] ?? ''));
             if (!empty($g['ok']) || !$res) $res = $g;
         }
         return $res ?: ['ok' => false, 'error' => 'Transcription is not configured.'];
@@ -599,7 +655,7 @@ final class Recorder
         if (!$late && $expected > 0 && count(array_diff(range(0, $expected - 1), $have)) > 0) return false;
         foreach ($segs as $s) if (!in_array((string) $s['state'], ['done', 'failed'], true)) return false;
 
-        $text = self::stitch($segs);
+        $text = self::stitch($segs, json_decode((string) ($r['marks'] ?? ''), true) ?: []);
         $failed = count(array_filter($segs, static fn($s) => (string) $s['state'] === 'failed'));
         $note = $failed ? $failed . ' of ' . count($segs) . ' parts could not be transcribed.' : (string) $r['note'];
         if ($text === '') {
@@ -624,18 +680,41 @@ final class Recorder
         return true;
     }
 
-    /** The parts in order, each headed by where it starts: "[00:10:00]". */
-    public static function stitch(array $segs): string
+    private static function clock(int $sec): string
+    {
+        $sec = max(0, $sec);
+        return sprintf('%02d:%02d:%02d', intdiv($sec, 3600), intdiv($sec % 3600, 60), $sec % 60);
+    }
+
+    /** Marked moments: whole seconds, in order, no repeats, at most 200. */
+    public static function cleanMarks(array $marks): array
+    {
+        $out = [];
+        foreach ($marks as $m) if (is_numeric($m) && $m >= 0 && $m <= 360000) $out[] = (int) $m;
+        $out = array_values(array_unique($out));
+        sort($out);
+        return array_slice($out, 0, 200);
+    }
+
+    /**
+     * The parts in order, each headed by where it starts: "[00:10:00]". A
+     * moment the person recording marked is noted at the end of its part, so
+     * the minutes can give it weight.
+     */
+    public static function stitch(array $segs, array $marks = []): string
     {
         usort($segs, static fn($a, $b) => (int) $a['seg_no'] <=> (int) $b['seg_no']);
+        $marks = self::cleanMarks($marks);
         $parts = [];
-        foreach ($segs as $s) {
+        foreach ($segs as $i => $s) {
             $t = trim((string) ($s['text'] ?? ''));
             if ((string) ($s['state'] ?? 'done') !== 'done') $t = '';
             $o = max(0, (int) ($s['offset_sec'] ?? 0));
-            $stamp = sprintf('[%02d:%02d:%02d]', intdiv($o, 3600), intdiv($o % 3600, 60), $o % 60);
-            if ($t !== '') $parts[] = $stamp . "\n" . $t;
-            elseif ((string) ($s['state'] ?? '') === 'failed') $parts[] = $stamp . "\n(This part could not be transcribed.)";
+            $next = isset($segs[$i + 1]) ? (int) $segs[$i + 1]['offset_sec'] : PHP_INT_MAX;
+            $here = array_filter($marks, static fn($m) => ($i === 0 || $m >= $o) && $m < $next);
+            $note = $here ? "\n★ Marked as important by the person recording, at " . implode(', ', array_map([self::class, 'clock'], $here)) . '.' : '';
+            if ($t !== '') $parts[] = '[' . self::clock($o) . "]\n" . $t . $note;
+            elseif ((string) ($s['state'] ?? '') === 'failed') $parts[] = '[' . self::clock($o) . "]\n(This part could not be transcribed.)" . $note;
         }
         $real = array_filter($parts, static fn($p) => strpos($p, '(This part could not be transcribed.)') === false);
         return $real ? implode("\n\n", $parts) : '';

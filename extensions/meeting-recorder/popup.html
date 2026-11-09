@@ -14,13 +14,20 @@
     <p class="muted small" id="consent">Let everyone in the call know it is being recorded. Shortcut: Alt+Shift+R.</p>
   </section>
   <section id="live" hidden>
-    <p class="rec"><span class="dot" aria-hidden="true"></span> Recording <b id="timer">0:00</b></p>
+    <p class="rec" id="rec-line"><span class="dot" aria-hidden="true"></span> <span id="rec-word">Recording</span> <b id="timer">0:00</b></p>
     <p class="tabname" id="live-name"></p>
     <div class="meters" aria-hidden="true">
       <label>Meeting <span class="bar"><i id="lvl-tab"></i></span></label>
       <label>Your mic <span class="bar"><i id="lvl-mic"></i></span></label>
     </div>
     <p class="note note--warn" id="mic-warn" hidden>Your microphone is not being recorded. <a href="welcome.html" target="_blank">Allow it</a> for next time.</p>
+    <p class="note note--warn" id="live-warn" hidden></p>
+    <p class="note" id="live-info" hidden></p>
+    <div class="row">
+      <button class="btn btn--line" id="btn-mark" title="Alt+Shift+M">★ Mark this moment</button>
+      <button class="btn btn--line" id="btn-pause" title="Alt+Shift+P">Pause</button>
+    </div>
+    <p class="muted small" id="marks"></p>
     <button class="btn btn--stop" id="btn-stop">Stop</button>
   </section>
   <p class="err" id="error" role="alert" hidden></p>

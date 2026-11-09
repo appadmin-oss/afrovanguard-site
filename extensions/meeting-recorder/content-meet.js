@@ -48,16 +48,25 @@
       document.documentElement.appendChild(host);
     }
     host.style.display = '';
+    if (state === 'marked') {
+      // A short confirmation, then back to the recording banner.
+      var t = box.querySelector('.t'), before = t.textContent || 'Recording — the minutes will be written to this meeting. Let everyone know. Alt+Shift+M marks a moment.';
+      box.className = 'b rec';
+      t.textContent = '★ Moment marked — it will stand out in the minutes.';
+      setTimeout(function () { if (t.textContent.charAt(0) === '★') t.textContent = before; }, 2500);
+      return;
+    }
     box.className = 'b' + (state === 'recording' ? ' rec' : '');
     box.querySelector('.t').textContent = state === 'recording'
-      ? 'Recording — the minutes will be written to this meeting. Let everyone know.'
+      ? 'Recording — the minutes will be written to this meeting. Let everyone know. Alt+Shift+M marks a moment.'
+      : state === 'paused' ? 'Recording paused — Alt+Shift+P to resume.'
       : 'Record this meeting? Press Alt+Shift+R or click the recorder icon.';
     if (state === 'prompt') setTimeout(function () { if (host && box.className === 'b') host.style.display = 'none'; }, 20000);
   }
 
   chrome.runtime.onMessage.addListener(function (m) {
     if (!m || m.from !== 'av-recorder' || m.type !== 'banner') return;
-    if (m.state === 'recording') dismissed = false;
+    if (m.state === 'recording' || m.state === 'paused') dismissed = false;
     banner(m.state);
   });
 

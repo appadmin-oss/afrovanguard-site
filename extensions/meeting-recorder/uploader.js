@@ -173,7 +173,7 @@ export function pump() {
           if (await sendSegment(fresh, s)) out.sent++; else all = false;
         }
         if (fresh.state === 'stopped' && all) {
-          const res = await api('finish', { json: { rec: fresh.serverId, segments: fresh.segments || segs.length } });
+          const res = await api('finish', { json: { rec: fresh.serverId, segments: fresh.segments || segs.length, marks: fresh.marks || [] } });
           if (res.ok && (!res.missing_segments || !res.missing_segments.length)) {
             await store.update('recordings', r.rec, (x) => x && Object.assign(x, { state: 'uploaded', uploadedAt: Date.now() }));
           }

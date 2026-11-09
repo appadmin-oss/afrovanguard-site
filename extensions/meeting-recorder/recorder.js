@@ -29,6 +29,11 @@ export class SegmentedRecorder {
     this.stopping = false;
     this.startedAt = 0;
     this.silentSince = 0;
+    this.paused = false;
+    this.pausedAt = 0;
+    this.pausedTotal = 0;
+    this.tabDeadSince = 0;
+    this.micDeadSince = 0;
   }
 
   async start() {
@@ -50,7 +55,7 @@ export class SegmentedRecorder {
     }
     this.mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
     this.startedAt = Date.now();
-    this.silentSince = Date.now();
+    this.silentSince = this.tabDeadSince = this.micDeadSince = Date.now();
     await this.nextSegment();
     this.levelTimer = setInterval(() => this.tickLevels(), 1000);
   }
@@ -63,12 +68,57 @@ export class SegmentedRecorder {
     return () => { a.getFloatTimeDomainData(buf); let s = 0; for (const v of buf) s += v * v; return Math.sqrt(s / buf.length); };
   }
 
+  /** Seconds recorded, not counting pauses. */
+  elapsed(now = Date.now()) {
+    return Math.round((now - this.startedAt - this.pausedTotal - (this.paused ? now - this.pausedAt : 0)) / 1000);
+  }
+
   tickLevels() {
     const tab = this.levels.tab ? this.levels.tab() : 0;
     const mic = this.levels.mic ? this.levels.mic() : 0;
     const now = Date.now();
+    if (this.paused) {
+      this.silentSince = this.tabDeadSince = this.micDeadSince = now;
+      this.o.emit({ type: 'levels', tab: 0, mic: 0, paused: true, elapsed: this.elapsed(now), silentFor: 0, tabDeadFor: 0, micDeadFor: 0 });
+      return;
+    }
     if (Math.max(tab, mic) > 0.01) this.silentSince = now;
-    this.o.emit({ type: 'levels', tab, mic, elapsed: Math.round((now - this.startedAt) / 1000), silentFor: Math.round((now - this.silentSince) / 1000) });
+    /* "Dead" is digital silence: no signal at all, not a quiet room. A live
+       microphone always hears something; a muted or missing one hears zero.
+       A meeting tab playing nothing at all is likely the wrong tab. */
+    if (tab > 0.00001) this.tabDeadSince = now;
+    if (mic > 0.00001) this.micDeadSince = now;
+    this.o.emit({
+      type: 'levels', tab, mic, paused: false, elapsed: this.elapsed(now),
+      silentFor: Math.round((now - this.silentSince) / 1000),
+      tabDeadFor: this.levels.tab ? Math.round((now - this.tabDeadSince) / 1000) : 0,
+      micDeadFor: this.levels.mic ? Math.round((now - this.micDeadSince) / 1000) : 0,
+    });
+  }
+
+  /** Pause: the same segment carries on afterwards, and its ten minutes wait too. */
+  pause() {
+    if (this.paused || this.stopping || !this.mr || this.mr.state !== 'recording') return false;
+    this.mr.pause();
+    clearTimeout(this.segTimer);
+    this.segLeft = Math.max(1000, this.segDue - Date.now());
+    this.paused = true;
+    this.pausedAt = Date.now();
+    this.o.emit({ type: 'paused' });
+    return true;
+  }
+
+  resume() {
+    if (!this.paused || this.stopping || !this.mr) return false;
+    this.mr.resume();
+    const now = Date.now();
+    this.pausedTotal += now - this.pausedAt;
+    this.paused = false;
+    this.silentSince = this.tabDeadSince = this.micDeadSince = now;
+    this.segDue = now + this.segLeft;
+    this.segTimer = setTimeout(() => { if (!this.stopping) this.nextSegment(); }, this.segLeft);
+    this.o.emit({ type: 'resumed' });
+    return true;
   }
 
   /** Close the current segment (if any) and open the next, on the same mixed stream. */
@@ -103,6 +153,7 @@ export class SegmentedRecorder {
     if (prev && prev.state !== 'inactive') prev.stop();
 
     clearTimeout(this.segTimer);
+    this.segDue = Date.now() + this.o.segmentSeconds * 1000;
     this.segTimer = setTimeout(() => { if (!this.stopping) this.nextSegment(); }, this.o.segmentSeconds * 1000);
   }
 

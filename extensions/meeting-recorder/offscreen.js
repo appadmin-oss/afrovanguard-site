@@ -48,6 +48,10 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
     current.stop(m.reason || 'user').then((segments) => reply({ ok: true, segments }));
     return true;
   }
+  if (m.type === 'pause' || m.type === 'resume') {
+    reply({ ok: !!current && current[m.type](), paused: !!(current && current.paused) });
+    return false;
+  }
   if (m.type === 'ping') { reply({ ok: true, recording: !!current }); return false; }
   return false;
 });

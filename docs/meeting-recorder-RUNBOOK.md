@@ -1,6 +1,6 @@
 # Meeting Recorder: runbook
 
-Owner: **to be named** (the person who holds the signing key) · Version date: 2026-11-09 · Extension version: 1.0.0
+Owner: **to be named** (the person who holds the signing key) · Version date: 2026-11-09 · Extension version: 1.1.0
 
 The Meeting Recorder is a Chrome extension that records a meeting from the
 browser tab (the meeting's sound plus your microphone) and turns it into
@@ -76,9 +76,19 @@ extension. Personal Chrome profiles, mentors and partners don't (see §6).
 2. In a meeting: click the red icon → **Record this meeting**, or press
    **Alt+Shift+R**. On Google Meet a reminder appears when the call starts.
    **Tell the others the meeting is being recorded.**
-3. To stop: press the shortcut again, click *Stop*, leave the call, or close
+3. While recording:
+   - **Alt+Shift+M** (or *★ Mark this moment*) flags the moment as important.
+     It appears in the transcript as "★ Marked as important … at 00:12:34", so
+     the minutes pick it up.
+   - **Alt+Shift+P** (or *Pause*) pauses for a side conversation, and the same
+     again resumes. Nothing is recorded while paused.
+   - The recorder warns you if your microphone sends no sound at all (muted,
+     or the wrong one chosen), or if the meeting tab is silent from the start
+     (probably the wrong tab). It tells you if the notetaker is already in
+     the meeting.
+4. To stop: press Alt+Shift+R again, click *Stop*, leave the call, or close
    the tab. It also stops by itself after 10 minutes of silence.
-4. The minutes appear on the meeting in the portal (*Meetings*), usually a
+5. The minutes appear on the meeting in the portal (*Meetings*), usually a
    few minutes after the upload finishes, and a Chrome notification says so.
 
 If the meeting was scheduled in the portal, the recording attaches to it (by
@@ -128,6 +138,7 @@ requires before it will capture a tab. So after a release, do one real
 | `AV_REC_RETAIN_DAYS` | 30 | Days audio is kept after the minutes are written; `0` keeps it. Transcripts are kept |
 | `AV_REC_STORAGE` | local | `drive` moves finished audio to Google Drive (uses the existing `AV_GDRIVE_*`) |
 | `AV_REC_CHUNK_MAX` | 1 MB | Largest upload piece. Never above what the host's `upload_max_filesize` allows: the server lowers it on its own |
+| `AV_REC_VOCAB` | — | Extra names and terms the transcriber should spell right, comma-separated (e.g. `Ikeja hub, Ndukwe`). The meeting's title, agenda and attendees' names are always given |
 | `AV_REC_DIR` | `db/private/recordings` | Where audio is kept on the server |
 
 ## 7. For the privacy policy (draft: needs the owner's approval before it goes on `/privacy-policy/`)
@@ -151,7 +162,7 @@ requires before it will capture a tab. So after a release, do one real
 - Meet's page changes without notice. If it does, the *in-call reminder* and
   *stop when you leave* may go quiet. Recording itself, stop on tab close and
   stop on silence don't depend on Meet's page.
-- No speaker names in the transcript yet. No Zoom or Teams prompts yet, though
+- Speakers are labelled "Speaker 1, 2…" (Gemini uses a name when someone is clearly addressed). Whisper does not separate speakers at all. No Zoom or Teams prompts yet, though
   recording those tabs already works.
 - The "tell everyone" notice is shown to the person recording, not posted
   into the call.

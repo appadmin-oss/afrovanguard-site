@@ -8,7 +8,7 @@
  *   POST ?action=start     {meet_code, title, url, meeting_id?, consent_shown}
  *   POST ?action=chunk     multipart: rec, seg, idx, sha256, data(file)
  *   POST ?action=segment   {rec, seg, chunks, offset, mime}     → assembles, or lists missing chunks
- *   POST ?action=finish    {rec, segments}
+ *   POST ?action=finish    {rec, segments, marks?: [seconds…]}
  *   GET  ?action=status&rec=N
  *   POST ?action=cancel    {rec}
  *
@@ -92,7 +92,7 @@ try {
             $reply(Recorder::segmentDone($device, $rec, (int) ($body['seg'] ?? -1), (int) ($body['chunks'] ?? 0),
                 (int) ($body['offset'] ?? 0), (string) ($body['mime'] ?? 'audio/webm')));
         case 'finish':
-            $reply(Recorder::finish($device, $rec, (int) ($body['segments'] ?? 0)));
+            $reply(Recorder::finish($device, $rec, (int) ($body['segments'] ?? 0), is_array($body['marks'] ?? null) ? $body['marks'] : []));
         case 'status':
             $reply(Recorder::status($device, $rec));
         case 'cancel':

@@ -2,27 +2,84 @@
   "manifest_version": 3,
   "name": "Afrovanguard Meeting Recorder",
   "short_name": "AV Recorder",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Record a meeting from your browser into your Afrovanguard meeting record. The minutes and action items are written for you.",
   "minimum_chrome_version": "116",
-  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
   "action": {
     "default_title": "Meeting Recorder (Alt+Shift+R)",
     "default_popup": "popup.html",
-    "default_icon": { "16": "icons/16.png", "32": "icons/32.png" }
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png"
+    }
   },
-  "background": { "service_worker": "background.js", "type": "module" },
-  "permissions": ["tabCapture", "offscreen", "storage", "unlimitedStorage", "alarms", "notifications", "activeTab"],
-  "host_permissions": ["__SITE__/*", "https://meet.google.com/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "tabCapture",
+    "offscreen",
+    "storage",
+    "unlimitedStorage",
+    "alarms",
+    "notifications",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "__SITE__/*",
+    "https://meet.google.com/*"
+  ],
   "content_scripts": [
-    { "matches": ["https://meet.google.com/*"], "js": ["content-meet.js"], "run_at": "document_idle" },
-    { "matches": ["__SITE__/portal/recorder.php*"], "js": ["content-portal.js"], "run_at": "document_idle" }
+    {
+      "matches": [
+        "https://meet.google.com/*"
+      ],
+      "js": [
+        "content-meet.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "__SITE__/portal/recorder.php*"
+      ],
+      "js": [
+        "content-portal.js"
+      ],
+      "run_at": "document_idle"
+    }
   ],
   "commands": {
     "toggle-recording": {
-      "suggested_key": { "default": "Alt+Shift+R", "mac": "Alt+Shift+R" },
+      "suggested_key": {
+        "default": "Alt+Shift+R",
+        "mac": "Alt+Shift+R"
+      },
       "description": "Start or stop recording this tab"
+    },
+    "mark-moment": {
+      "suggested_key": {
+        "default": "Alt+Shift+M",
+        "mac": "Alt+Shift+M"
+      },
+      "description": "Mark this moment as important in the minutes"
+    },
+    "pause-recording": {
+      "suggested_key": {
+        "default": "Alt+Shift+P",
+        "mac": "Alt+Shift+P"
+      },
+      "description": "Pause or resume the recording"
     }
   },
-  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'" }
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  }
 }

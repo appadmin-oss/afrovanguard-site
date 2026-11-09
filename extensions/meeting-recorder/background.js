@@ -36,7 +36,8 @@ async function badge() {
   const live = await session.get();
   const { token, needsConnect } = await chrome.storage.local.get(['token', 'needsConnect']);
   let text = '', color = '#e4162b', title = 'Meeting Recorder (Alt+Shift+R)';
-  if (live) { text = 'REC'; title = 'Recording — press Alt+Shift+R or open the recorder to stop'; }
+  if (live && live.paused) { text = 'II'; color = '#5d6470'; title = 'Paused — Alt+Shift+P to resume'; }
+  else if (live) { text = 'REC'; title = 'Recording — Alt+Shift+M marks a moment, Alt+Shift+R stops'; }
   else if (!token || needsConnect) { text = '!'; color = '#b26b00'; title = 'Meeting Recorder — connect it to your account'; }
   else {
     const pending = (await store.all('recordings')).filter((r) => ['recording', 'stopped', 'uploaded'].includes(r.state));
@@ -56,7 +57,10 @@ async function ensureOffscreen() {
   await chrome.offscreen.createDocument({ url: OFFSCREEN, reasons: ['USER_MEDIA'], justification: 'Record the meeting tab’s sound and the microphone.' });
 }
 const toOffscreen = (msg) => chrome.runtime.sendMessage({ target: 'offscreen', ...msg });
-const toTab = (tabId, msg) => chrome.tabs.sendMessage(tabId, { from: 'av-recorder', ...msg }).catch(() => {});
+/* Never throws: the tab may have closed, and Chrome rejects a bad id synchronously, before any promise. */
+const toTab = (tabId, msg) => {
+  try { return chrome.tabs.sendMessage(tabId, { from: 'av-recorder', ...msg }).catch(() => {}); } catch (e) { return Promise.resolve(); }
+};
 const toPopup = (msg) => chrome.runtime.sendMessage({ target: 'popup', ...msg }).catch(() => {});
 
 /* ── start and stop ────────────────────────────────────────────────── */
@@ -84,7 +88,7 @@ async function start(tab) {
     await store.del('recordings', rec);
     return { ok: false, error: (res && res.error) || 'The recorder could not start.' };
   }
-  await session.set({ rec, tabId: tab.id, startedAt: Date.now(), meetCode, title: cleanTitle(tab.title), mic: res.mic });
+  await session.set({ rec, tabId: tab.id, startedAt: Date.now(), meetCode, title: cleanTitle(tab.title), mic: res.mic, paused: false, marks: 0, warn: {} });
   if (!res.mic && s.mic) await chrome.storage.local.set({ micBlocked: true }); else if (res.mic) await chrome.storage.local.set({ micBlocked: false });
   toTab(tab.id, { type: 'banner', state: 'recording' });
   await badge();
@@ -133,6 +137,44 @@ async function recover() {
     if (r.state === 'recording' && (!still || still.rec !== r.rec)) await closeRecording(r.rec, r.segments || 0);
   }
   await badge();
+}
+
+/* ── pause and mark ────────────────────────────────────────────────── */
+
+async function setPaused(want) {
+  const live = await session.get();
+  if (!live) return { ok: false, error: 'Not recording.' };
+  if (!!live.paused === want) return { ok: true, paused: want };
+  const r = await toOffscreen({ type: want ? 'pause' : 'resume' }).catch(() => null);
+  if (!r || !r.ok) return { ok: false, error: 'The recorder could not ' + (want ? 'pause' : 'resume') + '.' };
+  await session.set(Object.assign(live, { paused: want }));
+  toTab(live.tabId, { type: 'banner', state: want ? 'paused' : 'recording' });
+  await chrome.action.setBadgeText({ text: want ? 'II' : 'REC' });
+  toPopup({ type: 'refresh' });
+  return { ok: true, paused: want };
+}
+
+/** Mark this moment as important: kept with the recording, noted in the minutes. */
+async function mark() {
+  const live = await session.get();
+  if (!live) return { ok: false, error: 'Not recording.' };
+  const at = Math.max(0, Math.round((Date.now() - live.startedAt) / 1000));
+  const r = await store.update('recordings', live.rec, (x) => x && Object.assign(x, { marks: [...(x.marks || []), at] }));
+  const count = r ? r.marks.length : 0;
+  await session.set(Object.assign(live, { marks: count }));
+  toTab(live.tabId, { type: 'banner', state: 'marked' });
+  toPopup({ type: 'refresh' });
+  return { ok: true, at, count };
+}
+
+/** Say once, early, when something means the recording will be poor. */
+async function warnOnce(kind, message) {
+  const live = await session.get();
+  if (!live || (live.warn || {})[kind]) return;
+  live.warn = Object.assign({}, live.warn, { [kind]: true });
+  await session.set(live);
+  chrome.notifications.create('warn-' + kind + '-' + live.rec, { type: 'basic', iconUrl: 'icons/128.png', title: 'Meeting Recorder', message, priority: 2 });
+  toPopup({ type: 'refresh' });
 }
 
 /* ── pairing ───────────────────────────────────────────────────────── */
@@ -211,6 +253,9 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
     status: () => status(),
     start: async () => start(m.tabId ? await chrome.tabs.get(m.tabId).catch(() => null) : null),
     stop: () => stop('user'),
+    pause: () => setPaused(true),
+    resume: () => setPaused(false),
+    mark: () => mark(),
     discard: () => discard(String(m.rec || '')),
     connect: async () => { await chrome.tabs.create({ url: CONNECT_URL }); return { ok: true }; },
     disconnect: async () => { await chrome.storage.local.remove(['token', 'user']); await badge(); return { ok: true }; },
@@ -228,7 +273,9 @@ function onRecEvent(ev) {
   if (ev.type === 'levels') {
     lastLevels = ev;
     toPopup({ type: 'levels', levels: ev });
-    if (ev.silentFor >= SILENCE_STOP_MIN * 60) stop('silence');
+    if (!ev.paused && ev.silentFor >= SILENCE_STOP_MIN * 60) stop('silence');
+    if (ev.micDeadFor >= 60) warnOnce('mic', 'Your microphone is sending no sound at all. Check it is not muted on your computer, or that the right microphone is chosen — you are not being recorded.');
+    if (ev.tabDeadFor >= 120 && ev.elapsed <= 240) warnOnce('tab', 'No sound has come from the meeting tab yet. If the meeting is in another tab, stop and start the recorder there.');
   } else if (ev.type === 'slice' || ev.type === 'segment-closed') {
     clearTimeout(pumpTimer);
     pumpTimer = setTimeout(() => pump().then(badge), 1500);
@@ -248,7 +295,7 @@ async function onMeetState(tab, m) {
     // Left the call: give Meet a moment (it redraws while reconnecting) before stopping.
     clearTimeout(leftTimer);
     if (m.inCall === false) leftTimer = setTimeout(async () => { const l = await session.get(); if (l && l.tabId === tab.id) stop('left'); }, 20000);
-    else toTab(tab.id, { type: 'banner', state: 'recording' });
+    else toTab(tab.id, { type: 'banner', state: live.paused ? 'paused' : 'recording' });
     return;
   }
   if (!m.inCall || live) return;
@@ -261,6 +308,8 @@ async function onMeetState(tab, m) {
 }
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
+  if (command === 'mark-moment') { await mark(); return; }
+  if (command === 'pause-recording') { const l = await session.get(); if (l) await setPaused(!l.paused); return; }
   if (command !== 'toggle-recording') return;
   if (await session.get()) await stop('user');
   else {
