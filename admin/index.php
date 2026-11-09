@@ -1382,6 +1382,7 @@
         <div><h2>Setup</h2><p class="muted">Connect the AI, email (the Google Apps Script mail road), the meeting notetaker and web search. Keys are encrypted before they are stored and are never shown again — you will only ever see the last few characters.</p></div>
         <button class="btn btn-outline btn-sm" id="setupRefresh">Refresh</button>
       </div>
+      <p class="muted">The Chrome Meeting Recorder is published and installed from its own page: <a href="/admin/recorder.php">Meeting Recorder →</a> (superadmins).</p>
       <div class="setup-warn" id="setupCrypto" hidden></div>
       <div class="setup-tests" id="setupTests"></div>
       <div id="setupGroups"><p class="muted">Loading…</p></div>

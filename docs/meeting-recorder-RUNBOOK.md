@@ -10,8 +10,8 @@ Google Admin console, at no cost, without the Chrome Web Store.
 | Part | Where |
 |---|---|
 | Extension source | `extensions/meeting-recorder/` |
-| Build and sign | `tools/build-recorder.php` |
-| What Chrome downloads | `downloads/meeting-recorder/` (built, committed, deployed) |
+| Publish (sign and build) | Studio page `/admin/recorder.php`, or `tools/build-recorder.php` with SSH. Both use `lib/RecorderBuild.php` |
+| What Chrome downloads | `downloads/meeting-recorder/`, written on the server by Publish (not in git) |
 | Server API | `integrations/recorder.php` → `lib/Recorder.php` |
 | Connect page | `/portal/recorder.php` |
 | Transcription | `tasks/cron.php` → `Recorder::sweep()` (the existing web-cron) |
@@ -20,37 +20,39 @@ Google Admin console, at no cost, without the Chrome Web Store.
 
 ---
 
-## 1. First release (once)
+## 1. First release (once): no SSH needed
 
-You need PHP 8.1+ with the `openssl` and `zip` extensions (the same PHP the site uses).
+Everything happens in the browser. You need a **superadmin** Studio account.
 
-1. **Make the signing key.**
-   ```bash
-   php tools/build-recorder.php --new-key
-   ```
-   This writes `~/.afrovanguard/meeting-recorder-key.pem`. **Back it up now**
-   in the organisation's password manager or secrets vault. The extension's
-   ID comes from this key. Every installed copy only accepts updates signed
-   with it. If it is lost, the only fix is a new extension with a new ID,
-   re-added in the Admin console.
-2. **Commit and deploy** `downloads/meeting-recorder/` (the `.crx`,
-   `updates.xml`, `extension-id.txt`). Check that both URLs load in a browser:
-   `https://afrovanguard.org.ng/downloads/meeting-recorder/updates.xml` and the
-   `.crx` it names.
-3. **Add it in the Google Admin console.** admin.google.com → Devices →
+1. **Upload the site files** as usual (cPanel File Manager or FTP), including
+   the hidden `downloads/meeting-recorder/.htaccess`.
+2. **Publish.** Open `https://afrovanguard.org.ng/admin/recorder.php`
+   (Studio → Setup → *Meeting Recorder →*) and click **Publish for the first
+   time**. The site makes the signing key, keeps it in `db/private/recorder/`
+   (never web-served), signs the extension and writes
+   `downloads/meeting-recorder/` (the `.crx`, `updates.xml`, `extension-id.txt`).
+   If the page says the host cannot publish, it names the missing piece:
+   the PHP Zip extension (cPanel → Select PHP Version) or a `downloads` folder
+   the site can write (File Manager, permissions 755).
+3. **Back up the key.** On the same page click **Download the key**, and keep
+   the file in the organisation's password manager or secrets vault. The
+   extension's ID comes from this key, and every installed copy only accepts
+   updates signed with it. If the site moves host, upload it on the new host's
+   page (*Restore the key*) **before** publishing there.
+4. **Add it in the Google Admin console** (the page shows the ID and URL to paste). admin.google.com → Devices →
    Chrome → Apps & extensions → Users & browsers → choose the staff
    organisational unit → yellow **+** → *Add Chrome app or extension by ID* →
    *From a custom URL*. ID = `extension-id.txt`, URL = the `updates.xml` URL
    above. Installation policy: **Force install** (and *Pin to browser
    toolbar*).
-4. **Check it reached people.** On a staff laptop signed in to Chrome with
+5. **Check it reached people.** On a staff laptop signed in to Chrome with
    a work account, `chrome://extensions` shows *Afrovanguard Meeting Recorder*
    (installed by policy) within about an hour. Force a refresh with
    `chrome://policy` → *Reload policies*.
-5. **Transcription key.** Recordings are transcribed by Whisper (`OPENAI_API_KEY`)
+6. **Transcription key.** Recordings are transcribed by Whisper (`OPENAI_API_KEY`)
    or Gemini (`AV_GEMINI_API_KEY`), set in Studio → Setup → AI. Without one,
    recordings upload and wait. They are transcribed as soon as a key is set.
-6. **Cron.** Nothing new: the existing web-cron (`tools/cpanel-cron-setup.md`)
+7. **Cron.** Nothing new: the existing web-cron (`tools/cpanel-cron-setup.md`)
    now also runs the recorder's queue. Every 5 minutes or more often is right.
 
 Only Chrome signed in with an afrovanguard.org.ng Google account gets the
@@ -62,9 +64,9 @@ extension. Personal Chrome profiles, mentors and partners don't (see §6).
 2. Raise `"version"` in `extensions/meeting-recorder/manifest.json` (e.g. 1.0.0 → 1.0.1).
    Chrome ignores a package whose version did not go up.
 3. Run the tests (§5).
-4. `php tools/build-recorder.php` (it finds the key at the default path, or pass `--key=`).
-5. Commit `downloads/meeting-recorder/` with the source change, deploy.
-   Chrome updates installed copies within a few hours.
+4. Upload the changed files, then open `/admin/recorder.php` and click
+   **Publish version …**. Chrome updates installed copies within a few hours.
+   (With SSH, `php tools/build-recorder.php` does the same.)
 
 ## 3. What staff do
 

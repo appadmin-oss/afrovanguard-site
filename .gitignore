@@ -61,3 +61,7 @@ db/private/
 
 # Africa GATES events, cached by lib/AvEvents.php
 data/afg-events.json
+
+# The Meeting Recorder is built and signed on the server (Studio → admin/recorder.php)
+downloads/meeting-recorder/*
+!downloads/meeting-recorder/.htaccess
