@@ -289,3 +289,56 @@ Recorder::sweep(20, static fn() => ['ok' => true, 'text' => 'Good morning. Yes, 
 $tx1 = (string) $db->query("SELECT raw_text FROM meeting_transcripts WHERE meeting_id = $mm")->fetchColumn();
 ck('the minutes\' transcript carries the names', $tx1 === "[00:00:00]\nAdaeze Okonkwo: Good morning.\nBabatunde Fashola: Yes, the budget first.");
 ck('the timed sentences are kept with the part', str_contains((string) $db->query("SELECT utterances FROM recording_segments WHERE recording_id = $r1")->fetchColumn(), '"start":4.3'));
+
+/* ── v1.3: with no AI transcriber ───────────────────────────────────── */
+ck('this test site has no transcriber', !Recorder::canTranscribe());
+$db->prepare("INSERT INTO meetings (creator_id,title,agenda,scheduled_at,duration_min,frequency,context,context_id,status,created_at,meet_code) VALUES (1,'No-AI review','',?,30,'once','workspace',0,'scheduled',?,'noa-inoa-ino')")
+   ->execute([gmdate('Y-m-d H:i:s'), gmdate('Y-m-d H:i:s')]);
+$na = (int) $db->lastInsertId();
+$db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)')->execute([$na, 'b@x.co']);
+$rn = (int) Recorder::start($devH, ['meet_code' => 'noa-inoa-ino'])['recording_id'];
+$audio0 = random_bytes(5000);
+$send($devH, $rn, 0, 0, $audio0);
+Recorder::segmentDone($devH, $rn, 0, 1, 0, 'audio/webm', [[0, 30, 'me'], [31, 91, 'them']]);
+Recorder::segmentDone($devH, $rn, 1, 0, 600, 'audio/webm', []);
+Recorder::finish($devH, $rn, 2, [42], 2);
+$sw = Recorder::sweep(20);
+ck('with no transcriber, the cron leaves the recording waiting (not failed)', $sw['transcribed'] === 0
+    && (string) $db->query("SELECT status FROM recordings WHERE id = $rn")->fetchColumn() === 'finished');
+$stn = Recorder::status($devH, $rn)['recording'];
+ck('status says it is waiting for a transcriber', $stn['waiting'] === true);
+ck('and where to listen', str_ends_with($stn['listen_url'], '/recording.php?meeting=' . $na));
+
+ck('a participant may listen', Recorder::mayListen(2, $na));
+ck('the organiser may listen', Recorder::mayListen(1, $na));
+ck('someone not in the meeting may not', !Recorder::mayListen(3, $na));
+ck('nobody signed out may', !Recorder::mayListen(0, $na));
+
+ck('the meeting list counts recordings in one query', (Recorder::countByMeeting([$na, 999999])[$na] ?? 0) === 1 && !isset(Recorder::countByMeeting([999999])[999999]));
+$fm = Recorder::forMeeting($na)[0];
+ck('the recording page lists only parts with sound', count($fm['parts']) === 1 && $fm['parts'][0]['here'] === true);
+ck('with the marked moments', $fm['marks'] === [42]);
+ck('and who talked how long', $fm['talk']['me'] === 30 && $fm['talk']['them'] === 60 && $fm['talk']['me_name'] === 'Adaeze Okonkwo' && $fm['talk']['them_name'] === 'Babatunde Fashola');
+ck('and that it waits for a transcriber', $fm['waiting'] === true);
+$sf = Recorder::segmentFile((int) $fm['parts'][0]['id']);
+ck('a part\'s file is found, with its meeting for the access check', $sf && (int) $sf['meeting_id'] === $na && hash_file('sha256', $sf['path']) === hash('sha256', $audio0));
+$bl = Recorder::backlog();
+ck('the Studio sees the waiting recording and the audio held', $bl['waiting'] >= 1 && $bl['bytes'] >= 5000);
+$ml = array_values(array_filter(Meetings::listFor(2), static fn($m) => (int) $m['id'] === $na));
+ck('the meeting card knows it has a recording', $ml && (int) ($ml[0]['recordings'] ?? 0) === 1);
+putenv('AV_REC_RETAIN_DAYS=1');
+$db->exec("UPDATE recordings SET updated_at = '2000-01-01 00:00:00' WHERE id = $rn");
+Recorder::purge();
+ck('audio waiting for a transcriber is never purged', is_file($sf['path']));
+putenv('AV_REC_RETAIN_DAYS');
+ck('the recording page is for listeners only, before anything else', (function () {
+    $src = (string) file_get_contents(AV_ROOT . '/portal/recording.php');
+    return substr_count($src, 'Recorder::mayListen(') === 3 && str_contains($src, "header('Accept-Ranges: bytes')");
+})());
+ck('the recorder\'s portal pages load what their sign-in redirect needs', (function () {
+    foreach (['portal/recording.php', 'portal/recorder.php'] as $f) {
+        $src = (string) file_get_contents(AV_ROOT . '/' . $f);
+        if (str_contains($src, 'av_login_url(') && !str_contains($src, "require_once AV_ROOT . '/lib/partials.php';")) return false;
+    }
+    return true;
+})());

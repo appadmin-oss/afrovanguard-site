@@ -69,5 +69,7 @@ window.runRecording = async function ({ seconds, segmentSeconds, sliceMs, marksA
   return { rec, marked, marks: ((await store.get('recordings', rec)) || {}).marks || [], segments, closed: segs.filter((s) => s.closed).length, slices: slices.length, bytes: slices.reduce((n, s) => n + s.blob.size, 0), events: [...new Set(events)] };
 };
 window.sync = () => chrome.runtime.sendMessage({ type: 'sync' });
+/* Waiting recordings are asked about every half hour; a test cannot wait that long. */
+window.askNow = (rec) => store.update('recordings', rec, (x) => x && Object.assign(x, { checkedAt: 0 }));
 window.local = async (rec) => ({ rec: await store.get('recordings', rec), slices: (await store.range('slices', [rec])).length, segs: await store.range('segments', [rec]) });
 document.getElementById('out').textContent = 'ready';

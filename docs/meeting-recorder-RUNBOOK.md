@@ -1,6 +1,6 @@
 # Meeting Recorder: runbook
 
-Owner: **to be named** (the person who holds the signing key) · Version date: 2026-11-09 · Extension version: 1.2.0
+Owner: **to be named** (the person who holds the signing key) · Version date: 2026-11-09 · Extension version: 1.3.0
 
 The Meeting Recorder is a Chrome extension that records a meeting from the
 browser tab (the meeting's sound plus your microphone) and turns it into
@@ -88,7 +88,18 @@ extension. Personal Chrome profiles, mentors and partners don't (see §6).
      the meeting.
 4. To stop: press Alt+Shift+R again, click *Stop*, leave the call, or close
    the tab. It also stops by itself after 10 minutes of silence.
-5. **Speaker names.** In the transcript, your own lines carry your name. In a
+5. **Listening.** Every recorded meeting gets **🎧 Listen** on its card in the
+   portal (for the meeting's attendees and those who manage it). The page
+   plays the parts in order, jumps to each ★ marked moment, shows who talked
+   how long, and offers the whole recording as a zip.
+6. **With no AI transcriber** (no OpenAI or Gemini key), recordings still
+   upload and can be listened to; the popup says *Saved — no written minutes
+   yet*, never "Minutes ready". Write the minutes by hand on the meeting, or
+   add a key later: every waiting recording is then transcribed by itself,
+   oldest first. Audio waiting for a transcriber is never deleted; the
+   Studio page (`/admin/recorder.php`) shows how much is waiting and how
+   much disk it uses, and warns below 1 GB free.
+7. **Speaker names.** In the transcript, your own lines carry your name. In a
    one-to-one call (the meeting has exactly one other person, and Meet never
    showed more than two), the other person's lines carry theirs. In a group
    call, everyone else's lines are labelled **Others**. The recorder does not
@@ -97,7 +108,7 @@ extension. Personal Chrome profiles, mentors and partners don't (see §6).
    unlabelled. For named speakers in a large group call, use Google Meet's
    own transcript (the meeting's *Pull Google Meet transcript*), which knows
    every speaker.
-6. The minutes appear on the meeting in the portal (*Meetings*), usually a
+8. The minutes appear on the meeting in the portal (*Meetings*), usually a
    few minutes after the upload finishes, and a Chrome notification says so.
 
 If the meeting was scheduled in the portal, the recording attaches to it (by
@@ -112,7 +123,7 @@ opens a new Meet room.
 | Badge shows **!** | Not connected, or the device was disconnected in the portal | Click the icon → Connect |
 | Badge shows **↑** for a long time | Uploads waiting: offline, or the site is down | Nothing; they resume on their own. The audio is kept in the browser until the server has it |
 | *"Your microphone is not being recorded"* | Permission not given | Open the set-up page from the popup link and allow it |
-| Upload done but no minutes | No transcription key, or the cron is not running | Studio → Setup → AI; check the cron's last run |
+| Upload done but no minutes | No transcription key (the popup says *Saved*), or the cron is not running | Listen and write them by hand, or add a key in Studio → Setup → AI; check the cron's last run |
 | *"Kept with the meeting"* | The notetaker or Google already wrote the minutes | By design: the existing minutes are never overwritten. The recorder's transcript is in `recordings.transcript` |
 | A lost laptop | Its token can still upload | The user (portal → Meeting Recorder → *Disconnect*) or an admin revokes it |
 | Chrome says the extension is *corrupted* | The `.crx` was served with the wrong type or modified | Check `.htaccess` has `AddType application/x-chrome-extension .crx`; rebuild |

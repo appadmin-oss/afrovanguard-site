@@ -6,7 +6,7 @@ let st = null, clock = null;
 
 const STATE = {
   recording: 'Recording', stopped: 'Sending…', uploaded: 'Writing the minutes…', finishing: 'Sending…',
-  done: 'Minutes ready', duplicate: 'Kept with the meeting', failed: 'No minutes', cancelled: 'Discarded',
+  saved: 'Saved — no written minutes yet', done: 'Minutes ready', duplicate: 'Kept with the meeting', failed: 'No minutes', cancelled: 'Discarded',
 };
 
 function show(id, on) { $(id).hidden = !on; }
@@ -69,6 +69,10 @@ function render() {
     if (r.state === 'done' && r.minutesUrl) {
       const a = document.createElement('a'); a.href = r.minutesUrl; a.target = '_blank'; a.textContent = 'Open the minutes'; a.className = 'small';
       li.append(document.createElement('br'), a);
+    }
+    if (['saved', 'done', 'duplicate', 'uploaded'].includes(r.state) && r.listenUrl) {
+      const a = document.createElement('a'); a.href = r.listenUrl; a.target = '_blank'; a.textContent = 'Listen'; a.className = 'small';
+      li.append(r.state === 'done' ? document.createTextNode(' · ') : document.createElement('br'), a);
     }
     if (['stopped', 'uploaded'].includes(r.state)) {
       const b = document.createElement('button'); b.className = 'btn btn--line'; b.textContent = 'Discard';

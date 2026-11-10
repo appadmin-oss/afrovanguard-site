@@ -183,6 +183,8 @@
       else if (botLive(m)) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-bot-off" data-id="' + m.id + '">Remove the AI</button>';
       else if (BOT_ON_DEMAND) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-bot-on" data-id="' + m.id + '">🤖 Add the AI</button>';
     }
+    // Recorded with the Meeting Recorder: listen, even when no AI wrote the minutes.
+    if (m.recordings > 0 && (m.invited || isOwner)) h += '<a class="pbtn pbtn-ghost pbtn-sm" href="/portal/recording.php?meeting=' + m.id + '">🎧 Listen' + (m.recordings > 1 ? ' (' + m.recordings + ')' : '') + '</a>';
     if (isOwner) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-edit" data-id="' + m.id + '">Edit</button>';
     if (isOwner) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-cancel" data-id="' + m.id + '">Cancel</button>';
     h += '</div>';

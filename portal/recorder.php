@@ -13,6 +13,7 @@
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
+require_once AV_ROOT . '/lib/partials.php';   /* av_login_url(): the sign-in redirect for a signed-out visitor */
 
 $method = (string) ($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $action = (string) ($_GET['action'] ?? '');

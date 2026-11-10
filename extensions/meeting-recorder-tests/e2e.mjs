@@ -15,7 +15,7 @@
  * click on the extension, which automation cannot give. */
 import { createRequire } from 'node:module';
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtempSync, cpSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, cpSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -124,6 +124,40 @@ try {
   ck('and the call\'s turn as someone else', (talk[2] || []).some((r) => r[2] === 'them' && r[1] - r[0] >= 1), JSON.stringify(talk[2]));
   ck('their start times are in order', files[0].offset === 0 && files[1].offset >= 2 && files[2].offset > files[1].offset, JSON.stringify(files.map((f) => f.offset)));
 
+  console.log('\n# no transcriber: saved, and listened to');
+  const saved = await until(async () => { await h.evaluate(() => window.sync()); const l = await h.evaluate((r) => window.local(r), rec.rec); return l.rec.state === 'saved' && l; }, 15000, 800);
+  ck('with no transcriber the extension says "saved", never "minutes ready"', !!saved && /No transcriber/.test(saved.rec.note || ''), JSON.stringify(saved && saved.rec));
+  ck('and knows where to listen', saved && /\/portal\/recording\.php\?meeting=\d+$/.test(saved.rec.listenUrl || ''));
+  const listen = saved.rec.listenUrl.replace(/^https?:\/\/[^/]+/, SITE);
+  const lp = await ctx.newPage();
+  await lp.goto(listen);
+  ck('the portal page plays the recording', (await lp.locator('audio[data-player]').count()) === 1);
+  ck('it says there are no written minutes yet', /No transcriber is set up/.test(await lp.textContent('main')));
+  ck('it shows the marked moments as jump points', (await lp.locator('[data-jump]').count()) === 2);
+  ck('and who talked', /Tess Tester · /.test(await lp.textContent('.legend')) && /Others · /.test(await lp.textContent('.legend')));
+  const range = await lp.evaluate(async () => {
+    const card = document.querySelector('[data-rec]'); const part = JSON.parse(card.getAttribute('data-parts'))[1];
+    const r = await fetch('/portal/recording.php?action=audio&part=' + part.id, { headers: { Range: 'bytes=0-3' } });
+    const b = new Uint8Array(await r.arrayBuffer());
+    return { status: r.status, range: r.headers.get('content-range'), head: [...b].map((x) => x.toString(16).padStart(2, '0')).join('') };
+  });
+  ck('the audio streams with byte ranges (seekable, even on phones)', range.status === 206 && /^bytes 0-3\/\d+$/.test(range.range || '') && range.head === '1a45dfa3', JSON.stringify(range));
+  await lp.click('[data-jump]');
+  ck('a marked moment starts the player', await until(() => lp.evaluate(() => { const a = document.querySelector('audio'); return !a.paused || a.currentTime > 0 || a.readyState > 0; }), 5000));
+  // Fetched from the page, as the signed-in user's own request; Playwright's download event does not fire in an extension-loaded profile.
+  const zipB64 = await lp.evaluate(async () => { const a = document.querySelector('a[href*="action=zip"]'); const r = await fetch(a.href); const b = new Uint8Array(await r.arrayBuffer()); let s = ''; for (const x of b) s += String.fromCharCode(x); return r.headers.get('content-type') === 'application/zip' ? btoa(s) : ''; });
+  const zipPath = join(work, 'rec.zip'); writeFileSync(zipPath, Buffer.from(zipB64, 'base64'));
+  const zipList = execFileSync('unzip', ['-l', zipPath]).toString();
+  ck('the zip download has every part', (zipList.match(/part-0\d\.webm/g) || []).length === 3, zipList);
+  const outsider = await chromium.launch({ channel: 'chromium' });
+  const op = await outsider.newPage();
+  const anon = await op.goto(listen);
+  ck('someone signed out is sent to sign in, not shown the recording', /\/login|sign/i.test(op.url()) || anon.status() === 401, op.url());
+  await outsider.close();
+  const studio = php(`echo json_encode(Recorder::backlog());`);
+  ck('the Studio sees what is waiting and how much audio is held', JSON.parse(studio).waiting >= 1 && JSON.parse(studio).bytes > 5000, studio);
+  await lp.close();
+
   console.log('\n# minutes');
   const sweep = JSON.parse(php(`echo json_encode(Recorder::sweep(20, static fn($b, $m) => ['ok' => true, 'text' => 'Heard ' . strlen($b) . ' bytes of ' . $m, 'segments' => [['start' => 0, 'end' => 1, 'text' => 'Heard ' . strlen($b) . ' bytes of ' . $m . '.'], ['start' => 1, 'end' => 2, 'text' => 'Second.'], ['start' => 2, 'end' => 3, 'text' => 'Third.']]]));`));
   ck('the cron transcribes all three parts and writes the minutes', sweep.transcribed === 3 && sweep.finalised === 1, JSON.stringify(sweep));
@@ -132,6 +166,7 @@ try {
   ck('the meeting has the stitched transcript', /^\[00:00:00\]\n(Others: |Tess Tester: )?Heard \d+ bytes of audio\/webm/.test(tr) && (tr.match(/\[00:00:0\d\]/g) || []).length === 3, JSON.stringify(tr.slice(0, 120)));
   ck('the marked moments are in the minutes\' transcript', (tr.match(/★ Marked as important/g) || []).length === 2, JSON.stringify(tr));
   ck('the transcriber was given the meeting context', php(`echo json_encode(Recorder::hints((int) Database::pdo()->query("SELECT id FROM recordings ORDER BY id LIMIT 1")->fetchColumn(), 1));`).includes('Weekly standup'));
+  await h.evaluate((r) => window.askNow(r), rec.rec);
   const done = await until(async () => { await h.evaluate(() => window.sync()); const l = await h.evaluate((r) => window.local(r), rec.rec); return l.rec.state === 'done' && l; }, 15000, 800);
   ck('the extension learns the minutes are ready', !!done);
 

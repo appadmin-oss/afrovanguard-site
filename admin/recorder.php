@@ -73,6 +73,8 @@ $s = RecorderBuild::status();
 $needsBuild = $s['has_key'] && $s['source_version'] !== '' && $s['source_version'] !== $s['built_version'];
 $canBuild = $s['openssl'] && $s['zip'] && $s['writable'];
 $transcribes = class_exists('Recorder') && Recorder::canTranscribe();
+$backlog = class_exists('Recorder') ? Recorder::backlog() : ['waiting' => 0, 'oldest' => '', 'bytes' => 0, 'free' => null];
+$mb = static fn(int $b): string => $b >= 1073741824 ? round($b / 1073741824, 1) . ' GB' : max(1, (int) round($b / 1048576)) . ' MB';
 $csrf = av_csrf_token();
 header('Content-Type: text/html; charset=utf-8');
 ?><!doctype html>
@@ -173,7 +175,21 @@ header('Content-Type: text/html; charset=utf-8');
 <?php if ($transcribes): ?>
     <p class="ok">A transcription key is set — recordings become minutes.</p>
 <?php else: ?>
-    <p class="warn">No transcription key yet. Recordings upload and wait until one is set: Studio → Setup → AI (OpenAI for Whisper, or Gemini).</p>
+    <p class="warn">No transcription key yet. Recordings still upload, and attendees can listen to them from the meeting in the portal (🎧 Listen) and write the minutes by hand. Add a key in Studio → Setup → AI (OpenAI for Whisper, or Gemini) and every waiting recording is transcribed by itself, oldest first.</p>
+<?php endif; ?>
+<?php if ($backlog['waiting'] > 0 || $backlog['bytes'] > 0): ?>
+    <dl style="margin-top:12px">
+<?php if ($backlog['waiting'] > 0): ?>
+      <dt><?= $transcribes ? 'Being transcribed' : 'Waiting for a transcriber' ?></dt><dd><?= (int) $backlog['waiting'] ?> recording<?= $backlog['waiting'] === 1 ? '' : 's' ?><?= $backlog['oldest'] !== '' ? ', the oldest from ' . e(date('j M Y', strtotime($backlog['oldest'] . ' UTC') ?: time())) : '' ?></dd>
+<?php endif; ?>
+      <dt>Audio kept on this host</dt><dd><?= e($mb((int) $backlog['bytes'])) ?><?= $backlog['free'] !== null ? ' · ' . e($mb((int) $backlog['free'])) . ' free on the disk' : '' ?></dd>
+    </dl>
+<?php if ($backlog['free'] !== null && $backlog['free'] < 1073741824): ?>
+    <p class="warn" style="margin-top:8px">The host has less than 1 GB free. An hour of recording is about 14 MB. Audio waiting for a transcriber is never deleted. Adding a key lets the waiting recordings be transcribed, after which the 30-day clean-up frees the space.</p>
+<?php endif; ?>
+<?php if (!$transcribes): ?>
+    <p class="muted small" style="margin-top:8px">Audio waiting for a transcriber is kept until it is transcribed; the 30-day clean-up starts only after the minutes are written.</p>
+<?php endif; ?>
 <?php endif; ?>
     <p class="muted small">Recordings are transcribed by the site’s scheduled job (cPanel → Cron Jobs). The full guide is <code>docs/meeting-recorder-RUNBOOK.md</code>.</p>
   </div>

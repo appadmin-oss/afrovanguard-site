@@ -496,6 +496,9 @@ final class Recorder
             'segments' => count($segs), 'expected' => (int) $r['segments_expected'],
             'transcribed' => (int) ($count['done'] ?? 0), 'failed' => (int) ($count['failed'] ?? 0),
             'minutes_url' => (defined('PORTAL_URL') ? rtrim(PORTAL_URL, '/') : '') . '/#meetings',
+            'listen_url' => self::listenUrl((int) $r['meeting_id']),
+            // Uploaded, but nothing on this site can turn it into words yet.
+            'waiting' => in_array((string) $r['status'], ['recording', 'finished'], true) && !self::canTranscribe(),
         ]];
     }
 
@@ -517,6 +520,88 @@ final class Recorder
             if ((int) $other->fetchColumn() === 0) $db->prepare("UPDATE meetings SET status = 'cancelled' WHERE id = ?")->execute([(int) $m['id']]);
         }
         return ['ok' => true];
+    }
+
+    /* ── listening, in the portal (works with no AI at all) ──────────────── */
+
+    public static function listenUrl(int $meetingId): string
+    {
+        return (defined('PORTAL_URL') ? rtrim(PORTAL_URL, '/') : '/portal') . '/recording.php?meeting=' . $meetingId;
+    }
+
+    /**
+     * Who may listen: the meeting's participants and those who may manage it.
+     * Stricter than reading the minutes — a voice is more than a summary.
+     */
+    public static function mayListen(int $uid, int $meetingId): bool
+    {
+        return $uid > 0 && $meetingId > 0 && (Meetings::isParticipant($uid, $meetingId) || Meetings::mayManage($uid, $meetingId));
+    }
+
+    /** How many recordings each meeting has: one query for the whole list. */
+    public static function countByMeeting(array $ids): array
+    {
+        $ids = array_values(array_filter(array_map('intval', $ids)));
+        if (!$ids) return [];
+        self::ensure();
+        $rows = Database::pdo()->query("SELECT meeting_id, COUNT(*) FROM recordings WHERE status <> 'cancelled' AND meeting_id IN (" . implode(',', $ids) . ') GROUP BY meeting_id')->fetchAll(PDO::FETCH_NUM) ?: [];
+        $out = [];
+        foreach ($rows as [$m, $n]) $out[(int) $m] = (int) $n;
+        return $out;
+    }
+
+    /** A meeting's recordings with their parts, marked moments and talking time. */
+    public static function forMeeting(int $meetingId): array
+    {
+        self::ensure();
+        $db = Database::pdo();
+        $st = $db->prepare("SELECT r.*, u.name AS by_name FROM recordings r LEFT JOIN lms_users u ON u.id = r.user_id WHERE r.meeting_id = ? AND r.status <> 'cancelled' ORDER BY r.id");
+        $st->execute([$meetingId]);
+        $out = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $sg = $db->prepare('SELECT id, seg_no, state, offset_sec, bytes, path, stored_url, talk FROM recording_segments WHERE recording_id = ? ORDER BY seg_no');
+            $sg->execute([(int) $r['id']]);
+            $parts = []; $me = 0.0; $them = 0.0;
+            foreach ($sg->fetchAll(PDO::FETCH_ASSOC) ?: [] as $p) {
+                foreach (self::cleanTalk(json_decode((string) ($p['talk'] ?? ''), true) ?: []) as [$a, $b, $who]) { if ($who === 'me') $me += $b - $a; else $them += $b - $a; }
+                if ((int) $p['bytes'] === 0) continue;   // an empty part, nothing to hear
+                $parts[] = [
+                    'id' => (int) $p['id'], 'n' => (int) $p['seg_no'], 'offset' => (int) $p['offset_sec'],
+                    'here' => (string) $p['path'] !== '' && is_file((string) $p['path']),
+                    'drive' => (string) $p['stored_url'],
+                ];
+            }
+            $names = self::speakers((int) $r['id']);
+            $out[] = [
+                'id' => (int) $r['id'], 'by' => (string) ($r['by_name'] ?? ''), 'started_at' => (string) $r['started_at'],
+                'status' => (string) $r['status'], 'waiting' => in_array((string) $r['status'], ['recording', 'finished'], true) && !self::canTranscribe(),
+                'parts' => $parts, 'marks' => self::cleanMarks(json_decode((string) ($r['marks'] ?? ''), true) ?: []),
+                'talk' => ['me' => (int) round($me), 'them' => (int) round($them), 'me_name' => $names['me'] !== '' ? $names['me'] : (string) ($r['by_name'] ?? ''), 'them_name' => $names['them']],
+            ];
+        }
+        return $out;
+    }
+
+    /** One part's file, with the meeting it belongs to (for the access check). */
+    public static function segmentFile(int $segId): ?array
+    {
+        self::ensure();
+        $st = Database::pdo()->prepare("SELECT s.path, s.mime, s.seg_no, s.recording_id, r.meeting_id FROM recording_segments s JOIN recordings r ON r.id = s.recording_id WHERE s.id = ? AND r.status <> 'cancelled'");
+        $st->execute([$segId]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        return $r && (string) $r['path'] !== '' && is_file((string) $r['path']) ? $r : null;
+    }
+
+    /** What is waiting for a transcriber, and how much audio the host is holding. For the Studio. */
+    public static function backlog(): array
+    {
+        self::ensure();
+        $db = Database::pdo();
+        $waiting = (int) $db->query("SELECT COUNT(*) FROM recordings WHERE status IN ('recording','finished')")->fetchColumn();
+        $oldest = (string) $db->query("SELECT MIN(started_at) FROM recordings WHERE status IN ('recording','finished')")->fetchColumn();
+        $bytes = (int) $db->query("SELECT COALESCE(SUM(bytes), 0) FROM recording_segments WHERE path <> ''")->fetchColumn();
+        $free = @disk_free_space(self::baseDir());
+        return ['waiting' => $waiting, 'oldest' => $oldest, 'bytes' => $bytes, 'free' => is_float($free) || is_int($free) ? (int) $free : null];
     }
 
     /* ── the cron: transcribe, stitch, tidy ────────────────────────────── */

@@ -177,7 +177,7 @@ export function pump() {
           if (res.ok && (!res.missing_segments || !res.missing_segments.length)) {
             await store.update('recordings', r.rec, (x) => x && Object.assign(x, { state: 'uploaded', uploadedAt: Date.now() }));
           }
-        } else if (fresh.state === 'uploaded') {
+        } else if (fresh.state === 'uploaded' || fresh.state === 'saved') {
           await checkMinutes(fresh);
         }
         if (!all) out.pending++;
@@ -194,10 +194,12 @@ export function pump() {
 
 /** After upload, ask now and then whether the minutes are written; tell the user once. */
 async function checkMinutes(r) {
-  if (r.checkedAt && Date.now() - r.checkedAt < 60000) return;
+  // Waiting for a transcriber can take days: ask every half hour, not every minute.
+  if (r.checkedAt && Date.now() - r.checkedAt < (r.state === 'saved' ? 30 * 60000 : 60000)) return;
   const res = await api('status', { method: 'GET', query: '&rec=' + encodeURIComponent(r.serverId) });
   const st = res.ok ? res.recording.status : '';
   const patch = { checkedAt: Date.now() };
+  if (res.ok && res.recording.listen_url) patch.listenUrl = res.recording.listen_url;
   if (['done', 'failed', 'duplicate', 'cancelled'].includes(st)) {
     patch.state = st; patch.note = res.recording.note || '';
     await forget(r.rec);
@@ -206,9 +208,17 @@ async function checkMinutes(r) {
       : 'The recording could not be turned into minutes. ' + (res.recording.note || '');
     chrome.notifications.create('minutes-' + r.rec, { type: 'basic', iconUrl: 'icons/128.png', title: 'Meeting Recorder', message: msg, priority: 1 });
     await chrome.storage.local.set({ lastMinutesUrl: res.recording.minutes_url || r.minutesUrl || '' });
+  } else if (res.ok && res.recording.waiting) {
+    // Saved, but no transcriber on the site: say so, once, and where to listen.
+    if (r.state !== 'saved') {
+      patch.state = 'saved';
+      patch.note = 'Saved. No transcriber is set up on the site yet, so there are no written minutes — listen to it from the meeting in the portal.';
+      chrome.notifications.create('saved-' + r.rec, { type: 'basic', iconUrl: 'icons/128.png', title: 'Recording saved', message: '“' + (r.meetingTitle || r.title) + '” is saved. There are no written minutes yet (no transcriber is set up). Click to listen.', priority: 1 });
+      await chrome.storage.local.set({ lastMinutesUrl: res.recording.listen_url || '' });
+    }
   } else if (Date.now() - (r.uploadedAt || 0) > 3 * 3600 * 1000) {
-    patch.state = 'done'; patch.note = 'Uploaded. The minutes will appear on the meeting in the portal.';
-    await forget(r.rec);
+    // Never claim minutes that are not there.
+    patch.note = 'Uploaded. The minutes are taking longer than usual; they will appear on the meeting.';
   }
   await store.update('recordings', r.rec, (x) => x && Object.assign(x, patch));
 }
@@ -217,7 +227,8 @@ async function checkMinutes(r) {
 export async function prune() {
   const week = 7 * 86400 * 1000;
   for (const r of await store.all('recordings')) {
-    if (['done', 'failed', 'duplicate', 'cancelled'].includes(r.state) && Date.now() - r.startedAt > week) {
+    const old = Date.now() - r.startedAt;
+    if ((['done', 'failed', 'duplicate', 'cancelled'].includes(r.state) && old > week) || (r.state === 'saved' && old > 30 * 86400 * 1000)) {
       await forget(r.rec);
       await store.del('recordings', r.rec);
     }

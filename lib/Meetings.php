@@ -670,8 +670,10 @@ final class Meetings
             $st->execute([strtolower($viewerEmail)]);
             $mine = array_flip(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)));
         }
+        $recs = class_exists('Recorder') ? Recorder::countByMeeting($ids) : [];
         foreach ($out as $i => $m) {
             $r = $by[(int) $m['id']] ?? [];
+            $out[$i]['recordings'] = (int) ($recs[(int) $m['id']] ?? 0);
             $out[$i]['organiser'] = trim((string) ($r['organiser_name'] ?? '')) !== '' ? (string) $r['organiser_name'] : (string) ($r['uname'] ?? '');
             $out[$i]['organiser_email'] = (string) (($r['organiser_email'] ?? '') !== '' ? $r['organiser_email'] : ($r['uemail'] ?? ''));
             $out[$i]['from_cacentre'] = (string) ($r['origin'] ?? '') === 'cacentre';

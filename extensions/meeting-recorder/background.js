@@ -205,7 +205,7 @@ async function status() {
       rec: r.rec, title: r.meetingTitle || r.title, state: r.state, startedAt: r.startedAt, note: r.note || r.lastError || '',
       sent: segs.filter((s) => s.serverDone).length, total: Math.max(r.segments || 0, segs.length),
       notetakerActive: !!r.notetakerActive, hasTranscript: !!r.hasTranscript, othersRecording: r.othersRecording || 0,
-      minutesUrl: r.minutesUrl || '',
+      minutesUrl: r.minutesUrl || '', listenUrl: r.listenUrl || '',
     });
   }
   return {
@@ -342,7 +342,7 @@ chrome.runtime.onStartup.addListener(async () => {
   pump().then(badge);
 });
 chrome.notifications.onClicked.addListener(async (id) => {
-  if (!id.startsWith('minutes-')) return;
+  if (!id.startsWith('minutes-') && !id.startsWith('saved-')) return;
   const { lastMinutesUrl } = await chrome.storage.local.get('lastMinutesUrl');
   chrome.tabs.create({ url: lastMinutesUrl || SITE + '/portal/#meetings' });
 });
