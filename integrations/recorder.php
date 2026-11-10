@@ -8,7 +8,8 @@
  *   POST ?action=start     {meet_code, title, url, meeting_id?, consent_shown}
  *   POST ?action=chunk     multipart: rec, seg, idx, sha256, data(file)
  *   POST ?action=segment   {rec, seg, chunks, offset, mime, talk?: [[start, end, "me"|"them"]…]}     → assembles, or lists missing chunks
- *   POST ?action=finish    {rec, segments, marks?: [seconds…], people?: most people Meet showed}
+ *   POST ?action=finish    {rec, segments, marks?: [seconds…], people?: most people Meet showed,
+ *                                 consent?: none|reminded|confirmed, consent_at?}
  *   GET  ?action=status&rec=N
  *   POST ?action=cancel    {rec}
  *
@@ -92,7 +93,8 @@ try {
             $reply(Recorder::segmentDone($device, $rec, (int) ($body['seg'] ?? -1), (int) ($body['chunks'] ?? 0),
                 (int) ($body['offset'] ?? 0), (string) ($body['mime'] ?? 'audio/webm'), is_array($body['talk'] ?? null) ? $body['talk'] : []));
         case 'finish':
-            $reply(Recorder::finish($device, $rec, (int) ($body['segments'] ?? 0), is_array($body['marks'] ?? null) ? $body['marks'] : [], (int) ($body['people'] ?? 0)));
+            $reply(Recorder::finish($device, $rec, (int) ($body['segments'] ?? 0), is_array($body['marks'] ?? null) ? $body['marks'] : [], (int) ($body['people'] ?? 0),
+                (string) ($body['consent'] ?? 'none'), (string) ($body['consent_at'] ?? '')));
         case 'status':
             $reply(Recorder::status($device, $rec));
         case 'cancel':

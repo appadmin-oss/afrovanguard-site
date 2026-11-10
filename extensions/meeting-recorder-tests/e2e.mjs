@@ -99,6 +99,7 @@ try {
   ck('a paused recorder never counts towards the silence stop', pz.pausedLevel && pz.pausedLevel.paused === true && pz.pausedLevel.silentFor === 0);
   ck('a tab sending nothing at all is seen as dead', pz.maxDead >= 2, JSON.stringify(pz));
   const rec = await h.evaluate(() => window.runRecording({ seconds: 7.5, segmentSeconds: 3, sliceMs: 500, marksAt: [1, 4.2], turns: [[0, 2.4, 'them'], [2.6, 5.4, 'me'], [5.6, 7.5, 'them']] }));
+  ck('"I\'ve told everyone" is recorded as confirmed', rec.consented && rec.consented.ok && rec.consent === 'confirmed', JSON.stringify([rec.consented, rec.consent]));
   ck('Alt+Shift+M marks are taken by the background worker', rec.marked.length === 2 && rec.marked.every((m) => m && m.ok), JSON.stringify(rec.marked));
   ck('and saved with the recording, in seconds', rec.marks.length === 2 && rec.marks[0] >= 0 && rec.marks[0] <= 2 && rec.marks[1] >= 3 && rec.marks[1] <= 6, JSON.stringify(rec.marks));
   ck('three segments were recorded', rec.segments === 3, JSON.stringify(rec));
@@ -132,6 +133,9 @@ try {
   const lp = await ctx.newPage();
   await lp.goto(listen);
   ck('the portal page plays the recording', (await lp.locator('audio[data-player]').count()) === 1);
+  ck('the server keeps the consent, and the page shows it', /confirmed they told everyone in the call/.test(await lp.textContent('main'))
+    && php(`echo (string) Database::pdo()->query("SELECT consent FROM recordings WHERE title = 'Weekly standup' ORDER BY id LIMIT 1")->fetchColumn();`) === 'confirmed');
+  ck('the unscheduled recording page is not readable by other members (minutes private)', php(`echo (int) Database::pdo()->query("SELECT COUNT(*) FROM meetings WHERE origin = 'recorder' AND minutes_private = 0")->fetchColumn();`) === '0');
   ck('it says there are no written minutes yet', /No transcriber is set up/.test(await lp.textContent('main')));
   ck('it shows the marked moments as jump points', (await lp.locator('[data-jump]').count()) === 2);
   ck('and who talked', /Tess Tester · /.test(await lp.textContent('.legend')) && /Others · /.test(await lp.textContent('.legend')));

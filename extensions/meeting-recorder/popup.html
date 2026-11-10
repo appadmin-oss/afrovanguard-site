@@ -11,7 +11,7 @@
   <section id="idle" hidden>
     <p class="tabname" id="tab-name"></p>
     <button class="btn" id="btn-start">Record this tab</button>
-    <p class="muted small" id="consent">Let everyone in the call know it is being recorded. Shortcut: Alt+Shift+R.</p>
+    <p class="muted small" id="consent">Tell everyone in the call before you start — the recorder does not tell them. Shortcut: Alt+Shift+R.</p>
   </section>
   <section id="live" hidden>
     <p class="rec" id="rec-line"><span class="dot" aria-hidden="true"></span> <span id="rec-word">Recording</span> <b id="timer">0:00</b></p>
@@ -28,6 +28,7 @@
       <button class="btn btn--line" id="btn-pause" title="Alt+Shift+P">Pause</button>
     </div>
     <p class="muted small" id="marks"></p>
+    <p class="note" id="consent-line" hidden>Have you told everyone in the call? The recorder does not tell them. <button class="btn btn--line" id="btn-consent">I've told everyone</button></p>
     <button class="btn btn--stop" id="btn-stop">Stop</button>
   </section>
   <p class="err" id="error" role="alert" hidden></p>

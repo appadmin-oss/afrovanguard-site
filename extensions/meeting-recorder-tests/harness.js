@@ -58,6 +58,8 @@ window.runRecording = async function ({ seconds, segmentSeconds, sliceMs, marksA
   // Marks go through the real background worker, as the shortcut does.
   await chrome.storage.session.set({ live: { rec, tabId: -1, startedAt: Date.now(), marks: 0, warn: {} } });
   const t0 = Date.now(); const marked = [];
+  // The popup's "I've told everyone", through the real background worker.
+  const consented = await chrome.runtime.sendMessage({ type: 'consent' });
   for (const at of marksAt) { await new Promise((res) => setTimeout(res, Math.max(0, t0 + at * 1000 - Date.now()))); marked.push(await chrome.runtime.sendMessage({ type: 'mark' })); }
   await new Promise((res) => setTimeout(res, Math.max(0, t0 + seconds * 1000 - Date.now())));
   const segments = await r.stop('user');
@@ -66,7 +68,7 @@ window.runRecording = async function ({ seconds, segmentSeconds, sliceMs, marksA
   await store.update('recordings', rec, (x) => Object.assign(x, { state: 'stopped', segments }));
   const segs = await store.range('segments', [rec]);
   const slices = await store.range('slices', [rec]);
-  return { rec, marked, marks: ((await store.get('recordings', rec)) || {}).marks || [], segments, closed: segs.filter((s) => s.closed).length, slices: slices.length, bytes: slices.reduce((n, s) => n + s.blob.size, 0), events: [...new Set(events)] };
+  return { rec, consented, consent: ((await store.get('recordings', rec)) || {}).consent, marked, marks: ((await store.get('recordings', rec)) || {}).marks || [], segments, closed: segs.filter((s) => s.closed).length, slices: slices.length, bytes: slices.reduce((n, s) => n + s.blob.size, 0), events: [...new Set(events)] };
 };
 window.sync = () => chrome.runtime.sendMessage({ type: 'sync' });
 /* Waiting recordings are asked about every half hour; a test cannot wait that long. */

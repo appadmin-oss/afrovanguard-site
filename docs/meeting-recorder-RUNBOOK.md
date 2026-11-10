@@ -1,6 +1,6 @@
 # Meeting Recorder: runbook
 
-Owner: **to be named** (the person who holds the signing key) · Version date: 2026-11-09 · Extension version: 1.3.0
+Owner: **to be named** (the person who holds the signing key) · Version date: 2026-11-11 · Extension version: 1.4.0
 
 The Meeting Recorder is a Chrome extension that records a meeting from the
 browser tab (the meeting's sound plus your microphone) and turns it into
@@ -75,7 +75,12 @@ extension. Personal Chrome profiles, mentors and partners don't (see §6).
    signed in and links the browser to the account.
 2. In a meeting: click the red icon → **Record this meeting**, or press
    **Alt+Shift+R**. On Google Meet a reminder appears when the call starts.
-   **Tell the others the meeting is being recorded.**
+   **Tell the others the meeting is being recorded — the recorder does not
+   tell them.** Its reminder appears only on your own screen. Once you have
+   told them, click **I've told everyone** on the banner (or in the popup).
+   The recording keeps exactly what happened: *confirmed* (with the time),
+   *reminded* (the reminder was on your screen, but you didn't confirm), or
+   *none*. The listening page shows it.
 3. While recording:
    - **Alt+Shift+M** (or *★ Mark this moment*) flags the moment as important.
      It appears in the transcript as "★ Marked as important … at 00:12:34", so
@@ -100,8 +105,10 @@ extension. Personal Chrome profiles, mentors and partners don't (see §6).
    Studio page (`/admin/recorder.php`) shows how much is waiting and how
    much disk it uses, and warns below 1 GB free.
 7. **Speaker names.** In the transcript, your own lines carry your name. In a
-   one-to-one call (the meeting has exactly one other person, and Meet never
-   showed more than two), the other person's lines carry theirs. In a group
+   one-to-one call (the meeting has exactly one other person, **and** Meet
+   showed exactly two people in the call), the other person's lines carry
+   theirs. If the head-count is unknown (a Zoom or Teams tab, or a Meet page
+   it could not read), nobody but you is named. In a group
    call, everyone else's lines are labelled **Others**. The recorder does not
    guess who in the call is speaking, because a wrong name on an action item
    is worse than none. A line where both sides talked over each other stays
@@ -125,7 +132,10 @@ opens a new Meet room.
 | *"Your microphone is not being recorded"* | Permission not given | Open the set-up page from the popup link and allow it |
 | Upload done but no minutes | No transcription key (the popup says *Saved*), or the cron is not running | Listen and write them by hand, or add a key in Studio → Setup → AI; check the cron's last run |
 | *"Kept with the meeting"* | The notetaker or Google already wrote the minutes | By design: the existing minutes are never overwritten. The recorder's transcript is in `recordings.transcript` |
-| A lost laptop | Its token can still upload | The user (portal → Meeting Recorder → *Disconnect*) or an admin revokes it |
+| A lost laptop, or someone who left | Its token can still upload | The user (portal → Meeting Recorder → *Disconnect*), or a superadmin on `/admin/recorder.php` → *Connected browsers* → *Disconnect*. A token also stops by itself when its owner is no longer a member |
+| *"Your recording space is full"* | The person passed `AV_REC_QUOTA_MB` in 30 days | The audio waits in their browser and is retried hourly; raise the quota, or wait for older recordings to age out |
+| Parts stay untranscribed for a day | The person passed `AV_REC_TRANSCRIBE_PARTS_DAY` | They continue the next day (UTC) by themselves |
+| Cron stopped after this update | The scheduler still sends the admin token, which is no longer accepted | Paste the command from `/admin/recorder.php` → *Scheduled job* into cPanel → Cron Jobs |
 | Chrome says the extension is *corrupted* | The `.crx` was served with the wrong type or modified | Check `.htaccess` has `AddType application/x-chrome-extension .crx`; rebuild |
 
 Server-side state is in four tables: `recorder_devices`, `recorder_pairings`,
@@ -158,6 +168,9 @@ requires before it will capture a tab. So after a release, do one real
 | `AV_REC_RETAIN_DAYS` | 30 | Days audio is kept after the minutes are written; `0` keeps it. Transcripts are kept |
 | `AV_REC_STORAGE` | local | `drive` moves finished audio to Google Drive (uses the existing `AV_GDRIVE_*`) |
 | `AV_REC_CHUNK_MAX` | 1 MB | Largest upload piece. Never above what the host's `upload_max_filesize` allows: the server lowers it on its own |
+| `AV_REC_QUOTA_MB` | 2048 | Audio one person may upload in 30 days (about 140 hours) |
+| `AV_REC_TRANSCRIBE_PARTS_DAY` | 72 | Ten-minute parts one person may have transcribed per day (about 12 hours), so one person can't run up the AI bill |
+| `AV_CRON_KEY` | derived | The scheduled job's key. If unset, the site derives one from its secret. The admin token is **not** accepted |
 | `AV_REC_VOCAB` | — | Extra names and terms the transcriber should spell right, comma-separated (e.g. `Ikeja hub, Ndukwe`). The meeting's title, agenda and attendees' names are always given |
 | `AV_REC_DIR` | `db/private/recordings` | Where audio is kept on the server |
 
@@ -168,9 +181,12 @@ requires before it will capture a tab. So after a release, do one real
 > the meeting. It is sent only to Afrovanguard's own servers, where it is
 > transcribed by our transcription provider (OpenAI or Google) to write the
 > meeting's minutes. The audio is deleted 30 days after the minutes are
-> written. The minutes are kept with the meeting record and can be read by
-> the meeting's organiser and attendees. People recording are asked to tell
-> everyone in the meeting before they start. To ask about or remove a
+> written. A recording of a call that was not scheduled in our portal is
+> private: only the person who recorded it, its attendees and our staff who
+> manage meetings can read its minutes or hear it. For a scheduled meeting,
+> its minutes follow the privacy the organiser set; the audio is only ever for
+> its attendees and those who manage it. People recording must tell everyone
+> in the meeting before they start, and record that they did. To ask about or remove a
 > recording, contact us at the address below.
 
 ## 8. Known limits (v1)

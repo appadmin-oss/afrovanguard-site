@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Afrovanguard Meeting Recorder",
   "short_name": "AV Recorder",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Record a meeting from your browser into your Afrovanguard meeting record. The minutes and action items are written for you.",
   "minimum_chrome_version": "116",
   "icons": {

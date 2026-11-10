@@ -87,7 +87,8 @@ header('Cache-Control: no-store');
     <h2 style="margin-top:0">How to record</h2>
     <ol>
       <li>Join the meeting in Chrome (Google Meet works best).</li>
-      <li>Click the recorder's icon, or press <b>Alt+Shift+R</b>. Everyone in the call is shown a notice that it is being recorded.</li>
+      <li>Tell everyone in the call that you are recording, and give anyone who objects the chance to say so. The recorder does <b>not</b> tell them for you: its reminder appears only on your screen.</li>
+      <li>Click the recorder's icon, or press <b>Alt+Shift+R</b>. On the banner, click <b>I've told everyone</b> — that is recorded with the meeting.</li>
       <li>Leave the call, or press the shortcut again, to stop. The minutes follow within a few minutes.</li>
     </ol>
   </div>

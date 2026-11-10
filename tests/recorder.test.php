@@ -18,6 +18,7 @@
 declare(strict_types=1);
 
 reset_users();
+$db0 = Database::pdo(); $db0->exec("UPDATE lms_users SET role = 'member'");   // the recorder is for members
 putenv('AV_REC_DIR=' . sys_get_temp_dir() . '/av-test-rec-' . getmypid());
 putenv('AV_REC_CHUNK_MAX=' . (256 * 1024));
 Recorder::ensure();
@@ -209,6 +210,7 @@ putenv('AV_REC_RETAIN_DAYS'); putenv('AV_REC_CHUNK_MAX'); putenv('AV_REC_DIR');
 
 /* ── v1.1: what the transcriber is told, and marked moments ─────────── */
 reset_users();
+$db0 = Database::pdo(); $db0->exec("UPDATE lms_users SET role = 'member'");   // the recorder is for members
 foreach (['recordings', 'recording_segments', 'meeting_transcripts', 'meeting_attendees', 'meetings'] as $t) $db->exec('DELETE FROM ' . $t);
 $db->exec("UPDATE lms_users SET name = 'Adaeze Okonkwo' WHERE id = 1");
 $db->exec("UPDATE lms_users SET name = 'Babatunde Fashola' WHERE id = 2");
@@ -268,6 +270,8 @@ $db->prepare("INSERT INTO meetings (creator_id,title,agenda,scheduled_at,duratio
 $mm = (int) $db->lastInsertId();
 $db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?),(?,?)')->execute([$mm, 'a@x.co', $mm, 'b@x.co']);
 $r1 = (int) Recorder::start($devH, ['meet_code' => 'one-oneo-one'])['recording_id'];
+ck('an unknown head-count names only the person recording (never a guess)', Recorder::speakers($r1) === ['me' => 'Adaeze Okonkwo', 'them' => '']);
+$db->exec("UPDATE recordings SET people_max = 2 WHERE id = $r1");
 ck('a one-to-one call names both people', Recorder::speakers($r1) === ['me' => 'Adaeze Okonkwo', 'them' => 'Babatunde Fashola']);
 $db->exec("UPDATE recordings SET people_max = 3 WHERE id = $r1");
 ck('but not once Meet showed a third person', Recorder::speakers($r1)['them'] === '');
@@ -275,6 +279,7 @@ $db->exec("UPDATE recordings SET people_max = 0 WHERE id = $r1");
 $db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)')->execute([$mm, 'c@x.co']);
 ck('and not when the meeting has more than one other person', Recorder::speakers($r1)['them'] === '' && Recorder::speakers($r1)['me'] === 'Adaeze Okonkwo');
 $db->exec("DELETE FROM meeting_attendees WHERE email = 'c@x.co'");
+$db->exec("UPDATE recordings SET people_max = 2 WHERE id = $r1");
 
 // The whole way: a talk timeline with the part, Whisper's timing, the minutes.
 $send($devH, $r1, 0, 0, 'mentoring-audio');
@@ -342,3 +347,91 @@ ck('the recorder\'s portal pages load what their sign-in redirect needs', (funct
     }
     return true;
 })());
+
+
+/* ── v1.4: review fixes ─────────────────────────────────────────────── */
+// 1. A call recorded without a scheduled meeting gets PRIVATE minutes.
+$rp = Recorder::start($devH, ['title' => 'HR conversation']);
+$pm = $db->query('SELECT minutes_private, origin FROM meetings WHERE id = ' . (int) $rp['meeting']['id'])->fetch(PDO::FETCH_ASSOC);
+ck('an unscheduled call\'s minutes are private', (int) $pm['minutes_private'] === 1 && $pm['origin'] === 'recorder');
+ck('a member who was not in it cannot read them', !Meetings::canReadMinutes(2, (int) $rp['meeting']['id']));
+ck('the person recording can', Meetings::canReadMinutes(1, (int) $rp['meeting']['id']));
+$db->prepare("INSERT INTO meetings (creator_id,title,agenda,scheduled_at,duration_min,frequency,context,context_id,status,created_at,origin,minutes_private) VALUES (1,'Old open one','',?,60,'once','workspace',0,'scheduled','2026-11-09 10:00:00','recorder',0)")->execute([gmdate('Y-m-d H:i:s')]);
+$old = (int) $db->lastInsertId();
+$db->exec("UPDATE meetings SET minutes_private = 1 WHERE origin = 'recorder' AND minutes_private = 0 AND created_at < '2026-11-11 00:00:00'");
+ck('recorder meetings filed before the fix are made private too', (int) $db->query("SELECT minutes_private FROM meetings WHERE id = $old")->fetchColumn() === 1);
+ck('and the fix is in ensure(), so it runs on the live site', str_contains((string) file_get_contents(AV_ROOT . '/lib/Recorder.php'), "UPDATE meetings SET minutes_private = 1 WHERE origin = 'recorder' AND minutes_private = 0 AND created_at < '2026-11-11 00:00:00'"));
+Recorder::cancel($devH, (int) $rp['recording_id']);
+
+// 2. Consent: only what happened.
+$rc2 = (int) Recorder::start($devH, ['title' => 'Consent', 'consent_shown' => true])['recording_id'];
+ck('starting no longer claims anyone was told', (int) $db->query("SELECT consent_shown FROM recordings WHERE id = $rc2")->fetchColumn() === 0);
+Recorder::finish($devH, $rc2, 0, [], 0, 'reminded');
+ck('"reminded" is kept as reminded, not as consent', $db->query("SELECT consent, consent_shown FROM recordings WHERE id = $rc2")->fetch(PDO::FETCH_NUM) === ['reminded', 0]);
+Recorder::finish($devH, $rc2, 0, [], 0, 'confirmed', '2026-11-11 09:30:00');
+ck('"confirmed" records when they said they told everyone', $db->query("SELECT consent, consent_at, consent_shown FROM recordings WHERE id = $rc2")->fetch(PDO::FETCH_NUM) === ['confirmed', '2026-11-11 09:30:00', 1]);
+Recorder::finish($devH, $rc2, 0, [], 0, 'everyone agreed!');
+ck('anything else is stored as none', (string) $db->query("SELECT consent FROM recordings WHERE id = $rc2")->fetchColumn() === 'none');
+ck('the portal no longer says everyone is notified', !str_contains((string) file_get_contents(AV_ROOT . '/portal/recorder.php'), 'Everyone in the call is shown a notice'));
+Recorder::cancel($devH, $rc2);
+
+// 4. Chunks nobody will join are deleted.
+$rk = (int) Recorder::start($devH, ['title' => 'Chunks'])['recording_id'];
+$send($devH, $rk, 0, 0, 'left-over');
+$partFile = Recorder::baseDir() . "/$rk/s0000-c00000.part";
+ck('a chunk waits while the recording is open', is_file($partFile) && Recorder::purgeChunks() >= 0 && is_file($partFile));
+touch($partFile, time() - 3 * 86400);
+Recorder::purgeChunks();
+ck('a chunk older than two days is deleted', !is_file($partFile));
+$send($devH, $rk, 1, 0, 'another');
+$db->exec("UPDATE recordings SET status = 'failed' WHERE id = $rk");
+Recorder::purgeChunks();
+ck('a closed recording\'s chunks are deleted at once', !glob(Recorder::baseDir() . "/$rk/*.part"));
+@mkdir(Recorder::baseDir() . '/999999', 0770, true); file_put_contents(Recorder::baseDir() . '/999999/s0000-c00000.part', 'x');
+Recorder::purgeChunks();
+ck('a folder for a recording that no longer exists is removed', !is_dir(Recorder::baseDir() . '/999999'));
+ck('purge() runs the chunk clean-up', str_contains((string) file_get_contents(AV_ROOT . '/lib/Recorder.php'), '$n = self::purgeChunks();'));
+
+// 5. Quotas.
+putenv('AV_REC_QUOTA_MB=1');
+$rq = (int) Recorder::start($devH, ['title' => 'Quota'])['recording_id'];
+$big = $send($devH, $rq, 0, 0, random_bytes(200000));
+ck('under the storage quota a chunk is taken', !empty($big['ok']));
+Recorder::segmentDone($devH, $rq, 0, 1, 0, 'audio/webm');
+$db->exec("UPDATE recording_segments SET bytes = 1048000 WHERE recording_id = $rq");
+$over = $send($devH, $rq, 1, 0, random_bytes(200000));
+ck('over it, the chunk is refused with 507 and the reason', empty($over['ok']) && (int) $over['status'] === 507 && !empty($over['quota']) && str_contains($over['error'], 'space is full'));
+putenv('AV_REC_QUOTA_MB');
+ck('another person\'s quota is their own', Recorder::quota(2)['used'] === 0);
+putenv('AV_REC_TRANSCRIBE_PARTS_DAY=' . (Recorder::transcribedToday(1) + 1));   // room for exactly one more today
+$db->exec("UPDATE recordings SET status = 'finished', segments_expected = 2 WHERE id = $rq");
+$send($devH, $rq, 1, 0, 'second part');
+Recorder::segmentDone($devH, $rq, 1, 1, 600, 'audio/webm');
+$db->exec("UPDATE recording_segments SET state = 'ready', text = '' WHERE recording_id = $rq");
+$limit = (int) getenv('AV_REC_TRANSCRIBE_PARTS_DAY');
+$tq = Recorder::sweep(20, static fn() => ['ok' => true, 'text' => 'x']);
+$tq2 = Recorder::sweep(20, static fn() => ['ok' => true, 'text' => 'x']);
+ck('the daily transcription allowance stops a person at their limit', $tq['transcribed'] === 1 && $tq2['transcribed'] === 0 && Recorder::transcribedToday(1) === $limit
+    && (int) $db->query("SELECT COUNT(*) FROM recording_segments WHERE recording_id = $rq AND state = 'ready'")->fetchColumn() >= 1);
+// Someone else is not held back by it.
+$rb = (int) Recorder::start(Recorder::device('Bearer ' . $p2['token']), ['title' => 'Bode\'s own'])['recording_id'];
+$devB2 = Recorder::device('Bearer ' . $p2['token']);
+$send($devB2, $rb, 0, 0, 'bode audio'); Recorder::segmentDone($devB2, $rb, 0, 1, 0, 'audio/webm');
+ck('another person still gets transcribed', Recorder::sweep(20, static fn() => ['ok' => true, 'text' => 'y'])['transcribed'] === 1);
+putenv('AV_REC_TRANSCRIBE_PARTS_DAY');
+
+// 6. A demoted member's recorder stops; a superadmin can disconnect any browser.
+$pd = Recorder::pair(Recorder::createPairing(2), 'Bode laptop');
+ck('a member\'s token works', Recorder::device('Bearer ' . $pd['token']) !== null);
+// Removing someone's membership, the way the office does it: their verification is declined.
+MemberVerification::decline(2, 'Left the organisation', 'test');
+$db->exec("UPDATE lms_users SET role = 'learner' WHERE id = 2");
+ck('once they are no longer a member it does not', Recorder::device('Bearer ' . $pd['token']) === null);
+putenv('AV_REC_AUDIENCE=all');
+ck('unless the recorder is open to every account', Recorder::device('Bearer ' . $pd['token']) !== null);
+putenv('AV_REC_AUDIENCE');
+$db->exec("UPDATE lms_users SET role = 'member' WHERE id = 2");
+$db->exec('DELETE FROM member_profiles WHERE user_id = 2'); MemberVerification::forget(2);
+$devD = Recorder::device('Bearer ' . $pd['token']);
+ck('the Studio lists every connected browser with its owner', (bool) array_filter(Recorder::allDevices(), static fn($d) => (int) $d['id'] === (int) $devD['id'] && $d['user_email'] === 'b@x.co'));
+ck('a superadmin can disconnect it', Recorder::adminRevoke((int) $devD['id']) && Recorder::device('Bearer ' . $pd['token']) === null);

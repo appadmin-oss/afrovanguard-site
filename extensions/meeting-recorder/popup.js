@@ -35,6 +35,7 @@ function render() {
     $('rec-word').textContent = L.paused ? 'Paused' : 'Recording';
     $('rec-line').classList.toggle('is-paused', !!L.paused);
     $('btn-pause').textContent = L.paused ? 'Resume' : 'Pause';
+    show('consent-line', L.consent !== 'confirmed');
     $('marks').textContent = L.marks ? L.marks + (L.marks === 1 ? ' moment' : ' moments') + ' marked as important.' : '';
     const w = L.warn || {};
     const warn = w.mic ? 'Your microphone is sending no sound. Check it is not muted, or pick the right one.'
@@ -104,6 +105,7 @@ $('btn-start').onclick = async () => {
   if (!r.ok) error(r.error);
   refresh();
 };
+$('btn-consent').onclick = async () => { const r = await send('consent'); if (!r.ok) error(r.error); refresh(); };
 $('btn-mark').onclick = async () => {
   const r = await send('mark');
   if (!r.ok) { error(r.error); return; }

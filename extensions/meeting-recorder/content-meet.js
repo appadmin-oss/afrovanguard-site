@@ -10,7 +10,7 @@
   'use strict';
   var CODE = /^\/([a-z]{3}-[a-z]{4}-[a-z]{3})(?:$|[/?#])/;
   var last = null;
-  var host = null, box = null, dismissed = false;
+  var host = null, box = null, dismissed = false, confirmed = false;
 
   function code() { var m = location.pathname.match(CODE); return m ? m[1] : ''; }
 
@@ -56,10 +56,16 @@
       root.innerHTML = '<style>.b{display:flex;align-items:center;gap:10px;font:500 14px/1.3 system-ui,sans-serif;background:#15120e;color:#fff;border-radius:999px;padding:8px 10px 8px 14px;box-shadow:0 4px 18px rgba(0,0,0,.25);max-width:92vw}'
         + '.d{width:9px;height:9px;border-radius:50%;background:#e4162b;flex:none}.b.rec .d{animation:p 1.4s ease-in-out infinite}@keyframes p{50%{opacity:.3}}'
         + '@media (prefers-reduced-motion:reduce){.b.rec .d{animation:none}}'
-        + 'button{all:unset;cursor:pointer;color:#bbb;padding:0 6px;font-size:16px}button:focus-visible{outline:2px solid #fff;border-radius:4px}</style>'
-        + '<div class="b" role="status"><span class="d"></span><span class="t"></span><button type="button" aria-label="Hide">×</button></div>';
+        + 'button{all:unset;cursor:pointer;color:#bbb;padding:0 6px;font-size:16px}button:focus-visible{outline:2px solid #fff;border-radius:4px}'
+        + '.ok{color:#15120e;background:#fff;border-radius:999px;padding:4px 10px;font-size:13px;font-weight:600;white-space:nowrap}.ok[hidden]{display:none}</style>'
+        + '<div class="b" role="status"><span class="d"></span><span class="t"></span><button type="button" class="ok" hidden>I\u2019ve told everyone</button><button type="button" class="x" aria-label="Hide">×</button></div>';
       box = root.querySelector('.b');
-      root.querySelector('button').addEventListener('click', function () { dismissed = true; host.style.display = 'none'; });
+      root.querySelector('.x').addEventListener('click', function () { dismissed = true; host.style.display = 'none'; });
+      // The person recording says they told the others. Only that is recorded as consent.
+      root.querySelector('.ok').addEventListener('click', function () {
+        try { chrome.runtime.sendMessage({ type: 'consent' }); } catch (e) { /* extension reloaded */ }
+        confirmed = true; this.hidden = true;
+      });
       document.documentElement.appendChild(host);
     }
     host.style.display = '';
@@ -73,14 +79,15 @@
     }
     box.className = 'b' + (state === 'recording' ? ' rec' : '');
     box.querySelector('.t').textContent = state === 'recording'
-      ? 'Recording — the minutes will be written to this meeting. Let everyone know. Alt+Shift+M marks a moment.'
+      ? 'Recording. Tell everyone in the call — they are not told by the recorder.'
       : state === 'paused' ? 'Recording paused — Alt+Shift+P to resume.'
       : 'Record this meeting? Press Alt+Shift+R or click the recorder icon.';
     if (state === 'prompt') setTimeout(function () { if (host && box.className === 'b') host.style.display = 'none'; }, 20000);
   }
 
-  chrome.runtime.onMessage.addListener(function (m) {
+  chrome.runtime.onMessage.addListener(function (m, sender, reply) {
     if (!m || m.from !== 'av-recorder' || m.type !== 'banner') return;
+    if (m.state === 'recording' && m.fresh) confirmed = false;   // a new recording asks again
     if (m.state === 'recording' || m.state === 'paused') dismissed = false;
     // Recording just started: say how many people the call has shown, even if that did not change.
     if (m.state === 'recording') {
@@ -88,6 +95,9 @@
       try { chrome.runtime.sendMessage({ type: 'meet-state', code: code(), people: peopleMax }); } catch (e) { /* extension reloaded */ }
     }
     banner(m.state);
+    if (box && m.state !== 'marked') { var ok = box.querySelector('.ok'); if (ok) ok.hidden = !(m.state === 'recording' && !confirmed && !m.confirmed); }
+    // Tell the recorder the reminder really is on screen: that, and only that, is "reminded".
+    reply({ shown: !!host && host.style.display !== 'none' && (m.state === 'recording' || m.state === 'paused') });
   });
 
   var queued = false;

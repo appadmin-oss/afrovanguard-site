@@ -45,6 +45,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             readfile($path);
             exit;
         }
+    } elseif ($action === 'revoke_device') {
+        $id = (int) ($_POST['id'] ?? 0);
+        $ok = Recorder::adminRevoke($id);
+        $flash = $ok ? 'Disconnected. That browser can no longer send recordings.' : 'That browser was already disconnected.';
+        $flashOk = $ok;
+        if ($ok) $audit('device_revoked', 'device #' . $id);
     } elseif ($action === 'restore_key') {
         $f = $_FILES['key'] ?? null;
         $pem = ($f && (int) $f['error'] === UPLOAD_ERR_OK && (int) $f['size'] < 16384) ? (string) file_get_contents((string) $f['tmp_name']) : '';
@@ -76,6 +82,7 @@ $transcribes = class_exists('Recorder') && Recorder::canTranscribe();
 $backlog = class_exists('Recorder') ? Recorder::backlog() : ['waiting' => 0, 'oldest' => '', 'bytes' => 0, 'free' => null];
 $mb = static fn(int $b): string => $b >= 1073741824 ? round($b / 1073741824, 1) . ' GB' : max(1, (int) round($b / 1048576)) . ' MB';
 $csrf = av_csrf_token();
+$devicesAll = Recorder::allDevices();
 header('Content-Type: text/html; charset=utf-8');
 ?><!doctype html>
 <html lang="en">
@@ -169,6 +176,35 @@ header('Content-Type: text/html; charset=utf-8');
     </form>
   </div>
 <?php endif; ?>
+
+<?php $ck = av_cron_key(); ?>
+  <div class="card">
+    <h2>Scheduled job (cron)</h2>
+    <p>Recordings are transcribed, and old audio deleted, by the site's scheduled job. In cPanel → <b>Cron Jobs</b>, run this every 5 minutes:</p>
+<?php if ($ck['key'] !== ''): ?>
+    <p><code style="display:block;white-space:pre-wrap;word-break:break-all;padding:10px">curl -fsS --max-time 60 -H "X-AV-Cron-Key: <?= e($ck['key']) ?>" "<?= e(rtrim(SITE_URL, '/')) ?>/tasks/cron.php" &gt;/dev/null 2&gt;&amp;1</code></p>
+    <p class="muted small"><?= $ck['source'] === 'env' ? 'The key is AV_CRON_KEY from the server settings.' : 'The key is derived from this site\'s secret; set AV_CRON_KEY to choose your own.' ?> The admin token is no longer accepted as the cron key — if your cron job used it, replace the command with this one. Keep the key private: it lets anyone run the scheduled job.</p>
+<?php else: ?>
+    <p class="warn">No cron key can be made: set APP_KEY (or AV_CRON_KEY) in the server settings.</p>
+<?php endif; ?>
+  </div>
+
+  <div class="card">
+    <h2>Connected browsers</h2>
+<?php if (!$devicesAll): ?>
+    <p class="muted">None yet.</p>
+<?php else: ?>
+    <p class="muted small">Disconnect a lost laptop, or someone who has left. A browser stops working by itself when its owner is no longer a member.</p>
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
+<?php foreach ($devicesAll as $d): ?>
+      <tr style="border-top:1px solid var(--line)">
+        <td style="padding:8px 8px 8px 0"><b><?= e((string) ($d['user_name'] ?: $d['user_email'])) ?></b><br><span class="muted small"><?= e((string) $d['user_email']) ?> · <?= e((string) $d['name']) ?> · last used <?= e((string) $d['last_used']) ?> UTC</span></td>
+        <td style="text-align:right"><form method="post"><input type="hidden" name="csrf" value="<?= e($csrf) ?>"><input type="hidden" name="action" value="revoke_device"><input type="hidden" name="id" value="<?= (int) $d['id'] ?>"><button class="btn btn--line" style="padding:7px 14px;font-size:13px">Disconnect</button></form></td>
+      </tr>
+<?php endforeach; ?>
+    </table>
+<?php endif; ?>
+  </div>
 
   <div class="card">
     <h2>Transcription</h2>

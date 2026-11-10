@@ -151,6 +151,9 @@ header('Cache-Control: private, no-store');
   <section class="card" data-rec="<?= (int) $r['id'] ?>"
            data-parts="<?= e(json_encode(array_map(static fn($p) => ['id' => $p['id'], 'n' => $p['n'], 'offset' => $p['offset']], $playable))) ?>">
     <h2>Recorded by <?= e($r['by'] ?: 'a member') ?></h2>
+    <p class="small" style="margin:0 0 4px"><?= $r['consent'] === 'confirmed'
+        ? '✓ ' . e($r['by'] ?: 'The person recording') . ' confirmed they told everyone in the call' . ($r['consent_at'] !== '' ? ' (' . e($when($r['consent_at'])) . ')' : '') . '.'
+        : ($r['consent'] === 'reminded' ? 'The person recording was reminded to tell everyone, but did not confirm they did.' : 'There is no record that the others in the call were told.') ?></p>
     <p class="muted small"><?= e($when($r['started_at'])) ?><?= count($r['parts']) ? ' · ' . count($r['parts']) . (count($r['parts']) === 1 ? ' part' : ' parts') . ' of up to 10 minutes' : '' ?></p>
 <?php if ($r['waiting']): ?>
     <p class="note">No transcriber is set up on this site yet, so there are no written minutes for this recording. Listen here and write them on the meeting; or ask an admin to add one (Studio → Setup → AI) — it will then be transcribed by itself.</p>

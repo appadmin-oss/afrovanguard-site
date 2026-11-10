@@ -38,7 +38,8 @@ export async function api(action, { method = 'POST', json, form, query = '' } = 
     await chrome.storage.local.set({ needsConnect: true });
     const e = new Error(data.error || 'Not connected'); e.reconnect = true; throw e;
   }
-  if (res.status >= 500 || res.status === 429) { const e = new Error(data.error || 'Server busy'); e.offline = true; throw e; }
+  // 507 is the person's recording space being full: an answer, not an outage.
+  if ((res.status >= 500 && res.status !== 507) || res.status === 429) { const e = new Error(data.error || 'Server busy'); e.offline = true; throw e; }
   return data;
 }
 
@@ -55,7 +56,7 @@ async function chunkBytes() {
 /** Make sure the server knows about this recording; returns its id or 0 if it can't yet. */
 async function ensureServer(r) {
   if (r.serverId) return r.serverId;
-  const s = await api('start', { json: { meet_code: r.meetCode || '', title: r.title || '', url: r.url || '', meeting_id: r.meetingId || 0, consent_shown: !!r.consentShown } });
+  const s = await api('start', { json: { meet_code: r.meetCode || '', title: r.title || '', url: r.url || '', meeting_id: r.meetingId || 0 } });
   if (!s.ok) {
     await store.update('recordings', r.rec, (x) => x && Object.assign(x, { lastError: s.error || 'The server would not start the recording.' }));
     return 0;
@@ -112,6 +113,11 @@ async function sendSegment(r, s) {
     f.append('rec', String(r.serverId)); f.append('seg', String(c.seg)); f.append('idx', String(c.idx)); f.append('sha256', c.sha);
     f.append('data', blob, 'chunk.bin');
     const res = await api('chunk', { form: f });
+    if (res.httpStatus === 507) {
+      // Out of space: keep the audio here, say why, and ask again in an hour rather than every minute.
+      await store.update('recordings', r.rec, (x) => x && Object.assign(x, { lastError: res.error || 'Your recording space is full.', quotaUntil: Date.now() + 3600 * 1000 }));
+      return false;
+    }
     if (res.httpStatus === 413 && limit > 64 * 1024) {
       // The host takes less than we thought: halve, and re-form every unsent chunk from here.
       await chrome.storage.local.set({ chunkBytes: Math.max(64 * 1024, Math.floor((res.chunk_bytes || limit) / 2)) });
@@ -163,6 +169,7 @@ export function pump() {
       const recs = (await store.all('recordings')).sort((a, b) => a.startedAt - b.startedAt);
       for (const r of recs) {
         if (['done', 'failed', 'duplicate', 'cancelled'].includes(r.state)) continue;
+        if (r.quotaUntil && r.quotaUntil > Date.now()) { out.pending++; continue; }
         if (!(await ensureServer(r))) { out.pending++; continue; }
         const fresh = await store.get('recordings', r.rec);
         if (fresh.state === 'cancelled') continue;
@@ -173,7 +180,7 @@ export function pump() {
           if (await sendSegment(fresh, s)) out.sent++; else all = false;
         }
         if (fresh.state === 'stopped' && all) {
-          const res = await api('finish', { json: { rec: fresh.serverId, segments: fresh.segments || segs.length, marks: fresh.marks || [], people: fresh.peopleMax || 0 } });
+          const res = await api('finish', { json: { rec: fresh.serverId, segments: fresh.segments || segs.length, marks: fresh.marks || [], people: fresh.peopleMax || 0, consent: fresh.consent || 'none', consent_at: fresh.consentAt || '' } });
           if (res.ok && (!res.missing_segments || !res.missing_segments.length)) {
             await store.update('recordings', r.rec, (x) => x && Object.assign(x, { state: 'uploaded', uploadedAt: Date.now() }));
           }

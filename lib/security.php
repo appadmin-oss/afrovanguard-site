@@ -374,6 +374,37 @@ function av_rate_ok(string $bucket, int $max, int $window): bool {
 }
 
 /**
+ * The same limit, counted per PERSON rather than per address: $who is a stable
+ * id (e.g. 'u42'). av_rate_ok() keys on the client IP, so one learner moving
+ * between Wi-Fi and mobile data got a fresh allowance each time, and a whole
+ * school behind one address shared one. Use both where a model call is paid for.
+ */
+/**
+ * The key the web-cron needs (tasks/cron.php). AV_CRON_KEY when set; otherwise
+ * one derived from the site's own secret. Never the admin token: a cron key
+ * travels in scheduler commands and server logs, and the admin token is a
+ * superadmin login. Shown to superadmins in the Studio (admin/recorder.php).
+ */
+function av_cron_key(): array {
+    $env = trim((string) getenv('AV_CRON_KEY'));
+    if (strlen($env) >= 8) return ['key' => $env, 'source' => 'env'];
+    $secret = function_exists('av_secret') ? av_secret() : '';
+    if ($secret === '') return ['key' => '', 'source' => 'none'];
+    return ['key' => substr(hash_hmac('sha256', 'av-cron-key-v1', $secret), 0, 32), 'source' => 'derived'];
+}
+
+function av_rate_ok_for(string $bucket, string $who, int $max, int $window): bool {
+    $dir = AV_ROOT . '/db/cache/rl'; if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    $key = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', 'who_' . $bucket . '_' . $who) . '.json';
+    $now = time(); $hits = [];
+    if (is_file($key)) { $hits = json_decode((string) @file_get_contents($key), true) ?: []; }
+    $hits = array_values(array_filter($hits, fn($t) => $t > $now - $window));
+    if (count($hits) >= $max) return false;
+    $hits[] = $now; @file_put_contents($key, json_encode($hits), LOCK_EX);
+    return true;
+}
+
+/**
  * Is this bucket already full for this client? Reads, never counts. For pages
  * that count only FAILED guesses (a receipt, a certificate): without this, a
  * client past the limit still got a matching guess served, so the limit slowed

@@ -14,7 +14,12 @@
  *   GET /tasks/cron.php?key=SECRET[&max=50]   →  {ok:true, webhooks:{processed,ok}}
  *   (the key may also be sent as the header  X-AV-Cron-Key: SECRET)
  *
- * Key precedence: AV_CRON_KEY, else the admin token (AV_ADMIN_TOKEN); 8+ chars.
+ * The key: AV_CRON_KEY, else one derived from the site's secret (av_cron_key();
+ * a superadmin sees it, with the whole command, in the Studio → Meeting Recorder
+ * page). The admin token is NOT accepted any more: a cron key ends up in
+ * scheduler commands and server logs, and the admin token is a superadmin login.
+ * Prefer the header (it stays out of access logs):
+ *   curl -fsS -H "X-AV-Cron-Key: SECRET" https://site/tasks/cron.php
  * CLI still works:  php tasks/cron.php [max]
  */
 declare(strict_types=1);
@@ -25,17 +30,24 @@ if (!$cli) {
     header('Content-Type: application/json; charset=utf-8');
     header('X-Robots-Tag: noindex');
     header('X-Content-Type-Options: nosniff');
-    $want = (string) (getenv('AV_CRON_KEY') ?: (defined('ADMIN_TOKEN') ? ADMIN_TOKEN : ''));
+    $want = (string) av_cron_key()['key'];
     if (strlen($want) < 8) {
         http_response_code(503);
-        echo json_encode(['ok' => false, 'error' => 'Cron key not configured. Set AV_CRON_KEY (or AV_ADMIN_TOKEN) to a random 8+ char string.']);
+        echo json_encode(['ok' => false, 'error' => 'Cron key not configured. Set AV_CRON_KEY to a random 8+ char string, or set APP_KEY so one can be derived.']);
         exit;
     }
-    $key = (string) ($_GET['key'] ?? ($_SERVER['HTTP_X_AV_CRON_KEY'] ?? ''));
+    $key = (string) ($_SERVER['HTTP_X_AV_CRON_KEY'] ?? ($_GET['key'] ?? ''));
     /* Counted BEFORE the key is compared: after it, the limit only ever saw
        correct keys and guessing an 8-character key was unlimited. */
     if (function_exists('av_rate_ok') && !av_rate_ok('cron_web', 30, 60)) { http_response_code(429); echo json_encode(['ok' => false, 'error' => 'Rate limited.']); exit; }
-    if (!hash_equals($want, $key)) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Forbidden.']); exit; }
+    if (!hash_equals($want, $key)) {
+        // Say why, once, to a scheduler still sending the old admin token — so the cron does not just go quiet.
+        $old = defined('ADMIN_TOKEN') && (string) ADMIN_TOKEN !== '' && hash_equals((string) ADMIN_TOKEN, $key);
+        if ($old) error_log('[cron] refused the admin token as a cron key; the scheduler needs the new key (Studio → Meeting Recorder)');
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => $old ? 'The admin token is no longer accepted as the cron key. A superadmin finds the new cron command in the Studio → Meeting Recorder page.' : 'Forbidden.']);
+        exit;
+    }
 }
 
 $max = $cli

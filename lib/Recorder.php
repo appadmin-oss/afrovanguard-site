@@ -109,10 +109,18 @@ final class Recorder
         // v1.2: who was talking. Per part, the times the recording person's
         // microphone or the call was speaking; Whisper's timed sentences; and
         // the most people Meet showed in the call.
-        foreach ([['recording_segments', 'talk', 'TEXT'], ['recording_segments', 'utterances', 'TEXT'], ['recordings', 'people_max', 'INTEGER NOT NULL DEFAULT 0']] as [$t, $c, $decl]) {
+        // v1.4: what the person recording actually did about telling the others:
+        // 'none', 'reminded' (the reminder was on their screen), 'confirmed' (they said they told everyone).
+        foreach ([['recording_segments', 'talk', 'TEXT'], ['recording_segments', 'utterances', 'TEXT'], ['recordings', 'people_max', 'INTEGER NOT NULL DEFAULT 0'],
+                  ['recordings', 'consent', "VARCHAR(12) NOT NULL DEFAULT 'none'"], ['recordings', 'consent_at', "VARCHAR(32) NOT NULL DEFAULT ''"]] as [$t, $c, $decl]) {
             try { Database::pdo()->query("SELECT $c FROM $t LIMIT 1"); }
             catch (Throwable $e) { Database::pdo()->exec("ALTER TABLE $t ADD COLUMN $c $decl"); }
         }
+        /* A call the recorder recorded without a scheduled meeting was filed with
+           open minutes, readable by every member. It is private now (only its
+           attendees and managers); this puts right the ones filed before the fix.
+           Only rows from before it, so a later choice to open one is kept. */
+        try { Database::pdo()->exec("UPDATE meetings SET minutes_private = 1 WHERE origin = 'recorder' AND minutes_private = 0 AND created_at < '2026-11-11 00:00:00'"); } catch (Throwable $e) { /* older schema */ }
     }
 
     private static function now(): string { return gmdate('Y-m-d H:i:s'); }
@@ -170,10 +178,37 @@ final class Recorder
         // A token must not outlive its user: a deleted or suspended user's device is refused.
         $u = self::userRow((int) $d['user_id']);
         if (!$u || !in_array((string) ($u['status'] ?? 'active'), ['active', ''], true)) return null;
+        // Nor its membership: a member who is no longer one (demoted, declined) cannot keep recording.
+        if (!self::mayRecord($u)) return null;
         if (strtotime((string) $d['last_used'] . ' UTC') < time() - 300) {
             Database::pdo()->prepare('UPDATE recorder_devices SET last_used = ? WHERE id = ?')->execute([self::now(), (int) $d['id']]);
         }
         return $d;
+    }
+
+    /** The same rule as the connect page: members, unless AV_REC_AUDIENCE=all. */
+    public static function mayRecord(array $user): bool
+    {
+        if (strtolower((string) getenv('AV_REC_AUDIENCE')) === 'all') return true;
+        return class_exists('LmsAuth') && LmsAuth::isOrgMember($user);
+    }
+
+    /** Every connected browser, for the Studio (superadmins): who, which, when last used. */
+    public static function allDevices(int $limit = 300): array
+    {
+        self::ensure();
+        $st = Database::pdo()->prepare('SELECT d.id, d.name, d.last_used, d.created_at, u.name AS user_name, u.email AS user_email FROM recorder_devices d LEFT JOIN lms_users u ON u.id = d.user_id WHERE d.revoked = 0 ORDER BY d.last_used DESC LIMIT ' . max(1, min(1000, $limit)));
+        $st->execute();
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /** A superadmin disconnects any browser (a lost laptop, someone who has left). */
+    public static function adminRevoke(int $deviceId): bool
+    {
+        self::ensure();
+        $st = Database::pdo()->prepare('UPDATE recorder_devices SET revoked = 1 WHERE id = ? AND revoked = 0');
+        $st->execute([$deviceId]);
+        return $st->rowCount() === 1;
     }
 
     public static function devices(int $uid): array
@@ -257,7 +292,9 @@ final class Recorder
             $db->prepare('INSERT INTO meetings (creator_id, title, agenda, scheduled_at, duration_min, frequency, context, context_id, auto_record, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
                ->execute([$uid, $title, '', self::now(), 60, 'once', 'workspace', 0, 0, 'scheduled', self::now()]);
             $mid = (int) $db->lastInsertId();
-            $db->prepare("UPDATE meetings SET meet_code = ?, meet_url = ?, origin = 'recorder' WHERE id = ?")->execute([$code, $url, $mid]);
+            // Private: only its attendees (the person recording) and those who manage it read the minutes.
+            // An unscheduled call is as likely to be a one-to-one or an HR conversation as anything.
+            $db->prepare("UPDATE meetings SET meet_code = ?, meet_url = ?, origin = 'recorder', minutes_private = 1 WHERE id = ?")->execute([$code, $url, $mid]);
             $me = self::userRow($uid);
             if ($me && filter_var((string) $me['email'], FILTER_VALIDATE_EMAIL)) {
                 $db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)')->execute([$mid, strtolower((string) $me['email'])]);
@@ -268,7 +305,7 @@ final class Recorder
         $mid = (int) $meeting['id'];
 
         $db->prepare('INSERT INTO recordings (user_id, device_id, meeting_id, meet_code, title, status, consent_shown, started_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)')
-           ->execute([$uid, (int) $device['id'], $mid, $code, (string) $meeting['title'], 'recording', !empty($in['consent_shown']) ? 1 : 0, self::now(), self::now()]);
+           ->execute([$uid, (int) $device['id'], $mid, $code, (string) $meeting['title'], 'recording', 0, self::now(), self::now()]);
         $rid = (int) $db->lastInsertId();
 
         return [
@@ -323,7 +360,7 @@ final class Recorder
     private static function userRow(int $uid): ?array
     {
         try {
-            $st = Database::pdo()->prepare('SELECT id, name, email, status FROM lms_users WHERE id = ?');
+            $st = Database::pdo()->prepare('SELECT id, name, email, status, role FROM lms_users WHERE id = ?');
             $st->execute([$uid]);
             return $st->fetch(PDO::FETCH_ASSOC) ?: null;
         } catch (Throwable $e) { return null; }
@@ -387,6 +424,11 @@ final class Recorder
         if ($size <= 0 || $size > self::chunkBytes() + 1024) return ['ok' => false, 'error' => 'Chunk too large for this host.', 'status' => 413];
         if (!preg_match('/^[a-f0-9]{64}$/', $sha)) return ['ok' => false, 'error' => 'Missing checksum.', 'status' => 422];
         if (self::segmentRow($rid, $seg)) return ['ok' => true, 'already' => true];   // the segment is already assembled
+        $q = self::quota((int) $device['user_id']);
+        if ($q['used'] + $size > $q['limit']) {
+            return ['ok' => false, 'quota' => true, 'status' => 507,
+                    'error' => 'Your recording space is full (' . (int) round($q['limit'] / 1048576) . ' MB in 30 days). The recording is kept in your browser; ask an admin to raise AV_REC_QUOTA_MB, or wait for older recordings to age out.'];
+        }
 
         $dest = self::partPath($rid, $seg, $idx);
         if (is_file($dest) && hash_file('sha256', $dest) === $sha) return ['ok' => true, 'already' => true];
@@ -454,7 +496,7 @@ final class Recorder
     }
 
     /** The extension has stopped. Says which segments it still owes, if any. */
-    public static function finish(array $device, int $rid, int $segments, array $marks = [], int $people = 0): array
+    public static function finish(array $device, int $rid, int $segments, array $marks = [], int $people = 0, string $consent = 'none', string $consentAt = ''): array
     {
         self::ensure();
         $r = self::own($device, $rid);
@@ -468,6 +510,11 @@ final class Recorder
         $marks = self::cleanMarks($marks);
         if ($marks) Database::pdo()->prepare('UPDATE recordings SET marks = ? WHERE id = ?')->execute([json_encode($marks), $rid]);
         if ($people > 0) Database::pdo()->prepare('UPDATE recordings SET people_max = ? WHERE id = ?')->execute([min(500, $people), $rid]);
+        // Only what happened: the reminder was shown, or the person recording said they told everyone.
+        $consent = in_array($consent, ['none', 'reminded', 'confirmed'], true) ? $consent : 'none';
+        $at = preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $consentAt) ? $consentAt : ($consent === 'confirmed' ? self::now() : '');
+        Database::pdo()->prepare('UPDATE recordings SET consent = ?, consent_at = ?, consent_shown = ? WHERE id = ?')
+           ->execute([$consent, $consent === 'none' ? '' : $at, $consent === 'confirmed' ? 1 : 0, $rid]);
         $have = self::segmentNumbers($rid);
         $missing = array_values(array_diff(range(0, max(0, $segments - 1)), $have));
         if ($segments === 0) $missing = [];
@@ -499,6 +546,7 @@ final class Recorder
             'listen_url' => self::listenUrl((int) $r['meeting_id']),
             // Uploaded, but nothing on this site can turn it into words yet.
             'waiting' => in_array((string) $r['status'], ['recording', 'finished'], true) && !self::canTranscribe(),
+            'consent' => (string) ($r['consent'] ?? 'none'),
         ]];
     }
 
@@ -574,6 +622,7 @@ final class Recorder
             $names = self::speakers((int) $r['id']);
             $out[] = [
                 'id' => (int) $r['id'], 'by' => (string) ($r['by_name'] ?? ''), 'started_at' => (string) $r['started_at'],
+                'consent' => (string) ($r['consent'] ?? 'none'), 'consent_at' => (string) ($r['consent_at'] ?? ''),
                 'status' => (string) $r['status'], 'waiting' => in_array((string) $r['status'], ['recording', 'finished'], true) && !self::canTranscribe(),
                 'parts' => $parts, 'marks' => self::cleanMarks(json_decode((string) ($r['marks'] ?? ''), true) ?: []),
                 'talk' => ['me' => (int) round($me), 'them' => (int) round($them), 'me_name' => $names['me'] !== '' ? $names['me'] : (string) ($r['by_name'] ?? ''), 'them_name' => $names['them']],
@@ -630,13 +679,19 @@ final class Recorder
         }
 
         if (self::canTranscribe() || $transcriber !== [self::class, 'transcribe']) {
-            $pick = $db->prepare("SELECT s.* FROM recording_segments s JOIN recordings r ON r.id = s.recording_id
+            $pick = $db->prepare("SELECT s.*, r.user_id FROM recording_segments s JOIN recordings r ON r.id = s.recording_id
                                   WHERE s.state = 'ready' AND s.attempts < ? AND r.status IN ('recording','finished')
-                                  ORDER BY s.recording_id, s.seg_no LIMIT 1");
+                                  ORDER BY s.recording_id, s.seg_no LIMIT 50");
+            $capped = [];
             while (microtime(true) - $t0 < $budgetSec) {
                 $pick->execute([self::MAX_ATTEMPTS]);
-                $s = $pick->fetch(PDO::FETCH_ASSOC);
-                $pick->closeCursor();
+                $s = null;
+                // The first part whose owner is still inside today's transcription allowance.
+                foreach ($pick->fetchAll(PDO::FETCH_ASSOC) ?: [] as $c) {
+                    $owner = (int) $c['user_id'];
+                    if (!isset($capped[$owner])) $capped[$owner] = self::transcribedToday($owner) >= self::dailyParts();
+                    if (!$capped[$owner]) { $s = $c; break; }
+                }
                 if (!$s) break;
                 // Claim it, so an overlapping cron tick does not transcribe it twice.
                 $claim = $db->prepare("UPDATE recording_segments SET state = 'transcribing', attempts = attempts + 1, updated_at = ? WHERE id = ? AND state = 'ready'");
@@ -649,6 +704,7 @@ final class Recorder
                     $db->prepare("UPDATE recording_segments SET state = 'done', text = ?, utterances = ?, error = '', updated_at = ? WHERE id = ?")
                        ->execute([trim((string) $res['text']), $utt, self::now(), (int) $s['id']]);
                     $out['transcribed']++;
+                    unset($capped[(int) $s['user_id']]);   // counted again next time round
                 } else {
                     $final = (int) $s['attempts'] + 1 >= self::MAX_ATTEMPTS || $bytes === '';
                     $db->prepare('UPDATE recording_segments SET state = ?, error = ?, updated_at = ? WHERE id = ?')
@@ -759,7 +815,9 @@ final class Recorder
         if ($c && !empty($c['email'])) $people[strtolower((string) $c['email'])] = true;
         unset($people[$myEmail]);
         $them = '';
-        if (count($people) === 1 && (int) $r['people_max'] <= 2) {
+        // Exactly two people seen in the call (you and them). Unknown (0) is not "one-to-one":
+        // a Zoom tab, or a Meet page the count could not read, names nobody.
+        if (count($people) === 1 && (int) $r['people_max'] === 2) {
             $n = $db->prepare('SELECT name FROM lms_users WHERE lower(email) = ?');
             $n->execute([array_key_first($people)]);
             $them = trim((string) $n->fetchColumn());
@@ -907,13 +965,74 @@ final class Recorder
         return $real ? implode("\n\n", $parts) : '';
     }
 
+    /* ── quotas ───────────────────────────────────────────────────────── */
+
+    /** Audio one person may upload in 30 days (AV_REC_QUOTA_MB, default 2048 MB ≈ 140 hours). */
+    public static function quota(int $uid): array
+    {
+        $limit = max(1, (int) (getenv('AV_REC_QUOTA_MB') ?: 2048)) * 1048576;
+        $db = Database::pdo();
+        $st = $db->prepare("SELECT COALESCE(SUM(s.bytes), 0) FROM recording_segments s JOIN recordings r ON r.id = s.recording_id WHERE r.user_id = ? AND r.started_at > ?");
+        $st->execute([$uid, gmdate('Y-m-d H:i:s', time() - 30 * 86400)]);
+        $used = (int) $st->fetchColumn();
+        // Plus chunks waiting to be joined into a part: they take space too.
+        $open = $db->prepare("SELECT id FROM recordings WHERE user_id = ? AND status = 'recording'");
+        $open->execute([$uid]);
+        foreach ($open->fetchAll(PDO::FETCH_COLUMN) ?: [] as $rid) {
+            foreach ((array) glob(self::baseDir() . '/' . (int) $rid . '/*.part') as $f) $used += (int) @filesize($f);
+        }
+        return ['used' => $used, 'limit' => $limit];
+    }
+
+    /** Parts one person may have transcribed per day (AV_REC_TRANSCRIBE_PARTS_DAY, default 72 ≈ 12 hours). */
+    public static function dailyParts(): int
+    {
+        return max(1, (int) (getenv('AV_REC_TRANSCRIBE_PARTS_DAY') ?: 72));
+    }
+
+    public static function transcribedToday(int $uid): int
+    {
+        $st = Database::pdo()->prepare("SELECT COUNT(*) FROM recording_segments s JOIN recordings r ON r.id = s.recording_id WHERE r.user_id = ? AND s.state = 'done' AND s.bytes > 0 AND s.updated_at >= ?");
+        $st->execute([$uid, gmdate('Y-m-d 00:00:00')]);
+        return (int) $st->fetchColumn();
+    }
+
+    /**
+     * Upload chunks nobody will join any more: those of a recording that is
+     * closed (its parts are made, or it was abandoned or cancelled), of a
+     * recording that no longer exists, and any older than two days. Returns
+     * files removed. Bounded, so one tick stays short.
+     */
+    public static function purgeChunks(int $dirs = 200): int
+    {
+        $base = self::baseDir();
+        $db = Database::pdo();
+        $st = $db->prepare('SELECT status FROM recordings WHERE id = ?');
+        $n = 0;
+        foreach (array_slice((array) glob($base . '/[0-9]*', GLOB_ONLYDIR), 0, $dirs) as $dir) {
+            $st->execute([(int) basename($dir)]);
+            $status = $st->fetchColumn();
+            if ($status === false) {                     // no such recording: everything goes
+                foreach ((array) glob($dir . '/*') as $f) { if (is_file($f)) { @unlink($f); $n++; } }
+                @rmdir($dir);
+                continue;
+            }
+            // "finished" may still be receiving a part it owes, so only the 2-day rule applies to it.
+            $closed = in_array((string) $status, ['done', 'duplicate', 'failed', 'cancelled'], true);
+            foreach ((array) glob($dir . '/*.part') as $f) {
+                if ($closed || @filemtime($f) < time() - 2 * 86400) { @unlink($f); $n++; }
+            }
+        }
+        return $n;
+    }
+
     /** Delete audio past its retention; move it to Drive first when asked to. Returns files removed. */
     public static function purge(): int
     {
+        $n = self::purgeChunks();
         $days = getenv('AV_REC_RETAIN_DAYS');
         $days = $days === false || $days === '' ? 30 : (int) $days;
         $db = Database::pdo();
-        $n = 0;
         $closed = "r.status IN ('done','duplicate','failed','cancelled')";
         if (strtolower((string) getenv('AV_REC_STORAGE')) === 'drive' && class_exists('Drive') && Drive::configured()) {
             $st = $db->query("SELECT s.id, s.path, s.recording_id, s.seg_no FROM recording_segments s JOIN recordings r ON r.id = s.recording_id

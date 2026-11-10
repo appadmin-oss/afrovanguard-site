@@ -79,7 +79,7 @@ async function start(tab) {
   const meetCode = meetCodeOf(tab.url);
   await store.put('recordings', {
     rec, state: 'recording', startedAt: Date.now(), meetCode, url: tab.url.split('#')[0].slice(0, 500),
-    title: cleanTitle(tab.title) || (meetCode ? 'Meeting ' + meetCode : 'Recorded call'), segments: 0, consentShown: true,
+    title: cleanTitle(tab.title) || (meetCode ? 'Meeting ' + meetCode : 'Recorded call'), segments: 0, consent: 'none',
   });
   await ensureOffscreen();
   const s = await settings();
@@ -88,9 +88,12 @@ async function start(tab) {
     await store.del('recordings', rec);
     return { ok: false, error: (res && res.error) || 'The recorder could not start.' };
   }
-  await session.set({ rec, tabId: tab.id, startedAt: Date.now(), meetCode, title: cleanTitle(tab.title), mic: res.mic, paused: false, marks: 0, warn: {} });
+  await session.set({ rec, tabId: tab.id, startedAt: Date.now(), meetCode, title: cleanTitle(tab.title), mic: res.mic, paused: false, marks: 0, warn: {}, consent: 'none' });
   if (!res.mic && s.mic) await chrome.storage.local.set({ micBlocked: true }); else if (res.mic) await chrome.storage.local.set({ micBlocked: false });
-  toTab(tab.id, { type: 'banner', state: 'recording' });
+  // "reminded" only if the reminder actually appeared on the meeting's own page.
+  toTab(tab.id, { type: 'banner', state: 'recording', fresh: true }).then((r) => {
+    if (r && r.shown) store.update('recordings', rec, (x) => x && x.consent === 'none' && Object.assign(x, { consent: 'reminded' }));
+  });
   await badge();
   pump().then(badge);
   return { ok: true, mic: res.mic };
@@ -165,6 +168,18 @@ async function mark() {
   toTab(live.tabId, { type: 'banner', state: 'marked' });
   toPopup({ type: 'refresh' });
   return { ok: true, at, count };
+}
+
+/** The person recording says they told everyone in the call. Recorded with the time, in UTC. */
+async function consent() {
+  const live = await session.get();
+  if (!live) return { ok: false, error: 'Not recording.' };
+  const at = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  await store.update('recordings', live.rec, (x) => x && Object.assign(x, { consent: 'confirmed', consentAt: at }));
+  await session.set(Object.assign(live, { consent: 'confirmed' }));
+  toTab(live.tabId, { type: 'banner', state: live.paused ? 'paused' : 'recording', confirmed: true });
+  toPopup({ type: 'refresh' });
+  return { ok: true };
 }
 
 /** Say once, early, when something means the recording will be poor. */
@@ -246,6 +261,11 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
     return true;
   }
   if (m.type === 'meet-state' && sender.tab) { onMeetState(sender.tab, m); return false; }
+  // From the banner on the meeting tab being recorded (and nowhere else).
+  if (m.type === 'consent' && sender.tab && !fromExtensionPage) {
+    session.get().then((l) => (l && l.tabId === sender.tab.id ? consent() : null));
+    return false;
+  }
 
   // Everything below changes what is recorded: only the extension's own pages.
   if (!fromExtensionPage) return false;
@@ -256,6 +276,7 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
     pause: () => setPaused(true),
     resume: () => setPaused(false),
     mark: () => mark(),
+    consent: () => consent(),
     discard: () => discard(String(m.rec || '')),
     connect: async () => { await chrome.tabs.create({ url: CONNECT_URL }); return { ok: true }; },
     disconnect: async () => { await chrome.storage.local.remove(['token', 'user']); await badge(); return { ok: true }; },
@@ -300,7 +321,7 @@ async function onMeetState(tab, m) {
     // Left the call: give Meet a moment (it redraws while reconnecting) before stopping.
     clearTimeout(leftTimer);
     if (m.inCall === false) leftTimer = setTimeout(async () => { const l = await session.get(); if (l && l.tabId === tab.id) stop('left'); }, 20000);
-    else toTab(tab.id, { type: 'banner', state: live.paused ? 'paused' : 'recording' });
+    else toTab(tab.id, { type: 'banner', state: live.paused ? 'paused' : 'recording', confirmed: live.consent === 'confirmed' });
     return;
   }
   if (!m.inCall || live) return;
