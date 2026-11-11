@@ -112,7 +112,7 @@ render_nav('');
               <h2><span class="legal-num">6</span> Cookies</h2>
               <p data-cms="privacy-policy-p-6">Most of what this Site stores in your browser is there to make it work, never leaves it, and is not used to follow you anywhere else. One thing is optional: Google Analytics, which counts visits and shows us which pages help people. It runs <strong>only if you allow it</strong> in the cookie notice. Until you do, nothing is sent to Google and none of its cookies (named <code>_ga</code>) are set. If you allow it, we send the address of the page without any codes or links in it, and never your name, email or account details. If your browser sends Global Privacy Control or Do Not Track, we treat that as a no and do not ask. You can change your mind at any time with <a href="#cookies" data-av-consent-open>Cookie settings</a>, here or at the foot of any page; withdrawing removes Google&rsquo;s cookies. We don&rsquo;t use advertising cookies.</p>
               <h3 data-cms="privacy-policy-h3-1">What the Site stores, and why</h3>
-              <div class="legal-table-wrap">
+              <div class="legal-table-wrap" tabindex="0" role="region" aria-label="What the Site stores (scrolls sideways on small screens)">
               <table class="legal-table">
                 <thead><tr><th scope="col">Name</th><th scope="col">What it is for</th><th scope="col">How long</th></tr></thead>
                 <tbody>

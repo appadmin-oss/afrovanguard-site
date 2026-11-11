@@ -464,8 +464,9 @@ final class LmsCourseware
         if (!$mods) { $add('fix', 'Add your first module.'); return $out; }
         $s = $this->db->prepare('SELECT id, body_html, captions_url, transcript FROM lessons WHERE course_id = ?');
         $s->execute([(int) $course['id']]);
-        $bodies = []; $access = [];
+        $bodies = []; $access = []; $html = [];
         foreach ($s->fetchAll() as $r) {
+            $html[(int) $r['id']] = (string) $r['body_html'];
             $bodies[(int) $r['id']] = trim(strip_tags((string) $r['body_html']));
             $access[(int) $r['id']] = ['captions' => trim((string) ($r['captions_url'] ?? '')) !== '', 'transcript' => trim((string) ($r['transcript'] ?? '')) !== ''];
         }
@@ -486,6 +487,10 @@ final class LmsCourseware
                 $acc = $access[$lid] ?? ['captions' => false, 'transcript' => false];
                 if ($type === 'video' && !$acc['captions'] && !$acc['transcript']) $add('fix', $title . ' needs captions or a transcript, so learners who cannot hear it can follow.', $lid, $mid);
                 elseif ($type === 'video' && !$acc['captions'] && str_starts_with((string) $l['video_url'], '/uploads/')) $add('tip', $title . ' has a transcript but no captions — captions let learners follow along as it plays.', $lid, $mid);
+                /* What in the lesson's own text shuts a learner out: pictures
+                   with no description, tables a screen reader cannot read
+                   across, links called "click here" (lib/LessonA11y.php). */
+                foreach (LessonA11y::check($html[$lid] ?? '') as $iss) $add($iss['level'], $title . ': ' . $iss['text'], $lid, $mid);
                 if ($type === 'quiz' || $type === 'assignment') $graded++;
             }
         }

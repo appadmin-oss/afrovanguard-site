@@ -191,7 +191,7 @@ function avac_footer(): void
     </nav>
     <div class="avac-foot-legal">
       <span><?= e((string) ($set['copyright'] ?? ('© ' . date('Y') . ' Afrovanguard'))) ?></span>
-      <a href="/privacy-policy/">Privacy</a><a href="/terms/">Terms</a><a href="/privacy-policy/#cookies" data-av-consent-open>Cookie settings</a>
+      <a href="/privacy-policy/">Privacy</a><a href="/terms/">Terms</a><a href="/accessibility/">Accessibility</a><a href="/privacy-policy/#cookies" data-av-consent-open>Cookie settings</a>
     </div>
   </div>
 </footer>

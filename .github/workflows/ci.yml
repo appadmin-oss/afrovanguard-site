@@ -68,3 +68,53 @@ jobs:
       # and none of them did anything.
       - name: Syntax-check inline <script> blocks
         run: php bin/check-inline-js.php
+
+  # The accessibility gate. A push that makes a page fail WCAG 2.2 A/AA
+  # (axe-core), scroll sideways at 320px, or ships a lesson with a picture
+  # nobody described, fails here — and the log names the page, the element
+  # and how to fix it. What this cannot catch is in /accessibility/ under
+  # "How we test": the manual pass with a keyboard and a screen reader.
+  accessibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_sqlite, mbstring, dom
+          coverage: none
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install the checker (axe-core, Playwright's Chromium)
+        working-directory: tests/a11y
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Serve this checkout
+        run: |
+          php -S 127.0.0.1:8000 router.php > "$RUNNER_TEMP/php-server.log" 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://127.0.0.1:8000/academy/ && exit 0
+            sleep 1
+          done
+          echo "The site did not start." && cat "$RUNNER_TEMP/php-server.log" && exit 1
+
+      - name: Lessons — pictures described, links named, tables with headers, videos captioned
+        run: php tools/academy-a11y-audit.php --strict
+
+      - name: Pages — axe (WCAG 2.2 A/AA) and 320px reflow, signed out and as a learner
+        run: |
+          TOKEN="$(php tests/a11y/ci-session.php 2>/dev/null | tail -1)"
+          cd tests/a11y
+          BASE=http://127.0.0.1:8000 TOKEN="$TOKEN" node axe-ci.js
+
+      - name: Server log (on failure)
+        if: failure()
+        run: tail -n 200 "$RUNNER_TEMP/php-server.log" || true

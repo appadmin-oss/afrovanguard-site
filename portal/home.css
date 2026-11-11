@@ -103,7 +103,7 @@
 .hv .hv-tag--ok { background:var(--hv-ok-bg); color:var(--hv-ok) }
 /* Programme and ID are facts, not a status: plain text beside the two chips. */
 .hv .hv-tag--n { background:none; color:var(--hv-muted); padding:0 4px; font-weight:500 }
-.hv .hv-motto { font-family:var(--hv-serif); font-size:18px; font-style:italic; color:var(--hv-gold-deep); opacity:.85; line-height:1.3; padding-top:2px }
+.hv .hv-motto { font-family:var(--hv-serif); font-size:18px; font-style:italic; color:var(--hv-gold-deep); line-height:1.3; padding-top:2px }
 .hv .hv-plan { position:relative; width:156px; height:156px; display:block; flex-shrink:0; color:var(--hv-ink) }
 .hv .hv-plan:hover { text-decoration:none }
 .hv .hv-plan > svg { position:absolute; inset:0 }
@@ -393,7 +393,7 @@
   .hv .hv-sig { grid-template-columns:30px 1fr 40px; }
   .hv .hv-sig .hv-sig-l { grid-column:2 } .hv-sig .hv-bar { grid-column:1 / -1; order:3 }
   .hv .hv-journey { background:#111827; color:#FFFFFF; border:0; border-radius:20px; padding:20px }
-  .hv .hv-journey .hv-h2 { color:#FFFFFF } .hv-journey-hd span { color:#F6D77E }
+  .hv .hv-journey .hv-h2 { color:#FFFFFF } .hv .hv-journey-hd span { color:#F6D77E }
   .hv .hv-journey dl { grid-template-columns:repeat(2,minmax(0,1fr)) }
   .hv .hv-journey dl > div { background:#1B2232; text-align:center }
   .hv .hv-journey dl .hv-num { font-family:var(--hv-serif); font-weight:600 }

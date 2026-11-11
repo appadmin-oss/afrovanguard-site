@@ -115,7 +115,7 @@
 .avct-dir li{background:var(--av-white);border:1px solid var(--av-line-menu);border-radius:var(--av-r-12);padding:22px;display:flex;flex-direction:column;gap:10px}
 .avct-dir li[hidden]{display:none}
 .avct-dtop{display:flex;justify-content:space-between;align-items:center}
-.avct-dn{font-family:var(--av-serif);font-size:22px;font-weight:600;color:var(--av-link-hover)}
+.avct-dn{font-family:var(--av-serif);font-size:22px;font-weight:600;color:var(--av-gold-text)}
 .avct-dtag{font-size:11.5px;font-weight:600;color:var(--av-nav-sub);border:1px solid var(--av-cdg-line-5);border-radius:var(--av-r-pill);padding:2px 9px}
 .avct-dir h3{font-size:18.5px;font-weight:600;margin:0}
 .avct-dir p{font-size:14.5px;line-height:1.55;color:var(--av-copy);margin:0 0 6px}

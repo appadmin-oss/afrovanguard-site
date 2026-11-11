@@ -764,7 +764,7 @@ function av_footer_inner(): void {
         </div>
       </div>
       <div class="footer-bottom">
-        <p class="footer-legal">&copy; 2026 Afrovanguard. All rights reserved. <a href="<?= $S ?>/privacy-policy/">Privacy Policy</a> · <a href="<?= $S ?>/terms/">Terms of Use</a></p>
+        <p class="footer-legal">&copy; 2026 Afrovanguard. All rights reserved. <a href="<?= $S ?>/privacy-policy/">Privacy Policy</a> · <a href="<?= $S ?>/terms/">Terms of Use</a> · <a href="<?= $S ?>/accessibility/">Accessibility</a></p>
         <p class="footer-legal">Built with purpose. Powered by passion. For Africa.</p>
       </div>
     </div>

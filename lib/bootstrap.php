@@ -340,6 +340,7 @@ require_once __DIR__ . '/CacWifi.php';     /* and their Wi-Fi: CACENTRE runs it,
 require_once __DIR__ . '/Greeting.php';        /* the line at the top of Today: picked, not stored */
 require_once __DIR__ . '/GrowthSignature.php'; /* Today's growth signature, each bar from the record */
 require_once __DIR__ . '/LmsRepository.php';
+require_once __DIR__ . '/LessonA11y.php';
 require_once __DIR__ . '/LmsCourseware.php';
 require_once __DIR__ . '/Thumbs.php';
 require_once __DIR__ . '/Analytics.php';

@@ -244,7 +244,7 @@ body.avle{margin:0;background:var(--av-white);color:var(--av-ink);font-family:va
   .avle-mod-h,.avle-item{min-height:44px}
 }
 @media (max-width:379px){
-  .avle-brand span:last-child{display:none}
+  .avle-brand span:last-child{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 }
 .no-js [data-avle-coach-toggle],.no-js [data-avle-notes-toggle],.no-js [data-avle-side-toggle],.no-js [data-avle-share],.no-js [data-avle-complete]{display:none}
 @media (prefers-reduced-motion:reduce){.avle *{transition:none!important;animation:none!important;scroll-behavior:auto!important}}

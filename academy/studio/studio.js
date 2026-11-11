@@ -613,11 +613,34 @@
         link_default_target: '_blank', convert_urls: false,
         setup: function (ed) {
           ed.ui.registry.addButton('avimage', { icon: 'image', tooltip: 'Insert an image', onAction: function () {
-            uploadFile('image/*').then(function (url) { ed.insertContent('<p><img src="' + esc(url) + '" alt=""></p>'); }).catch(function () {});
+            /* Ask what the picture shows before it goes in. It used to go in
+               with alt="" — "decoration" — so a blind learner was told nothing
+               about a diagram the lesson depended on. */
+            uploadFile('image/*').then(function (url) { describeImage(ed, url); }).catch(function () {});
           } });
           ed.on('input change', function () { dirty = true; scheduleDraft(); });
         }
       });
+    });
+  }
+  /* WCAG 1.1.1: every picture gets a description, or is marked as decoration
+     on purpose. lib/LessonA11y.php flags whichever slips through. */
+  function describeImage(ed, url) {
+    ed.windowManager.open({
+      title: 'Describe this picture',
+      body: { type: 'panel', items: [
+        { type: 'htmlpanel', html: '<p>Learners who cannot see it hear this instead. Say what it shows and why it is here, in a sentence — as you would to someone on the phone.</p>' },
+        { type: 'textarea', name: 'alt', label: 'What the picture shows', placeholder: 'e.g. A bar chart: enrolment rose from 120 in 2023 to 410 in 2025.' },
+        { type: 'checkbox', name: 'deco', label: 'It is only decoration — it teaches nothing' }
+      ] },
+      initialData: { alt: '', deco: false },
+      buttons: [ { type: 'cancel', text: 'Cancel' }, { type: 'submit', text: 'Insert picture', primary: true } ],
+      onSubmit: function (api) {
+        var d = api.getData(), alt = String(d.alt || '').replace(/\s+/g, ' ').trim();
+        if (!alt && !d.deco) { ed.notificationManager.open({ text: 'Describe the picture, or tick “only decoration”.', type: 'warning', timeout: 5000 }); return; }
+        ed.insertContent('<p><img src="' + esc(url) + '" alt="' + esc(d.deco ? '' : alt) + '"></p>');
+        api.close();
+      }
     });
   }
   function richGet(id) { return (window.tinymce && tinymce.get(id)) ? tinymce.get(id).getContent() : $('#' + id).value; }

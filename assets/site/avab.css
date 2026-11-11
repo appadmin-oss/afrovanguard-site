@@ -111,7 +111,7 @@
 .avab-split-head--people{margin-bottom:40px}
 .avab-values{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:16px}
 .avab-values li{background:var(--av-stone);border-radius:var(--av-r-10);padding:24px 24px 28px;display:flex;flex-direction:column;gap:10px;min-height:180px}
-.avab-values span{font-family:var(--av-serif);font-size:22px;font-weight:600;color:var(--av-link-hover)}
+.avab-values span{font-family:var(--av-serif);font-size:22px;font-weight:600;color:var(--av-gold-text)}
 .avab-values h3{font-size:19px;font-weight:600;margin:auto 0 0}
 .avab-values p{font-size:14.5px;line-height:1.55;color:var(--av-copy-2);margin:0}
 
@@ -143,7 +143,7 @@
 .avab-franchise .avab-lede{font-size:16.5px;max-width:none}
 .avab-steps{list-style:none;margin:0 0 24px;padding:0;display:flex;flex-direction:column;border-top:1px solid var(--av-line-sand)}
 .avab-steps li{display:grid;grid-template-columns:36px minmax(0,1fr);gap:12px;padding:16px 0;border-bottom:1px solid var(--av-line-sand)}
-.avab-steps li>span{font-family:var(--av-serif);font-size:22px;font-weight:600;color:var(--av-link-hover)}
+.avab-steps li>span{font-family:var(--av-serif);font-size:22px;font-weight:600;color:var(--av-gold-text)}
 .avab-steps b{display:block;font-size:16px;font-weight:600;margin-bottom:4px}
 .avab-steps p{font-size:14.5px;line-height:1.55;color:var(--av-copy-2);margin:0}
 .avab-motto{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--av-ink);margin-bottom:28px}
