@@ -338,7 +338,7 @@ ck('audio waiting for a transcriber is never purged', is_file($sf['path']));
 putenv('AV_REC_RETAIN_DAYS');
 ck('the recording page is for listeners only, before anything else', (function () {
     $src = (string) file_get_contents(AV_ROOT . '/portal/recording.php');
-    return substr_count($src, 'Recorder::mayListen(') === 3 && str_contains($src, "header('Accept-Ranges: bytes')");
+    return substr_count($src, 'Recorder::mayListen(') >= 3 && str_contains($src, "header('Accept-Ranges: bytes')");
 })());
 ck('the recorder\'s portal pages load what their sign-in redirect needs', (function () {
     foreach (['portal/recording.php', 'portal/recorder.php'] as $f) {
@@ -435,3 +435,110 @@ $db->exec('DELETE FROM member_profiles WHERE user_id = 2'); MemberVerification::
 $devD = Recorder::device('Bearer ' . $pd['token']);
 ck('the Studio lists every connected browser with its owner', (bool) array_filter(Recorder::allDevices(), static fn($d) => (int) $d['id'] === (int) $devD['id'] && $d['user_email'] === 'b@x.co'));
 ck('a superadmin can disconnect it', Recorder::adminRevoke((int) $devD['id']) && Recorder::device('Bearer ' . $pd['token']) === null);
+
+
+/* ── v1.5: second review ────────────────────────────────────────────── */
+$db->exec("DELETE FROM recording_segments"); $db->exec("DELETE FROM recordings"); $db->exec('DELETE FROM meeting_transcripts');
+$devA = Recorder::device('Bearer ' . $p5['token']);            // Ada (user 1)
+$devBb = Recorder::device('Bearer ' . $p2['token']);           // Bode (user 2)
+
+// 1. A tick killed during the LAST try: the part fails, it does not wait for ever.
+$r1x = (int) Recorder::start($devA, ['title' => 'Killed'])['recording_id'];
+$send($devA, $r1x, 0, 0, 'aaa'); Recorder::segmentDone($devA, $r1x, 0, 1, 0, 'audio/webm');
+Recorder::finish($devA, $r1x, 1);
+$db->exec("UPDATE recording_segments SET state = 'transcribing', attempts = 3, updated_at = '2000-01-01 00:00:00' WHERE recording_id = $r1x");
+Recorder::sweep(1, static fn() => ['ok' => true, 'text' => 'never']);
+ck('a part killed on its last try is failed, not left waiting', (string) $db->query("SELECT state FROM recording_segments WHERE recording_id = $r1x")->fetchColumn() === 'failed');
+ck('and the recording is closed, not stuck', in_array((string) $db->query("SELECT status FROM recordings WHERE id = $r1x")->fetchColumn(), ['failed', 'done'], true));
+$db->exec("UPDATE recording_segments SET state = 'transcribing', attempts = 1, updated_at = '2000-01-01 00:00:00' WHERE recording_id = $r1x");
+$db->exec("UPDATE recordings SET status = 'finished' WHERE id = $r1x");
+Recorder::sweep(0);   // budget 0: only the reset runs
+ck('one killed earlier than its last try goes back in the queue', (string) $db->query("SELECT state FROM recording_segments WHERE recording_id = $r1x")->fetchColumn() === 'ready');
+Recorder::cancel($devA, $r1x);
+
+// 2. Abandoned, minutes written, then the browser comes back with the rest.
+$r2x = Recorder::start($devA, ['title' => 'Came back']);
+$rid2 = (int) $r2x['recording_id'];
+$send($devA, $rid2, 0, 0, 'first'); Recorder::segmentDone($devA, $rid2, 0, 1, 0, 'audio/webm');
+$db->exec("UPDATE recordings SET updated_at = '2000-01-01 00:00:00' WHERE id = $rid2");
+Recorder::sweep(20, static fn() => ['ok' => true, 'text' => 'The first hour.'], static fn() => ['ok' => false]);
+ck('a recording the browser abandoned is closed with what arrived', (string) $db->query("SELECT status FROM recordings WHERE id = $rid2")->fetchColumn() === 'done');
+$late = $send($devA, $rid2, 1, 0, 'second');
+ck('late audio for it is taken, not refused', !empty($late['ok']));
+ck('and reopens the recording', (string) $db->query("SELECT status FROM recordings WHERE id = $rid2")->fetchColumn() === 'recording');
+Recorder::segmentDone($devA, $rid2, 1, 1, 600, 'audio/webm');
+Recorder::finish($devA, $rid2, 2);
+Recorder::sweep(20, static fn() => ['ok' => true, 'text' => 'The second hour.'], static fn() => ['ok' => false]);
+$t2 = (string) $db->query('SELECT raw_text FROM meeting_transcripts WHERE meeting_id = ' . (int) $r2x['meeting']['id'])->fetchColumn();
+ck('the minutes are written again from all of it (its own minutes, rewritten)', str_contains($t2, 'The first hour.') && str_contains($t2, 'The second hour.'));
+ck('a cancelled recording still refuses audio', (function () use ($devA, $send) {
+    $c = (int) Recorder::start($devA, ['title' => 'Gone'])['recording_id']; Recorder::cancel($devA, $c);
+    return (int) ($send($devA, $c, 0, 0, 'x')['status'] ?? 0) === 409;
+})());
+
+// 3. A meeting longer than the minutes-writer reads in one call is written part by part.
+putenv('AV_REC_TRANSCRIBE_PARTS_DAY=1000');
+$limit = Recorder::charLimit();
+$r3x = Recorder::start($devA, ['title' => 'Two-hour board meeting']);
+$rid3 = (int) $r3x['recording_id'];
+for ($n = 0; $n < 4; $n++) { $send($devA, $rid3, $n, 0, "part$n"); Recorder::segmentDone($devA, $rid3, $n, 1, $n * 600, 'audio/webm'); }
+Recorder::finish($devA, $rid3, 4, [1900]);
+$calls = 0;
+$structurer = static function (string $t) use (&$calls): array {
+    $calls++;
+    if (str_starts_with($t, 'These are the minutes of the consecutive parts')) return ['ok' => true, 'summary' => 'The whole board meeting.', 'highlights' => ['Budget agreed'], 'decisions' => ['IGNORED'], 'action_items' => []];
+    preg_match('/WORDS(\d)/', $t, $m);
+    $k = $m[1] ?? '?';
+    return ['ok' => true, 'summary' => "Part $k.", 'highlights' => ["H$k"], 'decisions' => ["Decision $k"], 'action_items' => [['task' => "Task $k", 'owner' => '', 'due_days' => null], ['task' => 'Send the report', 'owner' => '', 'due_days' => null]]];
+};
+$long = static fn(int $n): string => 'WORDS' . $n . ' ' . str_repeat("word{$n} ", (int) ($limit / 8));   // ~¾ of a piece: one part per piece
+$i = 0;
+Recorder::sweep(60, static function () use (&$i, $long) { return ['ok' => true, 'text' => $long($i++)]; }, $structurer);
+for ($k = 0; $k < 8 && (string) $db->query("SELECT status FROM recordings WHERE id = $rid3")->fetchColumn() === 'summarising'; $k++) Recorder::sweep(60, static fn() => ['ok' => false], $structurer);
+ck('a long meeting\'s minutes are finished', (string) $db->query("SELECT status FROM recordings WHERE id = $rid3")->fetchColumn() === 'done');
+$m3 = $db->query('SELECT summary, decisions, action_items FROM meeting_transcripts WHERE meeting_id = ' . (int) $r3x['meeting']['id'])->fetch(PDO::FETCH_ASSOC);
+$dec = json_decode((string) $m3['decisions'], true); $acts = json_decode((string) $m3['action_items'], true);
+ck('they cover every part, not the first 20 minutes', count($dec) === 4 && in_array('Decision 3', $dec, true) && $calls >= 5, json_encode([$dec, $calls]));
+ck('action items come from every part, repeats once', count($acts) === 5 && count(array_filter($acts, static fn($a) => $a['task'] === 'Send the report')) === 1);
+ck('decisions are never taken from the combining call', !in_array('IGNORED', $dec, true));
+ck('the summary is of the whole meeting', $m3['summary'] === 'The whole board meeting.');
+$full = (string) $db->query("SELECT transcript FROM recordings WHERE id = $rid3")->fetchColumn();
+ck('the whole transcript is kept with the recording', str_contains($full, 'WORDS3') && mb_strlen($full) > 60000);
+ck('and the note says where to find it', str_contains((string) $db->query("SELECT note FROM recordings WHERE id = $rid3")->fetchColumn(), 'whole of it is on the recording page'));
+ck('the transcript splits at part boundaries', count(Recorder::splitForMinutes("a\n\nb\n\nc", 3)) === 3 && Recorder::splitForMinutes('abcdefgh', 3) === ['abc', 'def', 'gh']);
+ck('a stored transcript fits a MySQL TEXT column, accents and all', (function () use ($db, $devA, $rid3, $r3x) {
+    $row = $db->query('SELECT raw_text FROM meeting_transcripts WHERE meeting_id = ' . (int) $r3x['meeting']['id'])->fetchColumn();
+    return strlen((string) $row) <= 65000;
+})());
+
+// 4. One recording that throws does not stop the others.
+$r4a = (int) Recorder::start($devA, ['title' => 'Throws'])['recording_id'];
+$r4b = Recorder::start($devBb, ['title' => 'Fine']);
+$send($devA, $r4a, 0, 0, 'x'); Recorder::segmentDone($devA, $r4a, 0, 1, 0, 'audio/webm'); Recorder::finish($devA, $r4a, 1);
+$send($devBb, (int) $r4b['recording_id'], 0, 0, 'y'); Recorder::segmentDone($devBb, (int) $r4b['recording_id'], 0, 1, 0, 'audio/webm'); Recorder::finish($devBb, (int) $r4b['recording_id'], 1);
+Recorder::sweep(20, static fn() => ['ok' => true, 'text' => $long(9) . ' ' . $long(9)]);   // longer than one piece: both go to "summarising"
+Recorder::sweep(60, static fn() => ['ok' => false], static function (string $t) use ($db, $r4a) {
+    static $n = 0;
+    if ($n++ === 0) throw new RuntimeException('database went away');
+    return ['ok' => true, 'summary' => 's', 'highlights' => [], 'decisions' => [], 'action_items' => []];
+});
+ck('a recording that throws is marked failed', (string) $db->query("SELECT status FROM recordings WHERE id = $r4a")->fetchColumn() === 'failed');
+ck('and the next one is still finished', (string) $db->query('SELECT status FROM recordings WHERE id = ' . (int) $r4b['recording_id'])->fetchColumn() === 'done');
+ck('MySQL gets MEDIUMTEXT for the long columns', str_contains((string) file_get_contents(AV_ROOT . '/lib/Recorder.php'), "['recordings', 'transcript', 'MEDIUMTEXT NOT NULL']"));
+
+// 5. One person's long queue does not hold up everyone else.
+putenv('AV_REC_TRANSCRIBE_PARTS_DAY=' . (Recorder::transcribedToday(1)));   // Ada is at her limit
+$r5a = (int) Recorder::start($devA, ['title' => 'Backlog'])['recording_id'];
+for ($n = 0; $n < 60; $n++) { $send($devA, $r5a, $n, 0, "b$n"); Recorder::segmentDone($devA, $r5a, $n, 1, $n * 600, 'audio/webm'); }
+$r5b = (int) Recorder::start($devBb, ['title' => 'Bode later'])['recording_id'];
+$send($devBb, $r5b, 0, 0, 'mine'); Recorder::segmentDone($devBb, $r5b, 0, 1, 0, 'audio/webm');
+$o5 = Recorder::sweep(20, static fn() => ['ok' => true, 'text' => 'z']);
+ck('someone else is transcribed past a capped person\'s 60 waiting parts', $o5['transcribed'] === 1
+    && (string) $db->query("SELECT state FROM recording_segments WHERE recording_id = $r5b")->fetchColumn() === 'done');
+putenv('AV_REC_TRANSCRIBE_PARTS_DAY');
+
+// Minor: consent stands once the minutes exist; the listen page's title names no meeting.
+$db->exec("UPDATE recordings SET consent = 'none' WHERE id = $rid3");
+Recorder::finish($devA, $rid3, 4, [], 0, 'confirmed');
+ck('consent cannot be changed after the minutes are written', (string) $db->query("SELECT consent FROM recordings WHERE id = $rid3")->fetchColumn() === 'none');
+ck('the listen page title never carries the meeting\'s name', str_contains((string) file_get_contents(AV_ROOT . '/portal/recording.php'), '<title>Meeting recording · Afrovanguard</title>'));

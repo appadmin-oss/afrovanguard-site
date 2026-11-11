@@ -5,6 +5,7 @@
  *   GET ?meeting=N                 the page: each recording, its marked moments, who talked how much
  *   GET ?action=audio&part=N       one part's audio, with byte ranges so the player can seek
  *   GET ?action=zip&rec=N          every part of one recording, as a zip
+ *   GET ?action=transcript&rec=N   the whole transcript, as text (the meeting page keeps the first hour)
  *
  * Works with no AI transcriber at all: this is how a person writes the
  * minutes by hand. Only the meeting's participants (and those who may manage
@@ -90,6 +91,19 @@ if ($action === 'zip') {
     @unlink($tmp);
     exit;
 }
+/* ── the whole transcript, as text ────────────────────────────────── */
+if ($action === 'transcript') {
+    $rid = (int) ($_GET['rec'] ?? 0);
+    $st = Database::pdo()->prepare("SELECT meeting_id, started_at, transcript FROM recordings WHERE id = ? AND status <> 'cancelled'");
+    $st->execute([$rid]);
+    $r = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$r || !Recorder::mayListen($uid, (int) $r['meeting_id']) || trim((string) $r['transcript']) === '') $deny(404, 'Not found.');
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Content-Disposition: attachment; filename="meeting-transcript-' . $rid . '-' . preg_replace('/[^0-9-]/', '', substr((string) $r['started_at'], 0, 10)) . '.txt"');
+    header('Cache-Control: private, no-store');
+    echo (string) $r['transcript'];
+    exit;
+}
 if ($action !== '') $deny(400, 'Unknown action.');
 
 /* ── the page ─────────────────────────────────────────────────────── */
@@ -110,7 +124,7 @@ header('Cache-Control: private, no-store');
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Recording · <?= e((string) $meeting['title']) ?></title>
+<title>Meeting recording · Afrovanguard</title><!-- never the meeting's name: a page title is what analytics reports, and these meetings can be private -->
 <style>
   :root { --ink:#15120e; --muted:#5d6470; --line:#e7e9ee; --bg:#f5f6f8; --card:#fff; --brand:#e4162b; --me:#1f6feb; --them:#8a5cf6; --warn:#9a5b00; }
   @media (prefers-color-scheme: dark) { :root { --ink:#f1efe9; --muted:#a8adb7; --line:#2b2f36; --bg:#111317; --card:#1a1d22; --me:#58a6ff; --them:#b392f0; --warn:#e0a640; } }
@@ -157,7 +171,7 @@ header('Cache-Control: private, no-store');
     <p class="muted small"><?= e($when($r['started_at'])) ?><?= count($r['parts']) ? ' · ' . count($r['parts']) . (count($r['parts']) === 1 ? ' part' : ' parts') . ' of up to 10 minutes' : '' ?></p>
 <?php if ($r['waiting']): ?>
     <p class="note">No transcriber is set up on this site yet, so there are no written minutes for this recording. Listen here and write them on the meeting; or ask an admin to add one (Studio → Setup → AI) — it will then be transcribed by itself.</p>
-<?php elseif (in_array($r['status'], ['recording', 'finished'], true)): ?>
+<?php elseif (in_array($r['status'], ['recording', 'finished', 'summarising'], true)): ?>
     <p class="note">The minutes are still being written. You can listen in the meantime.</p>
 <?php endif; ?>
 
@@ -198,7 +212,7 @@ header('Cache-Control: private, no-store');
 <?php endif; ?>
 
 <?php if ($playable): ?>
-    <div class="actions"><a href="/portal/recording.php?action=zip&amp;rec=<?= (int) $r['id'] ?>">Download the recording (zip)</a></div>
+    <div class="actions"><a href="/portal/recording.php?action=zip&amp;rec=<?= (int) $r['id'] ?>">Download the recording (zip)</a><?php if ($r['has_transcript']): ?><a href="/portal/recording.php?action=transcript&amp;rec=<?= (int) $r['id'] ?>">Download the whole transcript</a><?php endif; ?></div>
 <?php endif; ?>
   </section>
 <?php endforeach; ?>

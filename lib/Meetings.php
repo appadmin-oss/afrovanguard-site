@@ -871,11 +871,25 @@ final class Meetings
     /** ── Transcripts: store raw + AI-structure Otter-style ────────────── */
     public static function saveTranscript(int $uid, int $id, string $rawText, string $source = 'paste'): array
     {
+        return self::saveStructured($uid, $id, $rawText, $source, null);
+    }
+
+    /**
+     * Store a transcript and its minutes. $given: minutes already written
+     * (the Meeting Recorder writes a long meeting's in parts, because
+     * structure() reads only the first meetings.transcript_char_limit
+     * characters); null writes them here, as saveTranscript always has.
+     */
+    public static function saveStructured(int $uid, int $id, string $rawText, string $source, ?array $given): array
+    {
         self::ensure();
         if (!self::isParticipant($uid, $id)) return ['ok' => false, 'error' => 'Not your meeting.'];
         $rawText = trim($rawText);
         if ($rawText === '') return ['ok' => false, 'error' => 'Paste the transcript text first.'];
         $rawText = mb_substr($rawText, 0, 60000);
+        // And in bytes: 60,000 characters with accents (Yoruba, Igbo) is more
+        // than a MySQL TEXT column holds, and strict mode refuses the row.
+        if (strlen($rawText) > 65000) $rawText = mb_strcut($rawText, 0, 65000, 'UTF-8');
         $source  = in_array($source, ['paste', 'upload', 'google', 'bot', 'recorder'], true) ? $source : 'paste';
         $db = Database::pdo();
         $db->prepare('DELETE FROM meeting_transcripts WHERE meeting_id = ?')->execute([$id]);
@@ -883,8 +897,8 @@ final class Meetings
            ->execute([$id, $source, $rawText, self::now()]);
         $db->prepare('UPDATE meetings SET status = \'done\' WHERE id = ? AND status = \'scheduled\'')->execute([$id]);
 
-        $st = self::structure($rawText);
-        if ($st['ok']) {
+        $st = $given ?? self::structure($rawText);
+        if (!empty($st['ok'])) {
             $db->prepare('UPDATE meeting_transcripts SET summary=?, highlights=?, decisions=?, action_items=?, structured=1 WHERE meeting_id=?')
                ->execute([
                    $st['summary'],
@@ -899,7 +913,7 @@ final class Meetings
             // confirm it (commitments.auto_assign_owner ships off).
             self::fileCommitments($id, (array) $st['action_items']);
         }
-        return ['ok' => true, 'structured' => $st['ok'], 'note' => $st['ok'] ? '' : ($st['error'] ?? ''), 'transcript' => self::transcript($id)];
+        return ['ok' => true, 'structured' => !empty($st['ok']), 'note' => !empty($st['ok']) ? '' : ($st['error'] ?? ''), 'transcript' => self::transcript($id)];
     }
 
     /**

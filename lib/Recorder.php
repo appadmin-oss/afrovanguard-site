@@ -112,7 +112,10 @@ final class Recorder
         // v1.4: what the person recording actually did about telling the others:
         // 'none', 'reminded' (the reminder was on their screen), 'confirmed' (they said they told everyone).
         foreach ([['recording_segments', 'talk', 'TEXT'], ['recording_segments', 'utterances', 'TEXT'], ['recordings', 'people_max', 'INTEGER NOT NULL DEFAULT 0'],
-                  ['recordings', 'consent', "VARCHAR(12) NOT NULL DEFAULT 'none'"], ['recordings', 'consent_at', "VARCHAR(32) NOT NULL DEFAULT ''"]] as [$t, $c, $decl]) {
+                  ['recordings', 'consent', "VARCHAR(12) NOT NULL DEFAULT 'none'"], ['recordings', 'consent_at', "VARCHAR(32) NOT NULL DEFAULT ''"],
+                  // v1.5: a long meeting's minutes, written part by part across cron ticks; and
+                  // whether this recording wrote the meeting's minutes (so more audio may rewrite them).
+                  ['recordings', 'minutes_work', 'TEXT'], ['recordings', 'wrote_minutes', 'INTEGER NOT NULL DEFAULT 0']] as [$t, $c, $decl]) {
             try { Database::pdo()->query("SELECT $c FROM $t LIMIT 1"); }
             catch (Throwable $e) { Database::pdo()->exec("ALTER TABLE $t ADD COLUMN $c $decl"); }
         }
@@ -121,6 +124,26 @@ final class Recorder
            attendees and managers); this puts right the ones filed before the fix.
            Only rows from before it, so a later choice to open one is kept. */
         try { Database::pdo()->exec("UPDATE meetings SET minutes_private = 1 WHERE origin = 'recorder' AND minutes_private = 0 AND created_at < '2026-11-11 00:00:00'"); } catch (Throwable $e) { /* older schema */ }
+        /* MySQL's TEXT holds 64 KB: a long meeting's transcript is more, and strict
+           mode refuses the whole row. MEDIUMTEXT holds 16 MB. Checked, not assumed. */
+        if (Database::driver() === 'mysql') {
+            try {
+                $db = Database::pdo();
+                $q = $db->prepare("SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?");
+                foreach ([['recordings', 'transcript', 'MEDIUMTEXT NOT NULL'], ['recordings', 'minutes_work', 'MEDIUMTEXT'], ['recording_segments', 'utterances', 'MEDIUMTEXT'], ['recording_segments', 'text', 'MEDIUMTEXT NOT NULL']] as [$t, $c, $decl]) {
+                    $q->execute([$t, $c]);
+                    if (strtolower((string) ($q->fetch(PDO::FETCH_ASSOC)['DATA_TYPE'] ?? '')) === 'text') $db->exec("ALTER TABLE $t MODIFY $c $decl");
+                }
+            } catch (Throwable $e) { error_log('[recorder] mediumtext: ' . $e->getMessage()); }
+        }
+    }
+
+    /** More audio arrived for a recording that was already closed (abandoned, then the browser came back). */
+    private static function reopen(array $r): void
+    {
+        if (!in_array((string) $r['status'], ['done', 'failed', 'duplicate', 'summarising'], true)) return;
+        Database::pdo()->prepare("UPDATE recordings SET status = 'recording', minutes_work = NULL, note = ?, updated_at = ? WHERE id = ? AND status IN ('done','failed','duplicate','summarising')")
+           ->execute(['More audio arrived after the minutes were written; they will be written again from all of it.', self::now(), (int) $r['id']]);
     }
 
     private static function now(): string { return gmdate('Y-m-d H:i:s'); }
@@ -419,7 +442,9 @@ final class Recorder
         self::ensure();
         $r = self::own($device, $rid);
         if (!$r) return ['ok' => false, 'error' => 'Not your recording.', 'status' => 404];
-        if (in_array((string) $r['status'], ['cancelled', 'done', 'failed', 'duplicate'], true)) return ['ok' => false, 'error' => 'This recording is closed.', 'status' => 409];
+        // Only a recording someone cancelled is closed for good. One the server closed itself
+        // (the browser went quiet for hours) takes the rest of its audio and is written again.
+        if ((string) $r['status'] === 'cancelled') return ['ok' => false, 'error' => 'This recording was cancelled.', 'status' => 409];
         if ($seg < 0 || $seg >= self::MAX_SEGMENTS || $idx < 0 || $idx >= self::MAX_CHUNKS) return ['ok' => false, 'error' => 'Chunk out of range.', 'status' => 422];
         if ($size <= 0 || $size > self::chunkBytes() + 1024) return ['ok' => false, 'error' => 'Chunk too large for this host.', 'status' => 413];
         if (!preg_match('/^[a-f0-9]{64}$/', $sha)) return ['ok' => false, 'error' => 'Missing checksum.', 'status' => 422];
@@ -435,6 +460,7 @@ final class Recorder
         if (!is_file($tmpFile) || hash_file('sha256', $tmpFile) !== $sha) return ['ok' => false, 'error' => 'Checksum mismatch — send it again.', 'status' => 422, 'retry' => true];
         $moved = is_uploaded_file($tmpFile) ? @move_uploaded_file($tmpFile, $dest) : @rename($tmpFile, $dest);
         if (!$moved) return ['ok' => false, 'error' => 'The server could not store the chunk.', 'status' => 500, 'retry' => true];
+        self::reopen($r);
         self::touch($rid);
         return ['ok' => true];
     }
@@ -460,6 +486,7 @@ final class Recorder
             // Stop pressed just after a segment began: an empty part, nothing to transcribe.
             Database::pdo()->prepare("INSERT INTO recording_segments (recording_id, seg_no, state, offset_sec, bytes, mime, path, updated_at, talk) VALUES (?,?,'done',?,0,'audio/webm','',?,?)")
                ->execute([$rid, $seg, max(0, $offsetSec), self::now(), $talkJson]);
+            self::reopen($r);
             self::touch($rid);
             return ['ok' => true, 'bytes' => 0];
         }
@@ -491,6 +518,7 @@ final class Recorder
             throw $e;
         }
         for ($i = 0; $i < $chunks; $i++) @unlink(self::partPath($rid, $seg, $i));
+        self::reopen($r);
         self::touch($rid);
         return ['ok' => true, 'bytes' => $bytes];
     }
@@ -511,9 +539,11 @@ final class Recorder
         if ($marks) Database::pdo()->prepare('UPDATE recordings SET marks = ? WHERE id = ?')->execute([json_encode($marks), $rid]);
         if ($people > 0) Database::pdo()->prepare('UPDATE recordings SET people_max = ? WHERE id = ?')->execute([min(500, $people), $rid]);
         // Only what happened: the reminder was shown, or the person recording said they told everyone.
+        // And only while the recording is open: once its minutes exist, the record stands as it was.
+        $open = in_array((string) $r['status'], ['recording', 'finished'], true);
         $consent = in_array($consent, ['none', 'reminded', 'confirmed'], true) ? $consent : 'none';
         $at = preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $consentAt) ? $consentAt : ($consent === 'confirmed' ? self::now() : '');
-        Database::pdo()->prepare('UPDATE recordings SET consent = ?, consent_at = ?, consent_shown = ? WHERE id = ?')
+        if ($open) Database::pdo()->prepare('UPDATE recordings SET consent = ?, consent_at = ?, consent_shown = ? WHERE id = ?')
            ->execute([$consent, $consent === 'none' ? '' : $at, $consent === 'confirmed' ? 1 : 0, $rid]);
         $have = self::segmentNumbers($rid);
         $missing = array_values(array_diff(range(0, max(0, $segments - 1)), $have));
@@ -623,6 +653,7 @@ final class Recorder
             $out[] = [
                 'id' => (int) $r['id'], 'by' => (string) ($r['by_name'] ?? ''), 'started_at' => (string) $r['started_at'],
                 'consent' => (string) ($r['consent'] ?? 'none'), 'consent_at' => (string) ($r['consent_at'] ?? ''),
+                'has_transcript' => trim((string) ($r['transcript'] ?? '')) !== '',
                 'status' => (string) $r['status'], 'waiting' => in_array((string) $r['status'], ['recording', 'finished'], true) && !self::canTranscribe(),
                 'parts' => $parts, 'marks' => self::cleanMarks(json_decode((string) ($r['marks'] ?? ''), true) ?: []),
                 'talk' => ['me' => (int) round($me), 'them' => (int) round($them), 'me_name' => $names['me'] !== '' ? $names['me'] : (string) ($r['by_name'] ?? ''), 'them_name' => $names['them']],
@@ -660,8 +691,9 @@ final class Recorder
      * gives a web-cron 30–60 s), then writes minutes for recordings that are
      * complete, closes ones the browser abandoned, and deletes old audio.
      */
-    public static function sweep(int $budgetSec = 25, ?callable $transcriber = null): array
+    public static function sweep(int $budgetSec = 25, ?callable $transcriber = null, ?callable $structurer = null): array
     {
+        $structurer = $structurer ?? [Meetings::class, 'structure'];
         self::ensure();
         $t0 = microtime(true);
         $out = ['transcribed' => 0, 'failed' => 0, 'finalised' => 0, 'abandoned' => 0, 'purged' => 0];
@@ -679,20 +711,21 @@ final class Recorder
         }
 
         if (self::canTranscribe() || $transcriber !== [self::class, 'transcribe']) {
-            $pick = $db->prepare("SELECT s.*, r.user_id FROM recording_segments s JOIN recordings r ON r.id = s.recording_id
-                                  WHERE s.state = 'ready' AND s.attempts < ? AND r.status IN ('recording','finished')
-                                  ORDER BY s.recording_id, s.seg_no LIMIT 50");
-            $capped = [];
+            $capped = [];   // owner => true once over today's allowance: left out IN THE QUERY, so one
+                            // person's long queue can never hide everyone else's behind it
             while (microtime(true) - $t0 < $budgetSec) {
+                $skip = array_keys(array_filter($capped));
+                $pick = $db->prepare("SELECT s.*, r.user_id FROM recording_segments s JOIN recordings r ON r.id = s.recording_id
+                                      WHERE s.state = 'ready' AND s.attempts < ? AND r.status IN ('recording','finished')"
+                                      . ($skip ? ' AND r.user_id NOT IN (' . implode(',', array_map('intval', $skip)) . ')' : '')
+                                      . ' ORDER BY s.recording_id, s.seg_no LIMIT 1');
                 $pick->execute([self::MAX_ATTEMPTS]);
-                $s = null;
-                // The first part whose owner is still inside today's transcription allowance.
-                foreach ($pick->fetchAll(PDO::FETCH_ASSOC) ?: [] as $c) {
-                    $owner = (int) $c['user_id'];
-                    if (!isset($capped[$owner])) $capped[$owner] = self::transcribedToday($owner) >= self::dailyParts();
-                    if (!$capped[$owner]) { $s = $c; break; }
-                }
+                $s = $pick->fetch(PDO::FETCH_ASSOC) ?: null;
+                $pick->closeCursor();
                 if (!$s) break;
+                $owner = (int) $s['user_id'];
+                if (!isset($capped[$owner])) $capped[$owner] = self::transcribedToday($owner) >= self::dailyParts();
+                if ($capped[$owner]) continue;          // asked again without them
                 // Claim it, so an overlapping cron tick does not transcribe it twice.
                 $claim = $db->prepare("UPDATE recording_segments SET state = 'transcribing', attempts = attempts + 1, updated_at = ? WHERE id = ? AND state = 'ready'");
                 $claim->execute([self::now(), (int) $s['id']]);
@@ -704,7 +737,7 @@ final class Recorder
                     $db->prepare("UPDATE recording_segments SET state = 'done', text = ?, utterances = ?, error = '', updated_at = ? WHERE id = ?")
                        ->execute([trim((string) $res['text']), $utt, self::now(), (int) $s['id']]);
                     $out['transcribed']++;
-                    unset($capped[(int) $s['user_id']]);   // counted again next time round
+                    unset($capped[$owner]);   // counted again next time round
                 } else {
                     $final = (int) $s['attempts'] + 1 >= self::MAX_ATTEMPTS || $bytes === '';
                     $db->prepare('UPDATE recording_segments SET state = ?, error = ?, updated_at = ? WHERE id = ?')
@@ -715,13 +748,32 @@ final class Recorder
             }
         }
 
-        // A segment left "transcribing" by a tick that was killed mid-request goes back in the queue.
-        $db->prepare("UPDATE recording_segments SET state = 'ready' WHERE state = 'transcribing' AND updated_at < ?")
-           ->execute([gmdate('Y-m-d H:i:s', time() - 600)]);
+        // A segment left "transcribing" by a tick that was killed mid-request goes back in the
+        // queue — unless that was its last try, or it would wait for ever (picked only below
+        // MAX_ATTEMPTS, and the recording waits for every part to be done or failed).
+        $db->prepare("UPDATE recording_segments SET state = CASE WHEN attempts >= ? THEN 'failed' ELSE 'ready' END,
+                             error = CASE WHEN attempts >= ? THEN 'Transcription was interrupted on its last try.' ELSE error END
+                      WHERE state = 'transcribing' AND updated_at < ?")
+           ->execute([self::MAX_ATTEMPTS, self::MAX_ATTEMPTS, gmdate('Y-m-d H:i:s', time() - 600)]);
 
+        // One recording that cannot be finished must not stop the others (or the clean-up below).
         $fin = $db->query("SELECT * FROM recordings WHERE status = 'finished'");
         foreach ($fin->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
-            if (self::finalise($r)) $out['finalised']++;
+            try { if (self::finalise($r)) $out['finalised']++; }
+            catch (Throwable $e) { self::giveUp((int) $r['id'], $e); }
+        }
+
+        // A long meeting's minutes, one part per model call, as long as the tick has time.
+        $out['summarised'] = 0;
+        $sum = $db->query("SELECT id FROM recordings WHERE status = 'summarising' ORDER BY id LIMIT 5");
+        foreach ($sum->fetchAll(PDO::FETCH_COLUMN) ?: [] as $rid) {
+            try {
+                while (microtime(true) - $t0 < $budgetSec) {
+                    $step = self::summariseStep((int) $rid, $structurer);
+                    if ($step === 'done') { $out['summarised']++; $out['finalised']++; break; }
+                    if ($step === 'wait') break;
+                }
+            } catch (Throwable $e) { self::giveUp((int) $rid, $e); }
         }
 
         $out['purged'] = self::purge();
@@ -909,16 +961,126 @@ final class Recorder
         $existing = $db->prepare('SELECT source FROM meeting_transcripts WHERE meeting_id = ?');
         $existing->execute([$mid]);
         $src = $existing->fetchColumn();
-        if ($src !== false && $src !== null) {
+        // ... except minutes this same recording wrote before more of its audio arrived.
+        $mine = (int) ($r['wrote_minutes'] ?? 0) === 1 && $src === 'recorder';
+        if ($src !== false && $src !== null && !$mine) {
             $db->prepare("UPDATE recordings SET status = 'duplicate', transcript = ?, note = ?, updated_at = ? WHERE id = ?")
                ->execute([$text, 'The meeting already had minutes; this transcript is kept with the recording.', self::now(), $rid]);
             return true;
         }
+        // Longer than the minutes-writer reads in one go: write them part by part, over the next ticks.
+        if (mb_strlen($text) > self::charLimit()) {
+            $db->prepare("UPDATE recordings SET status = 'summarising', transcript = ?, minutes_work = ?, note = ?, updated_at = ? WHERE id = ?")
+               ->execute([$text, json_encode(['parts' => [], 'fails' => 0, 'note' => $note]), 'The minutes of this long meeting are being written part by part.', self::now(), $rid]);
+            return false;
+        }
         $res = Meetings::saveTranscript((int) $r['user_id'], $mid, $text, 'recorder');
         $ok = !empty($res['ok']);
-        $db->prepare('UPDATE recordings SET status = ?, transcript = ?, note = ?, updated_at = ? WHERE id = ?')
-           ->execute([$ok ? 'done' : 'failed', $text, $ok ? $note : mb_substr((string) ($res['error'] ?? 'The minutes could not be saved.'), 0, 500), self::now(), $rid]);
+        $db->prepare('UPDATE recordings SET status = ?, transcript = ?, note = ?, wrote_minutes = ?, updated_at = ? WHERE id = ?')
+           ->execute([$ok ? 'done' : 'failed', $text, $ok ? $note : mb_substr((string) ($res['error'] ?? 'The minutes could not be saved.'), 0, 500), $ok ? 1 : 0, self::now(), $rid]);
         return true;
+    }
+
+    /** How much transcript the minutes-writer reads per call (the Studio rule it already uses). */
+    public static function charLimit(): int
+    {
+        $n = class_exists('AvRules') ? (int) AvRules::int('meetings.transcript_char_limit') : 20000;
+        return $n > 1000 ? $n : 20000;
+    }
+
+    /** Split a transcript into pieces of at most $limit characters, at part boundaries where it can. */
+    public static function splitForMinutes(string $text, int $limit): array
+    {
+        $out = []; $cur = '';
+        foreach (preg_split("/\n{2,}/u", $text) ?: [] as $block) {
+            while (mb_strlen($block) > $limit) {                 // one part longer than a piece: cut it
+                if ($cur !== '') { $out[] = $cur; $cur = ''; }
+                $out[] = mb_substr($block, 0, $limit);
+                $block = mb_substr($block, $limit);
+            }
+            if ($cur !== '' && mb_strlen($cur) + 2 + mb_strlen($block) > $limit) { $out[] = $cur; $cur = ''; }
+            $cur = $cur === '' ? $block : $cur . "\n\n" . $block;
+        }
+        if (trim($cur) !== '') $out[] = $cur;
+        return $out;
+    }
+
+    /**
+     * One step of a long meeting's minutes: write the next piece's, or, when
+     * every piece is written, combine them and save. Returns 'more' (call
+     * again if time allows), 'wait' (the model failed; try next tick) or 'done'.
+     */
+    public static function summariseStep(int $rid, callable $structurer): string
+    {
+        $db = Database::pdo();
+        $st = $db->prepare("SELECT * FROM recordings WHERE id = ? AND status = 'summarising'");
+        $st->execute([$rid]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$r) return 'done';
+        $work = json_decode((string) ($r['minutes_work'] ?? ''), true) ?: ['parts' => [], 'fails' => 0, 'note' => ''];
+        $pieces = self::splitForMinutes((string) $r['transcript'], self::charLimit());
+        $i = count($work['parts']);
+        $save = static function (array $w) use ($db, $rid): void {
+            $db->prepare('UPDATE recordings SET minutes_work = ?, updated_at = ? WHERE id = ?')->execute([json_encode($w, JSON_UNESCAPED_UNICODE), self::now(), $rid]);
+        };
+        if ($i < count($pieces)) {
+            $res = $structurer($pieces[$i]);
+            if (empty($res['ok'])) {
+                if (++$work['fails'] < self::MAX_ATTEMPTS) { $save($work); return 'wait'; }
+                $work['parts'][] = null; $work['fails'] = 0;    // give this piece up; the rest still count
+            } else {
+                $work['parts'][] = array_intersect_key($res, array_flip(['summary', 'highlights', 'decisions', 'action_items']));
+                $work['fails'] = 0;
+            }
+            $save($work);
+            return 'more';
+        }
+
+        // Every piece written: one more call turns the parts' minutes into the meeting's.
+        $parts = array_values(array_filter($work['parts']));
+        $lost = count($work['parts']) - count($parts);
+        if (!$parts) {
+            $db->prepare("UPDATE recordings SET status = 'failed', note = ?, updated_at = ? WHERE id = ?")->execute(['The minutes could not be written (the model did not answer).', self::now(), $rid]);
+            return 'done';
+        }
+        $uniq = static function (array $xs): array { $seen = []; $out = []; foreach ($xs as $x) { $k = mb_strtolower(trim(is_array($x) ? (string) ($x['task'] ?? '') : (string) $x)); if ($k !== '' && !isset($seen[$k])) { $seen[$k] = 1; $out[] = $x; } } return $out; };
+        $decisions = $uniq(array_merge(...array_map(static fn($p) => (array) ($p['decisions'] ?? []), $parts)));
+        $actions = $uniq(array_merge(...array_map(static fn($p) => (array) ($p['action_items'] ?? []), $parts)));
+        $highlights = $uniq(array_merge(...array_map(static fn($p) => (array) ($p['highlights'] ?? []), $parts)));
+        $summary = implode(' ', array_map(static fn($p) => trim((string) ($p['summary'] ?? '')), $parts));
+        if (count($parts) > 1) {
+            $digest = "These are the minutes of the consecutive parts of ONE long meeting, in order. Write the minutes of the whole meeting from them.\n\n";
+            foreach ($parts as $k => $p) {
+                $digest .= 'Part ' . ($k + 1) . ":\nSummary: " . (string) ($p['summary'] ?? '') . "\n"
+                         . ((array) ($p['highlights'] ?? []) ? 'Highlights: ' . implode('; ', (array) $p['highlights']) . "\n" : '')
+                         . ((array) ($p['decisions'] ?? []) ? 'Decisions: ' . implode('; ', (array) $p['decisions']) . "\n" : '') . "\n";
+            }
+            $whole = $structurer($digest);
+            if (!empty($whole['ok'])) {
+                $summary = (string) ($whole['summary'] ?? $summary);
+                if (!empty($whole['highlights'])) $highlights = (array) $whole['highlights'];
+            }
+        }
+        // Decisions and action items come from every part as written, not from the
+        // combining call, which could drop one: an action item is somebody's commitment.
+        $minutes = ['ok' => true, 'summary' => $summary, 'highlights' => array_slice($highlights, 0, 12), 'decisions' => $decisions, 'action_items' => $actions];
+        $res = Meetings::saveStructured((int) $r['user_id'], (int) $r['meeting_id'], (string) $r['transcript'], 'recorder', $minutes);
+        $note = trim(($work['note'] ?? '') . ' ' . ($lost ? $lost . ' of ' . count($work['parts']) . ' sections could not be summarised.' : '')
+              . (mb_strlen((string) $r['transcript']) > 60000 ? ' The meeting page shows the first hour of the transcript; the whole of it is on the recording page.' : ''));
+        $ok = !empty($res['ok']);
+        $db->prepare('UPDATE recordings SET status = ?, note = ?, wrote_minutes = ?, minutes_work = NULL, updated_at = ? WHERE id = ?')
+           ->execute([$ok ? 'done' : 'failed', mb_substr($ok ? $note : (string) ($res['error'] ?? 'The minutes could not be saved.'), 0, 500), $ok ? 1 : 0, self::now(), $rid]);
+        return 'done';
+    }
+
+    /** A recording the cron could not finish: logged, marked, and never allowed to stall the rest. */
+    private static function giveUp(int $rid, Throwable $e): void
+    {
+        error_log('[recorder] recording ' . $rid . ': ' . $e->getMessage());
+        try {
+            Database::pdo()->prepare("UPDATE recordings SET status = 'failed', note = ?, updated_at = ? WHERE id = ?")
+               ->execute(['The minutes could not be finished (a server error). The audio and transcript are kept.', self::now(), $rid]);
+        } catch (Throwable $e2) { /* the database itself is unwell; the next tick tries again */ }
     }
 
     private static function clock(int $sec): string

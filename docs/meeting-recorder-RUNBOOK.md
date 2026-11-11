@@ -1,6 +1,6 @@
 # Meeting Recorder: runbook
 
-Owner: **to be named** (the person who holds the signing key) · Version date: 2026-11-11 · Extension version: 1.4.0
+Owner: **to be named** (the person who holds the signing key) · Version date: 2026-11-11 · Extension version: 1.4.0 (server 1.5)
 
 The Meeting Recorder is a Chrome extension that records a meeting from the
 browser tab (the meeting's sound plus your microphone) and turns it into
@@ -135,6 +135,8 @@ opens a new Meet room.
 | A lost laptop, or someone who left | Its token can still upload | The user (portal → Meeting Recorder → *Disconnect*), or a superadmin on `/admin/recorder.php` → *Connected browsers* → *Disconnect*. A token also stops by itself when its owner is no longer a member |
 | *"Your recording space is full"* | The person passed `AV_REC_QUOTA_MB` in 30 days | The audio waits in their browser and is retried hourly; raise the quota, or wait for older recordings to age out |
 | Parts stay untranscribed for a day | The person passed `AV_REC_TRANSCRIBE_PARTS_DAY` | They continue the next day (UTC) by themselves |
+| A long meeting shows "being written" for a while | Minutes longer than the minutes-writer reads in one go are written part by part, one AI call per cron run | Nothing; a two-hour meeting takes a few runs. The whole transcript is downloadable from the recording page; the meeting page shows its first hour |
+| The browser was offline for hours, then came back | The server closed the recording with what had arrived and wrote minutes | Nothing: the rest of the audio is accepted when it arrives, and the minutes are written again from all of it |
 | Cron stopped after this update | The scheduler still sends the admin token, which is no longer accepted | Paste the command from `/admin/recorder.php` → *Scheduled job* into cPanel → Cron Jobs |
 | Chrome says the extension is *corrupted* | The `.crx` was served with the wrong type or modified | Check `.htaccess` has `AddType application/x-chrome-extension .crx`; rebuild |
 
