@@ -436,7 +436,7 @@ render_nav('academy');
           </div>
 <?php else: ?>
           <p>Tell us who you are and we will hold your place. The pass is <?= e($pass['label']) ?> for all four days — our team confirms payment with you directly afterwards.</p>
-          <ul class="dns-checklist">
+          <ul class="dns-checklist" role="list">
             <li>All seven sessions across the four days</li>
             <li><?= e($venueLine) ?>, from <?= e($SUMMIT['time_label']) ?></li>
             <li>Group seats held together — just say how many</li>

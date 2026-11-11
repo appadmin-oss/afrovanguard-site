@@ -583,3 +583,7 @@ html.av-si .avh .avh-drawer-ctas{grid-template-columns:1fr}
    button and the menu button pushed the menu 35px off the edge. */
 .avh-brand{min-width:0}
 @media (max-width:380px){.avh-nav-in{gap:10px}.avh-brand img{width:32px;height:32px;margin-right:8px}.avh-brand span{font-size:22px}.avh-narrow{gap:6px}}
+
+/* WCAG 2.2 — 2.4.11 Focus Not Obscured. The header is sticky: a link reached
+   by Tab or by a screen reader's cursor must not scroll in underneath it. */
+html{scroll-padding-top:96px}

@@ -26,7 +26,7 @@ function avcw_open(array $o): void
     avh_nav();
     echo '<main id="main" tabindex="-1" class="avcw-main avh-pad"><div class="avh-wrap">' . "\n";
     if (!empty($o['crumbs'])) {
-        echo '<nav aria-label="Breadcrumb"><ol class="avac-crumbs">';
+        echo '<nav aria-label="Breadcrumb"><ol class="avac-crumbs" role="list">';
         foreach ($o['crumbs'] as [$label, $url]) {
             echo $url ? '<li><a href="' . e((string) $url) . '">' . e((string) $label) . '</a></li>' : '<li><span aria-current="page">' . e((string) $label) . '</span></li>';
         }

@@ -100,7 +100,7 @@ $projects = [
 <header class="avac-hero avh-pad">
   <div class="avh-topo" data-avh-topo="light" data-seed="7" aria-hidden="true"></div>
   <div class="avh-wrap">
-    <nav aria-label="Breadcrumb"><ol class="avac-crumbs"><li><a href="/">Home</a></li><li><span aria-current="page">Academy</span></li></ol></nav>
+    <nav aria-label="Breadcrumb"><ol class="avac-crumbs" role="list"><li><a href="/">Home</a></li><li><span aria-current="page">Academy</span></li></ol></nav>
     <div class="avac-hero-grid">
       <h1>Learn. Build. Lead Africa.</h1>
       <div class="avac-hero-side">
@@ -112,27 +112,27 @@ $projects = [
       </div>
     </div>
 <?php if ($summit): $sv = $summit['venue']; ?>
-    <a class="avac-summit" href="/academy/dns/">
+    <div class="avac-summit avac-stretch-box">
       <span class="avac-summit-tag"><?= Summit::isLive() ? 'Happening now' : 'The summit' ?> · <?= e($summit['edition']) ?></span>
-      <span class="avac-summit-t"><?= e($summit['name']) ?></span>
+      <span class="avac-summit-t"><a class="avac-stretch" href="/academy/dns/"><?= e($summit['name']) ?></a></span>
       <span class="avac-summit-d"><?= e($summit['date_label']) ?> · <?= e($sv['name']) ?>, <?= e($sv['area']) ?>, <?= e($sv['city']) ?> · <?= e($summit['pass']['label']) ?> for all four days</span>
-      <span class="avac-summit-go">Claim your seat →</span>
-    </a>
+      <span class="avac-summit-go" aria-hidden="true">Claim your seat →</span>
+    </div>
 <?php endif; ?>
-    <a class="avac-ngv" href="/academy/ngv/" aria-labelledby="avac-ngv-h" aria-describedby="avac-ngv-p">
+    <div class="avac-ngv avac-stretch-box">
       <span class="avac-ngv-copy">
         <span class="avac-ngv-tag"><span class="avac-live" aria-hidden="true"></span>Flagship programme · Now enrolling</span>
-        <span class="avac-ngv-h" id="avac-ngv-h">NextGen Vanguard — stop scrolling, start earning.</span>
-        <span class="avac-ngv-p" id="avac-ngv-p">Future-ready tech, media, business &amp; leadership skills for young Africans — with weekly stipends, six global certifications and a real internship.</span>
+        <span class="avac-ngv-h"><a class="avac-stretch" href="/academy/ngv/">NextGen Vanguard — stop scrolling, start earning.</a></span>
+        <span class="avac-ngv-p">Future-ready tech, media, business &amp; leadership skills for young Africans — with weekly stipends, six global certifications and a real internship.</span>
         <span class="avac-ngv-pts">
           <span><b>Weekly</b><i>Stipends while you learn</i></span>
           <span><b>6</b><i>Global certifications</i></span>
           <span><b>Real</b><i>Internship placement</i></span>
         </span>
-        <span class="avac-gold">Explore NextGen Vanguard →</span>
+        <span class="avac-gold" aria-hidden="true">Explore NextGen Vanguard →</span>
       </span>
       <img class="avac-ngv-img" src="/assets/site/ngv/ngv-flyer.png" alt="" loading="lazy" decoding="async">
-    </a>
+    </div>
   </div>
 </header>
 
@@ -144,14 +144,14 @@ $projects = [
     </div>
 
 <?php if ($fc): $fUrl = '/academy/' . rawurlencode((string) $fc['slug']) . '/'; $ftone = avac_access((string) ($fc['access_type'] ?? 'open'))['tone']; ?>
-    <a class="avac-feat" href="<?= e($fUrl) ?>" aria-labelledby="avac-feat-h" aria-describedby="avac-feat-k avac-feat-p">
+    <div class="avac-feat avac-stretch-box">
       <span class="avac-feat-media"><?= avac_cover($fc, 'avac-feat-img') ?>
         <span class="avac-chip avac-chip--<?= e($ftone) ?>"><?= e(avac_price($fc)) ?><?= (int) $feat['enrolled'] === 0 ? ' · New' : '' ?></span>
       </span>
       <span class="avac-feat-body">
-        <span class="avac-kick" id="avac-feat-k"><?= e((string) $fc['category']) ?> · Featured course</span>
-        <span class="avac-feat-h" id="avac-feat-h"><?= e((string) $fc['title']) ?></span>
-        <span class="avac-feat-p" id="avac-feat-p"><?= e((string) $fc['summary']) ?></span>
+        <span class="avac-kick"><?= e((string) $fc['category']) ?> · Featured course</span>
+        <span class="avac-feat-h"><a class="avac-stretch" href="<?= e($fUrl) ?>"><?= e((string) $fc['title']) ?></a></span>
+        <span class="avac-feat-p"><?= e((string) $fc['summary']) ?></span>
         <span class="avac-pills">
 <?php foreach (array_filter([(string) ($fc['level'] ?? ''), (string) ($fc['duration'] ?? ''), 'Certificate']) as $pill): ?>
           <span><?= e($pill) ?></span>
@@ -160,9 +160,9 @@ $projects = [
 <?php if ($feat['state'] !== '' && $feat['lessons']): ?>
         <span class="avac-prog"><span class="avac-bar"><span style="width:<?= (int) $feat['pct'] ?>%"></span></span><span class="av-num"><?= (int) $feat['pct'] ?>%</span><span class="av-sr"> complete</span></span>
 <?php endif; ?>
-        <span class="avac-btn"><?= e(avac_cta((string) $feat['state'])) ?> →</span>
+        <span class="avac-btn" aria-hidden="true"><?= e(avac_cta((string) $feat['state'])) ?> →</span>
       </span>
-    </a>
+    </div>
 <?php endif; ?>
 
 <?php if ($grid): ?>
@@ -204,7 +204,7 @@ $projects = [
       </div>
     </form>
     <p class="avac-count" data-avac-count role="status" aria-live="polite"><?= $shownCount === count($grid) ? 'Showing all ' . count($grid) : 'Showing ' . $shownCount . ' of ' . count($grid) ?></p>
-    <ul class="avac-grid" data-avac-grid>
+    <ul class="avac-grid" data-avac-grid role="list">
 <?php foreach ($grid as $r) avac_card($r, !isset($shownIds[(int) $r['course']['id']])); ?>
     </ul>
     <div class="avac-none" data-avac-none<?= $shownCount ? ' hidden' : '' ?>>
@@ -233,7 +233,7 @@ $projects = [
       <div><div class="avac-eyebrow">Programmes</div><h2 class="avac-h2 avac-h2--sm" id="avac-progs-h">Earn a programme certificate</h2></div>
       <a class="avac-more" href="/academy/programmes/">All programmes →</a>
     </div>
-    <ul class="avac-prog-list">
+    <ul class="avac-prog-list" role="list">
 <?php foreach (array_slice($programmes, 0, 3) as $p): ?>
       <li><a href="/academy/programmes/<?= e(rawurlencode((string) $p['slug'])) ?>/"><span class="avac-prog-k av-num"><?= e(avac_plural((int) $p['course_count'], 'course')) ?> series</span><span class="avac-prog-t"><?= e((string) $p['title']) ?></span><span class="avac-prog-d"><?= e((string) $p['summary']) ?></span></a></li>
 <?php endforeach; ?>
@@ -248,7 +248,7 @@ $projects = [
       <div><div class="avac-eyebrow">Beyond the classroom</div><h2 class="avac-h2 avac-h2--sm" id="avac-proj-h">Learn by doing in our projects</h2></div>
       <a class="avac-more" href="/projects/">All seven projects →</a>
     </div>
-    <ul class="avac-proj-grid">
+    <ul class="avac-proj-grid" role="list">
 <?php foreach ($projects as [$img, $k, $t, $h]): $ext = str_starts_with($h, 'http'); ?>
       <li><a href="<?= e($h) ?>"<?= $ext ? ' target="_blank" rel="noopener"' : '' ?>>
         <img src="<?= e($img) ?>" alt="" loading="lazy" decoding="async">
@@ -269,7 +269,7 @@ $projects = [
     </div>
     <div class="avac-plan" data-avac-paycard>
       <p class="avac-plan-price"><span class="av-num">₦<?= e(number_format((int) AV_MEMBERSHIP_NGN)) ?></span><span>/ year</span></p>
-      <ul class="avac-perks">
+      <ul class="avac-perks" role="list">
         <li>Unlock the full catalogue</li>
         <li>Priority places in new cohorts</li>
         <li>Verifiable certificates</li>
@@ -289,7 +289,7 @@ $projects = [
 </section>
 
 <section class="avac-links avh-pad" aria-label="More from the Academy">
-  <ul class="avh-wrap avac-links-grid">
+  <ul class="avh-wrap avac-links-grid" role="list">
     <li><a href="/academy/dns/"><i>DNS ’26</i><b>D’Vanguard National Summit</b><span>Learn more →</span></a></li>
     <li><a href="/academy/teach/"><i>Teach</i><b>Teach with us</b><span>Apply to teach →</span></a></li>
     <li><a href="/mentorship/become-a-mentor/"><i>Mentorship</i><b>Become a mentor</b><span>Get started →</span></a></li>

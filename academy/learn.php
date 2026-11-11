@@ -107,7 +107,7 @@ avac_head([
     <a class="avle-course" href="<?= e($courseUrl) ?>"><?= e((string) $course['title']) ?></a>
   </div>
   <div class="avle-top-r">
-    <span class="avle-ring" style="--p:<?= $pct ?>" aria-hidden="true"></span><span class="avle-ring-n av-num" data-avle-count><?= (int) $progress['completed'] ?>/<?= (int) $progress['total'] ?></span><span class="av-sr" data-avle-count-sr><?= (int) $progress['completed'] ?> of <?= (int) $progress['total'] ?> lessons complete</span>
+    <span class="avle-ring" style="--p:<?= $pct ?>" aria-hidden="true"></span><span class="avle-ring-n av-num" data-avle-count aria-hidden="true"><?= (int) $progress['completed'] ?>/<?= (int) $progress['total'] ?></span><span class="av-sr" data-avle-count-sr><?= (int) $progress['completed'] ?> of <?= (int) $progress['total'] ?> lessons complete</span>
 <?php if ($coachOn): ?>    <button type="button" class="avle-btn avle-btn--line avle-coach-btn" data-avle-coach-toggle aria-controls="avle-coach" aria-expanded="false">Ask Coach</button>
 <?php endif; ?>
 <?php if ($user && $canAccess): ?>    <a class="avle-btn avle-btn--line avle-hide-sm" href="<?= e($gradesUrl) ?>">Grades</a>
@@ -139,7 +139,7 @@ avac_head([
         <span><span class="avle-mod-t"><?= e((string) $m['title']) ?></span><span class="avle-mod-n av-num" data-avle-modcount><?= $mDone ?>/<?= count($m['lessons']) ?> complete</span></span>
         <span class="avle-chev" aria-hidden="true">▼</span>
       </button>
-      <ul class="avle-items" id="avle-mod-<?= (int) $m['id'] ?>"<?= $open ? '' : ' hidden' ?>>
+      <ul class="avle-items" role="list" id="avle-mod-<?= (int) $m['id'] ?>"<?= $open ? '' : ' hidden' ?>>
 <?php foreach ($m['lessons'] as $l):
         $done = in_array((int) $l['id'], $doneIds, true); $cur = $l['slug'] === $lessonSlug;
         [$tl, $tg] = avle_type((string) ($l['type'] ?? 'reading')); ?>
@@ -245,7 +245,7 @@ avac_head([
     </div>
     <div class="avle-about">
       <div class="avle-about-k av-num"><?= $mins ? $mins . ' min · ' : '' ?>Video lesson</div>
-      <div class="avle-body avle-prose-sm"><?= $lesson['body_html'] ?></div>
+      <article class="avle-body avle-prose-sm" aria-label="<?= e((string) $lesson['title']) ?>"><?= $lesson['body_html'] ?></article>
     </div>
 <?php else: ?>
     <div class="avle-meta"><?php if ($modTitle !== ''): ?><span><?= e($modTitle) ?></span><span aria-hidden="true">·</span><?php endif; ?><span class="av-num">Lesson <?= $lessonNum ?> of <?= $lessonTotal ?></span><span class="avle-type"><span aria-hidden="true"><?= $typeGlyph ?></span><?= e($typeLabel) ?><?= $mins ? ' · ' . $mins . ' min' : '' ?></span></div>
@@ -262,14 +262,14 @@ avac_head([
       </ul>
     </aside>
 <?php endif; ?>
-    <div class="avle-body"><?= $lesson['body_html'] ?></div>
+    <article class="avle-body" aria-label="<?= e((string) $lesson['title']) ?>"><?= $lesson['body_html'] ?></article>
 <?php endif; ?>
 
 <?php $transcript = trim((string) ($lesson['transcript'] ?? '')); $hasCues = $lType === 'video' && !empty($caps) && ($vid['kind'] ?? '') === 'file'; ?>
 <?php if ($transcript !== '' || $hasCues): ?>
     <details class="avle-trans" data-avle-trans<?= $hasCues ? ' data-cues="1"' : '' ?>>
       <summary>Transcript</summary>
-      <ol class="avle-cues" data-avle-cues hidden></ol>
+      <ol class="avle-cues" data-avle-cues hidden role="list"></ol>
 <?php if ($transcript !== ''): ?>      <div class="avle-trans-text" data-avle-trans-text><?= nl2br(e($transcript)) ?></div>
 <?php endif; ?>
     </details>
@@ -399,16 +399,16 @@ if ($curMod && (trim((string) ($curMod['summary'] ?? '')) !== '' || LmsCoursewar
 
   <div class="avle-bar-wrap">
     <div class="avle-barline<?= $lType === 'video' ? ' avle-barline--video' : '' ?>">
-<?php if ($prev): ?>      <a class="avle-btn avle-btn--line avle-btn--lg" href="<?= e($learnUrl((string) $prev['slug'])) ?>" data-avle-prev>← Previous</a>
+<?php if ($prev): ?>      <a class="avle-btn avle-btn--line avle-btn--lg" href="<?= e($learnUrl((string) $prev['slug'])) ?>" data-avle-prev><span aria-hidden="true">← </span>Previous<span class="av-sr"> lesson: <?= e((string) $prev['title']) ?></span></a>
 <?php endif; ?>
       <div class="avle-bar-r">
         <span class="avle-keys" aria-hidden="true">N next · P prev<?= $selfComplete ? ' · K complete' : '' ?> · S contents</span>
 <?php if ($selfComplete): ?>
-        <button type="button" class="avle-btn avle-btn--lg" data-avle-complete data-done="<?= $isDone ? '1' : '0' ?>"<?= $next ? ' data-next="' . e($nextUrl) . '"' : '' ?>><?= $isDone ? 'Completed ✓' : 'Mark complete' . ($next ? ' & continue' : '') ?></button>
+        <button type="button" class="avle-btn avle-btn--lg" data-avle-complete data-done="<?= $isDone ? '1' : '0' ?>"<?= $next ? ' data-next="' . e($nextUrl) . '"' : '' ?>><?= $isDone ? 'Completed' : 'Mark complete' . ($next ? ' & continue' : '') ?></button>
 <?php else: ?>
-        <span class="avle-qstatus<?= $isDone ? ' is-done' : '' ?>" data-avle-qstatus><?= $isDone ? 'Completed ✓' : ($quiz ? 'Quiz required' : ($lType === 'assignment' ? 'Submission required' : 'Response required')) ?></span>
+        <span class="avle-qstatus<?= $isDone ? ' is-done' : '' ?>" data-avle-qstatus><?= $isDone ? 'Completed' : ($quiz ? 'Quiz required' : ($lType === 'assignment' ? 'Submission required' : 'Response required')) ?></span>
 <?php endif; ?>
-<?php if ($next): ?>        <a class="avle-btn avle-btn--line avle-btn--lg" href="<?= e($nextUrl) ?>" data-avle-next>Next →</a>
+<?php if ($next): ?>        <a class="avle-btn avle-btn--line avle-btn--lg" href="<?= e($nextUrl) ?>" data-avle-next>Next<span class="av-sr"> lesson: <?= e((string) $next['title']) ?></span><span aria-hidden="true"> →</span></a>
 <?php endif; ?>
       </div>
     </div>

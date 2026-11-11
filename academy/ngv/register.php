@@ -183,7 +183,7 @@ a{color:var(--red)}
 h1,h2{margin:0;letter-spacing:-.01em}
 :focus-visible{outline:3px solid var(--orange);outline-offset:2px}
 .chk{display:flex;gap:.6rem;align-items:flex-start;margin:.9rem 0;font-size:.95rem;line-height:1.45}
-.chk input{margin-top:.25rem;width:1.1rem;height:1.1rem;flex:none}
+.chk input{margin-top:.1rem;width:1.5rem;height:1.5rem;flex:none}
 .skip{position:absolute;left:-9999px;top:0;background:#fff;color:var(--ink);font-weight:700;padding:10px 16px;border-radius:0 0 10px 0;z-index:10}
 .skip:focus{left:0}
 

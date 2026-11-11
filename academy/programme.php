@@ -47,7 +47,7 @@ if (!$p) {
 <?php if (!$all): ?>
 <p class="avcw-empty">No programmes yet. <a href="/academy/#catalogue">Browse single courses →</a></p>
 <?php else: ?>
-<ul class="avac-prog-list">
+<ul class="avac-prog-list" role="list">
 <?php foreach ($all as $x): ?>
   <li><a href="/academy/programmes/<?= e(rawurlencode((string) $x['slug'])) ?>/"><span class="avac-prog-k av-num"><?= e(avac_plural((int) $x['course_count'], 'course')) ?> series</span><span class="avac-prog-t"><?= e((string) $x['title']) ?></span><span class="avac-prog-d"><?= e((string) $x['summary']) ?></span></a></li>
 <?php endforeach; ?>
@@ -85,7 +85,7 @@ avcw_open([
 <?php if (trim(strip_tags((string) $p['body_html'])) !== ''): ?>
 <div class="avcw-body"><?= $p['body_html'] ?></div>
 <?php endif; ?>
-<ol class="avcw-series">
+<ol class="avcw-series" role="list">
 <?php foreach ($courses as $i => $r): $c = $r['course']; $f = $st[(int) $c['id']] ?? ['lessons' => 0, 'rating' => 0, 'ratings' => 0]; ?>
   <li class="<?= $r['certified'] ? 'is-done' : '' ?>">
     <span class="avcw-series-n av-num" aria-hidden="true"><?= $r['certified'] ? '✓' : $i + 1 ?></span>

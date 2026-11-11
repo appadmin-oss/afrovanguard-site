@@ -66,7 +66,7 @@ avcw_open([
 <p class="avcw-note">Join this course to take part. <a href="<?= e(academy_url($slug . '/')) ?>">See how →</a></p>
 <?php endif; ?>
 <?php if ($threads): ?>
-<ul class="avcw-threads">
+<ul class="avcw-threads" role="list">
 <?php foreach ($threads as $t): ?>
   <li class="<?= (int) $t['hidden'] ? 'is-hidden' : '' ?>">
     <a href="<?= e($base . '/' . (int) $t['id']) ?>">
@@ -104,7 +104,7 @@ avcw_open([
   <div class="avcw-body"><?= nl2br(e((string) $thread['body'])) ?></div>
 <?php endif; ?>
   <h2 class="avcw-h2"><?= e(avac_plural(count($posts), 'reply')) ?></h2>
-  <ol class="avcw-posts">
+  <ol class="avcw-posts" role="list">
 <?php foreach ($posts as $p): ?>
     <li class="<?= (int) $p['hidden'] ? 'is-hidden' : '' ?>">
       <div class="avcw-post-h"><b><?= e((string) ($p['author'] ?? 'Learner')) ?></b><?php if (in_array((string) ($p['author_role'] ?? ''), ['instructor', 'coordinator', 'admin'], true)): ?> <span class="avcw-chip avcw-chip--ok">Staff</span><?php endif; ?><span class="av-num"><?= e($day((string) $p['created_at'])) ?></span>

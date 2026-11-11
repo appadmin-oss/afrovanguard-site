@@ -40,7 +40,7 @@ avcw_open([
 <?php if (!$rows): ?>
 <p class="avcw-empty">No submissions here.</p>
 <?php else: ?>
-<ul class="avcw-queue">
+<ul class="avcw-queue" role="list">
 <?php foreach ($rows as $r): ?>
   <li class="avcw-sub-card">
     <div class="avcw-card-top">

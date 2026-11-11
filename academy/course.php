@@ -163,7 +163,7 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 <header class="avco-hero avh-pad">
   <div class="avh-topo" data-avh-topo="light" data-seed="7" aria-hidden="true"></div>
   <div class="avh-wrap">
-    <nav aria-label="Breadcrumb"><ol class="avac-crumbs avco-crumbs"><li><a href="/academy/">Academy</a></li><li><span aria-current="page"><?= e((string) $c['title']) ?></span></li></ol></nav>
+    <nav aria-label="Breadcrumb"><ol class="avac-crumbs avco-crumbs" role="list"><li><a href="/academy/">Academy</a></li><li><span aria-current="page"><?= e((string) $c['title']) ?></span></li></ol></nav>
     <div class="avco-hero-grid">
       <div class="avco-hero-copy">
         <div class="avac-eyebrow"><?= e((string) $c['category']) ?> · Afrovanguard Academy</div>
@@ -205,7 +205,7 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 <?php if ($outcomes): ?>
         <div>
           <h2 class="avco-h2">What you’ll learn</h2>
-          <ul class="avco-learn">
+          <ul class="avco-learn" role="list">
 <?php foreach ($outcomes as $o): ?>            <li><?= e($o) ?></li>
 <?php endforeach; ?>
           </ul>
@@ -214,7 +214,7 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 <?php if ($skills): ?>
         <div>
           <h2 class="avco-h2">Skills you’ll gain</h2>
-          <ul class="avco-skills">
+          <ul class="avco-skills" role="list">
 <?php foreach ($skills as $sk): ?>            <li><?= e($sk) ?></li>
 <?php endforeach; ?>
           </ul>
@@ -262,7 +262,7 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 <?php foreach ($objs as $ob): ?>          <li><?= e($ob) ?></li>
 <?php endforeach; ?>        </ul></details>
 <?php endif; ?>
-        <ol class="avco-lessons">
+        <ol class="avco-lessons" role="list">
 <?php foreach ($m['lessons'] as $l):
             $n++;
             $lOpen = $openMap[(int) $l['id']] ?? false;
@@ -303,7 +303,7 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 <?php if ($rating['count'] > 0): ?>
         <div class="avco-rsum">
           <div class="avco-rsum-n"><b class="av-num"><?= e(number_format((float) $rating['avg'], 1)) ?></b><span aria-hidden="true">★</span><span class="av-num"><?= e(avac_plural((int) $rating['count'], 'rating')) ?></span></div>
-          <ul class="avco-rdist" aria-label="Ratings by stars">
+          <ul class="avco-rdist" aria-label="Ratings by stars" role="list">
 <?php foreach ($rating['dist'] as $stars => $cnt): $pc = $rating['count'] ? (int) round($cnt / $rating['count'] * 100) : 0; ?>
             <li><span class="av-num"><?= $stars ?> ★</span><span class="avac-bar"><span style="width:<?= $pc ?>%"></span></span><span class="av-num"><?= $pc ?>%</span></li>
 <?php endforeach; ?>
@@ -328,7 +328,7 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
         <p class="avco-sub avco-sub--flat"><a href="/login" data-avac-auth="login">Sign in</a> and enrol to rate this course.</p>
 <?php endif; ?>
 <?php if ($reviews): ?>
-        <ul class="avco-reviews">
+        <ul class="avco-reviews" role="list">
 <?php foreach ($reviews as $rv): ?>
           <li><div class="avco-rv-h"><span class="avco-rv-s" aria-label="<?= (int) $rv['rating'] ?> out of 5"><?= str_repeat('★', (int) $rv['rating']) ?><span class="avco-rv-off"><?= str_repeat('★', 5 - (int) $rv['rating']) ?></span></span><b><?= e((string) $rv['author']) ?></b><span class="av-num"><?= e(substr((string) $rv['updated_at'], 0, 10)) ?></span></div><p><?= nl2br(e((string) $rv['body'])) ?></p></li>
 <?php endforeach; ?>
@@ -422,7 +422,7 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
   <div class="avh-topo" data-avh-topo="light" data-seed="11" aria-hidden="true"></div>
   <div class="avh-wrap">
     <div class="avco-more-head"><h2 class="avco-h2 avco-h2--more" id="avco-more-h">Keep learning</h2><a class="avac-more" href="/academy/#catalogue">View the full catalogue →</a></div>
-    <ul class="avac-grid">
+    <ul class="avac-grid" role="list">
 <?php foreach ($othersRows as $r) avac_card($r); ?>
     </ul>
   </div>

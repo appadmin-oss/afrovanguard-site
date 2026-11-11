@@ -111,7 +111,7 @@ if ($course) {
       <nav class="breadcrumb"><a href="<?= e(academy_url('teach/')) ?>">Dashboard</a><span class="sep">/</span><span><?= e($course['title']) ?></span></nav>
       <div class="teach-head-row">
         <h1 class="teach-h1"><?= e($course['title']) ?></h1>
-<?php if ($roster): ?>        <a class="btn btn-pill-ghost btn-sm teach-export" href="<?= e(academy_url('teach/' . $course['slug'] . '/')) ?>?export=csv">↓ Export CSV</a><?php endif; ?>
+<?php if ($roster): ?>        <a class="btn btn-pill-ghost btn-sm teach-export" href="<?= e(academy_url('teach/' . $course['slug'] . '/')) ?>?export=csv"><span aria-hidden="true">↓ </span>Export CSV<span class="av-sr"> of every learner's grades</span></a><?php endif; ?>
       </div>
       <div class="teach-stats">
         <div class="tstat"><span class="tn"><?= (int) $stats['enrolled'] ?></span><span class="tl">Learners</span></div>
@@ -136,7 +136,7 @@ if ($course) {
           <h2>Questions from your learners</h2>
           <p><?= $unanswered ? '<strong>' . (int) $unanswered . ' waiting for an answer</strong> — those come first.' : 'Every question has at least one reply. Nice.' ?></p>
         </div>
-        <ul class="ask-list">
+        <ul class="ask-list" role="list">
 <?php foreach (array_slice($asks, 0, 8) as $a): ?>
           <li class="ask is-open">
             <p class="ask-by"><b><?= e((string) ($a['author'] ?? 'A learner')) ?></b>
@@ -191,13 +191,13 @@ if ($course) {
 <?php if ($funnel): ?>
       <section class="funnel">
         <div class="funnel-head"><h2>Lesson completion</h2><p>How many of your <?= (int) $stats['enrolled'] ?> learner<?= $stats['enrolled'] === 1 ? '' : 's' ?> have finished each lesson — watch for the drop-off.</p></div>
-        <ol class="funnel-list">
+        <ol class="funnel-list" role="list">
 <?php foreach ($funnel as $fi => $f): ?>
           <li class="funnel-row">
             <span class="funnel-num"><?= $fi + 1 ?></span>
             <span class="funnel-title"><?= e($f['title']) ?></span>
             <span class="funnel-track"><span class="funnel-fill" style="width:<?= (int) $f['pct'] ?>%"></span></span>
-            <span class="funnel-val"><?= (int) $f['done'] ?> · <?= (int) $f['pct'] ?>%</span>
+            <span class="funnel-val"><span aria-hidden="true"><?= (int) $f['done'] ?> · <?= (int) $f['pct'] ?>%</span><span class="av-sr"><?= (int) $f['done'] ?> <?= (int) $f['done'] === 1 ? 'learner' : 'learners' ?> finished, <?= (int) $f['pct'] ?>%</span></span>
           </li>
 <?php endforeach; ?>
         </ol>

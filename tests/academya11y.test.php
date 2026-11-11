@@ -13,11 +13,15 @@ ck('academy a11y: the home page does not jump to the catalogue on load (the addr
    str_contains($js, 'let touched = false;') && str_contains($js, 'if (!touched || !form || !history.replaceState) return;'));
 
 $cards = (string) file_get_contents("$r/academy/_avac.php");
-ck('academy a11y: a course card\'s link is named by the course, its details are the description',
-   str_contains($cards, 'aria-labelledby="<?= $id ?>-t"') && str_contains($cards, 'id="<?= $id ?>-t"'));
+ck('academy a11y: a course card\'s TITLE is its link, stretched over the card — one short link, the card read once',
+   str_contains($cards, '<a class="avac-stretch" href="<?= e($url) ?>">') && !str_contains($cards, '<a class="avac-card-a"')
+   && str_contains($cards, '<span class="avac-card-go" aria-hidden="true">'));
 $idx = (string) file_get_contents("$r/academy/index.php");
-ck('academy a11y: so are the featured course and NextGen Vanguard links',
-   str_contains($idx, 'aria-labelledby="avac-feat-h"') && str_contains($idx, 'aria-labelledby="avac-ngv-h"'));
+ck('academy a11y: so are the featured course, NextGen Vanguard and the summit',
+   substr_count($idx, '<a class="avac-stretch"') === 3 && !preg_match('~<a class="avac-(feat|ngv|summit)"~', $idx));
+ck('academy a11y: the whole card still opens the link, and shows keyboard focus',
+   str_contains((string) file_get_contents("$r/academy/avac.css"), '.avac-stretch::after{content:"";position:absolute;inset:0')
+   && str_contains((string) file_get_contents("$r/academy/avac.css"), '.avac-stretch-box:has(.avac-stretch:focus-visible){outline:3px solid'));
 
 foreach (['academy/academy.css', 'academy/studio/studio.css', 'academy/ngv/register.php', 'academy/ngv/members.php', 'academy/ngv/edit.php', 'academy/ngv/ngv-dashboard.css'] as $f) {
     $t = (string) file_get_contents("$r/$f");
@@ -59,3 +63,26 @@ ck('academy a11y: the header fits 320px (400% zoom) — wordmark and gaps shrink
    str_contains((string) file_get_contents("$r/assets/site/avh.css"), '@media (max-width:380px){.avh-nav-in{gap:10px}'));
 ck('academy a11y: sign-in\'s upcoming steps are readable (was 2.57:1)',
    str_contains((string) file_get_contents("$r/assets/site/avsi.css"), 'font-weight:600;color:var(--av-muted)}'));
+
+/* What a screen reader SAYS (recorded with a virtual screen reader, 2026-11-11). */
+$chrome = (string) file_get_contents("$r/partials/avh-chrome.php");
+ck('screen reader: the avatar initials are not read after the account button', !preg_match('~data-avh-me-initial>~', $chrome) && str_contains($chrome, 'data-avh-me-initial aria-hidden="true">'));
+ck('screen reader: "opens in a new tab" in words, not "north-east arrow"', !str_contains($chrome, '<small>↗</small></a>') && str_contains($chrome, '<small aria-hidden="true">↗</small><span class="av-sr"> (opens in a new tab)</span>'));
+$learn = (string) file_get_contents("$r/academy/learn.php");
+ck('screen reader: Previous and Next name the lesson they go to', str_contains($learn, 'Previous<span class="av-sr"> lesson: ') && str_contains($learn, 'Next<span class="av-sr"> lesson: '));
+ck('screen reader: the lesson count is said once ("1 of 6 lessons complete"), not "1/6" first', str_contains($learn, 'data-avle-count aria-hidden="true">'));
+ck('screen reader: "Completed", not "Completed check mark" (the tick is CSS with empty alt)',
+   !str_contains($learn . (string) file_get_contents("$r/academy/avle.js"), 'Completed ✓') && str_contains((string) file_get_contents("$r/academy/avle.css"), 'content:" ✓" / ""'));
+$teach = (string) file_get_contents("$r/academy/teach.php");
+ck('screen reader: the gradebook says "2 learners finished, 100%", not "2 dot 100%"', str_contains($teach, "learners' ?> finished, "));
+
+/* Every device (2026-11-11): VoiceOver on iPhone and Mac, TalkBack on Android,
+   Narrator and Windows contrast themes, NVDA/JAWS, reader modes. */
+$avle = (string) file_get_contents("$r/academy/avle.css");
+ck('VoiceOver (Safari): a list styled without bullets still says "list, N items"',
+   str_contains($learn, '<ul class="avle-items" role="list"') && str_contains((string) file_get_contents("$r/academy/_avac.php") . (string) file_get_contents("$r/academy/index.php"), 'role="list"'));
+ck('Windows contrast themes: the chosen quiz answer is marked in system colours', (bool) preg_match('~@media \(forced-colors:active\)\{[^@]*\.avle-opt:has\(input:checked\)\{border:3px solid Highlight\}~', $avle));
+ck('Focus not obscured (WCAG 2.4.11): sticky header and lesson bar leave room for focus',
+   str_contains((string) file_get_contents("$r/assets/site/avh.css"), 'html{scroll-padding-top:96px}') && str_contains($avle, 'html:has(.avle-bar-wrap){scroll-padding-bottom:110px}'));
+ck('Reader modes (Edge Immersive Reader, Safari Reader): the lesson is an <article>', substr_count($learn, '<article class="avle-body') === 2);
+ck('Target size (WCAG 2.5.8): NGV form checkboxes are 24px', str_contains((string) file_get_contents("$r/academy/ngv/register.php"), '.chk input{margin-top:.1rem;width:1.5rem;height:1.5rem;flex:none}'));

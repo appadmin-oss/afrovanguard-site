@@ -235,7 +235,7 @@
           if (!d || !d.ok) { toast((d && d.error) || 'Please sign in.'); if (d && /sign in/i.test(d.error || '')) goLogin(); return; }
           const now = !done;
           btn.dataset.done = now ? '1' : '0';
-          btn.textContent = now ? 'Completed ✓' : 'Mark complete' + (next ? ' & continue' : '');
+          btn.textContent = now ? 'Completed' : 'Mark complete' + (next ? ' & continue' : '');
           paint(d.progress, now);
           if (now && next && !(d.progress && d.progress.complete)) { if (!showUp()) setTimeout(() => { location.href = next; }, 500); }
           else cancelUp();
@@ -286,7 +286,7 @@
           else say('You scored ' + d.score + '%. ' + (d.passed ? 'Passed.' : 'You need ' + d.pass + '% to pass.') + left, d.passed);
           const st = $('[data-avle-qstatus]');
           const doneNow = d.passed || !graded;
-          if (st && doneNow) { st.textContent = 'Completed ✓'; st.classList.add('is-done'); }
+          if (st && doneNow) { st.textContent = 'Completed'; st.classList.add('is-done'); }
           if (b) { b.textContent = 'Try again'; if (d.attempts_left === 0) b.hidden = true; }
           paint(d.progress, doneNow ? true : undefined);
           if (doneNow && d.progress && !d.progress.complete) showUp();
@@ -342,7 +342,7 @@
           }
           ta.value = '';
           tell('Posted.', true);
-          const st = $('[data-avle-qstatus]'); if (st) { st.textContent = 'Completed ✓'; st.classList.add('is-done'); }
+          const st = $('[data-avle-qstatus]'); if (st) { st.textContent = 'Completed'; st.classList.add('is-done'); }
           if (d.progress) { paint(d.progress, true); if (!d.progress.complete) showUp(); }
         })
         .catch(() => tell('Network error — please try again.', false))
@@ -381,7 +381,7 @@
         post('lesson_complete', { course, lesson }).then(d => {
           if (!d || !d.ok) { sent = false; return; }
           const b = $('[data-avle-complete]');
-          if (b) { b.dataset.done = '1'; b.textContent = 'Completed ✓'; }
+          if (b) { b.dataset.done = '1'; b.textContent = 'Completed'; }
           paint(d.progress, true);
         }).catch(() => { sent = false; });
       }

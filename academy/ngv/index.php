@@ -231,7 +231,7 @@ $hero = $c['hero'] ?? [];
           <div class="ngv-plan-price"><?= e((string) ($p['price'] ?? '')) ?><?php if (!empty($p['price_note'])): ?><small><?= e((string) $p['price_note']) ?></small><?php endif; ?></div>
           <p class="ngv-plan-desc"><?= e((string) ($p['desc'] ?? '')) ?></p>
 <?php if (!empty($p['features'])): ?>
-          <ul class="ngv-plan-feats">
+          <ul class="ngv-plan-feats" role="list">
 <?php foreach ((array) $p['features'] as $f): ?>            <li><?= e((string) $f) ?></li>
 <?php endforeach; ?>
           </ul>
@@ -307,7 +307,7 @@ $hero = $c['hero'] ?? [];
         <span class="ngv-eyebrow">The Vanguard difference</span>
         <h2 class="ngv-h2"><?= e($g($c, 'why_title', 'Why choose us')) ?></h2>
       </div>
-      <ul class="ngv-ticks">
+      <ul class="ngv-ticks" role="list">
 <?php foreach ($c['why'] as $w): ?>        <li><?= e((string) $w) ?></li>
 <?php endforeach; ?>
       </ul>

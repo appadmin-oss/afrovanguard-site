@@ -329,3 +329,19 @@ body.avle{margin:0;background:var(--av-white);color:var(--av-ink);font-family:va
 /* A question left unanswered at submit: marked, not only announced. */
 .avle-q.is-missing{border-left:4px solid #b42318;padding-left:12px}
 .avle-noaccess{margin:14px 0 0;padding:12px 14px;border-left:4px solid #8a6406;background:rgba(243,180,22,.10);font-size:15px;line-height:1.55}
+/* The tick is decoration: drawn by CSS with empty alt text, so a screen reader says "Completed", not "Completed check mark". */
+.avle-qstatus.is-done::after,[data-avle-complete][data-done="1"]::after{content:" ✓" / ""}
+
+/* The lesson's bar is sticky at the bottom: keep focused answers above it (2.4.11). */
+html:has(.avle-bar-wrap){scroll-padding-bottom:110px}
+
+/* Windows contrast themes (forced colours) throw away backgrounds, so the
+   answer a learner picked looked exactly like the others. Mark it with
+   system colours the theme keeps. */
+@media (forced-colors:active){
+  .avle-opt{border:1px solid CanvasText}
+  .avle-opt:has(input:checked){border:3px solid Highlight}
+  .avle-opt:has(input:checked) .avle-opt-k{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Highlight}
+  .avle-opt.is-key{border:3px solid Highlight}
+  .avle-q.is-missing{border-left-color:Mark}
+}
