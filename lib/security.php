@@ -360,14 +360,37 @@ function av_client_ip(): string {
     }
     return $remote;
 }
+/**
+ * Count one hit in a bucket file and say whether it is within $max per $window.
+ * ATOMIC: the file is locked from the read to the write. Reading, then writing
+ * with LOCK_EX only on the write, let parallel requests (a login or OTP burst)
+ * all read the same count and all pass — the limit held one at a time only.
+ */
+function av_rate_hit(string $key, int $max, int $window): bool {
+    $fh = @fopen($key, 'c+');
+    if (!$fh) return true;                        // the cache is unwritable: fail open, as before, rather than lock everyone out
+    try {
+        if (!flock($fh, LOCK_EX)) return true;
+        $now = time();
+        $hits = json_decode((string) stream_get_contents($fh), true) ?: [];
+        $hits = array_values(array_filter((array) $hits, fn($t) => is_int($t) && $t > $now - $window));
+        if (count($hits) >= $max) return false;
+        $hits[] = $now;
+        ftruncate($fh, 0); rewind($fh);
+        fwrite($fh, json_encode($hits));
+        fflush($fh);
+        return true;
+    } finally {
+        @flock($fh, LOCK_UN);
+        fclose($fh);
+    }
+}
+
 function av_rate_ok(string $bucket, int $max, int $window): bool {
     $dir = AV_ROOT . '/db/cache/rl'; if (!is_dir($dir)) @mkdir($dir, 0775, true);
     $key = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', $bucket . '_' . av_client_ip()) . '.json';
-    $now = time(); $hits = [];
-    if (is_file($key)) { $hits = json_decode((string) @file_get_contents($key), true) ?: []; }
-    $hits = array_values(array_filter($hits, fn($t) => $t > $now - $window));
-    if (count($hits) >= $max) return false;
-    $hits[] = $now; @file_put_contents($key, json_encode($hits), LOCK_EX);
+    $now = time();
+    if (!av_rate_hit($key, $max, $window)) return false;
     // Opportunistic prune (~1% of calls) so stale buckets don't accumulate.
     if (($now % 97) === 0) { foreach ((array) @glob($dir . '/*.json') as $f) { if (@filemtime($f) < $now - 86400) @unlink($f); } }
     return true;
@@ -396,12 +419,7 @@ function av_cron_key(): array {
 function av_rate_ok_for(string $bucket, string $who, int $max, int $window): bool {
     $dir = AV_ROOT . '/db/cache/rl'; if (!is_dir($dir)) @mkdir($dir, 0775, true);
     $key = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', 'who_' . $bucket . '_' . $who) . '.json';
-    $now = time(); $hits = [];
-    if (is_file($key)) { $hits = json_decode((string) @file_get_contents($key), true) ?: []; }
-    $hits = array_values(array_filter($hits, fn($t) => $t > $now - $window));
-    if (count($hits) >= $max) return false;
-    $hits[] = $now; @file_put_contents($key, json_encode($hits), LOCK_EX);
-    return true;
+    return av_rate_hit($key, $max, $window);
 }
 
 /**

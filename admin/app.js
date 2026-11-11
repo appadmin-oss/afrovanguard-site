@@ -3985,7 +3985,7 @@
   }
 
   /* ── Offline payments: credited only once the receipt is checked ── */
-  var OFF_LABEL = { verified: 'Checked and credited', held: 'Held — not credited', rejected: 'Rejected', pending: 'Being checked' };
+  var OFF_LABEL = { verified: 'Confirmed and credited', checked: 'Receipt checked — confirm the money arrived', held: 'Held — not credited', rejected: 'Rejected', pending: 'Being checked' };
   var OFF_CHECK = { evidence: 'Is a payment receipt', amount: 'Amount', payee: 'Paid to Afrovanguard', date: 'Date', reference: 'Reference', reused: 'Not used before', tampering: 'No sign of editing', confidence: 'Legible', reader: 'Reader', credit: 'Credit' };
   var offCanOverride = false, offMe = '';
   function loadOffline() {
@@ -3996,14 +3996,18 @@
       offCanOverride = !!d.can_override;
       offMe = String(d.me || '').trim().toLowerCase();
       $('#offReader').textContent = d.reader ? 'Receipts are read by Gemini.' : 'Receipt reading is not configured (AV_GEMINI_API_KEY), so every offline payment is held. A Super Admin can approve one with a written reason.';
-      var held = (d.counts || {}).held || 0; $('#offHeldBadge').hidden = !held; $('#offHeldBadge').textContent = held;
+      var held = ((d.counts || {}).held || 0) + ((d.counts || {}).checked || 0); $('#offHeldBadge').hidden = !held; $('#offHeldBadge').textContent = held;
       box.innerHTML = (d.payments || []).length ? d.payments.map(function (p) {
         var checks = p.checks || {};
         var lines = Object.keys(checks).map(function (k) { var ok = checks[k] === 'ok'; return '<div class="tiny ' + (ok ? 'muted' : '') + '">' + (ok ? '✓ ' : '✗ ') + escapeHtml(OFF_CHECK[k] || k) + (ok ? '' : ' — ' + escapeHtml(checks[k])) + '</div>'; }).join('');
         /* Nobody signs off their own money: the same refusal the server makes,
            said here before the press rather than after it. */
         var mine = offMe && (offMe === String(p.submitted_by || '').trim().toLowerCase() || offMe === String(p.email || '').trim().toLowerCase());
-        var acts = p.status === 'held' ? '<button class="btn btn-outline btn-sm" data-off="verify" data-id="' + p.id + '">Check again</button>'
+        /* Checked: the receipt passed, the money has not been seen. An admin looks at the
+           account and confirms — an image is evidence about money, not money. */
+        var acts = p.status === 'checked' ? '<button class="btn btn-primary btn-sm" data-off="confirm" data-id="' + p.id + '"' + (mine ? ' disabled title="This is your own payment. Another admin confirms it."' : '') + '>Confirm the money arrived…</button>'
+            + '<button class="btn btn-outline btn-sm" data-off="reject" data-id="' + p.id + '">Reject</button>'
+          : p.status === 'held' ? '<button class="btn btn-outline btn-sm" data-off="verify" data-id="' + p.id + '">Check again</button>'
             + '<button class="btn btn-outline btn-sm" data-off="reject" data-id="' + p.id + '">Reject</button>'
             + (offCanOverride ? '<button class="btn btn-outline btn-sm" data-off="override" data-id="' + p.id + '"' + (mine ? ' disabled title="This is your own payment. Another Super Admin approves it against the check."' : '') + '>Approve against the check…</button>' : '') : '';
         return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(p.name || ('#' + p.user_id)) + ' — ₦' + Number(p.amount_ngn).toLocaleString('en-NG')
@@ -4367,7 +4371,7 @@
       if (amount === 0) { msChange({ do: 'grant', months: +$('#ms_months').value, amount_ngn: 0, method: $('#ms_method').value, reference: $('#ms_ref').value.trim(), note: $('#ms_note').value.trim() }, done); return; }
       /* Money: with its receipt, checked before anything is credited. */
       var file = $('#ms_evidence').files[0];
-      if (!file) { toast('Attach the receipt — money is credited once it is checked.'); return; }
+      if (!file) { toast('Attach the receipt — money is credited once it is checked and confirmed.'); return; }
       if (!$('#ms_method').value || $('#ms_method').value === 'waiver') { toast('Say how it was paid.'); return; }
       var fd = new FormData();
       [['id', memOpen], ['purpose', 'dues'], ['months', $('#ms_months').value], ['amount_ngn', amount], ['method', $('#ms_method').value],
@@ -4377,6 +4381,7 @@
       api('offline_submit', { method: 'POST', body: fd }).then(function (r) {
         var d = r.data || {};
         if (d.ok && d.status === 'verified') { toast('Receipt checked — dues credited.'); done(); loadMemMembership(); loadMemRoster(); return; }
+        if (d.ok && d.status === 'checked') { toast('Receipt checked. Another admin confirms the money arrived (Offline payments), then it is credited.'); done(); return; }
         if (d.ok && d.status === 'held') { toast('Held, not credited: ' + (d.reasons || []).join(' ')); done(); return; }
         toast(d.error || 'Could not record that.');
       }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
@@ -4388,10 +4393,11 @@
       var d = b.getAttribute('data-off'), id = +b.getAttribute('data-id'), note = '';
       if (d === 'reject') { note = prompt('Why is it rejected? The payer is shown this.'); if (!note) return; }
       if (d === 'override') { note = prompt('Approve against the check — why? This is recorded on the payment for good. (at least a sentence)'); if (!note) return; }
+      if (d === 'confirm') { note = prompt('Where did you see the money arrive? e.g. "GTB statement, 9 Nov, ₦12,000 from A. Okafor". Kept on the payment.'); if (!note) return; }
       b.disabled = true;
       post('offline_decide', { id: id, do: d, note: note }).then(function (r) {
         var x = r.data || {};
-        toast(x.ok ? (x.status === 'verified' ? 'Credited.' : x.status === 'held' ? 'Still held: ' + (x.reasons || []).join(' ') : 'Done.') : (x.error || 'Refused.'));
+        toast(x.ok ? (x.status === 'verified' ? 'Credited.' : x.status === 'checked' ? 'Receipt checked — confirm the money arrived to credit it.' : x.status === 'held' ? 'Still held: ' + (x.reasons || []).join(' ') : 'Done.') : (x.error || 'Refused.'));
         loadOffline();
       }).finally(function () { b.disabled = false; });
     });

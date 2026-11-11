@@ -55,7 +55,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     /* The old typed-in payment. Kept as a route so an old tab says what to do
        rather than failing as "Unknown action". */
     if ($act === 'pay') json_out(['ok' => false, 'code' => 'evidence_required',
-        'error' => 'Attach the receipt — a fine payment is credited once its evidence is checked.'], 400);
+        'error' => 'Attach the receipt — a fine payment is credited once its evidence is checked and the money confirmed.'], 400);
     if ($act === 'catalogue') {
         $r = NgvFines::saveCatalogue((array) ($in['amounts'] ?? []));
         if ($r['ok'] && class_exists('AdminAudit')) AdminAudit::log('ngv', 'ngv_fine_catalogue', 'ngv:fines', 'Usual fine amounts changed');
@@ -276,7 +276,7 @@ dialog .lbl input,dialog .lbl select{width:100%}
       <label class="lbl">Reference on the receipt, if there is one <input id="pay_ref" placeholder="Transfer reference, receipt book number"></label>
       <label class="lbl">Day it was paid <input id="pay_day" type="date"></label>
       <label class="lbl">The receipt, transfer slip or bank alert — required <input id="pay_file" type="file" accept="image/*,application/pdf" required></label>
-      <p class="sub" style="margin:0">It is read and checked against what you have typed. If it does not match, the payment is held with the reason rather than credited.</p>
+      <p class="sub" style="margin:0">It is read and checked against what you have typed. If it matches, it is credited once the office confirms the money arrived; if not, it is held with the reason.</p>
       <div class="row"><button class="btn primary" id="pay_go" value="go" type="submit">Check the receipt and record it</button></div>
       <p class="sub" id="pay_out" role="status" style="margin:0"></p>
     </div>
@@ -393,6 +393,7 @@ dialog .lbl input,dialog .lbl select{width:100%}
       .then(function (j) {
         $('pay_go').disabled = false;
         if (j.ok && j.status === 'verified') { toast('Receipt checked — payment recorded'); setTimeout(function () { location.reload(); }, 700); return; }
+        if (j.ok && j.status === 'checked') { $('pay_out').textContent = 'Receipt checked. It is credited once the office confirms the money arrived.'; return; }
         if (j.ok && j.status === 'held') { $('pay_out').textContent = 'Held, not credited: ' + (j.reasons || []).join(' '); return; }
         $('pay_out').textContent = j.error || 'Not recorded.';
       })

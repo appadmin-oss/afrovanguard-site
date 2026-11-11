@@ -115,7 +115,7 @@ if ($method === 'POST') {
     if ($act === 'payment') {
         /* Typed-in money is no longer credited: an offline payment comes with
            its receipt and is checked first (payment_offline, above). */
-        json_out(['ok' => false, 'code' => 'evidence_required', 'error' => 'Attach the receipt — an offline payment is credited once its evidence is checked.'], 400);
+        json_out(['ok' => false, 'code' => 'evidence_required', 'error' => 'Attach the receipt — an offline payment is credited once its evidence is checked and the money confirmed.'], 400);
     }
     /* Send (or re-send) a receipt for one payment. Needed more often than it
        sounds: a bounced address that has since been fixed, a participant who

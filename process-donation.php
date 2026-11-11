@@ -612,13 +612,13 @@ if ($action==='record_donation') {
      * finds nothing, which is a read either way and can never turn an
      * unpaid reference into a paid one.
      */
-    $amount = 0.0; $currency = 'NGN'; $email = trim($input['email']??''); $paid = false;
+    $amount = 0.0; $currency = 'NGN'; $email = trim($input['email']??''); $paid = false; $via = ''; $tx = []; $h = [];
 
     if (av_ps_ready()) {
         $r=ps('GET','/transaction/verify/'.urlencode($ref));
         $tx=$r['data']??[];
         if (($tx['status']??'')==='success') {
-            $paid    = true;
+            $paid    = true; $via = 'paystack';
             $amount  = (float)($tx['amount']??0)/100;
             $currency= strtoupper($tx['currency']??'NGN');
             $email   = $tx['customer']['email'] ?? $email;
@@ -628,7 +628,7 @@ if ($action==='record_donation') {
     if (!$paid && class_exists('CfisCheckout') && CfisCheckout::configured()) {
         $h = CfisCheckout::status($ref);
         if (!empty($h['paid'])) {
-            $paid    = true;
+            $paid    = true; $via = 'cfis';
             $amount  = ((int) ($h['amount_minor'] ?? 0)) / 100;
             $currency= ($h['currency'] ?? '') ?: 'NGN';
             /* The donor's address as WE sent it. CACENTRE hands a property
@@ -641,6 +641,20 @@ if ($action==='record_donation') {
 
     if (!$paid) {
         echo json_encode(['success'=>false,'message'=>'Payment not yet verified. Your receipt will arrive once confirmed.']); exit;
+    }
+    /*
+     * PAID — BUT FOR WHAT? Any successful charge on the account verifies, and
+     * a dues payment, an academy fee or an NGV payment is not a gift: counted
+     * here it would raise the campaign total, put a name on the donor wall
+     * and send a tax receipt for money that was never donated. The webhook
+     * has always asked who owns a charge (PaymentWebhook::classify); this
+     * asks the same question with the same rules, and a charge that belongs
+     * to anything else is not recorded as a donation.
+     */
+    $owner = PaymentWebhook::donationOwner($via, $tx, is_array($h['metadata'] ?? null) ? $h['metadata'] : [], $ref);
+    if ($owner !== PaymentWebhook::DONATION) {
+        error_log('[AV] record_donation refused ' . $ref . ': the charge belongs to ' . $owner);
+        echo json_encode(['success'=>false,'message'=>'That payment is not a donation, so it is not recorded as one.']); exit;
     }
     $fn      =trim($input['firstName']??'');
     $ln      =trim($input['lastName']??'');

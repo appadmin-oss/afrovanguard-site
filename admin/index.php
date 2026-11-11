@@ -638,7 +638,7 @@
     <section class="mem-pane" data-pane="offline" hidden>
       <p class="muted">Money paid by transfer, cash, POS or deposit. Nothing is credited on anybody’s word: the receipt is read (Gemini vision) and checked — the amount, the date, that it went to Afrovanguard, that it has not been used before — and credited only if every check passes. A payment that fails is held, with the reasons.</p>
       <p class="muted tiny" id="offReader"></p>
-      <div class="mem-filters"><select id="offStatus" aria-label="Which payments"><option value="">All</option><option value="held">Held — not credited</option><option value="verified">Checked and credited</option><option value="rejected">Rejected</option></select></div>
+      <div class="mem-filters"><select id="offStatus" aria-label="Which payments"><option value="">All</option><option value="checked">Checked — confirm the money arrived</option><option value="held">Held — not credited</option><option value="verified">Confirmed and credited</option><option value="rejected">Rejected</option></select></div>
       <div class="entry-list" id="offList" aria-live="polite"></div>
     </section>
 

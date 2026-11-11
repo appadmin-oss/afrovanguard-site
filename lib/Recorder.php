@@ -115,7 +115,9 @@ final class Recorder
                   ['recordings', 'consent', "VARCHAR(12) NOT NULL DEFAULT 'none'"], ['recordings', 'consent_at', "VARCHAR(32) NOT NULL DEFAULT ''"],
                   // v1.5: a long meeting's minutes, written part by part across cron ticks; and
                   // whether this recording wrote the meeting's minutes (so more audio may rewrite them).
-                  ['recordings', 'minutes_work', 'TEXT'], ['recordings', 'wrote_minutes', 'INTEGER NOT NULL DEFAULT 0']] as [$t, $c, $decl]) {
+                  ['recordings', 'minutes_work', 'TEXT'], ['recordings', 'wrote_minutes', 'INTEGER NOT NULL DEFAULT 0'],
+                  // v1.6: the Drive file's id, so retention can delete the copy it moved there.
+                  ['recording_segments', 'drive_id', "VARCHAR(200) NOT NULL DEFAULT ''"]] as [$t, $c, $decl]) {
             try { Database::pdo()->query("SELECT $c FROM $t LIMIT 1"); }
             catch (Throwable $e) { Database::pdo()->exec("ALTER TABLE $t ADD COLUMN $c $decl"); }
         }
@@ -1203,9 +1205,23 @@ final class Recorder
                 if (!is_file((string) $s['path'])) continue;
                 try {
                     $up = Drive::upload((string) $s['path'], sprintf('recording-%d-part-%04d.webm', (int) $s['recording_id'], (int) $s['seg_no']), 'audio/webm');
-                    $db->prepare("UPDATE recording_segments SET stored_url = ?, path = '' WHERE id = ?")->execute([(string) $up['url'], (int) $s['id']]);
+                    $db->prepare("UPDATE recording_segments SET stored_url = ?, drive_id = ?, path = '' WHERE id = ?")->execute([(string) $up['url'], (string) ($up['id'] ?? ''), (int) $s['id']]);
                     @unlink((string) $s['path']); $n++;
                 } catch (Throwable $e) { error_log('[recorder] drive: ' . $e->getMessage()); break; }
+            }
+        }
+        if ($days > 0 && class_exists('Drive') && Drive::configured()) {
+            /* Audio moved to Drive is under the same retention as audio kept here. It
+               used to be moved and then never deleted. A few per tick: each is a call. */
+            $st = $db->prepare("SELECT s.id, s.drive_id, s.stored_url FROM recording_segments s JOIN recordings r ON r.id = s.recording_id
+                                WHERE $closed AND s.stored_url <> '' AND r.updated_at < ? LIMIT 10");
+            $st->execute([gmdate('Y-m-d H:i:s', time() - $days * 86400)]);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $s) {
+                $fid = (string) $s['drive_id'];
+                if ($fid === '' && preg_match('~/d/([A-Za-z0-9_-]+)~', (string) $s['stored_url'], $m)) $fid = $m[1];   // moved before the id was kept
+                if ($fid !== '' && !Drive::delete($fid)) { error_log('[recorder] drive delete failed for segment ' . (int) $s['id']); continue; }
+                $db->prepare("UPDATE recording_segments SET stored_url = '', drive_id = '' WHERE id = ?")->execute([(int) $s['id']]);
+                $n++;
             }
         }
         if ($days > 0) {
