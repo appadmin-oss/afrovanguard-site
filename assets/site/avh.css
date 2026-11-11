@@ -578,3 +578,8 @@ html.av-si .avh .avh-drawer-ctas{grid-template-columns:1fr}
 
 /* A poster in a 16:9 feature slot (the NextGen Vanguard flyer): keep its headline in view. */
 .avh-feat img.avh-feat-poster{object-position:50% 34%}
+
+/* 320px wide — what 400% zoom looks like (WCAG 1.4.10). Signed in, the account
+   button and the menu button pushed the menu 35px off the edge. */
+.avh-brand{min-width:0}
+@media (max-width:380px){.avh-nav-in{gap:10px}.avh-brand img{width:32px;height:32px;margin-right:8px}.avh-brand span{font-size:22px}.avh-narrow{gap:6px}}

@@ -257,8 +257,16 @@
         const picked = $$('input:checked', fs).map(i => parseInt(i.value, 10));
         return fs.dataset.type === 'multi' ? picked : (picked.length ? picked[0] : -1);
       });
-      const missing = answers.findIndex(a => (Array.isArray(a) ? a.length === 0 : a === -1));
-      if (missing > -1) { say('Please answer every question.', false); const f = $('input', qs[missing]); if (f) f.focus(); return; }
+      const gaps = answers.map((a, i) => (Array.isArray(a) ? a.length === 0 : a === -1) ? i : -1).filter(i => i > -1);
+      qs.forEach((fs, i) => { const off = gaps.includes(i); fs.classList.toggle('is-missing', off); if (off) fs.setAttribute('aria-invalid', 'true'); else fs.removeAttribute('aria-invalid'); });
+      if (gaps.length) {
+        /* Say WHICH: "please answer every question" left a screen-reader user
+           to find the gap by reading the quiz again. */
+        const names = gaps.map(i => 'question ' + (i + 1));
+        const list = names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+        say(list.charAt(0).toUpperCase() + list.slice(1) + (gaps.length === 1 ? ' still needs an answer.' : ' still need answers.'), false);
+        const f = $('input', qs[gaps[0]]); if (f) f.focus(); return;
+      }
       const b = $('button[type=submit]', form); if (b) b.disabled = true;
       post('quiz_submit', { course, lesson, answers })
         .then(d => {

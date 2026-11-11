@@ -552,7 +552,7 @@ p.sub{margin:5px 0 0}
 .btn.sm{padding:5px 10px;font-size:.82rem}
 .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:9px;padding:9px;font:inherit}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
+input:focus,select:focus,textarea:focus{outline:3px solid var(--ink);outline-offset:1px;border-color:var(--orange)}
 textarea{min-height:60px;resize:vertical}
 .fld{margin-bottom:12px}
 .fld:last-child{margin-bottom:0}

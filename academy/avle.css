@@ -326,3 +326,6 @@ body.avle{margin:0;background:var(--av-white);color:var(--av-ink);font-family:va
 .avle-brief-h span{font-weight:600;letter-spacing:0;text-transform:none;font-size:12.5px;color:var(--av-muted-2)}
 .avle-brief ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px}
 .avle-brief li{font-size:15px;line-height:1.55}
+/* A question left unanswered at submit: marked, not only announced. */
+.avle-q.is-missing{border-left:4px solid #b42318;padding-left:12px}
+.avle-noaccess{margin:14px 0 0;padding:12px 14px;border-left:4px solid #8a6406;background:rgba(243,180,22,.10);font-size:15px;line-height:1.55}

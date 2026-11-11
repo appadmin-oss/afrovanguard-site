@@ -42,7 +42,7 @@ body.avsi{margin:0;background:var(--av-paper);color:var(--av-ink);font-family:va
 
 /* Progress */
 .avsi-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.avsi-steps li{display:flex;flex-direction:column;gap:8px;font-size:12.5px;font-weight:600;color:var(--av-placeholder)}
+.avsi-steps li{display:flex;flex-direction:column;gap:8px;font-size:12.5px;font-weight:600;color:var(--av-muted)}
 .avsi-steps li::before{content:"";height:3px;border-radius:2px;background:var(--av-step-off);transition:background .3s}
 .avsi-steps li.is-on{color:var(--av-ink)}
 .avsi-steps li.is-on::before{background:var(--av-ink)}

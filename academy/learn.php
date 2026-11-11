@@ -274,6 +274,9 @@ avac_head([
 <?php endif; ?>
     </details>
 <?php endif; ?>
+<?php if ($lType === 'video' && $transcript === '' && empty($caps)): /* No way to follow this video without sound: say so, and offer the way to get one. */ ?>
+    <p class="avle-noaccess" role="note">This video has no captions or transcript yet. If you need one to follow it, <a href="/contact.html?purpose=general&amp;subject=<?= rawurlencode('Captions for: ' . (string) $lesson['title']) ?>&amp;message=<?= rawurlencode('Please add captions or a transcript to the lesson “' . (string) $lesson['title'] . '” (' . (string) $courseSlug . ').') ?>#contact-form">ask the team</a> and we will add it.</p>
+<?php endif; ?>
 <?php if ($resources = LmsRepository::resources($lesson)): ?>
     <section class="avle-res" aria-labelledby="avle-res-h">
       <h2 class="avle-h2" id="avle-res-h">Resources</h2>

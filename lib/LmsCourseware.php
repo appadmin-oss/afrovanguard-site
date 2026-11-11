@@ -462,10 +462,13 @@ final class LmsCourseware
         if (!self::skills($course)) $add('tip', 'List the skills learners will gain — the course page and search use them.');
         $mods = $this->lms->curriculum((int) $course['id']);
         if (!$mods) { $add('fix', 'Add your first module.'); return $out; }
-        $s = $this->db->prepare('SELECT id, body_html FROM lessons WHERE course_id = ?');
+        $s = $this->db->prepare('SELECT id, body_html, captions_url, transcript FROM lessons WHERE course_id = ?');
         $s->execute([(int) $course['id']]);
-        $bodies = [];
-        foreach ($s->fetchAll() as $r) $bodies[(int) $r['id']] = trim(strip_tags((string) $r['body_html']));
+        $bodies = []; $access = [];
+        foreach ($s->fetchAll() as $r) {
+            $bodies[(int) $r['id']] = trim(strip_tags((string) $r['body_html']));
+            $access[(int) $r['id']] = ['captions' => trim((string) ($r['captions_url'] ?? '')) !== '', 'transcript' => trim((string) ($r['transcript'] ?? '')) !== ''];
+        }
         $graded = 0;
         foreach ($mods as $i => $m) {
             $mid = (int) $m['id']; $name = 'Module ' . ($i + 1);
@@ -478,7 +481,11 @@ final class LmsCourseware
                 if ($type === 'reading' && ($body === '' || $starter)) $add('fix', $title . ' has no text yet.', $lid, $mid);
                 if (in_array($type, ['assignment', 'discussion'], true) && $body === '') $add('fix', $title . ' needs ' . ($type === 'assignment' ? 'instructions.' : 'a prompt.'), $lid, $mid);
                 if (in_array($type, ['quiz', 'practice'], true) && str_contains((string) ($l['quiz_json'] ?? ''), 'Replace this with your question')) $add('fix', $title . ' still has the starter question.', $lid, $mid);
-                if ($type === 'video' && str_starts_with((string) $l['video_url'], '/uploads/') && empty($l['captions_url'] ?? null)) $add('tip', $title . ' has no captions.', $lid, $mid);
+                /* A video with neither captions nor a transcript shuts out every
+                   learner who cannot hear it. That is a fix, not a tip. */
+                $acc = $access[$lid] ?? ['captions' => false, 'transcript' => false];
+                if ($type === 'video' && !$acc['captions'] && !$acc['transcript']) $add('fix', $title . ' needs captions or a transcript, so learners who cannot hear it can follow.', $lid, $mid);
+                elseif ($type === 'video' && !$acc['captions'] && str_starts_with((string) $l['video_url'], '/uploads/')) $add('tip', $title . ' has a transcript but no captions — captions let learners follow along as it plays.', $lid, $mid);
                 if ($type === 'quiz' || $type === 'assignment') $graded++;
             }
         }

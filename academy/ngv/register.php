@@ -217,7 +217,7 @@ legend{padding:0;font-size:.78rem;font-weight:800;letter-spacing:.09em;text-tran
 .fld .req{color:var(--red)}
 .fld .opt{font-weight:500;color:var(--muted)}
 input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:11px;padding:12px;font:inherit;background:#fff}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
+input:focus,select:focus,textarea:focus{outline:3px solid var(--ink);outline-offset:1px;border-color:var(--orange)}
 textarea{min-height:110px;resize:vertical}
 /* Fluid, so a narrow phone and a wide tablet both get a sensible number of
    columns without a breakpoint having to name every width. */

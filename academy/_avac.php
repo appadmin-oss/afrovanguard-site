@@ -135,24 +135,30 @@ function avac_card(array $row, bool $hidden = false): void
     $search = strtolower(($c['title'] ?? '') . ' ' . ($c['summary'] ?? '') . ' ' . ($c['category'] ?? '') . ' ' . ($c['level'] ?? '') . ' ' . str_replace("\n", ' ', (string) ($c['skills'] ?? '')));
     $enrolled = (int) ($row['enrolled'] ?? 0);
     $stars = avac_stars((float) ($row['rating'] ?? 0), (int) ($row['ratings'] ?? 0));
+    /* A screen reader says a link's name every time it lands on it. The whole
+       card used to be the name — price, track, summary, length, "View course" —
+       so a learner tabbing the catalogue heard a paragraph per course. The
+       course's title is the name now; the rest is its description, read after
+       a pause or on request. */
+    static $n = 0; $id = 'avac-card-' . (++$n);
     ?>
       <li class="avac-card"<?= $hidden ? ' hidden' : '' ?> data-cat="<?= e(slugify((string) $c['category'])) ?>" data-search="<?= e($search) ?>"
           data-title="<?= e(strtolower((string) $c['title'])) ?>" data-featured="<?= (int) ($c['featured'] ?? 0) ?>" data-lessons="<?= $lessons ?>"
           data-level="<?= e(slugify((string) ($c['level'] ?? ''))) ?>" data-price="<?= e(LmsCourseware::priceTone((string) ($c['access_type'] ?? 'open'))) ?>"
           data-enrolled="<?= $enrolled ?>" data-rating="<?= e((string) ($row['rating'] ?? 0)) ?>" data-ratings="<?= (int) ($row['ratings'] ?? 0) ?>"
           data-minutes="<?= (int) ($row['minutes'] ?? 0) ?>" data-created="<?= e((string) ($c['created_at'] ?? '')) ?>">
-        <a class="avac-card-a" href="<?= e($url) ?>">
+        <a class="avac-card-a" href="<?= e($url) ?>" aria-labelledby="<?= $id ?>-t" aria-describedby="<?= $id ?>-p <?= $id ?>-k <?= $id ?>-d<?= $meta ? ' ' . $id . '-m' : '' ?>">
           <span class="avac-card-media"><?= avac_cover($c, 'avac-card-img') ?>
-            <span class="avac-chip avac-chip--<?= e($tone) ?>"><?= e(avac_price($c)) ?></span>
+            <span class="avac-chip avac-chip--<?= e($tone) ?>" id="<?= $id ?>-p"><?= e(avac_price($c)) ?></span>
 <?php if ($state === 'done'): ?>            <span class="avac-state">Completed</span>
 <?php elseif ($state !== ''): ?>            <span class="avac-state">In progress</span>
 <?php endif; ?>
           </span>
           <span class="avac-card-body">
-            <span class="avac-card-kick"><?= e((string) $c['category']) ?></span>
-            <span class="avac-card-t"><?= e((string) $c['title']) ?></span>
-            <span class="avac-card-d"><?= e((string) $c['summary']) ?></span>
-<?php if ($meta): ?>            <span class="avac-card-meta"><?= e(implode(' · ', $meta)) ?></span>
+            <span class="avac-card-kick" id="<?= $id ?>-k"><?= e((string) $c['category']) ?></span>
+            <span class="avac-card-t" id="<?= $id ?>-t"><?= e((string) $c['title']) ?></span>
+            <span class="avac-card-d" id="<?= $id ?>-d"><?= e((string) $c['summary']) ?></span>
+<?php if ($meta): ?>            <span class="avac-card-meta" id="<?= $id ?>-m"><?= e(implode(' · ', $meta)) ?></span>
 <?php endif; ?>
 <?php if ($stars !== ''): ?>            <?= $stars ?>
 <?php endif; ?>

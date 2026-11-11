@@ -122,8 +122,13 @@
         return num(b, 'featured') - num(a, 'featured') || cards.indexOf(a) - cards.indexOf(b);
       }).forEach(c => grid.appendChild(c));
     };
+    /* The address follows the filters only once the visitor has used them.
+       Written on load, '#catalogue' made the browser scroll there as the page
+       finished loading: everyone — a screen-reader user, someone zoomed in —
+       arrived 1,300px down the page, past the menu and the skip link. */
+    let touched = false;
     const sync = () => {
-      if (!form || !history.replaceState) return;
+      if (!touched || !form || !history.replaceState) return;
       /* Only the filter's own keys change; anything else in the address
          (a campaign tag, a payment flag) is left exactly where it was. */
       const p = new URLSearchParams(location.search);
@@ -151,13 +156,14 @@
       if (count) count.textContent = all ? 'Showing all ' + total : 'Showing ' + shown + ' of ' + total;
       sync();
     };
-    const setCat = k => { cat = k; if (trackIn) trackIn.value = k === 'all' ? '' : k; tracks.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.avacTrack === k))); apply(); };
+    const setCat = k => { touched = true; cat = k; if (trackIn) trackIn.value = k === 'all' ? '' : k; tracks.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.avacTrack === k))); apply(); };
     tracks.forEach(b => b.addEventListener('click', () => setCat(b.dataset.avacTrack || 'all')));
     let t = 0;
-    if (q) { q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(apply, 150); }); q.addEventListener('search', apply); }
-    [level, price].forEach(el => { if (el) el.addEventListener('change', apply); });
-    if (sort) sort.addEventListener('change', () => { order(); apply(); });
-    if (form) form.addEventListener('submit', e => { e.preventDefault(); apply(); });
+    const used = fn => (...a) => { touched = true; return fn(...a); };
+    if (q) { q.addEventListener('input', used(() => { clearTimeout(t); t = setTimeout(apply, 150); })); q.addEventListener('search', used(apply)); }
+    [level, price].forEach(el => { if (el) el.addEventListener('change', used(apply)); });
+    if (sort) sort.addEventListener('change', used(() => { order(); apply(); }));
+    if (form) form.addEventListener('submit', used(e => { e.preventDefault(); apply(); }));
     if (clear) clear.addEventListener('click', () => { if (q) q.value = ''; if (level) level.value = ''; if (price) price.value = ''; setCat('all'); if (q) q.focus(); });
     order(); apply();
   });

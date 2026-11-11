@@ -78,11 +78,11 @@ body.academy .ac-hero h1 {
 .ac-toolbar .search-wrap { position: relative; flex: 1; min-width: 220px; max-width: 460px; }
 .ac-toolbar .search-wrap svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--muted); }
 .ac-toolbar .search-input { width: 100%; padding: 13px 16px 13px 46px; border-radius: var(--radius-full); border: 1px solid var(--divider); background: var(--surface); color: var(--ink); font-family: var(--font-body); font-size: 15px; }
-.ac-toolbar .search-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
+.ac-toolbar .search-input:focus { outline: 3px solid var(--gold-deep); outline-offset: 1px; border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
 .ac-sort { display: inline-flex; align-items: center; gap: 10px; }
 .ac-sort-lbl { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .ac-sort-select { padding: 12px 38px 12px 16px; border-radius: var(--radius-full); border: 1px solid var(--divider); background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235E6470' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 16px center; color: var(--ink); font-family: var(--font-body); font-size: 14px; font-weight: 600; cursor: pointer; -webkit-appearance: none; appearance: none; }
-.ac-sort-select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
+.ac-sort-select:focus { outline: 3px solid var(--gold-deep); outline-offset: 1px; border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
 .ac-filters { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 0; }
 .ac-filters .chip { font-size: 13px; font-weight: 700; padding: 9px 18px; border-radius: var(--radius-full); border: 1px solid var(--divider); background: var(--surface); color: var(--body); cursor: pointer; transition: all var(--t-fast); }
 .ac-filters .chip:hover { border-color: var(--ink); color: var(--ink); }
@@ -262,7 +262,7 @@ body.academy .course-hero h1 { color: var(--ink); font-family: var(--font-headin
 .enroll-progress .cur-bar { max-width: none; }
 .enroll-form { display: flex; flex-direction: column; gap: 10px; margin: 0 0 4px; }
 .enroll-form input, .enroll-form textarea { padding: 12px 14px; border: 1px solid var(--divider); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; width: 100%; }
-.enroll-form input:focus, .enroll-form textarea:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
+.enroll-form input:focus, .enroll-form textarea:focus { outline: 3px solid var(--gold-deep); outline-offset: 1px; border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
 .enroll-tiny { font-size: 12.5px; color: var(--muted); margin: 12px 0 0; line-height: 1.5; }
 .enroll-tiny a { color: var(--gold-deep); font-weight: 700; }
 .enroll-msg { font-size: 13.5px; font-weight: 600; margin: 12px 0 0; }
@@ -337,7 +337,7 @@ body.academy .course-hero h1 { color: var(--ink); font-family: var(--font-headin
 .l-notes-dl { margin-left: auto; appearance: none; cursor: pointer; background: transparent; border: 1.5px solid var(--divider); color: var(--muted); font-family: var(--font-body); font-weight: 700; font-size: 12.5px; padding: 7px 14px; border-radius: var(--radius-full); transition: color var(--t-fast), border-color var(--t-fast); }
 .l-notes-dl:hover { color: var(--gold-deep); border-color: var(--gold); }
 .l-notes-area { width: 100%; resize: vertical; min-height: 96px; padding: 14px 16px; font-family: var(--font-body); font-size: 15px; line-height: 1.6; color: var(--body); background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); }
-.l-notes-area:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
+.l-notes-area:focus { outline: 3px solid var(--gold-deep); outline-offset: 1px; border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
 .l-notes-area::placeholder { color: var(--muted); }
 
 /* ── "Up next" auto-continue card ── */
@@ -578,3 +578,22 @@ body.academy .course-hero h1 { color: var(--ink); font-family: var(--font-headin
 .gb-n.is-fail { color: #B3261E; font-weight: 700; }
 .gb-t { display: block; font-size: 11px; font-weight: 400; color: var(--muted); }
 .gb-avg { font-weight: 700; }
+/* ── Certificate verification (academy/verify.php) ── */
+.avv-wrap { max-width: 680px; padding: 64px 24px 96px; text-align: center; }
+.avv-h1 { font-size: clamp(32px, 5vw, 52px); margin: 10px 0 18px; }
+.avv-muted { color: var(--muted); }
+.avv-card { text-align: left; max-width: 520px; margin: 0 auto; }
+.avv-dl { margin: 12px 0 0; }
+.avv-dl div { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 6px 0; }
+.avv-dl dt { font-weight: 700; min-width: 11em; }
+.avv-dl dd { margin: 0; }
+.avv-form { max-width: 460px; margin: 24px auto 0; text-align: left; }
+.avv-label { display: block; font-weight: 700; margin-bottom: 4px; }
+.avv-hint { margin: 0 0 10px; color: var(--muted); font-size: .95rem; }
+.avv-err { margin: 0 0 10px; color: #b42318; font-weight: 600; }
+.avv-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.avv-row input { flex: 1 1 200px; min-width: 0; padding: 13px 15px; border: 1px solid var(--divider); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink); font: inherit; }
+.avv-row input:focus { outline: 3px solid var(--gold-deep); outline-offset: 1px; }
+.avv-row input[aria-invalid="true"] { border-color: #b42318; }
+.avv-again, .avv-back { margin-top: 28px; }
+.avv-again a, .avv-back a { color: var(--gold-deep); font-weight: 600; }

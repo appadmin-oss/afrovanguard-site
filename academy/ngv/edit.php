@@ -61,7 +61,7 @@ a{color:var(--red)}
 .fld input[type=text],.fld textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 13px;
   font:inherit;background:#fff;color:var(--ink);transition:border .12s,box-shadow .12s}
 .fld textarea{min-height:74px;resize:vertical}
-.fld input:focus,.fld textarea:focus{outline:0;border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,106,26,.15)}
+.fld input:focus,.fld textarea:focus{outline:3px solid var(--ink);outline-offset:1px;border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,106,26,.15)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .hint{font-size:.78rem;color:var(--muted);margin:-2px 0 8px}
 /* switch */

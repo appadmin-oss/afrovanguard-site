@@ -119,11 +119,11 @@ $projects = [
       <span class="avac-summit-go">Claim your seat →</span>
     </a>
 <?php endif; ?>
-    <a class="avac-ngv" href="/academy/ngv/">
+    <a class="avac-ngv" href="/academy/ngv/" aria-labelledby="avac-ngv-h" aria-describedby="avac-ngv-p">
       <span class="avac-ngv-copy">
         <span class="avac-ngv-tag"><span class="avac-live" aria-hidden="true"></span>Flagship programme · Now enrolling</span>
-        <span class="avac-ngv-h">NextGen Vanguard — stop scrolling, start earning.</span>
-        <span class="avac-ngv-p">Future-ready tech, media, business &amp; leadership skills for young Africans — with weekly stipends, six global certifications and a real internship.</span>
+        <span class="avac-ngv-h" id="avac-ngv-h">NextGen Vanguard — stop scrolling, start earning.</span>
+        <span class="avac-ngv-p" id="avac-ngv-p">Future-ready tech, media, business &amp; leadership skills for young Africans — with weekly stipends, six global certifications and a real internship.</span>
         <span class="avac-ngv-pts">
           <span><b>Weekly</b><i>Stipends while you learn</i></span>
           <span><b>6</b><i>Global certifications</i></span>
@@ -131,7 +131,7 @@ $projects = [
         </span>
         <span class="avac-gold">Explore NextGen Vanguard →</span>
       </span>
-      <img class="avac-ngv-img" src="/assets/site/ngv/ngv-flyer.png" alt="NextGen Vanguard: learn and earn in six months" loading="lazy" decoding="async">
+      <img class="avac-ngv-img" src="/assets/site/ngv/ngv-flyer.png" alt="" loading="lazy" decoding="async">
     </a>
   </div>
 </header>
@@ -144,14 +144,14 @@ $projects = [
     </div>
 
 <?php if ($fc): $fUrl = '/academy/' . rawurlencode((string) $fc['slug']) . '/'; $ftone = avac_access((string) ($fc['access_type'] ?? 'open'))['tone']; ?>
-    <a class="avac-feat" href="<?= e($fUrl) ?>">
+    <a class="avac-feat" href="<?= e($fUrl) ?>" aria-labelledby="avac-feat-h" aria-describedby="avac-feat-k avac-feat-p">
       <span class="avac-feat-media"><?= avac_cover($fc, 'avac-feat-img') ?>
         <span class="avac-chip avac-chip--<?= e($ftone) ?>"><?= e(avac_price($fc)) ?><?= (int) $feat['enrolled'] === 0 ? ' · New' : '' ?></span>
       </span>
       <span class="avac-feat-body">
-        <span class="avac-kick"><?= e((string) $fc['category']) ?> · Featured course</span>
-        <span class="avac-feat-h"><?= e((string) $fc['title']) ?></span>
-        <span class="avac-feat-p"><?= e((string) $fc['summary']) ?></span>
+        <span class="avac-kick" id="avac-feat-k"><?= e((string) $fc['category']) ?> · Featured course</span>
+        <span class="avac-feat-h" id="avac-feat-h"><?= e((string) $fc['title']) ?></span>
+        <span class="avac-feat-p" id="avac-feat-p"><?= e((string) $fc['summary']) ?></span>
         <span class="avac-pills">
 <?php foreach (array_filter([(string) ($fc['level'] ?? ''), (string) ($fc['duration'] ?? ''), 'Certificate']) as $pill): ?>
           <span><?= e($pill) ?></span>
