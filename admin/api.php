@@ -1649,9 +1649,10 @@ try {
                 'verify'   => OfflinePayments::verify($oid, av_admin_actor()),
                 'reject'   => OfflinePayments::reject($oid, (string) ($body['note'] ?? ''), av_admin_actor()),
                 'override' => OfflinePayments::override($oid, (string) ($body['note'] ?? ''), av_admin_actor(), $role),
+                'confirm'  => OfflinePayments::confirm($oid, (string) ($body['note'] ?? ''), av_admin_actor(), $role),
                 default    => ['ok' => false, 'error' => 'Unknown decision.'],
             };
-            json_out($r, $r['ok'] ? 200 : (($r['code'] ?? '') === 'superadmin_only' ? 403 : 422));
+            json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['superadmin_only', 'admin_only'], true) ? 403 : 422));
         /* ── Many members, one declared action ── */
         /* ── Volunteer projects (lib/VolunteerProjects.php) ── */
         case 'vol_projects':

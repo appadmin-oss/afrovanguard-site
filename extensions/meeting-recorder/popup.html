@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Meeting Recorder</title><link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="popup.css"></head>
+<body>
+<main id="app">
+  <header class="top"><img src="icons/32.png" alt="" width="20" height="20"><h1>Meeting Recorder</h1></header>
+  <section id="connect" hidden>
+    <p>Connect the recorder to your Afrovanguard account so recordings go to your meetings.</p>
+    <button class="btn" id="btn-connect">Connect</button>
+  </section>
+  <section id="idle" hidden>
+    <p class="tabname" id="tab-name"></p>
+    <button class="btn" id="btn-start">Record this tab</button>
+    <p class="muted small" id="consent">Tell everyone in the call before you start — the recorder does not tell them. Shortcut: Alt+Shift+R.</p>
+  </section>
+  <section id="live" hidden>
+    <p class="rec" id="rec-line"><span class="dot" aria-hidden="true"></span> <span id="rec-word">Recording</span> <b id="timer">0:00</b></p>
+    <p class="tabname" id="live-name"></p>
+    <div class="meters" aria-hidden="true">
+      <label>Meeting <span class="bar"><i id="lvl-tab"></i></span></label>
+      <label>Your mic <span class="bar"><i id="lvl-mic"></i></span></label>
+    </div>
+    <p class="note note--warn" id="mic-warn" hidden>Your microphone is not being recorded. <a href="welcome.html" target="_blank">Allow it</a> for next time.</p>
+    <p class="note note--warn" id="live-warn" hidden></p>
+    <p class="note" id="live-info" hidden></p>
+    <div class="row">
+      <button class="btn btn--line" id="btn-mark" title="Alt+Shift+M">★ Mark this moment</button>
+      <button class="btn btn--line" id="btn-pause" title="Alt+Shift+P">Pause</button>
+    </div>
+    <p class="muted small" id="marks"></p>
+    <p class="note" id="consent-line" hidden>Have you told everyone in the call? The recorder does not tell them. <button class="btn btn--line" id="btn-consent">I've told everyone</button></p>
+    <button class="btn btn--stop" id="btn-stop">Stop</button>
+  </section>
+  <p class="err" id="error" role="alert" hidden></p>
+  <section id="queue-wrap" hidden>
+    <h2>Recent</h2>
+    <ul id="queue" class="queue"></ul>
+  </section>
+  <footer class="foot small">
+    <label><input type="checkbox" id="set-mic"> Record my microphone</label>
+    <label><input type="checkbox" id="set-prompt"> Remind me when a Meet call starts</label>
+    <p class="muted" id="who"></p>
+  </footer>
+</main>
+<script type="module" src="popup.js"></script>
+</body>
+</html>

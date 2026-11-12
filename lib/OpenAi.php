@@ -145,7 +145,11 @@ final class OpenAi
      * takes the ~25MB the API allows rather than the ~19MB base64 inlining
      * permits — which is the difference between "most meetings" and "short ones".
      */
-    public static function transcribeAudio(string $bytes, string $mime, string $instruction = ''): array
+    /**
+     * $timed: also return 'segments' => [['start' => s, 'end' => s, 'text' => …], …]
+     * (Whisper's verbose_json; whisper-1 only — other models answer with text alone).
+     */
+    public static function transcribeAudio(string $bytes, string $mime, string $instruction = '', bool $timed = false): array
     {
         if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) {
             return ['ok' => false, 'text' => '', 'error' => 'AI assistance is switched off in the Studio rules.'];
@@ -161,8 +165,9 @@ final class OpenAi
         $boundary = '----av' . bin2hex(random_bytes(8));
         $parts = [
             ['name' => 'model', 'value' => self::transcribeModel()],
-            ['name' => 'response_format', 'value' => 'text'],
+            ['name' => 'response_format', 'value' => ($timed = $timed && self::transcribeModel() === 'whisper-1') ? 'verbose_json' : 'text'],
         ];
+        if ($timed) $parts[] = ['name' => 'timestamp_granularities[]', 'value' => 'segment'];
         // Whisper's "prompt" biases spelling of names and jargon — worth passing
         // when the caller knows what the meeting was about.
         if (trim($instruction) !== '') $parts[] = ['name' => 'prompt', 'value' => mb_substr(trim($instruction), 0, 800)];
@@ -197,10 +202,26 @@ final class OpenAi
             $d = json_decode($resp, true);
             return ['ok' => false, 'text' => '', 'error' => is_array($d) ? (string) ($d['error']['message'] ?? ('HTTP ' . $code)) : ('HTTP ' . $code)];
         }
+        if ($timed) return self::parseVerbose($resp);
         // response_format=text returns the transcript as a bare body.
         $text = trim($resp);
         if ($text === '') return ['ok' => false, 'text' => '', 'error' => 'Empty transcript.'];
         return ['ok' => true, 'text' => $text, 'error' => null];
+    }
+
+    /** Whisper's verbose_json → ['ok', 'text', 'segments' => [[start, end, text]…]]. */
+    public static function parseVerbose(string $json): array
+    {
+        $d = json_decode($json, true);
+        $text = is_array($d) ? trim((string) ($d['text'] ?? '')) : '';
+        if ($text === '') return ['ok' => false, 'text' => '', 'error' => 'Empty transcript.'];
+        $segs = [];
+        foreach ((array) ($d['segments'] ?? []) as $sg) {
+            $t = trim((string) ($sg['text'] ?? ''));
+            if ($t === '' || !is_numeric($sg['start'] ?? null) || !is_numeric($sg['end'] ?? null)) continue;
+            $segs[] = ['start' => round((float) $sg['start'], 2), 'end' => round((float) $sg['end'], 2), 'text' => $t];
+        }
+        return ['ok' => true, 'text' => $text, 'segments' => $segs, 'error' => null];
     }
 
     private static function normMime(string $mime): string

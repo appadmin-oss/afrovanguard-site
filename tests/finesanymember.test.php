@@ -74,6 +74,9 @@ ck('any member: a fine payment with no receipt is refused, like every other paym
     (NgvFines::payOne($fineId, 1500, 'transfer', 'TRF-123', $faDesk)['code'] ?? '') === 'evidence_required');
 OfflinePayments::$reader = fn() => $faSlip(1500, 'TRF-123');
 $paid = NgvFines::payOne($fineId, 1500, 'transfer', 'TRF-123', $faDesk, ['bytes' => $faJpeg('b'), 'mime' => 'image/jpeg'], 'desk@anyfine.test');
+ck('any member: a fine payment whose receipt checks out is CHECKED, not yet credited', ($paid['status'] ?? '') === 'checked' && NgvFines::forMember($kunle)['owing'] === 2000);
+/* An admin who saw the money arrive confirms it (lib/OfflinePayments.php, 2026-11-11). */
+$paid = OfflinePayments::confirm((int) ($paid['payment']['id'] ?? 0), 'GTB statement, 1,500 from K. Adeyemi', 'treasurer@anyfine.test', 'admin');
 ck('any member: the office records their payment against the fine, once the receipt checks out',
     !empty($paid['ok']) && ($paid['status'] ?? '') === 'verified');
 ck('any member: …which settles the oldest fine first', NgvFines::forMember($kunle)['owing'] === 500);

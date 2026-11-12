@@ -1,0 +1,12 @@
+# The Meeting Recorder, published from the Studio (admin/recorder.php).
+# Chrome installs a .crx only when it is served with this type, and must
+# always see the newest updates.xml.
+Options -Indexes
+<IfModule mod_mime.c>
+  AddType application/x-chrome-extension .crx
+</IfModule>
+<IfModule mod_headers.c>
+  <Files "updates.xml">
+    Header set Cache-Control "no-cache"
+  </Files>
+</IfModule>

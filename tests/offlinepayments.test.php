@@ -41,6 +41,13 @@ $good = fn(int $amount, string $ref = 'TRF8812', ?string $day = null) => ['is_pa
     'payer_name' => 'OLU PAYER', 'bank' => 'GTBank', 'status' => 'successful', 'tampering_signs' => [], 'confidence' => 'high'];
 $img = fn(string $seed) => "\xFF\xD8\xFF\xE0" . str_repeat($seed, 64);   // a JPEG by its magic bytes
 $dues = fn(int $amount = 12000, int $months = 12) => ['purpose' => 'dues', 'months' => $months, 'amount_ngn' => $amount, 'method' => 'transfer', 'paid_on' => gmdate('Y-m-d')];
+/* A receipt that passes is CHECKED, not credited: an admin confirms the money
+   arrived (lib/OfflinePayments.php, the 2026-11-11 review). Where a test below
+   expects money to move, this is that admin, confirming. */
+$okPay = static function (array $r): array {
+    if (($r['status'] ?? '') !== 'checked') return $r;
+    return OfflinePayments::confirm((int) $r['payment']['id'], 'Seen in the GTB statement', 'treasurer@x', 'admin');
+};
 
 /* ── No evidence, no payment ─────────────────────────────────────────── */
 ck('Offline: a payment without a receipt is refused', (OfflinePayments::submit($olu, $dues(), '', '', 'olu')['code'] ?? '') === 'evidence_required');
@@ -57,7 +64,7 @@ ck('Offline: …and nothing was stored for it', (int) $opPdo->query('SELECT COUN
 
 /* ── A good receipt is credited, once ────────────────────────────────── */
 $says = $good(12000);
-$r = OfflinePayments::submit($olu, $dues(), $img('a'), 'image/jpeg', 'olu');
+$r = $okPay(OfflinePayments::submit($olu, $dues(), $img('a'), 'image/jpeg', 'olu'));
 ck('Offline: a receipt that passes every check is credited', $r['ok'] && $r['status'] === 'verified' && Membership::summary($olu)['state'] === 'current');
 ck('Offline: …through dues, with the money recorded once', Membership::summary($olu)['total_paid_ngn'] === 12000
     && (int) $opPdo->query("SELECT COUNT(*) FROM payments WHERE user_id = $olu AND status = 'paid'")->fetchColumn() === 1);
@@ -69,13 +76,13 @@ ck('Offline: the same file cannot be sent twice', (OfflinePayments::submit($olu,
 $says = $good(12000);   // a different photo of the same transfer
 $re = OfflinePayments::submit($olu, $dues(), $img('b'), 'image/jpeg', 'olu');
 ck('Offline: …nor a different photo of a receipt whose reference has already been credited', $re['status'] === 'held'
-    && str_contains(implode(' ', $re['reasons']), 'already been credited'));
+    && str_contains(implode(' ', $re['reasons']), 'already been sent in or credited'));
 
 /* ── Each check, named when it fails ─────────────────────────────────── */
-$held = function (array $reading, array $claim = []) use (&$says, $olu, $dues, $img): array {
+$held = function (array $reading, array $claim = []) use (&$says, $olu, $dues, $img, $okPay): array {
     static $n = 0; $n++;
     $says = $reading;
-    return OfflinePayments::submit($olu, $claim + $dues(), $img('x' . $n), 'image/jpeg', 'olu');
+    return $okPay(OfflinePayments::submit($olu, $claim + $dues(), $img('x' . $n), 'image/jpeg', 'olu'));
 };
 $cases = [
     'not a receipt'  => [['is_payment_evidence' => false] + $good(12000, 'R1'), 'does not look like evidence'],
@@ -134,11 +141,11 @@ ck('Offline: an unread receipt whose twin was credited today cannot be approved 
    money since: the stored verdict says "ok" and the recomputed one does not. */
 OfflinePayments::$reader = function () use (&$says): array { return ['ok' => true, 'data' => $says]; };
 $says = ['tampering_signs' => ['the date looks overwritten']] + $good(12000, 'LATE-REF-1');
-$first = OfflinePayments::submit($olu, $dues(), $img('late1'), 'image/jpeg', 'olu');
+$first = $okPay(OfflinePayments::submit($olu, $dues(), $img('late1'), 'image/jpeg', 'olu'));
 ck('Offline: a receipt held for editing stored no reuse objection', $first['status'] === 'held'
     && ($first['payment']['checks']['reused'] ?? '') === 'ok');
 $says = $good(12000, 'LATE-REF-1');
-$second = OfflinePayments::submit($olu, $dues(), $img('late2'), 'image/jpeg', 'olu');
+$second = $okPay(OfflinePayments::submit($olu, $dues(), $img('late2'), 'image/jpeg', 'olu'));
 ck('Offline: …a later receipt with that same reference is credited first', $second['status'] === 'verified');
 ck('Offline: …and the held one can no longer be approved against the check',
     (OfflinePayments::override((int) $first['payment']['id'], 'The editing was just a scanner artefact', 'boss', 'superadmin')['code'] ?? '') === 'reused');
@@ -146,7 +153,7 @@ ck('Offline: …and the held one can no longer be approved against the check',
 /* A reused receipt is not overridable. */
 OfflinePayments::$reader = function () use (&$says): array { return ['ok' => true, 'data' => $says]; };
 $says = $good(12000);   // TRF8812 again
-$again = OfflinePayments::submit($olu, $dues(), $img('reuse'), 'image/jpeg', 'olu');
+$again = $okPay(OfflinePayments::submit($olu, $dues(), $img('reuse'), 'image/jpeg', 'olu'));
 ck('Offline: a receipt that already credited money cannot be approved even by a Super Admin',
     (OfflinePayments::override((int) $again['payment']['id'], 'I am sure this one is different', 'boss', 'superadmin')['code'] ?? '') === 'reused');
 ck('Offline: rejecting needs a reason the payer will see', (OfflinePayments::reject((int) $again['payment']['id'], '', 'x')['code'] ?? '') === 'reason_required'
@@ -157,14 +164,47 @@ ck('Offline: the payer sees why', (bool) array_filter(OfflinePayments::forUser($
 NgvMember::ensureParticipant($nne, ['name' => 'Nne Vanguard', 'email' => 'nne@op.test']);
 NgvFines::issue($nne, 'late', 1000, '', '', false, 1);
 $says = $good(1000, 'NGVTRF1');
-$ng = OfflinePayments::submit($nne, ['purpose' => 'ngv', 'amount_ngn' => 1000, 'method' => 'transfer'], $img('ngv'), 'image/jpeg', 'nne');
+$ng = $okPay(OfflinePayments::submit($nne, ['purpose' => 'ngv', 'amount_ngn' => 1000, 'method' => 'transfer'], $img('ngv'), 'image/jpeg', 'nne'));
 ck('Offline: an NGV payment that passes is credited to the NGV account', $ng['status'] === 'verified' && (int) NgvLedger::balance($nne)['payable'] === 0);
 ck('Offline: …once — the ledger is idempotent on its reference too', NgvLedger::paymentsByReference('OFFLINE-' . $ng['payment']['id']) !== []);
 $says = $good(500, 'NGVTRF2');
-$st = OfflinePayments::submit($nne, ['purpose' => 'ngv', 'line' => 'fine', 'amount_ngn' => 500, 'method' => 'cash'], $img('ngv2'), 'image/jpeg', 'staff@x', 'staff');
+$st = $okPay(OfflinePayments::submit($nne, ['purpose' => 'ngv', 'line' => 'fine', 'amount_ngn' => 500, 'method' => 'cash'], $img('ngv2'), 'image/jpeg', 'staff@x', 'staff'));
 ck('Offline: the office can name the line a payment pays, as the console did', $st['status'] === 'verified'
     && (bool) array_filter(NgvLedger::credits($nne), fn($c) => ($c['kind'] ?? '') === 'fine' && (int) $c['amount'] === 500));
 ck('Offline: NGV payments are for participants', !OfflinePayments::submit($olu, ['purpose' => 'ngv', 'amount_ngn' => 100, 'method' => 'cash'], $img('q'), 'image/jpeg', 'olu')['ok']);
+
+/* ── 2026-11-11: a receipt image is not money ────────────────────────── */
+$says = $good(12000, 'CONF-001');
+$ch = OfflinePayments::submit($olu, $dues(), $img('conf1'), 'image/jpeg', 'olu');
+ck('Offline: a receipt that passes every check is CHECKED, not credited', $ch['status'] === 'checked'
+    && (string) $opPdo->query('SELECT status FROM offline_payments WHERE id = ' . (int) $ch['payment']['id'])->fetchColumn() === 'checked');
+$cid = (int) $ch['payment']['id'];
+ck('Offline: an editor cannot confirm it', (OfflinePayments::confirm($cid, 'Seen it', 'ed@x', 'editor')['code'] ?? '') === 'admin_only');
+ck('Offline: confirming needs a note of what was checked', (OfflinePayments::confirm($cid, '', 'treasurer@x', 'admin')['code'] ?? '') === 'reason_required');
+ck('Offline: the member cannot confirm their own', (OfflinePayments::confirm($cid, 'Seen it', 'Olu@OP.test', 'admin')['code'] ?? '') === 'own_account');
+$says = $good(12000, 'CONF-001');
+$twin = OfflinePayments::submit($olu, $dues(), $img('conf1-photo2'), 'image/jpeg', 'olu');
+ck('Offline: a second photo of the same receipt, sent alongside, is held as reuse', $twin['status'] === 'held' && in_array('reused', array_keys(array_filter((array) ($twin['payment']['checks'] ?? []), static fn($v) => $v !== 'ok')), true));
+$cf = OfflinePayments::confirm($cid, 'GTB statement, today, ₦12,000', 'treasurer@x', 'admin');
+ck('Offline: an admin who saw the money confirms it, and then it is credited', $cf['ok'] && $cf['status'] === 'verified');
+ck('Offline: the confirmation is kept, and not shown to the payer', str_starts_with((string) $opPdo->query("SELECT decision_note FROM offline_payments WHERE id = $cid")->fetchColumn(), 'CONFIRMED:')
+    && (array_values(array_filter(OfflinePayments::forUser($olu), static fn($x) => (int) $x['id'] === $cid))[0]['decision_note'] ?? 'x') === '');
+// Two payments carrying one receipt reference, both checked, confirmed at once: the database lets one through.
+$says = $good(12000, 'RACE-777');
+$a1 = OfflinePayments::submit($olu, $dues(), $img('race-a'), 'image/jpeg', 'olu');
+$opPdo->exec("INSERT INTO offline_payments (user_id, purpose, months, amount_ngn, method, evidence_file, evidence_hash, evidence_mime, status, receipt_ref, submitted_by, created_at)
+              SELECT user_id, purpose, months, amount_ngn, method, evidence_file, 'racehash', evidence_mime, 'checked', receipt_ref, submitted_by, created_at FROM offline_payments WHERE id = " . (int) $a1['payment']['id']);
+$a2id = (int) $opPdo->lastInsertId();
+$c1 = OfflinePayments::confirm((int) $a1['payment']['id'], 'Statement', 'treasurer@x', 'admin');
+// The second confirm's own reuse check is bypassed here (as a request racing the first would be), to reach the claim.
+$rc = new ReflectionMethod('OfflinePayments', 'credit'); $rc->setAccessible(true);
+$c2 = $rc->invoke(null, $a2id, 'treasurer2@x', 'raced');
+ck('Offline: one receipt reference credits once, even when two confirmations race', $c1['status'] === 'verified' && ($c2['code'] ?? '') === 'reused'
+    && (string) $opPdo->query("SELECT status FROM offline_payments WHERE id = $a2id")->fetchColumn() === 'held');
+putenv('AV_OFFLINE_AUTO_CREDIT=1');
+$says = $good(12000, 'AUTO-1');
+ck('Offline: AV_OFFLINE_AUTO_CREDIT=1 restores crediting on the checks alone, when chosen', OfflinePayments::submit($olu, $dues(), $img('auto1'), 'image/jpeg', 'olu')['status'] === 'verified');
+putenv('AV_OFFLINE_AUTO_CREDIT');
 
 /* ── The pure check, on its own ──────────────────────────────────────── */
 $c = OfflinePayments::check(['amount_ngn' => 5000, 'paid_on' => '', 'reference' => ''], ['is_payment_evidence' => true, 'amount' => '5,000']);

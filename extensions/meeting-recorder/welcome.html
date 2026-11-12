@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Set up the Meeting Recorder</title><link rel="stylesheet" href="ui.css">
+<style>main{max-width:560px;margin:0 auto;padding:40px 16px}h1{font-size:24px;margin-bottom:6px}.step{border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:16px}.step h2{text-transform:none;letter-spacing:0;font-size:16px;color:var(--ink);margin:0 0 6px}.btn{width:auto;display:inline-block}.ok{color:var(--ok);font-weight:600}</style>
+</head>
+<body>
+<main>
+  <h1>Set up the Meeting Recorder</h1>
+  <p class="muted">Two steps, once. After that, open a meeting and press <b>Alt+Shift+R</b>.</p>
+  <div class="step">
+    <h2>1. Let it hear your microphone</h2>
+    <p>Chrome asks once. Without it, only the other people in the call are recorded.</p>
+    <button class="btn" id="mic">Allow the microphone</button>
+    <p id="mic-state" role="status"></p>
+  </div>
+  <div class="step">
+    <h2>2. Connect your Afrovanguard account</h2>
+    <p>So each recording lands on the right meeting and its minutes are written for you.</p>
+    <button class="btn" id="connect">Connect</button>
+    <p id="who" role="status"></p>
+  </div>
+  <p class="muted small" style="margin-top:20px">Recordings are sent only to your organisation’s portal. Audio is deleted after the minutes are written and the retention period passes; the minutes stay on the meeting.</p>
+</main>
+<script type="module" src="welcome.js"></script>
+</body>
+</html>

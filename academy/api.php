@@ -299,7 +299,7 @@ try {
             $u = LmsAuth::require();
             $c = $slug ? $ac->bySlug($slug) : null;
             if (!$c || !$lms->teaches($u, $c)) json_out(['ok' => false, 'error' => 'Only this course’s instructor can moderate.'], 403);
-            json_out(['ok' => $cw->hideReview((int) ($body['id'] ?? 0), empty($body['show']))]);
+            json_out(['ok' => $cw->hideReview((int) ($body['id'] ?? 0), empty($body['show']), (int) $c['id'])]);
         }
 
         /* ── The study coach ──────────────────────────────────────────────
@@ -319,7 +319,9 @@ try {
             if (!$lesson) json_out(['ok' => false, 'error' => 'Lesson not found.'], 404);
             if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access to this lesson.'], 403);
             if (!LmsCoach::available()) json_out(['ok' => false, 'error' => 'The study coach is not switched on.'], 503);
-            if (!av_rate_ok('lms_coach', LmsCoach::RATE_ASKS, LmsCoach::RATE_WINDOW)) {
+            // Per learner (the allowance is theirs wherever they are) and per address (one person, many accounts).
+            if (!av_rate_ok_for('lms_coach', 'u' . (int) $u['id'], LmsCoach::RATE_ASKS, LmsCoach::RATE_WINDOW)
+                || !av_rate_ok('lms_coach', LmsCoach::RATE_ASKS * 5, LmsCoach::RATE_WINDOW)) {
                 json_out(['ok' => false, 'error' => 'That is a lot of questions in a short time. Take a few minutes, or ask in the discussion.'], 429);
             }
             $r = LmsCoach::ask($lesson, $c, (string) ($body['q'] ?? ''), [

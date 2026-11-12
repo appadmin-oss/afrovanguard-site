@@ -58,7 +58,7 @@ jobs:
         run: |
           set -e
           shopt -s nullglob
-          for f in portal/*.js assets/site/*.js academy/*.js give/*.js; do
+          for f in portal/*.js assets/site/*.js academy/*.js give/*.js extensions/meeting-recorder/*.js; do
             node --check "$f" && echo "ok: $f"
           done
 

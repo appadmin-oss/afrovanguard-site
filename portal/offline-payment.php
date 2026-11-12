@@ -7,7 +7,8 @@
  *                           reference, paid_on, evidence (the file)
  *
  * Nothing is credited on the member's word: the receipt is read and checked
- * (lib/OfflinePayments.php) and the payment is credited only if it passes.
+ * (lib/OfflinePayments.php), and a payment that passes is credited once the
+ * office confirms the money arrived.
  * One that does not is held, with the reasons, and the member can send better
  * evidence. Card payment (portal/dues.php, academy/ngv/pay.php) is unchanged.
  */

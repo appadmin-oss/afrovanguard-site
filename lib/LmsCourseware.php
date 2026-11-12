@@ -440,10 +440,15 @@ final class LmsCourseware
         return $s->fetchAll();
     }
 
-    public function hideReview(int $id, bool $hidden = true): bool
+    /**
+     * Hide or show a review — of THIS course only. The caller checks the
+     * moderator teaches $courseId; without the course in the WHERE, an
+     * instructor of one course could hide any review on the site by its id.
+     */
+    public function hideReview(int $id, bool $hidden, int $courseId): bool
     {
-        $st = $this->db->prepare('UPDATE course_reviews SET hidden = ? WHERE id = ?');
-        $st->execute([$hidden ? 1 : 0, $id]);
+        $st = $this->db->prepare('UPDATE course_reviews SET hidden = ? WHERE id = ? AND course_id = ?');
+        $st->execute([$hidden ? 1 : 0, $id, $courseId]);
         return $st->rowCount() > 0;
     }
 

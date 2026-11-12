@@ -8,11 +8,14 @@ has a script that does it for you through the browser.
 ## What it schedules
 
 ```
-*/5 * * * *   curl -fsS --max-time 60 "https://your-site/tasks/cron.php?key=YOUR_KEY" >/dev/null 2>&1
+*/5 * * * *   curl -fsS --max-time 60 -H "X-AV-Cron-Key: YOUR_KEY" "https://your-site/tasks/cron.php" >/dev/null 2>&1
 ```
 
-`YOUR_KEY` must match the server's `AV_CRON_KEY` (or, if that isn't set,
-`AV_ADMIN_TOKEN`). See the header of `tasks/cron.php`.
+`YOUR_KEY` must match the server's `AV_CRON_KEY`, or, if that isn't set, the
+key the site derives from its secret. A superadmin sees the exact command to
+paste in the Studio → Meeting Recorder page. **The admin token is no longer
+accepted** (it is a superadmin login and would sit in scheduler commands and
+logs). The key in a header keeps it out of access logs; `?key=` still works.
 
 The same cron also takes the **daily backup** of both databases
 (`lib/Backups.php`) into `db/private/backups`. Set `AV_BACKUP_KEY` to encrypt
@@ -60,7 +63,7 @@ If you'd rather not automate the browser: in cPanel create an **API token**
 ```bash
 curl -H "Authorization: cpanel USER:APITOKEN" \
   "https://host:2083/execute/Cron/add_line" \
-  --data-urlencode 'command=curl -fsS --max-time 60 "https://your-site/tasks/cron.php?key=YOUR_KEY" >/dev/null 2>&1' \
+  --data-urlencode 'command=curl -fsS --max-time 60 "https://your-site/tasks/cron.php" -H "X-AV-Cron-Key: YOUR_KEY" >/dev/null 2>&1' \
   --data 'minute=*/5' --data 'hour=*' --data 'day=*' --data 'month=*' --data 'weekday=*'
 ```
 
