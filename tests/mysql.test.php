@@ -35,12 +35,21 @@ ck('mysql: connected to a real server', true);
 
 /** Column metadata for the connected schema. */
 $meta = function (string $table) use ($my): array {
-    $st = $my->prepare('SELECT column_name, column_type, is_nullable, column_default
+    /* Aliased, and keys lowered: MySQL 8 returns information_schema's columns
+       as COLUMN_NAME, COLUMN_TYPE… whatever case the query asks in, so
+       $r['column_name'] was always unset. Every column then landed under the
+       key '' and this file failed ten checks on every CI run for weeks — the
+       helper was wrong, not the code it tests. */
+    $st = $my->prepare('SELECT column_name AS column_name, column_type AS column_type,
+                               is_nullable AS is_nullable, column_default AS column_default
                         FROM information_schema.columns
                         WHERE table_schema = DATABASE() AND table_name = ?');
     $st->execute([$table]);
     $out = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $out[strtolower((string) $r['column_name'])] = $r;
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $r = array_change_key_case($r, CASE_LOWER);
+        $out[strtolower((string) ($r['column_name'] ?? ''))] = $r;
+    }
     return $out;
 };
 
