@@ -54,7 +54,7 @@ render_nav('academy');
 <?php endif; ?>
     <form method="get" class="avv-form" action="/academy/verify.php">
       <label for="avv-serial" class="avv-label">Certificate serial number</label>
-      <p id="avv-hint" class="avv-hint">It starts with AV- (a course) or AVP- (a programme), for example AV-TECH-2026-0012.</p>
+      <p id="avv-hint" class="avv-hint">It starts with AV- (a course) or AVP- (a programme), for example AV-3F9A1C27B0D4-2026.</p>
 <?php if ($state === 'none'): ?>
       <p id="avv-err" class="avv-err" role="alert">We could not find a certificate with the serial “<?= e($serial) ?>”. Check each character and try again.</p>
 <?php endif; ?>

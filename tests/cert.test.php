@@ -112,7 +112,8 @@ $serial = 'AV-' . strtoupper(bin2hex(random_bytes(6))) . '-' . date('Y');   // t
 $db->prepare('INSERT INTO certificates (user_id, course_id, serial) VALUES (?,?,?)')->execute([$uid, (int) $course['id'], $serial]);
 ck('cert verify: the issued serial looks up', ((new LmsRepository())->certificateBySerial($serial)['learner'] ?? '') === 'Adaeze Okonkwo-Bello');
 $html = render_page(AV_ROOT . '/academy/verify.php', ['serial' => $serial]);
-ck('cert verify: pasting the serial into /academy/verify verifies', str_contains($html, 'Verified') && str_contains($html, $serial));
+ck('cert verify: pasting the serial into /academy/verify verifies', stripos($html, 'Certificate verified') !== false && str_contains($html, $serial));
+ck('cert verify: the example serial on the page is in the issuing format', (bool) preg_match('~for example AV-[0-9A-F]{12}-\\d{4}\\.~', (string) file_get_contents(AV_ROOT . '/academy/verify.php')));
 
 /* The crest (CERT-03): the artwork the design owner supplied, committed, at the
    size the handoff names, with a transparent ground so the pennant shows round it. */
