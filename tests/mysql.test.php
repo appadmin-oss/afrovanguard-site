@@ -95,9 +95,16 @@ ck('mysql: repaired and created agree on the type',
    strcasecmp((string) ($rep['created_at']['column_type'] ?? 'a'),
               (string) ($createdTs['column_type'] ?? 'b')) === 0);
 
-// A defaulted TEXT becomes VARCHAR: several MySQL builds reject a default on TEXT.
-ck('mysql: a defaulted TEXT column is repaired as VARCHAR',
-   stripos((string) ($rep['note']['column_type'] ?? ''), 'varchar') !== false);
+// A defaulted TEXT: strict MySQL 8 refuses a literal default on TEXT (error
+// 1101), so both CREATE (Database::mysqlTextDefaults) and the repair write it
+// as an expression default, DEFAULT (''). What matters is that the repaired
+// column is the created one, default included. (This used to demand VARCHAR,
+// an earlier approach; the helper's key-case bug hid that it had gone stale.)
+ck('mysql: a defaulted TEXT column is repaired as the same type it is created with',
+   strcasecmp((string) ($rep['note']['column_type'] ?? 'a'), (string) ($created['note']['column_type'] ?? 'b')) === 0);
+ck('mysql: …and the same default (not lost, not NULL)',
+   ($rep['note']['column_default'] ?? null) !== null
+   && (string) $rep['note']['column_default'] === (string) ($created['note']['column_default'] ?? '#none'));
 ck('mysql: an INTEGER column keeps its constant default',
    (string) ($rep['amount']['column_default'] ?? '') === '0');
 
