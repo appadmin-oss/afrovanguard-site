@@ -78,6 +78,7 @@
     curriculum:   { title: 'Curriculum',   sub: 'Modules, lessons, quizzes & assignments', actions: '' },
     learners:     { title: 'Learners',     sub: 'Progress & certificates', actions: '' },
     applications: { title: 'Applications', sub: 'Lead-capture sign-ups', actions: '' },
+    a11y:         { title: 'Accessibility', sub: 'Every lesson, checked for learners with disabilities', actions: '<button class="btn btn-ghost btn-sm" id="a11yCsv" type="button">Download spreadsheet</button><button class="btn btn-outline btn-sm" id="a11yRefresh" type="button">Check again</button>' },
     activity:     { title: 'Activity log', sub: 'Audit trail — who changed what, and from where', actions: '<button class="btn btn-outline btn-sm" id="auditRefresh">Refresh</button>' }
   };
   function route(name, arg) {
@@ -95,6 +96,7 @@
     if (name === 'curriculum') loadCurriculum(arg);
     if (name === 'learners') loadLearners(arg);
     if (name === 'applications') loadApplications();
+    if (name === 'a11y') { loadA11y(); $('#a11yRefresh').onclick = loadA11y; $('#a11yCsv').onclick = function () { window.open(API + '?action=ac_a11y_csv', '_blank'); }; }
     if (name === 'activity') { loadActivity(); var rb = $('#auditRefresh'); if (rb) rb.onclick = loadActivity; }
   }
   $$('.nav-item').forEach(function (b) { b.addEventListener('click', function () { route(b.getAttribute('data-view')); }); });
@@ -1119,7 +1121,7 @@
   /* ── Activity / audit log ── */
   var ALABEL = {
     admin_login: 'Admin signed in', admin_login_failed: 'Failed admin sign-in', admin_logout: 'Admin signed out',
-    ac_save: 'Course saved', ac_delete: 'Course deleted', mod_save: 'Module saved', mod_delete: 'Module deleted',
+    ac_a11y_csv: 'Accessibility report downloaded', ac_save: 'Course saved', ac_delete: 'Course deleted', mod_save: 'Module saved', mod_delete: 'Module deleted',
     lesson_save: 'Lesson saved', lesson_delete: 'Lesson deleted', save: 'Diary entry saved', delete: 'Diary entry deleted',
     mem_save: 'Member updated', mem_create: 'Member created', role_change: 'Role changed', suspend: 'Member suspended',
     reactivate: 'Member reactivated', create_member: 'Member created', comm_save: 'Community saved', comm_delete: 'Community deleted',
@@ -1141,6 +1143,32 @@
           + '<td>' + esc(r.actor || 'admin') + '</td>'
           + '<td class="muted" style="font-variant-numeric:tabular-nums">' + esc(r.ip || '—') + '</td></tr>';
       }).join('');
+    });
+  }
+
+  /* ── Accessibility: the whole Academy at once (lib/LessonA11y.php::audit).
+     The same report as tools/academy-a11y-audit.php, for a host with no shell. */
+  function loadA11y() {
+    var body = $('#a11yBody'), sum = $('#a11ySum');
+    body.innerHTML = '<tr><td colspan="4" class="empty">Checking every lesson…</td></tr>'; sum.textContent = 'Checking…';
+    get('ac_a11y').then(function (d) {
+      if (!d || !d.ok) {
+        sum.textContent = 'The check could not run.';
+        body.innerHTML = '<tr><td colspan="4" class="empty">' + esc((d && d.error) || 'Could not load the report.') + ' <button type="button" class="link-btn" id="a11yRetry">Try again</button></td></tr>';
+        $('#a11yRetry').onclick = loadA11y; return;
+      }
+      var n = function (k, one, many) { return k + ' ' + (k === 1 ? one : many); };
+      sum.innerHTML = '<strong>' + esc(n(d.fix, 'must fix', 'must fix')) + '</strong> · ' + esc(n(d.tip, 'tip', 'tips')) + ' · ' + esc(n(d.lessons, 'lesson', 'lessons')) + ' in ' + esc(n(d.courses, 'course', 'courses')) + ' checked';
+      if (!d.rows.length) { body.innerHTML = '<tr><td colspan="4" class="empty">No problems found in the lesson text. Still test the pages: with a keyboard alone, a screen reader, and zoomed to 400%.</td></tr>'; return; }
+      body.innerHTML = d.rows.map(function (r, i) {
+        return '<tr><td><span class="badge ' + (r.level === 'fix' ? 'a11y-fix' : 'a11y-tip') + '">' + (r.level === 'fix' ? 'Must fix' : 'Tip') + '</span></td>'
+          + '<td>' + esc(r.course_title) + (r.status !== 'published' ? ' <span class="muted">(draft)</span>' : '') + '</td>'
+          + '<td><button type="button" class="link-btn" data-a11y-open="' + i + '">' + esc(r.lesson_title) + '</button></td>'
+          + '<td>' + esc(r.text) + '</td></tr>';
+      }).join('');
+      $$('[data-a11y-open]', body).forEach(function (b) {
+        b.onclick = function () { var r = d.rows[+b.getAttribute('data-a11y-open')]; route('curriculum', r.course); setTimeout(function () { openLesson(r.lesson_id, null); }, 350); };
+      });
     });
   }
 

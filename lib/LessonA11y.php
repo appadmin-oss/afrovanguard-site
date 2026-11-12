@@ -127,6 +127,45 @@ final class LessonA11y
         return $out;
     }
 
+    /**
+     * Every lesson of every course (or one course), checked. Shared by the
+     * Studio's Accessibility screen (admin/api.php ac_a11y, ac_a11y_csv) and
+     * tools/academy-a11y-audit.php, so the screen and the command never
+     * disagree. Read-only.
+     *
+     * @return array{courses:int,lessons:int,fix:int,tip:int,rows:list<array{course:string,course_title:string,status:string,lesson_id:int,lesson:string,lesson_title:string,level:string,code:string,text:string}>}
+     */
+    public static function audit(PDO $pdo, string $course = '', bool $publishedOnly = false): array
+    {
+        $sql = 'SELECT id, slug, title, status FROM courses';
+        $where = []; $args = [];
+        if ($course !== '') { $where[] = 'slug = ?'; $args[] = $course; }
+        if ($publishedOnly) $where[] = "status = 'published'";
+        if ($where) $sql .= ' WHERE ' . implode(' AND ', $where);
+        $st = $pdo->prepare($sql . ' ORDER BY title'); $st->execute($args);
+        $courses = $st->fetchAll(PDO::FETCH_ASSOC);
+        $ls = $pdo->prepare('SELECT id, slug, title, kind, quiz_json, body_html, video_url, captions_url, transcript FROM lessons WHERE course_id = ? ORDER BY position, id');
+        $out = ['courses' => count($courses), 'lessons' => 0, 'fix' => 0, 'tip' => 0, 'rows' => []];
+        foreach ($courses as $c) {
+            $ls->execute([(int) $c['id']]);
+            foreach ($ls->fetchAll(PDO::FETCH_ASSOC) as $l) {
+                $out['lessons']++;
+                $issues = self::check((string) $l['body_html']);
+                if (LmsRepository::lessonType($l) === 'video' && trim((string) ($l['captions_url'] ?? '')) === '' && trim((string) ($l['transcript'] ?? '')) === '')
+                    $issues[] = ['level' => 'fix', 'code' => 'video-captions', 'text' => 'The video has no captions and no transcript, so learners who cannot hear it cannot follow it.'];
+                foreach ($issues as $i) {
+                    $out[$i['level'] === 'fix' ? 'fix' : 'tip']++;
+                    $out['rows'][] = ['course' => (string) $c['slug'], 'course_title' => (string) $c['title'], 'status' => (string) $c['status'],
+                        'lesson_id' => (int) $l['id'], 'lesson' => (string) $l['slug'], 'lesson_title' => (string) $l['title'],
+                        'level' => $i['level'], 'code' => $i['code'], 'text' => $i['text']];
+                }
+            }
+        }
+        /* The fixes first: they are the ones that shut somebody out. */
+        usort($out['rows'], static fn ($a, $b) => [$a['level'] !== 'fix', $a['course_title']] <=> [$b['level'] !== 'fix', $b['course_title']]);
+        return $out;
+    }
+
     /** "1 picture has" / "3 pictures have" */
     private static function count(int $n, string $one, string $many): string
     {

@@ -9,8 +9,9 @@
 :root{
   --gold:#f3b416; --gold-deep:#b8860b; --navy:#0B1120;
   --bg:#f4f6f9; --surface:#fff; --surface-2:#fafbfc; --line:#e6e9ef; --line-2:#eef1f5;
-  --ink:#1a2231; --ink-2:#5b6472; --muted:#8b93a2;
+  --ink:#1a2231; --ink-2:#5b6472; --muted:#5f6878; /* was #8b93a2: 2.9:1, under the 4.5:1 floor on every screen */
   --pri:#1f6feb; --ok:#1a7f37; --warn:#9a6700; --danger:#cf222e;
+  --ok-ink:#116329; --warn-ink:#7a5200; --gold-ink:#7a5a05; --fix-ink:#9f1c12; /* words on tinted badges: 4.5:1+ */
   --radius:14px; --radius-sm:10px; --shadow:0 1px 2px rgba(11,17,32,.06),0 8px 24px rgba(11,17,32,.06);
   --side-w:248px; --topbar-h:64px;
   --font:'Source Sans 3',-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;
@@ -18,7 +19,8 @@
 }
 [data-theme=dark]{
   --bg:#0a0e16; --surface:#111827; --surface-2:#0d1521; --line:#1f2937; --line-2:#1a2130;
-  --ink:#e8ebf0; --ink-2:#aab2c0; --muted:#6b7280; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  --ok-ink:#56d364; --warn-ink:#e3b341; --gold-ink:#f3c34a; --fix-ink:#ff9b8f;
+  --ink:#e8ebf0; --ink-2:#aab2c0; --muted:#9aa3b2; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
 }
 html,body{margin:0;height:100%}
 body{font-family:var(--font);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
@@ -56,7 +58,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 .login-brand{font-family:var(--serif);font-size:26px;font-weight:700;margin-bottom:4px}
 .login-brand .wm-1{color:var(--ink)} .login-brand .wm-2{color:var(--gold)}
 .login-tag{font-family:var(--font);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--gold-deep);border:1px solid var(--line);border-radius:9999px;padding:3px 9px;vertical-align:middle;margin-left:4px}
+  color:var(--gold-ink);border:1px solid var(--line);border-radius:9999px;padding:3px 9px;vertical-align:middle;margin-left:4px}
 .login-sub{color:var(--muted);font-size:13.5px;margin:0 0 22px}
 .login-card .btn{width:100%;margin-top:4px}
 .login-msg{min-height:18px;font-size:13px;color:var(--danger);margin:12px 0 0;text-align:center}
@@ -105,7 +107,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow)}
 .stat-num{font-family:var(--serif);font-weight:700;font-size:34px;line-height:1;color:var(--ink)}
 .stat-label{font-size:12.5px;color:var(--muted);margin-top:7px;font-weight:600}
-.stat-sub{font-size:11.5px;color:var(--gold-deep);margin-top:3px;font-weight:600}
+.stat-sub{font-size:11.5px;color:var(--gold-ink);margin-top:3px;font-weight:600}
 .quick h2{font-family:var(--serif);font-size:21px;margin-bottom:14px}
 .quick-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
 .qbtn{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;cursor:pointer;
@@ -140,10 +142,10 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 
 /* ── Badges ── */
 .badge{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:9999px;letter-spacing:.02em}
-.badge.published{background:rgba(26,127,55,.13);color:var(--ok)}
-.badge.draft{background:rgba(154,103,0,.14);color:var(--warn)}
+.badge.published{background:rgba(26,127,55,.13);color:var(--ok-ink)}
+.badge.draft{background:rgba(154,103,0,.14);color:var(--warn-ink)}
 .badge.access{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
-.badge.cert{background:rgba(243,180,22,.18);color:var(--gold-deep)}
+.badge.cert{background:rgba(243,180,22,.18);color:var(--gold-ink)}
 
 /* ── Editor ── */
 .editor{display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start}
@@ -151,7 +153,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 .editor-side{display:flex;flex-direction:column;gap:16px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow)}
 .card h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
-.editor-note{font-size:12.5px;color:var(--warn)}
+.editor-note{font-size:12.5px;color:var(--warn-ink)}
 
 /* ── Curriculum builder ── */
 .picker{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
@@ -169,8 +171,8 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 .les .les-title{flex:1;font-weight:600}
 .les .les-tags{display:flex;gap:6px}
 .les-type{flex-shrink:0;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:9999px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
-.les-type.t-video{background:rgba(243,180,22,.14);color:var(--gold-deep);border-color:transparent}
-.les-type.t-quiz{background:rgba(26,127,55,.13);color:var(--ok);border-color:transparent}
+.les-type.t-video{background:rgba(243,180,22,.14);color:var(--gold-ink);border-color:transparent}
+.les-type.t-quiz{background:rgba(26,127,55,.13);color:var(--ok-ink);border-color:transparent}
 .les-empty{padding:12px;color:var(--muted);font-size:13px}
 .mod-foot{padding:6px 10px 12px}
 
@@ -196,7 +198,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 .qopt{display:flex;align-items:center;gap:8px;margin:6px 0}
 .qopt input[type=radio]{accent-color:var(--gold)}
 .qopt input[type=text]{flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
-.link-btn{border:0;background:none;color:var(--danger);font:600 12px var(--font);cursor:pointer}
+.link-btn{border:0;background:none;color:var(--danger);font:600 12px var(--font);cursor:pointer;min-height:24px;padding:2px 0}
 
 /* ── Toasts ── */
 .toast-wrap{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:10px;z-index:80}
@@ -459,3 +461,10 @@ body.is-editing .list-tools .find input{min-width:0}
 /* the checklist: a tip reads as a tip, not a fault */
 .ready .link-btn{color:var(--ink);text-align:left}
 .ready .r-tip,.ready .r-tip .link-btn{color:var(--ink-2)}
+
+/* Accessibility screen */
+.a11y-lede{margin:-6px 0 12px;max-width:80ch}
+.a11y-sum{margin:0 0 14px;font-size:15px}
+.a11y-cap{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.badge.a11y-fix{background:rgba(180,35,24,.12);color:var(--fix-ink);white-space:nowrap}
+.badge.a11y-tip{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line);white-space:nowrap}

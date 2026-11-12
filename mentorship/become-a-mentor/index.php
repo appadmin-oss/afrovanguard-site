@@ -77,7 +77,7 @@ render_nav('involved');
       <p class="mt-lead"><strong>You must maintain a minimum of two active direct mentees, sustained for at least
         two cycles (quarters), to be eligible for promotion at all.</strong></p>
 
-      <div class="mt-tablewrap">
+      <div class="mt-tablewrap" tabindex="0" role="region" aria-label="Quest ranks table (scrolls sideways on small screens)">
         <table class="mt-rank">
           <caption>The Quest ranks, and the direct mentees each expects</caption>
           <thead>

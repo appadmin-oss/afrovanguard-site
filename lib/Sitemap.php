@@ -39,6 +39,7 @@ final class Sitemap
         ['academy/programmes/', '0.7', 'weekly'],
         ['privacy-policy/', '0.3', 'yearly'],
         ['terms/', '0.3', 'yearly'],
+        ['accessibility/', '0.3', 'yearly'],   // the accessibility statement (2026-11-11)
         ['give/', '0.9', 'daily'],
     ];
 

@@ -318,103 +318,16 @@ button{font-family:var(--fb)}
      1. Deploy Code.gs as a Web App in Google Apps Script
      2. Paste the deployment URL below (replace YOUR_DEPLOYMENT_ID)
      3. Also paste it in api.php (GAS_ENDPOINT) and about.html
-     4. Set USE_DEMO = false  when GAS is live
    ═══════════════════════════════════════════════════════ */
 var USE_PHP  = true;   // true = routes through api.php (recommended for production)
 var PHP_API  = '/api.php';
 var API_URL  = 'https://script.google.com/macros/s/AKfycbxg7TgQJAdn9ngEyjOXU2YvdEVHE1xpR3HShzJiNEh6qU2ESdOXUKHgzkX08JXpqS_F0g/exec'; // fallback only
-var USE_DEMO = false;   // ← Set to false once GAS is deployed and GAS_ENDPOINT is set in api.php
 var FETCH_TIMEOUT_MS = 10000;
 
-/* ═══════════════════════════════════════════════════════
-   DEMO DATA  —  must mirror about.html DEMO exactly
-   ═══════════════════════════════════════════════════════ */
-var DEMO_MEMBERS = [
-  { id:1, featured:true, tier:'management', name:'Babatunde Adeola', role:'President & Founder',
-    tagline:'Architect of the movement — building leaders who build Africa.',
-    bio:'Babatunde Oluwaseyi Just-Joe Adeola founded Afrovanguard with a singular conviction: Africa\'s greatest deficit is not resources but incorruptible leadership. A visionary social entrepreneur, he has guided the organisation from a single programme in Alimosho to a multi-programme movement touching thousands of lives.',
-    location:'Alimosho, Lagos', team:'Executive Management', since:'2017', focus:'Strategy & Vision',
-    operations:false, photo:'/assets/img/people/babatunde-adeola-800.jpg',
-    achievements:['Founded Afrovanguard in 2017, growing it from zero to 10,000+ lives reached','Built its seven projects, from Street-To-Stardom to Africa GATES','Secured 10+ national and international partnerships'],
-    projects:['Street-To-Stardom','Africa GATES','Techome','Afrovanguard Academy'], socials:{ li:'https://linkedin.com/company/afrovanguard', tw:'https://x.com/afrovanguard', email:'' } },
-  { id:2, featured:true, tier:'management', name:'Oluwaseun Eleyinmi', role:'Director of Communications',
-    tagline:'Crafting the narrative that amplifies our mission globally.',
-    bio:'Seun leads Afrovanguard\'s entire digital storytelling strategy — from social media to brand identity. He has transformed the organisation\'s digital presence into one of Nigeria\'s most purposeful youth NGO platforms.',
-    location:'Alimosho, Lagos', team:'Executive Management', since:'2019', focus:'Brand & Digital',
-    operations:true, photo:'',
-    achievements:['Grew social media reach by 400% in 24 months','Led brand redesign positioning Afrovanguard as a premium NGO'],
-    projects:['MediaPro','Brand Identity','Content Systems'], socials:{ li:'', tw:'', email:'' } },
-  { id:3, featured:true, tier:'director', name:'Adaeze Nwosu', role:'Director of Programmes',
-    tagline:'Turning vision into measurable impact on the ground.',
-    location:'Alimosho, Lagos', team:'Executive Directors', since:'2020', focus:'Programme Delivery',
-    operations:false, photo:'',
-    bio:'Adaeze oversees the day-to-day execution of all programmes, ensuring quality, reach, and accountability. Her systems thinking has transformed how Afrovanguard scales its impact across every initiative.',
-    achievements:['Scaled Afrovanguard\'s programme reach to 12 new schools','Built the M&E framework used across all programmes'],
-    projects:['Afrovanguard Academy','Career Hub','Africa GATES'], socials:{ li:'', tw:'', email:'' } },
-  { id:4, featured:false, tier:'director', name:'Chukwuemeka Obi', role:'Director of Technology',
-    tagline:'Building the digital infrastructure Africa deserves.',
-    location:'Alimosho, Lagos', team:'Executive Directors', since:'2020', focus:'Tech & Systems',
-    operations:true, photo:'',
-    bio:'Emeka leads all technology initiatives including Techome, the organisation\'s digital platforms, and internal systems. He is the architect behind every tool that keeps the movement running.',
-    achievements:['Built Techome curriculum from scratch','Trained 200+ youth in software development'],
-    projects:['Techome','Digital Infrastructure','MediaPro'], socials:{ li:'', tw:'', email:'' } },
-  { id:5, featured:false, tier:'patron', name:'Dr. Funmilayo Osei', role:'Patron',
-    tagline:'Championing the cause of youth and faith-led transformation across West Africa.',
-    location:'Lagos, Nigeria', team:'Patrons', since:'2021', focus:'Advocacy & Partnerships',
-    operations:false, photo:'',
-    bio:'Dr. Osei has been a committed advocate and supporter of Afrovanguard\'s work since 2021, lending her voice, network, and resources to advance the mission of raising incorruptible leaders.',
-    achievements:['Facilitated key strategic partnerships in 2022','Keynote speaker at Afrovanguard Leadership Summit 2023'],
-    projects:['Africa GATES','Kingdom Advancement Project'], socials:{ li:'', tw:'', email:'' } },
-  { id:6, featured:false, tier:'ngv', name:'Fatimah Bello', role:'Community Relations Lead',
-    tagline:'The bridge between this movement and the communities it serves.',
-    location:'Alimosho, Lagos', team:'NextGen Vanguard', since:'2019', focus:'Partnerships',
-    operations:false, photo:'',
-    bio:'Fatimah manages relationships with community leaders, local government, and beneficiary families across Alimosho. She is the human face of every programme we run in the field.',
-    achievements:['Onboarded 8 new community partners','Launched the community ambassador programme'],
-    projects:['Career Hub','Afrovanguard Academy'], socials:{ li:'', tw:'', email:'' } },
-  { id:7, featured:false, tier:'ngv', name:'Tunde Adeyemi', role:'Creative Arts Coordinator',
-    tagline:'Where raw talent meets relentless refinement.',
-    location:'Alimosho, Lagos', team:'NextGen Vanguard', since:'2019', focus:'Arts & Culture',
-    operations:false, photo:'',
-    bio:'Tunde coordinates the creative arts arm of Afrovanguard, channeling young Nigerians\' raw talent in music, dance, and performance into professional-grade careers through Street-To-Stardom.',
-    achievements:['Produced 10+ Street-To-Stardom showcases','3 alumni signed to major record labels'],
-    projects:['Street-To-Stardom','Next Generation Genius'], socials:{ li:'', tw:'', email:'' } },
-  { id:8, featured:false, tier:'ngg', name:'Aisha Mohammed', role:'Scholarships & Opportunities Lead',
-    tagline:'Opening global doors for Africa\'s brightest minds.',
-    location:'Alimosho, Lagos', team:'Next Generation Genius', since:'2021', focus:'International Opportunities',
-    operations:false, photo:'',
-    bio:'Aisha curates and manages the Africa GATES programme, connecting Nigerian youth with international scholarships and fellowships. She has personally guided dozens of young Nigerians to opportunities they never thought possible.',
-    achievements:['Facilitated 40+ scholarship placements','Built relationships with 15 international universities'],
-    projects:['Africa GATES','Next Generation Genius','Business Executive Club'], socials:{ li:'', tw:'', email:'' } },
-  { id:9, featured:false, tier:'ngg', name:'Emeka Eze', role:'Innovation & Research Lead',
-    tagline:'Engineering solutions to Africa\'s most stubborn challenges.',
-    location:'Alimosho, Lagos', team:'Next Generation Genius', since:'2022', focus:'Innovation',
-    operations:true, photo:'',
-    bio:'Emeka leads Afrovanguard\'s innovation agenda — identifying new approaches, piloting programmes, and building the internal research capacity that keeps the movement sharp and relevant.',
-    achievements:['Developed 3 new programme pilots in 2023','Co-authored Afrovanguard\'s 2024 impact report'],
-    projects:['Techome','Next Generation Genius','MediaPro'], socials:{ li:'', tw:'', email:'' } },
-  { id:10, featured:false, tier:'volunteer', name:'Chidera Okonkwo', role:'Creative Design Volunteer',
-    tagline:'Art as advocacy — design for a better Africa.',
-    location:'Alimosho, Lagos', team:'Volunteers', since:'2022', focus:'Design & Visual Communication',
-    operations:false, photo:'',
-    bio:'Chidera volunteers her design and visual communication skills to support Afrovanguard\'s creative campaigns, producing the visual assets that carry our story to the world.',
-    achievements:['Designed visuals for 3 flagship campaigns','Supported 5 major events as lead designer'],
-    projects:['Street-To-Stardom','Kingdom Advancement Project'], socials:{ li:'', tw:'', email:'' } },
-  { id:11, featured:false, tier:'volunteer', name:'Yusuf Garba', role:'Web Development Volunteer',
-    tagline:'One line of code can change a life.',
-    location:'Alimosho, Lagos', team:'Volunteers', since:'2023', focus:'Web Development',
-    operations:false, photo:'',
-    bio:'Yusuf volunteers his software engineering expertise to support Techome and the Afrovanguard digital platforms — proof that our volunteers build the very infrastructure that delivers our programmes.',
-    achievements:['Mentored 30+ Techome students','Contributed core modules to Techome curriculum'],
-    projects:['Techome','Career Hub'], socials:{ li:'', tw:'', email:'' } },
-  { id:12, featured:false, tier:'volunteer', name:'Ngozi Enendu', role:'Events & Logistics Volunteer',
-    tagline:'Behind every great event is someone who refused to let anything slip.',
-    location:'Alimosho, Lagos', team:'Volunteers', since:'2022', focus:'Event Management',
-    operations:true, photo:'',
-    bio:'Ngozi coordinates the logistics that make Afrovanguard\'s events, workshops, and community programmes run without a hitch. Her attention to detail and calm under pressure are two of the movement\'s quiet superpowers.',
-    achievements:['Co-ordinated 8+ large-scale events since 2022','Built vendor and venue partnership database'],
-    projects:['Street-To-Stardom','Next Generation Genius','Career Hub'], socials:{ li:'', tw:'', email:'' } },
-];
+/* There is no demo data: a profile is only ever a real member's record from
+   the API. The sample profiles that used to sit here (invented names, roles
+   and achievements) were never shown, but were readable in the page source
+   by anyone — and by search engines and AI crawlers (audit, 2026-11-12). */
 
 /* ═══════════════════════════════════════════════════════
    UTILITIES
@@ -455,18 +368,6 @@ function getMemberId(){
 function loadMember(){
   var id = getMemberId();
   if(!id){ showError('No member ID specified in URL. Add ?id=1 to the URL.'); return; }
-
-  if(USE_DEMO){
-    setTimeout(function(){
-      var m = null;
-      for(var i=0; i<DEMO_MEMBERS.length; i++){
-        if(DEMO_MEMBERS[i].id === id){ m = DEMO_MEMBERS[i]; break; }
-      }
-      if(!m){ showError('Member with ID ' + id + ' not found in demo data.'); return; }
-      renderMember(m);
-    }, 700);
-    return;
-  }
 
   // Live API fetch
   fetchWithTimeout((USE_PHP ? (PHP_API+'?action=member&id='+id) : (API_URL+'?id='+id)), FETCH_TIMEOUT_MS)

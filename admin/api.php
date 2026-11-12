@@ -2236,6 +2236,21 @@ try {
             if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
             json_out(['ok' => true, 'items' => (new LmsCourseware(null, $lms))->readiness($cs)]);
         }
+        /* Accessibility across every course: the Studio's Accessibility screen.
+           Same report as tools/academy-a11y-audit.php, for hosts with no shell. */
+        case 'ac_a11y': {
+            json_out(['ok' => true] + LessonA11y::audit(Database::pdo(), '', !empty($_GET['published'])));
+        }
+        case 'ac_a11y_csv': {
+            $a = LessonA11y::audit(Database::pdo(), '', !empty($_GET['published']));
+            $lms->audit('ac_a11y_csv', 'all courses', $a['fix'] . ' to fix, ' . $a['tip'] . ' tips');
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="academy-accessibility-' . date('Y-m-d') . '.csv"');
+            $out = fopen('php://output', 'w');
+            Csv::put($out, ['Course', 'Status', 'Lesson', 'Level', 'What to do']);
+            foreach ($a['rows'] as $r) Csv::put($out, [$r['course_title'], $r['status'], $r['lesson_title'], $r['level'] === 'fix' ? 'Must fix' : 'Tip', $r['text']]);
+            fclose($out); exit;
+        }
         case 'outline_save': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);

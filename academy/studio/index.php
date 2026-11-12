@@ -50,6 +50,7 @@ declare(strict_types=1);
       <button class="nav-item" data-view="curriculum"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Curriculum</span></button>
       <button class="nav-item" data-view="learners"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0112 0M16 3.5a3 3 0 010 5.8M21 20a6 6 0 00-5-5.9"/></svg><span>Learners</span></button>
       <button class="nav-item" data-view="applications"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h6"/></svg><span>Applications</span></button>
+      <button class="nav-item" data-view="a11y"><svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2"/><path d="M5 8.5l7 1.5 7-1.5M12 10v5M12 15l-3.5 6M12 15l3.5 6"/></svg><span>Accessibility</span></button>
       <button class="nav-item" data-view="activity"><svg viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg><span>Activity</span></button>
     </nav>
     <div class="side-foot">
@@ -218,7 +219,7 @@ declare(strict_types=1);
 
       <!-- CURRICULUM -->
       <section class="view" id="view-curriculum" hidden>
-        <div class="picker"><label>Course</label><select id="curCourse"></select><span class="pick-hint" id="curHint"></span></div>
+        <div class="picker"><label for="curCourse">Course</label><select id="curCourse"></select><span class="pick-hint" id="curHint"></span></div>
         <section class="ready" id="readiness" aria-live="polite" hidden></section>
         <div class="list-tools" role="search" id="outlineTools" hidden>
           <label class="find"><span class="sr">Find in this outline</span><input type="search" id="outlineFind" placeholder="Find an item in this course" autocomplete="off" /></label>
@@ -231,7 +232,7 @@ declare(strict_types=1);
 
       <!-- LEARNERS -->
       <section class="view" id="view-learners" hidden>
-        <div class="picker"><label>Course</label><select id="learnCourse"></select><span class="pick-hint" id="learnHint"></span></div>
+        <div class="picker"><label for="learnCourse">Course</label><select id="learnCourse"></select><span class="pick-hint" id="learnHint"></span></div>
         <div class="list-tools" role="search">
           <label class="find"><span class="sr">Find a learner</span><input type="search" id="learnFind" placeholder="Find by name or email" autocomplete="off" /></label>
           <div class="seg" role="group" aria-label="Show">
@@ -249,6 +250,19 @@ declare(strict_types=1);
           <table class="tbl" id="rosterTbl">
             <thead><tr><th>Learner</th><th>Email</th><th class="num">Progress</th><th>Certified</th><th>Last active</th><th>Actions</th></tr></thead>
             <tbody id="rosterBody"><tr><td colspan="6" class="empty">Pick a course.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ACCESSIBILITY: every lesson of every course (lib/LessonA11y.php::audit) -->
+      <section class="view" id="view-a11y" hidden>
+        <p class="muted a11y-lede">Every lesson in every course, checked for what shuts a learner out: pictures nobody described, videos with no captions or transcript, links called &ldquo;click here&rdquo;, tables a screen reader cannot read across. <strong>Must fix</strong> means somebody cannot get the lesson at all. Click a lesson to open it.</p>
+        <p class="a11y-sum" id="a11ySum" role="status" aria-live="polite">Checking&hellip;</p>
+        <div class="table-wrap">
+          <table class="tbl" id="a11yTbl">
+            <caption class="a11y-cap">Problems in lessons, the ones to fix first</caption>
+            <thead><tr><th scope="col">Level</th><th scope="col">Course</th><th scope="col">Lesson</th><th scope="col">What to do</th></tr></thead>
+            <tbody id="a11yBody"><tr><td colspan="4" class="empty">Loading&hellip;</td></tr></tbody>
           </table>
         </div>
       </section>

@@ -64,7 +64,7 @@ if (!$isInstructor) {
   <main id="main" tabindex="-1">
     <div class="container">
       <div class="gate">
-        <h2>Instructor access</h2>
+        <h1 class="gate-h">Instructor access</h1>
 <?php if (!$user): ?>
         <p>Sign in with your instructor account to manage your programmes and see how your learners are progressing.</p>
         <div class="err-actions" style="justify-content:center;display:flex;gap:12px;flex-wrap:wrap">

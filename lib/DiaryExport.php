@@ -140,6 +140,9 @@ final class DiaryExport
     {
         return "<!DOCTYPE html>\n<html lang=\"en\"><head><meta charset=\"UTF-8\">"
             . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            /* A printable copy of the Diary, not a page of its own: keep it out
+               of search results, so it does not compete with /diary/. */
+            . '<meta name="robots" content="noindex, follow"><link rel="canonical" href="' . self::e(rtrim(SITE_URL, '/') . '/diary/') . '">'
             . '<title>' . self::e($title) . '</title><style>' . $css . '</style></head><body>'
             . $body . '</body></html>';
     }

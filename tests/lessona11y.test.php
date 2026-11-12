@@ -64,7 +64,7 @@ ck('Studio: inserting a picture asks what it shows (it used to insert alt="")',
 /* The audit tool. */
 ck('audit tool: tools/academy-a11y-audit.php exists, is CLI-only and has --strict and --csv', (static function () use ($r) {
     $t = (string) @file_get_contents("$r/tools/academy-a11y-audit.php");
-    return str_contains($t, "PHP_SAPI !== 'cli'") && str_contains($t, '--strict') && str_contains($t, '--csv') && str_contains($t, 'LessonA11y::check');
+    return str_contains($t, "PHP_SAPI !== 'cli'") && str_contains($t, '--strict') && str_contains($t, '--csv') && str_contains($t, 'LessonA11y::audit(');
 })());
 
 /* The accessibility statement. */
@@ -75,7 +75,7 @@ ck('statement: a barrier can be reported with a form already filled in', str_con
 ck('statement: it carries the date it was last reviewed', (bool) preg_match('~\$reviewed\s*=\s*\'\d{1,2} \w+ \d{4}\'~', $st));
 foreach (['partials/avh-chrome.php', 'index.html', 'lib/partials.php', 'academy/_avac.php'] as $f)
     ck("statement: linked from the footer in $f", str_contains((string) file_get_contents("$r/$f"), '/accessibility/">Accessibility</a>'));
-ck('statement: listed in the sitemap', str_contains((string) file_get_contents("$r/sitemap.xml"), '<loc>https://afrovanguard.org.ng/accessibility/</loc>'));
+ck('statement: listed in the sitemap, and in the list the sitemap is rebuilt from', str_contains((string) file_get_contents("$r/sitemap.xml"), '<loc>https://afrovanguard.org.ng/accessibility/</loc>') && str_contains((string) file_get_contents("$r/lib/Sitemap.php"), "['accessibility/', "));
 
 /* The CI gate. */
 $ci = (string) file_get_contents("$r/.github/workflows/ci.yml");
@@ -86,3 +86,21 @@ ck('CI: the gate tests WCAG 2.2 AA, at 320px, and as a signed-in learner',
    str_contains($axe, "'wcag22aa'") && str_contains($axe, '[320, 640') && str_contains($axe, 'check-your-understanding'));
 ck('CI: the test-learner helper refuses to run outside CI', str_contains((string) @file_get_contents("$r/tests/a11y/ci-session.php"), "getenv('CI') !== 'true'"));
 ck('CI: the checker\'s versions are pinned', (bool) preg_match('~"axe-core":\s*"\d+\.\d+\.\d+"~', (string) @file_get_contents("$r/tests/a11y/package.json")));
+
+/* No shell on shared hosting (owner, 2026-11-12): the every-course report is
+   in the Studio, from the same function the command uses. */
+$api = (string) file_get_contents("$r/admin/api.php");
+ck('Studio: the Accessibility screen has its own API (list and spreadsheet), both from LessonA11y::audit',
+   str_contains($api, "case 'ac_a11y': {") && str_contains($api, "case 'ac_a11y_csv': {") && substr_count($api, 'LessonA11y::audit(') === 2);
+ck('Studio: the spreadsheet goes through Csv::put (formula-safe cells)', (bool) preg_match("~case 'ac_a11y_csv'.{0,900}Csv::put~s", $api));
+ck('Studio: the command uses the same audit', str_contains((string) file_get_contents("$r/tools/academy-a11y-audit.php"), 'LessonA11y::audit($pdo'));
+$si = (string) file_get_contents("$r/academy/studio/index.php"); $sj = (string) file_get_contents("$r/academy/studio/studio.js");
+ck('Studio: an Accessibility item in the menu, a live count, a table with column headers',
+   str_contains($si, 'data-view="a11y"') && str_contains($si, 'id="a11ySum" role="status" aria-live="polite"') && str_contains($si, '<th scope="col">What to do</th>'));
+ck('Studio: the screen has loading, empty and error-with-retry states', str_contains($sj, 'Checking every lesson') && str_contains($sj, 'No problems found in the lesson text') && str_contains($sj, 'id="a11yRetry"'));
+$a = LessonA11y::audit(Database::pdo());
+ck('Studio: the audit counts every lesson and puts must-fix rows first',
+   $a['lessons'] > 0 && $a['rows'] === array_values(array_merge(array_filter($a['rows'], fn ($x) => $x['level'] === 'fix'), array_filter($a['rows'], fn ($x) => $x['level'] !== 'fix'))));
+$sc = (string) file_get_contents("$r/academy/studio/studio.css");
+ck('Studio: grey text is readable (4.5:1) in both themes', str_contains($sc, '--muted:#5f6878;') && str_contains($sc, '--muted:#9aa3b2;'));
+ck('Studio: the course pickers are labelled', str_contains($si, '<label for="curCourse">') && str_contains($si, '<label for="learnCourse">'));

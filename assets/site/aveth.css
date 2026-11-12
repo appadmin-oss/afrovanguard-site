@@ -63,10 +63,10 @@
 .aveth-toc a>span:first-child{font-size:12.5px;font-weight:700;color:var(--av-num-idle)}
 .avh .aveth-toc a:hover{color:var(--av-ink)}
 .aveth-toc a[aria-current]{font-weight:700;color:var(--av-ink)}
-.aveth-toc a[aria-current]>span:first-child{color:var(--av-link-hover)}
+.aveth-toc a[aria-current]>span:first-child{color:var(--av-gold-text)}
 .aveth-commit-list{flex:1 1 560px;min-width:0;display:flex;flex-direction:column}
 .aveth-c{display:grid;grid-template-columns:minmax(56px,88px) minmax(0,1fr);gap:8px 28px;padding:clamp(32px,4vw,48px) 0;border-top:1px solid var(--av-line);scroll-margin-top:96px}
-.aveth-c-n{font-family:var(--av-serif);font-weight:400;font-size:clamp(56px,6vw,84px);line-height:.85;color:var(--av-gold-num)}
+.aveth-c-n{font-family:var(--av-serif);font-weight:400;font-size:clamp(56px,6vw,84px);line-height:.85;color:var(--av-link-hover)}  /* large numerals: 3.4:1, was 1.9:1 */
 .aveth-c-b{display:flex;flex-direction:column;gap:14px;min-width:0}
 .aveth-c-b h3{margin:0;font-size:clamp(22px,2vw,27px);font-weight:700;line-height:1.2;color:var(--av-ink)}
 .aveth-c-b>p{margin:0;font-size:16.5px;line-height:1.7;color:var(--av-copy-0);max-width:64ch;text-wrap:pretty}

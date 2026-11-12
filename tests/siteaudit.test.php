@@ -101,10 +101,11 @@ ck('reports: linked from the shared footer and the Home page',
 /* Facts the owner settled (2026-11-05). */
 $saFacts = [
     'login/index.php' => 'Est. 2017',
-    'member.html'     => "Founded Afrovanguard in 2017",
     'index.html'      => '"streetAddress": "CACENTRE Egbeda, 2 Oremeji Street, off Akowonjo Road, Bakey Bus Stop"',
     'contact.html'    => 'CACENTRE Egbeda, 2 Oremeji Street, off Akowonjo Road, Bakey Bus Stop',
 ];
+ck('facts: member.html carries no sample people in its source (only real records, from the API)',
+   !str_contains((string) file_get_contents(AV_ROOT . '/member.html'), 'DEMO_MEMBERS') && !str_contains((string) file_get_contents(AV_ROOT . '/member.html'), 'Funmilayo'));
 foreach ($saFacts as $f => $needle) ck("facts: $f says “{$needle}”", str_contains((string) file_get_contents(AV_ROOT . "/$f"), $needle));
 foreach (['index.html', 'about.html', 'member.html', 'projects/index.html', 'login/index.php'] as $f) {
     $t = (string) file_get_contents(AV_ROOT . "/$f");
