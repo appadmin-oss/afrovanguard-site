@@ -16,7 +16,7 @@ require_once AV_ROOT . '/lib/partials.php';
 
 $S         = rtrim(SITE_URL, '/');
 $canonical = "$S/accessibility/";
-$reviewed  = '11 November 2026';
+$reviewed  = '12 November 2026';
 $contact   = 'cacentre@afrovanguard.org.ng';
 $report    = '/contact.html?purpose=general&subject=' . rawurlencode('Accessibility barrier')
            . '&message=' . rawurlencode("The page (its address):\nWhat I was trying to do:\nWhat stopped me:\nWhat I use (e.g. a screen reader, zoom, keyboard only, a phone):\n") . '#contact-form';
@@ -91,7 +91,6 @@ render_nav('');
                 <li><strong>Some older videos</strong> have no captions or transcript yet. Ask for one from the lesson and we will add it.</li>
                 <li><strong>Annual reports and other PDFs</strong> may not be fully readable by a screen reader. Ask for an accessible version.</li>
                 <li><strong>Things we embed from other companies</strong> — YouTube videos and Google Maps — follow those companies' own accessibility. Every address on a map is also written out in text.</li>
-                <li><strong>The member portal</strong> has a few links that are smaller than they should be on a touchscreen, and one that can slip behind the tab bar when reached with the keyboard.</li>
                 <li><strong>Sign-in</strong> uses a one-time code sent by email. You can paste it; you do not have to remember or retype it.</li>
               </ul>
             </section>

@@ -197,3 +197,8 @@
   .tdp-launch.is-new { animation: none; }
 }
 @media print { .tdp { display: none !important; } }
+
+/* WCAG 2.2 — 2.4.11 Focus Not Obscured. The to-do button is fixed at the
+   bottom right (above the phone tab bar, --avp-bottom-ui): keyboard focus and
+   a screen reader's cursor scroll far enough to stay clear of both. */
+html:has(.tdp) { scroll-padding-bottom: calc(var(--avp-bottom-ui, 0px) + 96px); }

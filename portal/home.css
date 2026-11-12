@@ -61,7 +61,7 @@
 .hv .hv-btn--ink:hover { background:var(--hv-ink-hover) }
 .hv .hv-btn--ghost { background:transparent; border-color:transparent }
 .hv .hv-btn--icon { width:44px; padding:0 }
-.hv .hv-more { font-size:13px; font-weight:600; color:var(--hv-text-2); background:none; border:0; padding:0 }
+.hv .hv-more { font-size:13px; font-weight:600; color:var(--hv-text-2); background:none; border:0; padding:0; min-height:24px; display:inline-flex; align-items:center }
 .hv .hv-chip { display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 9px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap }
 .hv .hv-chip--you { background:var(--hv-gold-soft); color:var(--hv-gold-text) }
 .hv .hv-chip--ok { background:var(--hv-ok-bg); color:var(--hv-ok) }

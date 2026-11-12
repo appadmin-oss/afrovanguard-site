@@ -104,3 +104,10 @@ ck('Studio: the audit counts every lesson and puts must-fix rows first',
 $sc = (string) file_get_contents("$r/academy/studio/studio.css");
 ck('Studio: grey text is readable (4.5:1) in both themes', str_contains($sc, '--muted:#5f6878;') && str_contains($sc, '--muted:#9aa3b2;'));
 ck('Studio: the course pickers are labelled', str_contains($si, '<label for="curCourse">') && str_contains($si, '<label for="learnCourse">'));
+
+/* The member portal's two known problems, fixed (2026-11-12) and taken off the statement. */
+ck('portal: focus stays clear of the phone tab bar and the to-do button (WCAG 2.4.11)',
+   str_contains((string) file_get_contents("$r/portal/avp.css"), 'html { scroll-padding-bottom: calc(var(--avp-bottom-ui) + 16px); }')
+   && str_contains((string) file_get_contents("$r/portal/todo-pop.css"), 'html:has(.tdp) { scroll-padding-bottom:'));
+ck('portal: the hub\'s "more" links are 24px targets (WCAG 2.5.8)', (bool) preg_match('~\.hv \.hv-more \{[^}]*min-height:24px~', (string) file_get_contents("$r/portal/home.css")));
+ck('statement: the member portal is no longer listed as falling short', !str_contains((string) file_get_contents("$r/accessibility/index.php"), '<strong>The member portal</strong>'));

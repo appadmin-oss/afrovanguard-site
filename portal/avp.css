@@ -457,6 +457,8 @@ a.avp-kpi--link:focus-visible { outline: 2px solid var(--avp-gold); outline-offs
      child of <body>, not of .avp, so it cannot inherit from the shell.
      This file only loads on portal pages, so the value cannot leak. */
   :root { --avp-bottom-ui: calc(62px + env(safe-area-inset-bottom)); }
+  /* The tab bar is fixed: keep a focused link from scrolling in under it (WCAG 2.4.11). */
+  html { scroll-padding-bottom: calc(var(--avp-bottom-ui) + 16px); }
 
   /* At a glance: two columns, not one. auto-fit/minmax(200px) gives a single
      column under 412px, which turns five numbers into 637px of scrolling. */
