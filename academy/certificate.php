@@ -20,5 +20,4 @@ $cert = $lms->issueCertificate((int) $user['id'], (int) $course['id']);
 /* Not earned yet: the grades page says exactly what is left, which a 403 does not. */
 if (!$cert) { header('Location: ' . academy_url($slug . '/grades')); exit; }
 
-avac_cert_png((string) $user['name'], 'Certificate of Completion', 'has successfully completed the programme',
-    (string) $course['title'], (string) $cert['issued_at'], (string) $cert['serial'], 'afrovanguard-certificate-' . $slug . '.png');
+avac_cert_png((string) $user['name'], 'course', (string) $course['title'], (string) $cert['issued_at'], (string) $cert['serial'], 'afrovanguard-certificate-' . $slug . '.png');
