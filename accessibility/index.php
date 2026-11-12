@@ -17,7 +17,7 @@ require_once AV_ROOT . '/lib/partials.php';
 $S         = rtrim(SITE_URL, '/');
 $canonical = "$S/accessibility/";
 $reviewed  = '12 November 2026';
-$contact   = 'cacentre@afrovanguard.org.ng';
+$contact   = 'cacentre@afrovanguard.org.ng';   // reply within five working days — both confirmed by the owner, 2026-11-12
 $report    = '/contact.html?purpose=general&subject=' . rawurlencode('Accessibility barrier')
            . '&message=' . rawurlencode("The page (its address):\nWhat I was trying to do:\nWhat stopped me:\nWhat I use (e.g. a screen reader, zoom, keyboard only, a phone):\n") . '#contact-form';
 
