@@ -4,9 +4,11 @@
  *
  *   GET                 → this member's requests, where each stands, and the
  *                         kinds of spending finance will accept right now.
- *   POST ?action=create → title, purpose, category, amount, and where a
- *                         reimbursement should go. Returns the finance
- *                         reference.
+ *   POST ?action=create → title, purpose, category, amount, whether the
+ *                         money is already spent (claim_kind), up to three
+ *                         receipts (multipart `receipts[]`) or the reason
+ *                         there are none, and where a reimbursement should
+ *                         go. Returns the finance reference.
  *   POST ?action=retry  → send again one that never reached finance. The
  *                         reference does not change, so this cannot pay twice.
  *
@@ -48,7 +50,18 @@ if ($email === '') {
     json_out(['ok' => false, 'error' => 'Your account has no email address, so finance would have nobody to reply to.'], 422);
 }
 
-$r = CfisRequests::submit($uid, $body, $name, $email);
+/* Receipts come as multipart `receipts[]`; PHP's per-field arrays are
+   turned into one entry per file. */
+$files = [];
+$up = $_FILES['receipts'] ?? null;
+if (is_array($up) && is_array($up['name'] ?? null)) {
+    foreach (array_keys($up['name']) as $i) {
+        $files[] = ['name' => $up['name'][$i] ?? '', 'tmp_name' => $up['tmp_name'][$i] ?? '',
+                    'error' => $up['error'][$i] ?? UPLOAD_ERR_NO_FILE, 'size' => $up['size'][$i] ?? 0];
+    }
+}
+
+$r = CfisRequests::submit($uid, $body, $name, $email, $files);
 
 /* A refusal from finance is a sentence written for the member — that
    heading is not on offer, that amount is over what a form may ask for —

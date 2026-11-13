@@ -33,11 +33,22 @@ declare(strict_types=1);
             <p class="pcard-note" data-mr-down hidden>Finance cannot be reached just now. You can still ask: your request is kept and goes by itself as soon as finance answers.</p>
             <p class="pcard-note" data-mr-off hidden>Finance is not connected to this site yet. You can still ask: your request is kept, the office is told, and it goes to finance by itself once it is connected.</p>
 
-            <form class="mr-form" data-mr-form novalidate hidden>
+            <form class="mr-form" data-mr-form novalidate hidden enctype="multipart/form-data">
+              <fieldset class="mr-wide mr-kind">
+                <legend>Have you already paid?</legend>
+                <label><input type="radio" name="claim_kind" value="reimbursement" checked> Yes — I paid and want it back</label>
+                <label><input type="radio" name="claim_kind" value="advance"> No — I need money for something</label>
+              </fieldset>
               <label class="mr-wide">What for <input name="title" maxlength="160" required placeholder="Bus fare to the Saturday session"></label>
               <label class="mr-wide">Why it is needed <textarea name="purpose" rows="2" required placeholder="Four facilitators travelling to the Ikeja centre"></textarea></label>
-              <label>Kind of spending <select name="category" required></select></label>
+              <label>Kind of spending <select name="category" required></select>
+                <span class="pcard-note" data-mr-hint></span></label>
               <label>Amount (₦) <input name="amount" type="number" min="100" step="1" required></label>
+
+              <label class="mr-wide">Receipt <span class="pcard-note">a photo or PDF, up to three</span>
+                <input type="file" name="receipts[]" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"></label>
+              <label class="mr-wide" data-mr-noreceipt>No receipt? Say why <span class="pcard-note" data-mr-receipt-rule>Asked for money already spent over ₦5,000.</span>
+                <input name="no_receipt_reason" maxlength="500" placeholder="Prepaid units bought by USSD; no paper receipt"></label>
 
               <details data-mr-bank>
                 <summary>Where to pay it back</summary>

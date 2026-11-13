@@ -72,7 +72,36 @@ final class CfisRequests
      * heading it no longer takes comes back refused, with its reason, on the
      * member's request.
      */
-    public const DEFAULT_CATEGORIES = ['transport', 'materials', 'equipment', 'venue', 'internet', 'facilitation'];
+    public const DEFAULT_CATEGORIES = ['transport', 'materials', 'equipment', 'venue', 'internet', 'utility', 'facilitation', 'repairs', 'events', 'publicity'];
+
+    /**
+     * The same, with the words a member reads. CFIS publishes its own
+     * (`category_list`) and keeps them on Books › Request categories; this
+     * is only what the form says while finance is not answering — and CFIS
+     * still decides on arrival.
+     */
+    public const DEFAULT_CATEGORY_LIST = [
+        ['key' => 'transport',    'label' => 'Transport and travel',     'hint' => 'Fares, fuel for a trip, logistics'],
+        ['key' => 'materials',    'label' => 'Learning materials',       'hint' => 'Printing, stationery, workbooks'],
+        ['key' => 'equipment',    'label' => 'Equipment and ICT',        'hint' => 'Devices, cables, tools'],
+        ['key' => 'venue',        'label' => 'Venue and setup',          'hint' => 'Hall hire, chairs, decoration for a session'],
+        ['key' => 'internet',     'label' => 'Internet and airtime',     'hint' => 'Data, airtime, hosting'],
+        ['key' => 'utility',      'label' => 'Utilities',                'hint' => 'Electricity (prepaid units or a bill), water, generator fuel, waste collection'],
+        ['key' => 'facilitation', 'label' => 'Facilitation fees',        'hint' => 'Paying a facilitator or instructor'],
+        ['key' => 'repairs',      'label' => 'Repairs and maintenance',  'hint' => 'Fixing a generator, plumbing, a broken device'],
+        ['key' => 'events',       'label' => 'Events',                   'hint' => 'Refreshments and other costs of an event'],
+        ['key' => 'publicity',    'label' => 'Publicity and printing',   'hint' => 'Flyers, banners, adverts'],
+    ];
+
+    /** Money already spent over this, in naira, needs a receipt or a reason. CFIS's figure wins when it answers. */
+    public const RECEIPT_OVER_NGN = 5000;
+
+    /** Receipts with one request: CFIS takes three, each up to 5MB. */
+    public const MAX_FILES = 3;
+    public const MAX_FILE_BYTES = 5 * 1024 * 1024;
+    /** All of them together, so the body stays under a shared host's upload limit. */
+    public const MAX_TOTAL_BYTES = 8 * 1024 * 1024;
+    private const RECEIPT_TYPES = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif', 'application/pdf' => 'pdf'];
 
     /** Kept requests older than this are no longer sent by themselves; the member sends them again. */
     private const PENDING_DAYS = 60;
@@ -108,7 +137,11 @@ final class CfisRequests
         CREATE INDEX IF NOT EXISTS idx_cfisreq_user ON cfis_member_requests (user_id, id)");
         /* Where to pay them, kept with a request that waits, so it goes
            with it when it is sent later. */
-        foreach (['bank' => 'TEXT', 'asker_name' => "VARCHAR(160) NOT NULL DEFAULT ''", 'asker_email' => "VARCHAR(191) NOT NULL DEFAULT ''"] as $col => $decl) {
+        /* Money already spent, the reason there is no receipt, and the
+           receipts themselves (name, hash, and where the file waits until
+           finance has it), kept with a request that waits. */
+        foreach (['bank' => 'TEXT', 'asker_name' => "VARCHAR(160) NOT NULL DEFAULT ''", 'asker_email' => "VARCHAR(191) NOT NULL DEFAULT ''",
+                  'claim_kind' => "VARCHAR(16) NOT NULL DEFAULT 'advance'", 'no_receipt' => 'TEXT', 'evidence' => 'TEXT'] as $col => $decl) {
             try {
                 if (!Database::columnExists('cfis_member_requests', $col)) Database::pdo()->exec("ALTER TABLE cfis_member_requests ADD COLUMN $col $decl");
             } catch (Throwable $e) {}
@@ -121,7 +154,7 @@ final class CfisRequests
      * @param  array<string,mixed>  $in
      * @return array{ok: bool, error?: string, reference?: string, ref?: string}
      */
-    public static function submit(int $userId, array $in, string $name, string $email): array
+    public static function submit(int $userId, array $in, string $name, string $email, array $files = []): array
     {
         self::table();
 
@@ -140,6 +173,24 @@ final class CfisRequests
             return ['ok' => false, 'error' => 'Choose what kind of spending this is.'];
         }
 
+        /* Money already spent, or money needed. Every request used to arrive
+           at finance as money needed, so the receipt rule — which asks only
+           about money already spent — never asked the member who had paid
+           out of their own pocket: the person this page was built for. */
+        $claimKind = ($in['claim_kind'] ?? '') === 'reimbursement' ? 'reimbursement' : 'advance';
+        $noReceipt = mb_substr(trim((string) ($in['no_receipt_reason'] ?? '')), 0, 500);
+
+        $receipts = self::receipts($files);
+        if (isset($receipts['error'])) return ['ok' => false, 'error' => $receipts['error']];
+
+        /* Asked here as well as at finance, so a request kept while finance
+           is not answering is not refused days later for a receipt the
+           member could have added now. */
+        if ($claimKind === 'reimbursement' && $receipts['files'] === [] && $noReceipt === '' && $amount > self::RECEIPT_OVER_NGN) {
+            return ['ok' => false, 'error' => 'This is money you have already spent, over ₦' . number_format(self::RECEIPT_OVER_NGN)
+                . '. Add a photo of the receipt, or say why there is none.'];
+        }
+
         /* The bank details go with the request because a request that can
            be approved and then cannot be paid is worse than one refused
            now. CFIS keeps them against the member after the first time, so
@@ -156,39 +207,38 @@ final class CfisRequests
         $now = gmdate('c');
         $minor = (int) round($amount * 100);
 
+        $evidence = self::keep($ref, $receipts['files']);
+
         $pdo = Database::pdo();
         $st = $pdo->prepare("INSERT INTO cfis_member_requests
-            (user_id, ref, title, purpose, category, amount_minor, status, created_at, updated_at, bank, asker_name, asker_email)
-            VALUES (?, ?, ?, ?, ?, ?, 'unsent', ?, ?, ?, ?, ?)");
+            (user_id, ref, title, purpose, category, amount_minor, status, created_at, updated_at, bank, asker_name, asker_email, claim_kind, no_receipt, evidence)
+            VALUES (?, ?, ?, ?, ?, ?, 'unsent', ?, ?, ?, ?, ?, ?, ?, ?)");
         $st->execute([$userId, $ref, mb_substr($title, 0, 160), $purpose, $category, $minor, $now, $now, (string) json_encode($bank),
-                      mb_substr($name, 0, 160), mb_substr(strtolower($email), 0, 191)]);
+                      mb_substr($name, 0, 160), mb_substr(strtolower($email), 0, 191), $claimKind, $noReceipt, (string) json_encode($evidence)]);
         $id = (int) $pdo->lastInsertId();
+        $row = ['id' => $id, 'ref' => $ref, 'title' => $title, 'purpose' => $purpose, 'category' => $category,
+                'amount_minor' => $minor, 'bank' => json_encode($bank), 'claim_kind' => $claimKind,
+                'no_receipt' => $noReceipt, 'evidence' => json_encode($evidence)];
 
         if (!self::configured()) {
             $pdo->prepare("UPDATE cfis_member_requests SET last_error = ? WHERE id = ?")
                 ->execute(['Kept here: it goes to finance as soon as finance is connected.', $id]);
-            self::tellOffice($ref, $name, $email, $title, $purpose, $category, $amount);
+            self::tellFinance($row, $name, $email, 'Kept here: finance (CFIS) is not connected yet. It is sent by itself once CFIS_SECRET is set in Studio → Rules & AI → Setup.');
             return ['ok' => true, 'queued' => true, 'ref' => $ref,
-                    'message' => 'Asked. Your request is kept under ' . $ref . ' and goes to finance by itself as soon as finance is connected. The office has been told.'];
+                    'message' => 'Asked. Your request is kept under ' . $ref . ' and goes to finance by itself as soon as finance is connected. Finance has been told.'];
         }
 
-        $r = self::send($id, $ref, [
-            'ref'      => $ref,
-            'email'    => $email,
-            'name'     => $name,
-            'title'    => $title,
-            'purpose'  => $purpose,
-            'amount'   => number_format($amount, 2, '.', ''),
-            'currency' => 'NGN',
-            'category' => $category,
-        ] + $bank);
+        $r = self::send($id, $ref, self::claimsOf($row, $name, $email), $evidence);
         /* Finance not answering is not the member's problem to solve: the
            request is kept and goes when it can. A refusal FROM finance (a
            heading not on offer, over the ceiling) is still said as such. */
         if (empty($r['ok']) && !empty($r['unreachable'])) {
-            self::tellOffice($ref, $name, $email, $title, $purpose, $category, $amount);
+            self::tellFinance($row, $name, $email, 'Kept here: CFIS could not be reached. It is sent again by itself.');
             return ['ok' => true, 'queued' => true, 'ref' => $ref,
                     'message' => 'Asked. Finance could not be reached just now, so your request is kept under ' . $ref . ' and goes by itself as soon as it can.'];
+        }
+        if (!empty($r['ok'])) {
+            self::tellFinance($row, $name, $email, 'In CFIS as ' . (string) ($r['reference'] ?? '') . ', waiting for approval there.');
         }
         return $r;
     }
@@ -213,7 +263,7 @@ final class CfisRequests
         $st->execute([gmdate('c', time() - self::PENDING_DAYS * 86400)]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
             if (!filter_var((string) $row['email'], FILTER_VALIDATE_EMAIL)) continue;   // nobody for finance to answer
-            $r = self::send((int) $row['id'], (string) $row['ref'], self::claimsOf($row, (string) $row['name'], (string) $row['email']));
+            $r = self::send((int) $row['id'], (string) $row['ref'], self::claimsOf($row, (string) $row['name'], (string) $row['email']), self::evidenceOf($row));
             if (!empty($r['ok'])) { $out['sent']++; continue; }
             if (!empty($r['unreachable'])) { $out['waiting']++; break; }
             $out['refused']++;
@@ -221,39 +271,127 @@ final class CfisRequests
         return $out;
     }
 
-    /** What CFIS is sent for a stored request. */
+    /**
+     * What CFIS is sent for a stored request.
+     *
+     * The receipts are named here by their SHA-256, so they are covered by
+     * the signature: CFIS refuses bytes that do not match, or a file the
+     * token did not list.
+     */
     private static function claimsOf(array $row, string $name, string $email): array
     {
         $bank = json_decode((string) ($row['bank'] ?? ''), true);
-        return [
+        $claims = [
             'ref' => (string) $row['ref'], 'email' => $email, 'name' => $name,
             'title' => (string) $row['title'], 'purpose' => (string) $row['purpose'],
             'amount' => number_format(((int) $row['amount_minor']) / 100, 2, '.', ''),
             'currency' => 'NGN', 'category' => (string) $row['category'],
+            'claim_kind' => (string) ($row['claim_kind'] ?? 'advance') === 'reimbursement' ? 'reimbursement' : 'advance',
         ] + (is_array($bank) ? $bank : []);
+        if (trim((string) ($row['no_receipt'] ?? '')) !== '') $claims['no_receipt_reason'] = (string) $row['no_receipt'];
+        $evidence = self::evidenceOf($row);
+        if ($evidence !== []) {
+            $claims['evidence'] = array_map(fn ($e) => ['name' => $e['name'], 'sha256' => $e['sha256']], $evidence);
+        }
+        return $claims;
+    }
+
+    /** @return list<array{name:string, sha256:string, path:string}> */
+    private static function evidenceOf(array $row): array
+    {
+        $e = json_decode((string) ($row['evidence'] ?? ''), true);
+        return is_array($e) ? array_values(array_filter($e, fn ($x) => is_array($x) && !empty($x['sha256']))) : [];
     }
 
     /**
-     * Somebody at the office hears of a request finance has not got yet, so
-     * it is not money asked for into a void. Best effort: the request is
-     * kept whatever the mail does.
+     * The receipts a member chose, checked before anything is written.
+     *
+     * By their BYTES, not their names: a file called receipt.jpg that is a
+     * script is not a receipt. Photos and PDFs only — what a phone makes and
+     * what a supplier sends.
+     *
+     * @param  array<int, array{name?:string, tmp_name?:string, error?:int, size?:int}>  $files
+     * @return array{files: list<array{name:string, mime:string, tmp:string}>, error?: string}
      */
-    private static function tellOffice(string $ref, string $name, string $email, string $title, string $purpose, string $category, float $amount): void
+    private static function receipts(array $files): array
+    {
+        $out = []; $total = 0;
+        foreach ($files as $f) {
+            if (!is_array($f) || (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) continue;
+            if ((int) ($f['error'] ?? 0) !== UPLOAD_ERR_OK || !is_file((string) ($f['tmp_name'] ?? ''))) {
+                return ['files' => [], 'error' => 'A receipt did not upload. It may be too large — try a smaller photo.'];
+            }
+            $size = (int) filesize((string) $f['tmp_name']);
+            $mime = (string) (new finfo(FILEINFO_MIME_TYPE))->file((string) $f['tmp_name']);
+            if (!isset(self::RECEIPT_TYPES[$mime])) {
+                return ['files' => [], 'error' => 'A receipt must be a photo or a PDF.'];
+            }
+            if ($size > self::MAX_FILE_BYTES) {
+                return ['files' => [], 'error' => 'A receipt is over 5MB. Take the photo again at a smaller size.'];
+            }
+            $total += $size;
+            $out[] = ['name' => mb_substr(basename((string) ($f['name'] ?? 'receipt')), 0, 120) ?: 'receipt', 'mime' => $mime, 'tmp' => (string) $f['tmp_name']];
+        }
+        if (count($out) > self::MAX_FILES) return ['files' => [], 'error' => 'Up to ' . self::MAX_FILES . ' receipts with one request.'];
+        if ($total > self::MAX_TOTAL_BYTES) return ['files' => [], 'error' => 'The receipts together are over 8MB. Send smaller photos.'];
+        return ['files' => $out];
+    }
+
+    /**
+     * Keep the receipts until finance has them, in the private store (never
+     * the web root: a receipt carries a name, an address, sometimes a card
+     * number). Deleted once CFIS confirms it holds the request.
+     *
+     * @param  list<array{name:string, mime:string, tmp:string}>  $files
+     * @return list<array{name:string, sha256:string, path:string}>
+     */
+    private static function keep(string $ref, array $files): array
+    {
+        if ($files === []) return [];
+        $dir = dirname(av_private_path('cfis-receipts.keep')) . '/cfis-receipts';
+        if (!is_dir($dir)) @mkdir($dir, 0700, true);
+        $kept = [];
+        foreach ($files as $i => $f) {
+            $bytes = (string) file_get_contents($f['tmp']);
+            $path = $dir . '/' . preg_replace('/[^A-Za-z0-9-]/', '', $ref) . '-' . $i . '.' . self::RECEIPT_TYPES[$f['mime']];
+            if (@file_put_contents($path, $bytes) === false) continue;
+            @chmod($path, 0600);
+            $kept[] = ['name' => $f['name'], 'sha256' => hash('sha256', $bytes), 'path' => $path];
+        }
+        return $kept;
+    }
+
+    /**
+     * Finance hears of every request, wherever it now stands — sent into
+     * CFIS, or kept here because CFIS is not connected or not answering —
+     * so no money is asked for into a void. To the finance mailbox
+     * (av_finance_email(), Studio → Setup): it went to the general mailbox,
+     * and only when the request could not be sent. Best effort: the request
+     * is kept whatever the mail does.
+     */
+    private static function tellFinance(array $row, string $name, string $email, string $where): void
     {
         if (!class_exists('Mailer')) return;
-        $to = '';
-        foreach (['AV_FINANCE_EMAIL', 'ADMIN_EMAIL'] as $k) {
-            $v = class_exists('Config') ? (string) Config::get($k, '') : (string) (getenv($k) ?: '');
-            if (filter_var($v, FILTER_VALIDATE_EMAIL)) { $to = $v; break; }
-        }
-        if ($to === '') return;
+        $to = av_finance_email();
+        $amount = ((int) ($row['amount_minor'] ?? 0)) / 100;
+        $receipts = count(self::evidenceOf($row));
         try {
-            Mailer::send($to, 'Finance request waiting: ' . $title, Mailer::shell('A finance request is waiting', [
-                'Reference' => $ref, 'From' => $name . ' <' . $email . '>', 'For' => $title,
-                'Why' => $purpose, 'Kind' => $category, 'Amount' => '₦' . number_format($amount, 2),
-                'Where it is' => self::configured() ? 'Finance could not be reached; it is sent again by itself.' : 'Finance (CFIS) is not connected yet. It is sent by itself once CFIS_SECRET is set in Studio → Rules & AI → Setup.',
+            Mailer::send($to, 'Finance request: ' . (string) $row['title'] . ' — ₦' . number_format($amount, 2), Mailer::shell('A member has asked finance for money', [
+                'Reference' => (string) $row['ref'], 'From' => $name . ' <' . $email . '>', 'For' => (string) $row['title'],
+                'Why' => (string) $row['purpose'], 'Kind' => self::labelOf((string) $row['category']),
+                'Already spent?' => ((string) ($row['claim_kind'] ?? '')) === 'reimbursement' ? 'Yes — a claim for money they paid' : 'No — money needed',
+                'Receipts' => $receipts > 0 ? $receipts . ' attached in CFIS' : (trim((string) ($row['no_receipt'] ?? '')) !== '' ? 'None: ' . (string) $row['no_receipt'] : 'None'),
+                'Amount' => '₦' . number_format($amount, 2),
+                'Where it is' => $where,
             ]), ['replyTo' => $email]);
-        } catch (Throwable $e) { error_log('[cfis-requests] tell office: ' . $e->getMessage()); }
+        } catch (Throwable $e) { error_log('[cfis-requests] tell finance: ' . $e->getMessage()); }
+    }
+
+    /** The words for a category key, from the list the form was drawn from. */
+    private static function labelOf(string $key, array $list = self::DEFAULT_CATEGORY_LIST): string
+    {
+        foreach ($list as $c) if (($c['key'] ?? '') === $key) return (string) $c['label'];
+        return ucfirst(str_replace('_', ' ', $key));
     }
 
     /**
@@ -265,9 +403,18 @@ final class CfisRequests
      * @param  array<string,mixed>  $claims
      * @return array{ok: bool, error?: string, reference?: string, ref?: string}
      */
-    public static function send(int $id, string $ref, array $claims): array
+    public static function send(int $id, string $ref, array $claims, array $evidence = []): array
     {
-        $r = self::post('/api/requests/' . rawurlencode(CfisCheckout::source()), $claims);
+        /* The bytes travel beside the token; the token names each by hash. */
+        $files = [];
+        foreach ($evidence as $e) {
+            $bytes = is_file((string) ($e['path'] ?? '')) ? (string) file_get_contents((string) $e['path']) : '';
+            if ($bytes === '' || hash('sha256', $bytes) !== $e['sha256']) {
+                return ['ok' => false, 'ref' => $ref, 'error' => 'A receipt kept with this request can no longer be read. Ask again with the receipt.'];
+            }
+            $files[] = ['name' => (string) $e['name'], 'data' => base64_encode($bytes)];
+        }
+        $r = self::post('/api/requests/' . rawurlencode(CfisCheckout::source()), $claims, $files === [] ? [] : ['files' => $files]);
 
         $pdo = Database::pdo();
         if (!($r['ok'] ?? false)) {
@@ -281,6 +428,10 @@ final class CfisRequests
         $pdo->prepare("UPDATE cfis_member_requests
                 SET cfis_reference = ?, status = ?, last_error = NULL, updated_at = ? WHERE id = ?")
             ->execute([(string) ($r['reference'] ?? ''), (string) ($r['status'] ?? 'submitted'), gmdate('c'), $id]);
+
+        /* Finance holds them now; a copy here is a receipt with somebody's
+           details on it, kept for no reason. The names and hashes stay. */
+        foreach ($evidence as $e) if (is_file((string) ($e['path'] ?? ''))) @unlink((string) $e['path']);
 
         return ['ok' => true, 'reference' => (string) ($r['reference'] ?? ''), 'ref' => $ref];
     }
@@ -297,7 +448,7 @@ final class CfisRequests
         if (($row['cfis_reference'] ?? '') !== '') return ['ok' => true, 'reference' => $row['cfis_reference']];
 
         if (!self::configured()) return ['ok' => false, 'error' => 'Finance is not connected yet. Your request is kept and goes by itself as soon as it is.'];
-        return self::send((int) $row['id'], (string) $row['ref'], self::claimsOf($row, $name, $email));
+        return self::send((int) $row['id'], (string) $row['ref'], self::claimsOf($row, $name, $email), self::evidenceOf($row));
     }
 
     /* ── looking ────────────────────────────────────────────────────── */
@@ -327,6 +478,13 @@ final class CfisRequests
         ]);
         $reachable = (bool) ($live['ok'] ?? false);
         $states = (array) ($live['requests'] ?? []);
+        /* The words come from finance with the list (category_list); a
+           CFIS from before it published them sends keys only. */
+        $list = $reachable
+            ? (is_array($live['category_list'] ?? null) && $live['category_list'] !== []
+                ? array_values(array_filter($live['category_list'], 'is_array'))
+                : array_map(fn ($k) => ['key' => (string) $k, 'label' => self::labelOf((string) $k), 'hint' => ''], (array) ($live['categories'] ?? [])))
+            : self::DEFAULT_CATEGORY_LIST;
 
         $out = [];
         foreach ($rows as $row) {
@@ -338,7 +496,9 @@ final class CfisRequests
             $out[] = [
                 'id' => (int) $row['id'],
                 'title' => (string) $row['title'],
-                'category' => (string) $row['category'],
+                'category' => self::labelOf((string) $row['category'], array_merge($list, self::DEFAULT_CATEGORY_LIST)),
+                'claim_kind' => (string) ($row['claim_kind'] ?? 'advance'),
+                'receipts' => count(self::evidenceOf($row)),
                 'amount' => number_format(((int) $row['amount_minor']) / 100, 2),
                 'reference' => (string) ($state['reference'] ?? $row['cfis_reference']),
                 'status' => (string) ($state['status'] ?? $row['status']),
@@ -355,7 +515,10 @@ final class CfisRequests
             /* Never a local copy. If finance cannot be reached the form
                says so, rather than offering a list that may no longer be
                what CFIS accepts. */
-            'categories' => $reachable ? array_values((array) ($live['categories'] ?? [])) : self::DEFAULT_CATEGORIES,
+            'categories' => array_column($list, 'key'),
+            'category_list' => $list,
+            'receipt_over' => (string) ($live['receipt_over'] ?? self::RECEIPT_OVER_NGN),
+            'max_files' => self::MAX_FILES,
             'max' => (string) ($live['max'] ?? ''),
             'finance_reachable' => $reachable,
             /* Not set up is not "cannot be reached just now": one is a
@@ -407,7 +570,7 @@ final class CfisRequests
      * @param  array<string,mixed>  $claims
      * @return array<string,mixed>
      */
-    private static function post(string $path, array $claims): array
+    private static function post(string $path, array $claims, array $extra = []): array
     {
         if (!self::configured()) {
             return ['ok' => false, 'error' => 'Finance is not connected.', 'unreachable' => true];
@@ -423,7 +586,7 @@ final class CfisRequests
             CURLOPT_CONNECTTIMEOUT => 8,
             CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: application/json',
                                    'X-CFIS-Token: ' . $token],
-            CURLOPT_POSTFIELDS => json_encode(['token' => $token], JSON_UNESCAPED_SLASHES),
+            CURLOPT_POSTFIELDS => json_encode(['token' => $token] + $extra, JSON_UNESCAPED_SLASHES),
         ]);
         $body = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);

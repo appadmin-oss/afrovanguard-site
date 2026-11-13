@@ -447,3 +447,18 @@ function av_ngg_secret(): string
     }
     return '';
 }
+
+/**
+ * Where finance hears of money (Studio → Setup → Finance mailbox).
+ *
+ * One answer, read by every sender that tells finance something: finance
+ * requests (CfisRequests) and donations (process-donation.php). It used to
+ * be a setting nothing could set — AV_FINANCE_EMAIL was read but was not in
+ * the Studio's list, so on a host with no shell every finance notice went
+ * to the general mailbox instead.
+ */
+function av_finance_email(): string {
+    $v = class_exists('Config') ? trim((string) Config::get('AV_FINANCE_EMAIL', '')) : trim((string) (getenv('AV_FINANCE_EMAIL') ?: ''));
+    return filter_var($v, FILTER_VALIDATE_EMAIL) ? $v : 'finance@afrovanguard.org.ng';
+}
+

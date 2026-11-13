@@ -670,8 +670,12 @@ if ($action==='record_donation') {
                 'frequency'=>$freq,'reference'=>$ref,
             ]));
             if (ENABLE_ADMIN_NOTIFICATIONS) {
-                mail_send(ADMIN_EMAIL,'[Afrovanguard] New Donation: '.$currency.' '.number_format($amount,2),
-                    adminHtml(['firstName'=>$fn,'lastName'=>$ln,'email'=>$email,'amount'=>$amount,'currency'=>$currency,'campaign'=>$camp,'reference'=>$ref],'New Donation'));
+                $__html = adminHtml(['firstName'=>$fn,'lastName'=>$ln,'email'=>$email,'amount'=>$amount,'currency'=>$currency,'campaign'=>$camp,'reference'=>$ref],'New Donation');
+                mail_send(ADMIN_EMAIL,'[Afrovanguard] New Donation: '.$currency.' '.number_format($amount,2), $__html);
+                /* And finance, who reconcile it (Studio → Setup → Finance mailbox). */
+                if (strcasecmp(av_finance_email(), (string) ADMIN_EMAIL) !== 0) {
+                    mail_send(av_finance_email(),'[Afrovanguard] New Donation: '.$currency.' '.number_format($amount,2), $__html);
+                }
             }
         }
     }
@@ -794,8 +798,12 @@ if ($action==='submit_contribute') {
     writeData($data);
     mail_send($email,'Thank You for Contributing to Afrovanguard 🙌',contributeHtml(['name'=>$name,'type_label'=>$tlabel,'description'=>$desc]));
     if (ENABLE_ADMIN_NOTIFICATIONS) {
-        mail_send(ADMIN_EMAIL,"[Afrovanguard] New {$tlabel}: {$name}",
-            "<h3>New {$tlabel}</h3><p><b>Name:</b> ".esc($name)."<br><b>Email:</b> ".esc($email)."<br><b>Campaign:</b> ".esc($camp)."<br><b>Details:</b> ".esc($desc)."</p>");
+        $__html = "<h3>New {$tlabel}</h3><p><b>Name:</b> ".esc($name)."<br><b>Email:</b> ".esc($email)."<br><b>Campaign:</b> ".esc($camp)."<br><b>Details:</b> ".esc($desc)."</p>";
+        mail_send(ADMIN_EMAIL,"[Afrovanguard] New {$tlabel}: {$name}", $__html);
+        /* A gift in kind is income in kind: finance records it too. */
+        if (strcasecmp(av_finance_email(), (string) ADMIN_EMAIL) !== 0) {
+            mail_send(av_finance_email(),"[Afrovanguard] New {$tlabel}: {$name}", $__html);
+        }
     }
     echo json_encode(['success'=>true,'message'=>"Thank you! We'll be in touch within 48 hours."]);
     exit;

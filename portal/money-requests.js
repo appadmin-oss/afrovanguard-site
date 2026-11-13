@@ -54,14 +54,38 @@
     return 'gold';
   }
 
+  var hint = card.querySelector('[data-mr-hint]');
+  var noReceipt = card.querySelector('[data-mr-noreceipt]');
+  var cats = [];
+
+  /* The words for each kind come from finance (category_list), with what
+     it covers under the select. Keys alone are a heading code, not a
+     sentence: "facilitation" means nothing to somebody who bought units. */
+  function syncHint() {
+    var c = cats.filter(function (x) { return x.key === kind.value; })[0];
+    if (hint) hint.textContent = c && c.hint ? c.hint : '';
+  }
+  function syncKind() {
+    var spent = (form.querySelector('[name=claim_kind]:checked') || {}).value === 'reimbursement';
+    if (noReceipt) noReceipt.hidden = !spent;
+  }
+  kind.addEventListener('change', syncHint);
+  form.addEventListener('change', function (e) { if (e.target.name === 'claim_kind') syncKind(); });
+
   function draw(data) {
     kind.innerHTML = '';
-    (data.categories || []).forEach(function (c) {
+    cats = (data.category_list && data.category_list.length) ? data.category_list
+      : (data.categories || []).map(function (c) { return { key: c, label: c.charAt(0).toUpperCase() + c.slice(1).replace(/_/g, ' '), hint: '' }; });
+    cats.forEach(function (c) {
       var o = document.createElement('option');
-      o.value = c;
-      o.textContent = c.charAt(0).toUpperCase() + c.slice(1);
+      o.value = c.key;
+      o.textContent = c.label;
       kind.appendChild(o);
     });
+    syncHint();
+    syncKind();
+    var rule = card.querySelector('[data-mr-receipt-rule]');
+    if (rule && data.receipt_over) rule.textContent = 'Asked for money already spent over ' + money(data.receipt_over) + '.';
 
     var reachable = !!data.finance_reachable;
     /* Asking is always open (data.accepting): a request finance cannot take
@@ -97,8 +121,10 @@
 
       var sub = document.createElement('p');
       sub.className = 'mr-sub';
-      sub.textContent = money(r.amount) + ' · ' + r.category + ' · asked ' + r.asked_on
-        + (r.reference ? ' · ' + r.reference : '');
+      sub.textContent = money(r.amount) + ' · ' + r.category
+        + (r.claim_kind === 'reimbursement' ? ' · already paid' : '')
+        + (r.receipts ? ' · ' + r.receipts + ' receipt' + (r.receipts === 1 ? '' : 's') : '')
+        + ' · asked ' + r.asked_on + (r.reference ? ' · ' + r.reference : '');
       li.appendChild(sub);
 
       /* Only where it can act: a request finance already has is not
@@ -149,13 +175,15 @@
     e.preventDefault();
     say('');
 
+    /* Multipart, so the receipts go with it. The CSRF token rides in the
+       header exactly as for the JSON calls. */
     var fd = new FormData(form);
-    var body = {};
-    fd.forEach(function (v, k) { body[k] = v; });
-
     var btn = form.querySelector('button[type=submit]');
     btn.disabled = true;
-    post(body).then(function (res) {
+    fetch(API + '?action=create', { method: 'POST', headers: { 'X-CSRF-Token': CSRF }, body: fd })
+      .then(function (r) { return r.json(); })
+      .catch(function () { return { ok: false, error: 'Could not reach the portal.' }; })
+      .then(function (res) {
       btn.disabled = false;
       if (res.ok) {
         form.reset();
@@ -169,7 +197,7 @@
            a form may ask for. */
         say(res.error || 'It could not be sent.', true);
       }
-    });
+      });
   });
 
   load();
