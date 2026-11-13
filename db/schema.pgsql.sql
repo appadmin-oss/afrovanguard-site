@@ -147,6 +147,7 @@ CREATE TABLE IF NOT EXISTS lms_sessions (
   expires_at  TEXT NOT NULL,
   created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_lms_sessions_user ON lms_sessions(user_id);
 CREATE TABLE IF NOT EXISTS modules (
   id          SERIAL PRIMARY KEY,
   course_id   INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
@@ -210,6 +211,7 @@ CREATE TABLE IF NOT EXISTS memberships (
   started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_memberships_user ON memberships(user_id);
 -- Restricted-course access: an explicit per-member allowlist, and named "passes"
 -- an admin grants that unlock any course requiring that pass (also ensured at runtime).
 CREATE TABLE IF NOT EXISTS course_access (
@@ -246,6 +248,7 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
   passed     INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user_lesson ON quiz_attempts(user_id, lesson_id);
 -- ── Academy courseware: assignments, discussions, reviews, programmes ──
 -- One current submission per learner per assignment; a resubmission replaces it.
 CREATE TABLE IF NOT EXISTS assignment_submissions (

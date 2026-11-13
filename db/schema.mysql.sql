@@ -153,6 +153,7 @@ CREATE TABLE IF NOT EXISTS lms_sessions (
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_lms_sessions_user ON lms_sessions(user_id);
 CREATE TABLE IF NOT EXISTS modules (
   id          INTEGER PRIMARY KEY AUTO_INCREMENT,
   course_id   INTEGER NOT NULL,
@@ -226,6 +227,7 @@ CREATE TABLE IF NOT EXISTS memberships (
   expires_at TEXT,
   FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_memberships_user ON memberships(user_id);
 -- Restricted-course access: an explicit per-member allowlist, and named "passes"
 -- an admin grants that unlock any course requiring that pass (also ensured at runtime).
 CREATE TABLE IF NOT EXISTS course_access (
@@ -266,6 +268,7 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
   FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`lesson_id`) REFERENCES `lessons`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_quiz_attempts_user_lesson ON quiz_attempts(user_id, lesson_id);
 -- ── Academy courseware: assignments, discussions, reviews, programmes ──
 -- One current submission per learner per assignment; a resubmission replaces it.
 CREATE TABLE IF NOT EXISTS assignment_submissions (

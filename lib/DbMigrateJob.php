@@ -170,30 +170,7 @@ final class DbMigrateJob
            db/schema.mysql.sql. Make each one on the target now, shaped like the
            source, or its rows are left behind (they were: 24 of ~150 tables
            moved). One the target refuses is named, not skipped in silence. */
-        $refused = [];
-        if (Migrator::driver($dst) === 'mysql' && Migrator::driver($src) === 'sqlite') {
-            foreach (Migrator::allTables($src) as $t) {
-                if (Migrator::tableExists($dst, $t)) {
-                    /* …and a table the schema file made is older than the source's. */
-                    array_push($refused, ...Migrator::addMissingColumns($src, $dst, $t));
-                    continue;
-                }
-                $why = Migrator::createLike($src, $dst, $t);
-                if ($why !== null) $refused[] = $t . ': ' . $why;
-            }
-        } elseif (Migrator::driver($dst) === 'pgsql' && Migrator::driver($src) === 'sqlite') {
-            /* Postgres had no such step, so every table the schema file does not
-               list — av_settings with the stored secrets, the diary tables — was
-               left out, and the job still said "verified". The source's own DDL,
-               translated, makes each one. */
-            foreach (Migrator::allTables($src) as $t) {
-                if (Migrator::tableExists($dst, $t)) continue;
-                $ddl = (string) ($src->query("SELECT sql FROM sqlite_master WHERE type='table' AND name = " . $src->quote($t))->fetchColumn() ?: '');
-                if ($ddl === '') { $refused[] = $t . ': the source has no definition for it'; continue; }
-                try { $dst->exec(Database::translateDDL($ddl, 'pgsql')); }
-                catch (Throwable $e) { $refused[] = $t . ': ' . $e->getMessage(); }
-            }
-        }
+        $refused = Migrator::prepareTarget($src, $dst);
         if ($refused) {
             throw new RuntimeException('The target would not create ' . count($refused) . ' table(s) — nothing has been copied. ' . implode(' | ', array_slice($refused, 0, 5)));
         }

@@ -444,7 +444,7 @@ final class Database
         try { $ddl = @file_get_contents(AV_ROOT . '/db/schema.sql'); if ($ddl) self::syncTablesFromDdl(self::$pdo, (string) $ddl, self::driver(), 'db'); }
         catch (Throwable $e) { self::$syncErrors++; error_log('[db] server schema sync: ' . $e->getMessage()); }
         $failed = self::$syncErrors > 0;
-        foreach (['ensureColumns', 'ensureAcademy', 'ensureLmsVerify', 'ensureDiaryEntries'] as $step) {
+        foreach (['ensureColumns', 'ensureAcademy', 'ensureLmsVerify', 'ensureDiaryEntries', 'ensureIndexes'] as $step) {
             try { self::$step(); } catch (Throwable $e) { $failed = true; error_log('[db] server migration ' . $step . ': ' . $e->getMessage()); }
         }
         if (self::driver() === 'mysql') { try { self::ensureMysqlForeignKeys(); } catch (Throwable $e) { error_log('[db] foreign keys: ' . $e->getMessage()); } }
@@ -482,6 +482,28 @@ final class Database
             }
         }
         self::metaSet('mysql_fk_held', $held ? (string) json_encode($held) : '');
+    }
+
+    /**
+     * Give an existing database the plain indexes db/schema.sql declares.
+     *
+     * The schema sync adds tables and columns, never indexes, so an index added
+     * to schema.sql reached fresh installs only: a database built before
+     * idx_memberships_user (and the session and quiz-attempt lookups beside it)
+     * kept scanning those tables on every signed-in request. Plain indexes only:
+     * a UNIQUE one over rows that already repeat would fail, and making room for
+     * it means deleting data, which is a person's call. "Already exists" is the
+     * goal, not an error; execSchema treats it so on every driver.
+     */
+    private static function ensureIndexes(): void
+    {
+        $ddl = (string) @file_get_contents(AV_ROOT . '/db/schema.sql');
+        $ddl = (string) preg_replace(['~/\*.*?\*/~s', '~--[^\n]*~'], '', $ddl);
+        if (!preg_match_all('/CREATE\s+INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?\w+\s+ON\s+(\w+)\s*\([^;]*\)\s*;/i', $ddl, $mm, PREG_SET_ORDER)) return;
+        foreach ($mm as $m) {
+            if (!self::tableExists($m[1])) continue;
+            self::execSchema(self::$pdo, $m[0]);
+        }
     }
 
     /** Failures in the current schema sync (a create or an add that threw). */
@@ -524,7 +546,7 @@ final class Database
         self::$syncErrors = 0;
         try { self::syncSchemaFromFile(); } catch (Throwable $e) { self::$syncErrors++; error_log('[db] schema sync: ' . $e->getMessage()); }
         $failed = self::$syncErrors > 0;
-        foreach (['ensureColumns', 'ensureAcademy', 'ensureDiaryEntries', 'ensureLmsVerify'] as $step) {
+        foreach (['ensureColumns', 'ensureAcademy', 'ensureDiaryEntries', 'ensureLmsVerify', 'ensureIndexes'] as $step) {
             try { self::$step(); } catch (Throwable $e) { $failed = true; error_log('[db] migration step ' . $step . ': ' . $e->getMessage()); }
         }
         self::maybePurgeDemo();
