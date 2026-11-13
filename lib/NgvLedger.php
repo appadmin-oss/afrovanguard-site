@@ -1005,47 +1005,68 @@ final class NgvLedger
             try { NgvDb::pdo()->prepare('DELETE FROM ngv_online_refs WHERE reference = ?')->execute([mb_substr($reference, 0, 120)]); } catch (Throwable $e) {}
         };
 
-        /* Oldest obligation first: membership, then the monthly commitment, then
-           fines, then the training fee. A participant paying part of what they
-           owe wants the thing that has been hanging longest cleared. */
-        $due  = self::balance($memberId)['due'];
-        $left = $amount;
-        $posted = [];
-        $firstReceipt = null;
+        /* ALL OR NOTHING. The lines used to post one by one, outside any
+           transaction: if one insert failed it was skipped, the rest posted,
+           and the method still said ok — with the reference claimed, so every
+           retry was a "duplicate" and the shortfall was never recorded. Now
+           every line posts inside one transaction; any failure rolls the lot
+           back and releases the claim, so the webhook or the payer's next
+           visit records the whole payment. The balance is read inside the same
+           transaction, so the split is computed from what it commits against.
+
+           The receipt waits for the commit: one payment, one receipt, and
+           never a receipt for money the ledger then rolled back. */
         $method = mb_substr((string) ($opt['method'] ?? 'online'), 0, 40);
         $note   = mb_substr((string) ($opt['note'] ?? 'Paid online'), 0, 200);
+        $byUid  = (int) ($opt['byUid'] ?? 0);
+        $pdo    = NgvDb::pdo();
+        $ownTx  = !$pdo->inTransaction();
+        $posted = [];
+        try {
+            if ($ownTx) $pdo->beginTransaction();
 
-        foreach (['membership', 'commitment', 'fine', 'programme'] as $line) {
-            if ($left <= 0) break;
-            $owed = (int) ($due[$line] ?? 0);
-            if ($owed <= 0) continue;
-            $take = min($left, $owed);
-            /* Only the FIRST row sends a receipt — one payment is one receipt,
-               however many lines it happens to settle. */
-            $r = self::postCredit($memberId, 'payment', $line, $take, [
-                'reference' => $reference, 'method' => $method, 'note' => $note,
-                'receipt'   => $posted === [] ? ($opt['receipt'] ?? true) : false,
-            ], (int) ($opt['byUid'] ?? 0));
-            if (empty($r['ok'])) continue;
-            if ($posted === []) $firstReceipt = $r['receipt'] ?? null;   // the one receipt for the whole payment
-            $posted[] = ['line' => $line, 'amount' => $take, 'id' => (int) $r['id']];
-            $left -= $take;
-        }
-
-        if ($left > 0) {
-            $r = self::postCredit($memberId, 'payment', 'programme', $left, [
-                'reference' => $reference, 'method' => $method,
-                'note'      => $note . ($posted ? ' (ahead)' : ''),
-                'receipt'   => $posted === [],
-            ], (int) ($opt['byUid'] ?? 0));
-            if (!empty($r['ok'])) {
-                if ($posted === []) $firstReceipt = $r['receipt'] ?? null;
+            /* Oldest obligation first: membership, then the monthly commitment,
+               then fines, then the training fee. A participant paying part of
+               what they owe wants the thing that has been hanging longest
+               cleared. */
+            $due  = self::balance($memberId)['due'];
+            $left = $amount;
+            foreach (['membership', 'commitment', 'fine', 'programme'] as $line) {
+                if ($left <= 0) break;
+                $owed = (int) ($due[$line] ?? 0);
+                if ($owed <= 0) continue;
+                $take = min($left, $owed);
+                $r = self::postCredit($memberId, 'payment', $line, $take,
+                    ['reference' => $reference, 'method' => $method, 'note' => $note, 'receipt' => false], $byUid);
+                if (empty($r['ok'])) throw new RuntimeException('postCredit ' . $line . ': ' . (string) ($r['error'] ?? '?'));
+                $posted[] = ['line' => $line, 'amount' => $take, 'id' => (int) $r['id']];
+                $left -= $take;
+            }
+            if ($left > 0) {
+                $r = self::postCredit($memberId, 'payment', 'programme', $left,
+                    ['reference' => $reference, 'method' => $method,
+                     'note' => $note . ($posted ? ' (ahead)' : ''), 'receipt' => false], $byUid);
+                if (empty($r['ok'])) throw new RuntimeException('postCredit ahead: ' . (string) ($r['error'] ?? '?'));
                 $posted[] = ['line' => 'programme', 'amount' => $left, 'id' => (int) $r['id'], 'ahead' => true];
                 $left = 0;
             }
+            if (!$posted) throw new RuntimeException('nothing posted');
+            if ($ownTx) $pdo->commit();
+        } catch (Throwable $e) {
+            if ($ownTx && $pdo->inTransaction()) { try { $pdo->rollBack(); } catch (Throwable $ignored) {} }
+            error_log('[ngv] payOnline ' . $reference . ': ' . $e->getMessage());
+            $release();
+            return ['ok' => false, 'error' => 'Could not record that payment yet. It will be retried.'];
         }
 
-        if (!$posted) { $release(); return ['ok' => false, 'error' => 'Could not record that payment.']; }
+        $firstReceipt = null;
+        if (!array_key_exists('receipt', $opt) || !empty($opt['receipt'])) {
+            try {
+                $rc = self::sendReceipt((int) $posted[0]['id']);
+                if (!empty($rc['ok'])) $firstReceipt = ['no' => $rc['no'], 'delivered' => !empty($rc['delivered'])];
+            } catch (Throwable $e) { error_log('[ngvledger] receipt: ' . $e->getMessage()); }
+        }
+
         return ['ok' => true, 'duplicate' => false, 'posted' => $posted,
                 'amount' => $amount, 'payable' => (int) self::balance($memberId)['payable'],
                 'receipt' => $firstReceipt];
