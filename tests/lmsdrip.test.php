@@ -115,7 +115,7 @@ ck('drip: and the reminder does not repeat', LmsDrip::sweepLiveClasses() === 0);
 /* ══ THE TICK ═════════════════════════════════════════════════════════════ */
 
 $t = LmsDrip::cronTick();
-ck('drip: one tick reports all three sweeps',
-    array_keys($t) === ['lessons', 'continue', 'live_classes']);
+ck('drip: one tick reports all three sweeps, and the daily pace check (lib/AcademyNudges.php)',
+    array_keys($t) === ['lessons', 'continue', 'live_classes', 'pace']);
 
 Mailer::fakeRoads(null);

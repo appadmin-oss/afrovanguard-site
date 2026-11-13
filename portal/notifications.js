@@ -21,7 +21,7 @@
     if (n > 0) { badge.textContent = n > 99 ? '99+' : n; badge.hidden = false; }
     else { badge.hidden = true; }
   }
-  var ICON = { reminder: '⏰', session: '◷', task: '✅', mention: '@', info: '•' };
+  var ICON = { reminder: '⏰', session: '◷', task: '✅', mention: '@', info: '•', academy: '🎓' };
   function itemHTML(it) {
     return '<a class="notif-item' + (it.read ? '' : ' is-unread') + '" href="' + esc(it.url || '#') + '" data-id="' + it.id + '">'
       + '<span class="notif-ic notif-ic--' + esc(it.kind) + '">' + (ICON[it.kind] || '•') + '</span>'

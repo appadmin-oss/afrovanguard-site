@@ -397,6 +397,7 @@ require_once __DIR__ . '/SiteSettings.php';      // the details every page share
 require_once __DIR__ . '/Cms.php';               // the content store: drafts, revisions, review, scheduling
 require_once __DIR__ . '/Prefs.php';
 require_once __DIR__ . '/Notifications.php';
+require_once __DIR__ . '/AcademyNudges.php';
 require_once __DIR__ . '/AdminAudit.php';
 require_once __DIR__ . '/AdminRoles.php';
 require_once __DIR__ . '/AdminMfa.php';   /* a second factor on the Studio, ported from NGG */

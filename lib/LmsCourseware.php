@@ -77,6 +77,7 @@ final class LmsCourseware
             $this->db->prepare('INSERT INTO assignment_submissions (user_id, lesson_id, course_id, body, link_url, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)')
                 ->execute([$userId, (int) $lesson['id'], (int) $lesson['course_id'], $body, $url, 'submitted', $now, $now]);
         }
+        if (class_exists('AcademyNudges')) AcademyNudges::submitted($userId, $lesson);   // the instructor's bell
         return ['ok' => true, 'submission' => $this->submission($userId, (int) $lesson['id'])];
     }
 
@@ -104,6 +105,7 @@ final class LmsCourseware
             $this->db->prepare("UPDATE assignment_submissions SET status = 'returned', score = NULL, feedback = ?, graded_by = ?, graded_at = ?, updated_at = ? WHERE id = ?")
                 ->execute([$feedback, $graderId, $now, $now, $subId]);
             $this->lms->unmark((int) $sub['user_id'], (int) $lesson['id']);
+            if (class_exists('AcademyNudges')) AcademyNudges::graded($sub, $lesson, 'returned', null, $feedback, false);
             return ['ok' => true, 'passed' => false, 'returned' => true];
         }
         if ($score === null || $score < 0 || $score > 100) return ['ok' => false, 'error' => 'Give a score from 0 to 100.'];
@@ -117,6 +119,7 @@ final class LmsCourseware
         if ($passed) $this->lms->markComplete((int) $sub['user_id'], $lesson);
         else $this->lms->unmark((int) $sub['user_id'], (int) $lesson['id']);
         $done = $this->lms->completeIfDone((int) $sub['user_id'], (int) $lesson['course_id']);
+        if (class_exists('AcademyNudges')) AcademyNudges::graded($sub, $lesson, $passed ? 'passed' : 'failed', $score, $feedback, (bool) $done['complete']);
         return ['ok' => true, 'passed' => $passed, 'course_complete' => $done['complete'], 'newly' => $done['newly']];
     }
 
@@ -358,6 +361,7 @@ final class LmsCourseware
         $this->db->prepare('INSERT INTO forum_posts (thread_id, course_id, user_id, body, created_at) VALUES (?,?,?,?,?)')
             ->execute([$threadId, (int) $t['course_id'], $userId, $body, $now]);
         $this->db->prepare('UPDATE forum_threads SET reply_count = reply_count + 1, last_post_at = ? WHERE id = ?')->execute([$now, $threadId]);
+        if (class_exists('AcademyNudges')) AcademyNudges::replied($userId, $t);
         $completed = false;
         if ((int) $t['user_id'] === 0 && !empty($t['lesson_id'])) {
             $l = $this->lms->lessonById((int) $t['lesson_id']);

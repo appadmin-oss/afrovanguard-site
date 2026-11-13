@@ -1098,6 +1098,10 @@ final class LmsRepository
             return ['complete' => false, 'newly' => false, 'cert' => null];
         $newly = !$this->getCertificate($userId, $courseId);
         $cert = $this->issueCertificate($userId, $courseId);
+        if ($newly && $cert && class_exists('AcademyNudges')) {
+            $cs = $this->db->prepare('SELECT id, slug, title FROM courses WHERE id = ?'); $cs->execute([$courseId]);
+            if ($co = $cs->fetch()) AcademyNudges::certified($userId, $co);
+        }
         return ['complete' => true, 'newly' => (bool) ($newly && $cert), 'cert' => $cert];
     }
 
