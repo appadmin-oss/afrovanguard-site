@@ -2069,3 +2069,37 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .meet-who { margin:4px 0 0; font-size:12px; color:var(--muted,#6b7280); }
 .meet-tag { font-weight:700; color:var(--body,#374151); }
 .meet-tag.is-in { color:var(--gold-deep,#b07e08); }
+
+/* Goal workspaces at CACENTRE, worked inline (portal/goalspace.js) */
+.gsp-ws { border:1px solid var(--border-2); border-radius:12px; padding:12px 14px; background:var(--surface); display:grid; gap:8px; }
+.gsp-ws + .gsp-ws { margin-top:12px; }
+.gsp-top { display:flex; justify-content:space-between; gap:10px; align-items:baseline; flex-wrap:wrap; }
+.gsp-top h3 { margin:0; font-size:15px; color:var(--ink); }
+.gsp-pace { font-size:12.5px; color:var(--muted); }
+.gsp-pace.is-bad, .gsp-m .is-bad { color:var(--danger-ink, #8f2214); font-weight:700; }
+.gsp-meter { display:flex; align-items:center; gap:10px; }
+.gsp-meter progress { flex:1; height:10px; accent-color:var(--gold-deeper); }
+.gsp-num { font-size:12.5px; color:var(--body); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.gsp-tasks, .gsp-team { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+.gsp-task { display:grid; gap:6px; padding:8px 0; border-top:1px solid var(--surface-2); }
+.gsp-t { font-weight:600; color:var(--ink); }
+.gsp-m { font-size:12.5px; color:var(--muted); }
+.gsp-act, .gsp-say { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.gsp-act .pbtn { min-height:32px; }
+.gsp-done { display:flex; flex-wrap:wrap; gap:6px; flex:1 1 260px; }
+.gsp-done input { flex:1 1 180px; min-width:0; min-height:32px; padding:4px 8px; border:1px solid var(--border-3); border-radius:8px; background:var(--surface); color:var(--ink); }
+.gsp-open { font-size:13px; color:var(--gold-deep); }
+.gsp-none { margin:0; font-size:13px; color:var(--muted); }
+.gsp-lead summary { cursor:pointer; font-size:13px; font-weight:600; color:var(--body); padding:4px 0; min-height:24px; }
+.gsp-give { display:grid; gap:8px; margin-top:10px; max-width:520px; }
+.gsp-give h4 { margin:0; font-size:13.5px; }
+.gsp-give label { display:grid; gap:4px; font-size:12.5px; color:var(--body); }
+.gsp-give input, .gsp-give select { min-height:32px; padding:4px 8px; border:1px solid var(--border-3); border-radius:8px; background:var(--surface); color:var(--ink); }
+#gspMsg.is-bad { color:var(--danger-ink, #8f2214); }
+.gsp-now { border:1px solid var(--gold-line, var(--border-2)); background:var(--gold-soft, var(--surface-2)); border-radius:12px; padding:10px 14px; margin-bottom:12px; }
+.gsp-now h3 { margin:0 0 4px; font-size:14px; color:var(--ink); }
+.gsp-help { background:var(--surface); }
+.gsp-why { display:block; font-size:12.5px; font-weight:700; color:var(--gold-text, #7a5a05); }
+.gsp-calm { margin:0 0 12px; font-size:13px; color:var(--body); }
+.gsp-fit { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.gsp-pick[aria-pressed="true"] { border-color:var(--ink); }

@@ -194,6 +194,24 @@ try {
             if (!Collab::deleteTask($uid, (int) ($body['id'] ?? 0))) json_out(['ok' => false, 'error' => 'Task not found.'], 404);
             json_out(['ok' => true, 'id' => (int) $body['id']]);
 
+        /* ── Goal workspaces at CACENTRE, worked here (lib/CacGoalspace.php) ──
+           CACENTRE acts as this member through Goalspace's own rules; this
+           only passes their request and its answer, in words. */
+        case 'gs':
+            if (!$isOrg && !(class_exists('Volunteers') && Volunteers::canRunTeams($u)) && !(class_exists('Todo') && Todo::mayTake($u)))
+                json_out(['ok' => true, 'enabled' => false, 'workspaces' => []]);
+            if (!CacGoalspace::ready()) json_out(['ok' => true, 'enabled' => false, 'workspaces' => []]);
+            json_out(['enabled' => true] + CacGoalspace::forMember($u));
+        /* Who among a goal's members fits a task its lead is giving (CacGoalspace::fits). */
+        case 'gs_fit':
+            if (!av_rate_ok('collab_gsfit_' . $uid, 30, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            json_out(['ok' => true, 'fits' => CacGoalspace::fits($u, (int) ($body['ws'] ?? $_GET['ws'] ?? 0), (string) ($body['title'] ?? $_GET['title'] ?? ''))]);
+        case 'gs_do':
+            $writeGuard();
+            if (!av_rate_ok('collab_gs_' . $uid, 60, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            $r = CacGoalspace::act($u, (string) ($body['path'] ?? ''), is_array($body['body'] ?? null) ? $body['body'] : []);
+            json_out($r, $r['ok'] ? 200 : 422);
+
         /* ── This week at CACENTRE (lib/CacWeek.php) ─────────────────────
            The member's commitments for the week and the goals they feed; a
            task here can count toward one of them. */

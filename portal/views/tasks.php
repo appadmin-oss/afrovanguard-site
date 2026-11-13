@@ -26,6 +26,24 @@
           </section>
           <?php endif; ?>
 
+<?php if (class_exists('CacGoalspace') && CacGoalspace::ready()): ?>
+          <!-- Goal workspaces at CACENTRE, worked here: report, finish with a
+               link, accept or decline a request, and (a lead) give a task.
+               CACENTRE acts as this member through Goalspace's own rules
+               (lib/CacGoalspace.php, portal/goalspace.js). Shown once it answers. -->
+          <section class="pcard gsp" id="goalspace" aria-labelledby="gspH" data-csrf="<?= e($collabCsrf) ?>" hidden>
+            <div class="pcard-head">
+              <h2 id="gspH">Goal workspaces</h2>
+              <a class="pbtn pbtn-ghost pbtn-sm" href="<?= e(CacGoalspace::openUrl()) ?>" target="_blank" rel="noopener">Open Goal workspaces<span class="sr-only"> on CACENTRE (opens in a new tab)</span></a>
+            </div>
+            <div class="pcard-body">
+              <p class="pcard-note">Your goals at CACENTRE and your part in them. Say how each task is going, or finish it with its link, here. Files and sign-offs are done in Goal workspaces.</p>
+              <div id="gspList" aria-live="polite" aria-busy="true"><p class="pc-empty">Loading your goals…</p></div>
+              <p class="task-ai-msg" id="gspMsg" role="status" hidden></p>
+            </div>
+          </section>
+<?php endif; ?>
+
           <!-- AI: turn a goal into a plan of tasks (dropped into the pool) -->
           <section class="pcard task-ai" id="taskAi" data-csrf="<?= e($collabCsrf) ?>" hidden>
             <div class="pcard-head">

@@ -337,6 +337,7 @@ require_once __DIR__ . '/NgvIntake.php';        /* NGG promotions to NGV become 
 require_once __DIR__ . '/Backups.php';          /* daily encrypted copies of both databases (tasks/cron.php) */
 require_once __DIR__ . '/NgvFines.php';         /* NGV fines: catalogue, issue, list, import with smart assignment */
 require_once __DIR__ . '/CacTasks.php';   /* the console's tasks, read for the portal */
+require_once __DIR__ . '/CacGoalspace.php';   /* CACENTRE's Goal workspaces, worked inline on the Tasks page */
 require_once __DIR__ . '/CacWeek.php';    /* this week at CACENTRE; portal tasks that count toward it */
 require_once __DIR__ . '/CacGoals.php';   /* CACENTRE's goals, mirrored here and planned into tasks */
 require_once __DIR__ . '/CacInventory.php'; /* and its register, for the same reason */

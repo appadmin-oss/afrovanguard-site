@@ -458,6 +458,7 @@ if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) doc
   <script src="<?= e(av_asset('/portal/home.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/shell.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/tasks.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/portal/goalspace.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/todo-pop.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/chat-panel.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/meet-modal.js')) ?>" defer></script>
