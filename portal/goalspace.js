@@ -90,8 +90,13 @@
     /* What to do next, first: ranked on the server (CacGoalspace::triage), each with its reason. */
     var byId = {}; WS.forEach(function(w){ byId[w.id] = w; });
     var top = '';
-    if ((d.needs_you||[]).length) top += '<section class="gsp-now" aria-labelledby="gspNowH"><h3 id="gspNowH">Needs you now</h3><ul class="gsp-tasks">'
-      + d.needs_you.map(function(x){ return taskHtml(byId[x.ws]||{id:x.ws,title:x.ws_title}, x.task, x.why); }).join('') + '</ul></section>';
+    /* At most three as Now, the rest as Next: a short list is a list someone acts on
+       (Goalscape's Now/Next practice keeps "Now" to one to three). */
+    var need = d.needs_you || [], nowL = need.slice(0, 3), nextL = need.slice(3);
+    var item = function(x){ return taskHtml(byId[x.ws]||{id:x.ws,title:x.ws_title}, x.task, x.why); };
+    if (need.length) top += '<section class="gsp-now" aria-labelledby="gspNowH"><h3 id="gspNowH">Now</h3><ul class="gsp-tasks">' + nowL.map(item).join('') + '</ul>'
+      + (nextL.length ? '<details class="gsp-next"><summary>Next: '+nextL.length+' more that need you soon</summary><ul class="gsp-tasks">' + nextL.map(item).join('') + '</ul></details>' : '')
+      + '</section>';
     else top += '<p class="gsp-calm">Nothing of yours needs anything today. Your open tasks are below.</p>';
     if ((d.needs_help||[]).length) top += '<section class="gsp-now gsp-help" aria-labelledby="gspHelpH"><h3 id="gspHelpH">Your team needs your help</h3><ul class="gsp-team">'
       + d.needs_help.map(function(x){ return '<li><span class="gsp-why">'+esc(x.why)+'</span> <span class="gsp-t">'+esc(x.task.title)+'</span> <span class="gsp-m">'+esc(x.ws_title)+'</span></li>'; }).join('') + '</ul>'

@@ -2103,3 +2103,4 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .gsp-calm { margin:0 0 12px; font-size:13px; color:var(--body); }
 .gsp-fit { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .gsp-pick[aria-pressed="true"] { border-color:var(--ink); }
+.gsp-next summary { cursor:pointer; font-size:13px; font-weight:600; color:var(--body); padding:6px 0; min-height:24px; }

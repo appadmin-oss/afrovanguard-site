@@ -60,3 +60,4 @@ ck('page: loading, empty, linked-not and an honest error with Try again', str_co
 ck('page: a file task or sign-off points to Goalspace, not a fake "done"', str_contains($js, 'Finish it in Goalspace'));
 ck('page: a bad link is refused on the page, in words', str_contains($js, 'novalidate') && str_contains($js, 'Paste the full link, starting with https://'));
 ck('page: shown only where the link to CACENTRE is set up', str_contains($view, "CacGoalspace::ready()"));
+ck('page: at most three as Now, the rest folded as Next', str_contains($js, 'nowL = need.slice(0, 3), nextL = need.slice(3)') && str_contains($js, '<summary>Next: '));
