@@ -1215,7 +1215,7 @@
             <ol><li>Open <b>Mentorship</b>. Approve mentor applications, pair mentors with mentees, or assign people to a cohort/programme.</li><li>Track sessions and flag inactive pairs; export pairings to CSV. Every change is logged under <b>Activity</b> with one-click undo.</li></ol>
           </details>
           <details class="guide-acc"><summary>Move to a MySQL / PostgreSQL database</summary>
-            <ol><li>In cPanel, create an empty MySQL/PostgreSQL database and a user with access to it.</li><li>Open <b>Database</b> (Super Admin). Enter the host, name, user and password, then <b>Test connection</b>.</li><li>Run a <b>Dry run</b> to preview, then <b>Migrate now</b> — every table is copied and its row count verified.</li><li>Paste the shown settings into your <code>.env</code> (set the real password) and reload the site to run on the new database.</li></ol>
+            <ol><li>In cPanel, create an empty MySQL/PostgreSQL database and a user with access to it.</li><li>Open <b>Database</b> (Super Admin). Enter the host, name, user and password, then <b>Test connection</b>.</li><li>Run a <b>Dry run</b> to preview, then <b>Copy the data</b> — every table is copied and its row count checked.</li><li>Press <b>Switch the site now</b>, straight after copying. Anything added since the copy is carried across and every table is checked again; if anything does not match, nothing is switched. <b>Switch back</b> returns the site to its SQLite file.</li></ol>
           </details>
         </div>
       </div>
@@ -1484,7 +1484,7 @@
   <!-- DATABASE (superadmin · SQLite → MySQL/Postgres migration, no SSH) -->
   <main class="studio-main" id="databaseView" hidden>
     <div class="studio-head">
-      <div><h1>Database</h1><p class="muted">Move the site from the bundled SQLite file to MySQL or PostgreSQL — no SSH or terminal needed. Every table is copied and its row count verified.</p></div>
+      <div><h1>Database</h1><p class="muted">Move the site from the bundled SQLite file to MySQL or PostgreSQL, with no SSH or terminal: copy the data, check every table matches, then switch the site over. You can switch back.</p></div>
       <button class="btn btn-outline btn-sm" id="dbRefresh">Refresh</button>
     </div>
 
@@ -1496,8 +1496,8 @@
 
       <div class="side-card">
         <h3>Migrate to a new database</h3>
-        <p class="muted" style="margin-top:-4px">Create an empty MySQL/PostgreSQL database in cPanel first, then enter its details below. Go in order: <b>Test connection</b> → <b>Dry run</b> → <b>Migrate now</b>. The copy runs in slices and remembers where it got to, so a shared host cutting the request off costs a slice, not the migration — if it stops, press <b>Migrate now</b> again and it carries on. Keep the tab open while it runs.</p>
-        <p class="muted tiny">It fills the target and stops there; this site keeps running on its current database until you repoint it by hand. <b>The database is the one setting that cannot live in <code>config.php</code></b> — it is read from the environment only, so the lines below go in <code>.env</code> or <code>.htaccess</code>.</p>
+        <p class="muted" style="margin-top:-4px">Create an empty MySQL/PostgreSQL database in cPanel first, then enter its details below. Go in order: <b>Test connection</b> → <b>Dry run</b> → <b>Copy the data</b> → <b>Switch the site</b>. The copy runs in slices and remembers where it got to: if it stops, press <b>Copy the data</b> again and it carries on. Keep the tab open while it runs.</p>
+        <p class="muted tiny">Copying changes nothing on the live site. Switching does: it is offered once every table matches.</p>
         <form id="dbForm" class="db-form" autocomplete="off">
           <div class="db-row3">
             <label class="fld"><span>Type</span><select id="db_driver"><option value="mysql">MySQL / MariaDB</option><option value="pgsql">PostgreSQL</option></select></label>
@@ -1516,7 +1516,7 @@
           <div class="editor-actions" style="margin-top:6px">
             <button type="button" class="btn btn-outline" id="dbTestBtn">Test connection</button>
             <button type="button" class="btn btn-outline" id="dbDryBtn">Dry run</button>
-            <button type="button" class="btn btn-primary" id="dbMigrateBtn">Migrate now</button>
+            <button type="button" class="btn btn-primary" id="dbMigrateBtn">Copy the data</button>
           </div>
           <p class="db-msg" id="dbMsg" role="status" aria-live="polite"></p>
         </form>
@@ -1526,8 +1526,16 @@
     <div class="side-card db-result" id="dbResult" hidden>
       <h3>Result</h3>
       <div id="dbReport"></div>
+      <!-- Switch: offered once every table matches (lib/DbSwitch.php). -->
+      <div class="db-switch" id="dbSwitchWrap" hidden>
+        <h4>Switch the site to this database</h4>
+        <p class="muted">Every table matches. Switching copies anything added to the site since the copy finished, checks every table again, then runs the site on the new database. Do it now, straight after copying: edits made to existing records between the copy and the switch are not carried across.</p>
+        <p class="muted tiny">Nothing is deleted. The SQLite file stays as it is, and <b>Switch back</b> returns the site to it.</p>
+        <button type="button" class="btn btn-primary" id="dbSwitchBtn">Switch the site now</button>
+        <p class="db-msg" id="dbSwitchMsg" role="status" aria-live="polite"></p>
+      </div>
       <div id="dbEnvWrap" hidden>
-        <p class="muted" style="margin:10px 0 6px">Add these to your <code>.env</code> or <code>.htaccess</code> (set <code>AV_DB_PASS</code> to the real password), then reload the site to run on the new database. Not <code>config.php</code>: the database is not read from there, and the site would stay on SQLite without saying so. <code>AV_DB_STRICT=1</code> makes an unreachable database an error rather than a silent fall back to the old SQLite file that then accepts writes:</p>
+        <p class="muted" style="margin:10px 0 6px">This host does not let the site save its own settings, so it cannot switch itself. Add these lines to your <code>.env</code> (set <code>AV_DB_PASS</code> to the real password), then reload the site. <code>AV_DB_STRICT=1</code> makes an unreachable database an error rather than a silent fall back to the old SQLite file:</p>
         <pre class="db-env" id="dbEnv"></pre>
       </div>
       <details style="margin-top:10px"><summary class="muted">Migration log</summary><pre class="db-log" id="dbLog"></pre></details>

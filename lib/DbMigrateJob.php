@@ -87,6 +87,24 @@ final class DbMigrateJob
 
     public static function reset(): void { Database::metaSet(self::META, ''); }
 
+    /**
+     * Before a switch: reopen a finished job so the next step() copies the
+     * rows added to the source since the copy ended (each table's cursor is
+     * kept, so only newer rows move). Edits to rows that were already copied
+     * are not seen this way, which is why the Studio says to switch straight
+     * after copying. Returns false when there is no finished job to reopen.
+     */
+    public static function reopenForNewRows(?string $expect = null): bool
+    {
+        $s = self::state();
+        if ($s === null || ($s['phase'] ?? '') !== 'done') return false;
+        if ($expect !== null && ($s['target'] ?? '') !== $expect) return false;
+        foreach ($s['order'] as $t) $s['tables'][$t]['done'] = false;
+        $s['phase'] = 'copy';
+        self::put($s);
+        return true;
+    }
+
     private static function put(array $s): void { Database::metaSet(self::META, (string) json_encode($s)); }
 
     /**

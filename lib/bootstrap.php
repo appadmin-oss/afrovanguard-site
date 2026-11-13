@@ -131,6 +131,11 @@ if (is_file(AV_ROOT . '/vendor/autoload.php')) require_once AV_ROOT . '/vendor/a
     }
 })();
 
+// The database the Studio switched the site to (Database → Switch), unless
+// the host's own settings already choose one. lib/DbSwitch.php.
+require_once __DIR__ . '/DbSwitch.php';
+DbSwitch::apply();
+
 // Reuse the site's config.php if deployed; otherwise fall back to safe
 // public defaults so the Diary runs standalone (and in local dev).
 //

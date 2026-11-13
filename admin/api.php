@@ -96,7 +96,7 @@ try {
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
         'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save', 'ngv_save', 'ngv_reset', 'ngv_restore',
-        'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify',
+        'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify', 'db_switch', 'db_switch_back',
         'rules_save', 'rules_reset', 'kb_save', 'kb_delete', 'prompts_save', 'prompts_reset', 'level_recommend',
         'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test',
         'summit_resend', 'summit_resend_failed',
@@ -116,7 +116,7 @@ try {
     $role = function_exists('av_admin_role') ? av_admin_role() : 'superadmin';
     $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'superadmin_reveal', 'auth_policy_save', 'auth_policy_get',
         'db_status', 'db_test', 'db_migrate', 'brand_get', 'brand_save',
-        'db_job_state', 'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify',
+        'db_job_state', 'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify', 'db_switch', 'db_switch_back',
         // The rules ARE the organisation's constitution — they decide promotions
         // and escalations movement-wide — and the prompts steer every AI reply.
         // Both stay with the Super Admin. The knowledge base is management-level.
@@ -1014,7 +1014,82 @@ try {
                 'db'         => $driver === 'sqlite' ? basename((string) (defined('AV_DB_PATH') ? AV_DB_PATH : '')) : (string) (getenv('AV_DB_NAME') ?: ''),
                 'tables'     => $counts,
                 'total_rows' => $total,
+                /* Whether the site was switched from here, and whether the host's own settings choose instead. */
+                'switch'     => DbSwitch::status(),
+                'fell_back'  => Database::fellBack(),
             ]);
+        }
+        /* ── Switch the site onto the database it was copied to (lib/DbSwitch) ──
+           The migration fills the target and stops; on a host with no shell
+           there was then no way to use it. This checks the target holds what
+           this site holds, copies rows added since the copy, and only then
+           points the site at it. db_switch_back returns it to SQLite. */
+        case 'db_switch': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/Migrator.php';
+            require_once AV_ROOT . '/lib/DbMigrateJob.php';
+            $conf = ['driver' => strtolower(trim((string) ($body['driver'] ?? 'mysql'))),
+                     'host' => (string) ($body['host'] ?? ''), 'port' => (string) ($body['port'] ?? ''),
+                     'name' => (string) ($body['name'] ?? ''), 'user' => (string) ($body['user'] ?? ''),
+                     'pass' => (string) ($body['pass'] ?? '')];
+            if (!in_array($conf['driver'], ['mysql', 'pgsql'], true)) json_out(['ok' => false, 'error' => 'Choose a MySQL or PostgreSQL database.'], 422);
+            $sw = DbSwitch::status();
+            if ($sw['host_chose']) json_out(['ok' => false, 'error' => 'Your hosting settings (.env or the server) already choose the database, and they win over a switch made here. Change them there instead.'], 409);
+            if (Database::fellBack() !== null) json_out(['ok' => false, 'error' => 'The site is on its fallback copy because ' . strtoupper((string) Database::fellBack()) . ' could not be reached. Fix that connection first.'], 409);
+            if (Database::driver() !== 'sqlite') json_out(['ok' => false, 'error' => 'The site is already on ' . strtoupper(Database::driver()) . '.'], 409);
+            if (!$sw['can_write']) json_out(['ok' => false, 'error' => 'This host does not let the site save its own settings, so it cannot switch itself. Add these lines to .env by hand instead.'], 409);
+            try { $dst = DbMigrateJob::connect($conf); }
+            catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Could not connect: ' . $e->getMessage()], 502); }
+            $src = Database::pdo();
+            $label = DbMigrateJob::label($conf);
+            /* Rows added to this site since the copy finished, copied across, then
+               every table checked. A live site can gain a row between the two, so
+               up to three rounds before refusing. */
+            $added = 0; $v = ['ok' => false, 'tables' => []];
+            for ($round = 0; $round < 3; $round++) {
+                if (DbMigrateJob::reopenForNewRows($label)) {
+                    try {
+                        $before = array_sum(array_map(static fn($t) => (int) $t['copied'], (DbMigrateJob::state()['tables'] ?? [])));
+                        $job = DbMigrateJob::step($src, $dst, 15.0, $label);
+                        if (($job['phase'] ?? '') !== 'done') json_out(['ok' => false, 'error' => 'Too many new rows to copy in one go. Press Switch again to carry on.'], 409);
+                        $added += array_sum(array_map(static fn($t) => (int) $t['copied'], $job['tables'])) - $before;
+                    } catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Copying the newest rows failed: ' . $e->getMessage()], 422); }
+                }
+                $v = DbMigrateJob::verify($src, $dst);
+                if (!empty($v['ok'])) break;
+            }
+            /* Every table must hold what this site holds. */
+            if (empty($v['ok'])) {
+                $bad = array_values(array_filter($v['tables'] ?? [], static fn($r) => empty($r['ok'])));
+                json_out(['ok' => false, 'error' => count($bad) . ' table(s) in ' . $label . ' do not match this site (' . implode(', ', array_slice(array_map(static fn($r) => $r['table'], $bad), 0, 6))
+                    . '). Copy the data again (tick “Replace target tables”), then switch.', 'verify' => $v], 409);
+            }
+            try {
+                DbSwitch::write($conf, function_exists('av_admin_actor') ? av_admin_actor() : 'admin');
+            } catch (Throwable $e) { json_out(['ok' => false, 'error' => $e->getMessage()], 500); }
+            $note = 'switched from SQLite' . ($added ? "; $added newest rows copied first" : '') . '; every table matched';
+            AdminAudit::log('database', 'db_switch', $label, $note);
+            /* …and in the database the site now runs on, where the next person to
+               ask "who moved the site, and when?" will be looking. */
+            try {
+                $dst->prepare('INSERT INTO lms_audit (actor, action, target, detail, ip, area, undone) VALUES (?,?,?,?,?,?,0)')
+                    ->execute([function_exists('av_admin_actor') ? av_admin_actor() : 'admin', 'db_switch', mb_substr($label, 0, 300), $note, function_exists('av_client_ip') ? av_client_ip() : '', 'database']);
+            } catch (Throwable $e) { error_log('[db-switch] audit on target: ' . $e->getMessage()); }
+            json_out(['ok' => true, 'target' => DbSwitch::label($conf), 'added' => $added, 'tables' => count($v['tables'] ?? [])]);
+        }
+        case 'db_switch_back': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $sw = DbSwitch::status();
+            if (!$sw['saved']) json_out(['ok' => false, 'error' => 'This site was not switched from here, so there is nothing to switch back.'], 409);
+            try { $was = DbSwitch::clear(); } catch (Throwable $e) { json_out(['ok' => false, 'error' => $e->getMessage()], 500); }
+            AdminAudit::log('database', 'db_switch_back', $was, 'back to the SQLite file');
+            /* …and in the SQLite file the site runs on from the next request. */
+            try {
+                $sq = new PDO('sqlite:' . AV_DB_PATH, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+                $sq->prepare('INSERT INTO lms_audit (actor, action, target, detail, ip, area, undone) VALUES (?,?,?,?,?,?,0)')
+                    ->execute([function_exists('av_admin_actor') ? av_admin_actor() : 'admin', 'db_switch_back', mb_substr($was, 0, 300), 'back to the SQLite file', function_exists('av_client_ip') ? av_client_ip() : '', 'database']);
+            } catch (Throwable $e) { error_log('[db-switch] audit on SQLite: ' . $e->getMessage()); }
+            json_out(['ok' => true, 'was' => $was]);
         }
         /* ── Resumable migration (lib/DbMigrateJob) ────────────────────────
            db_migrate below copies everything in ONE request. A shared host

@@ -126,6 +126,33 @@ path now applies the same promotion, and the test fails without it.
 
 ## How to switch (staging first!)
 
+### From the Studio (no shell; shared hosting)
+
+**Database** in the Studio (Super Admin): enter the target, **Test connection**,
+**Dry run**, **Copy the data**, then **Switch the site now**. The switch
+(`lib/DbSwitch.php`, `admin/api.php` `db_switch`):
+
+1. refuses if the host's own settings (`.env`, SetEnv) already choose a
+   database, if the site is on its SQLite fallback, or if the host will not let
+   the site save its settings (it then shows the `.env` lines instead);
+2. copies rows added since the copy finished (the job's per-table cursor), and
+   checks every table's count, up to three rounds; any mismatch refuses;
+3. writes the connection to `.av-database.php` — above the web root when
+   writable, else in the site folder (a dotfile `.htaccess` refuses; a PHP file
+   that prints nothing) — mode 0600, read back before it counts;
+4. logs the switch in both databases.
+
+`bootstrap.php` applies it on every request (`DbSwitch::apply()`), with
+`AV_DB_STRICT=1`, only where the host chose nothing. **Switch back** deletes the
+file: the site runs on its SQLite file again; what was written to the server
+database meanwhile stays there.
+
+Edits to records that were already copied are not carried across by the
+catch-up (it follows new rows only), so switch straight after copying.
+Verified end to end on MariaDB 10.11 (2026-11-13).
+
+### From a shell
+
 1. Create an empty MySQL/Postgres database + user.
 2. Migrate schema **and** data in one step with the built-in tool:
    ```

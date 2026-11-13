@@ -2910,12 +2910,34 @@
       box.innerHTML =
         '<p class="db-cur"><span class="db-badge ' + (d.is_sqlite ? 'is-sqlite' : 'is-server') + '">' + escapeHtml(driverLabel) + '</span>'
         + (d.db ? ' <span class="muted">· ' + escapeHtml(d.db) + '</span>' : '') + '</p>'
-        + (d.is_sqlite ? '<p class="muted tiny">You’re on the portable SQLite file. Migrate below to run on a managed server database.</p>'
-                       : '<p class="muted tiny">Already running on a server database. You can still re-copy from SQLite if needed.</p>')
+        + dbSwitchNote(d)
         + '<table class="db-table"><thead><tr><th>Table</th><th class="db-n">Rows</th></tr></thead><tbody>' + rows
         + '</tbody><tfoot><tr><td>Total</td><td class="db-n">' + (d.total_rows | 0) + '</td></tr></tfoot></table>';
     }).catch(function () { box.innerHTML = '<p class="muted">Could not load.</p>'; });
   }
+  /* How the site chose its database, and the way back when it was switched from here. */
+  var DB_SW = null;
+  function dbSwitchNote(d) {
+    var sw = d.switch || {}; DB_SW = sw;
+    if (d.fell_back) return '<p class="db-note-bad">' + escapeHtml(String(d.fell_back).toUpperCase()) + ' could not be reached, so the site is running on its old SQLite file. Fix the connection: anything written now goes to the old file.</p>';
+    if (sw.active) return '<p class="muted tiny">Switched here on ' + escapeHtml(sw.switched_at || '') + (sw.switched_by ? ' by ' + escapeHtml(sw.switched_by) : '') + '. The old SQLite file is untouched.</p>'
+      + '<p><button type="button" class="btn btn-outline btn-sm" id="dbSwitchBackBtn">Switch back to SQLite</button></p><p class="db-msg" id="dbBackMsg" role="status" aria-live="polite"></p>';
+    if (sw.host_chose && !d.is_sqlite) return '<p class="muted tiny">Chosen by your hosting settings (.env or the server). Change it there.</p>';
+    if (sw.saved && sw.host_chose) return '<p class="db-note-bad">A switch to ' + escapeHtml(sw.target) + ' was saved here, but your hosting settings choose the database and win over it.</p>';
+    return d.is_sqlite ? '<p class="muted tiny">You’re on the portable SQLite file. Copy it to a server database below, then switch.</p>'
+                       : '<p class="muted tiny">Running on a server database.</p>';
+  }
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest || !e.target.closest('#dbSwitchBackBtn')) return;
+    var b = e.target.closest('#dbSwitchBackBtn'), m = $('#dbBackMsg');
+    if (!confirm('Run the site on its SQLite file again?\n\nAnything written to ' + ((DB_SW && DB_SW.target) || 'the server database') + ' since the switch stays there and will not be on the site until you copy it back.')) return;
+    b.disabled = true; if (m) m.textContent = 'Switching back…';
+    post('db_switch_back', {}).then(function (r) { var d = r.data || {};
+      if (d.ok) { if (m) m.textContent = 'Done. The site is on its SQLite file again.'; setTimeout(loadDatabase, 600); }
+      else { b.disabled = false; if (m) m.textContent = d.error || 'Could not switch back.'; }
+    }).catch(function () { b.disabled = false; if (m) m.textContent = 'Network error — nothing changed. Try again.'; });
+  });
+
   (function wireDatabase() {
     var view = $('#databaseView'); if (!view) return;
     var msg = $('#dbMsg');
@@ -3007,6 +3029,35 @@
         + rows + '</tbody></table>';
     }
 
+    /* Every table matches: offer the switch, or (where the host forbids the
+       site saving its own settings) the lines to add by hand. */
+    function offerSwitch(ok, pp) {
+      var envWrap = $('#dbEnvWrap'), swWrap = $('#dbSwitchWrap');
+      envWrap.hidden = true; swWrap.hidden = true;
+      if (!ok) return;
+      if (DB_SW && DB_SW.can_write && !DB_SW.host_chose) { swWrap.hidden = false; $('#dbSwitchMsg').textContent = ''; return; }
+      envWrap.hidden = false;
+      $('#dbEnv').textContent = 'AV_DB_DRIVER=' + pp.driver + '\nAV_DB_HOST=' + (pp.host || 'localhost')
+        + '\nAV_DB_PORT=' + (pp.port || (pp.driver === 'pgsql' ? '5432' : '3306'))
+        + '\nAV_DB_NAME=' + pp.name + '\nAV_DB_USER=' + pp.user
+        + '\nAV_DB_PASS=your-password\nAV_DB_STRICT=1';
+    }
+    $('#dbSwitchBtn').addEventListener('click', function () {
+      var pp = params(), btn = this, m = $('#dbSwitchMsg');
+      if (!pp.name) { m.textContent = 'Enter the database details above.'; return; }
+      if (!confirm('Switch the site to ' + pp.driver.toUpperCase() + ' database “' + pp.name + '” now?\n\n'
+        + 'New rows since the copy are carried across and every table is checked first. If anything does not match, nothing is switched.')) return;
+      btn.disabled = true; busy(true); m.textContent = 'Copying the newest rows and checking every table…';
+      post('db_switch', pp).then(function (r) { var d = r.data || {};
+        if (d.ok) {
+          m.textContent = 'Switched. The site now runs on ' + d.target + (d.added ? ' (' + d.added + ' newest rows carried across)' : '') + '. Reload any open pages.';
+          $('#db_pass').value = '';
+          setTimeout(loadDatabase, 600);
+        } else { btn.disabled = false; m.textContent = d.error || 'Nothing was switched.'; if (d.verify) renderVerify(d.verify); }
+      }).catch(function () { btn.disabled = false; m.textContent = 'Network error — nothing was switched. Try again.'; })
+        .finally(function () { busy(false); });
+    });
+
     function renderVerify(v) {
       var bad = (v.tables || []).filter(function (r) { return !r.ok; });
       $('#dbLog').textContent = (v.tables || []).map(function (r) {
@@ -3019,7 +3070,7 @@
       var pp = params();
       if (!pp.name) { setMsg('Enter the target database name.', 'err'); return; }
       if (!confirm('Copy all data into ' + pp.driver.toUpperCase() + ' database “' + pp.name + '” on ' + (pp.host || 'localhost') + '?\n\n'
-        + 'This writes to the target. It does NOT switch this site over — you do that by hand once the counts match.')) return;
+        + 'This writes to the target only. The site keeps running as it is; you switch it once every table matches.')) return;
       pp.replace = pp.truncate;
       busy(true); setMsg('Preparing…', '');
 
@@ -3056,16 +3107,17 @@
             return post('db_job_verify', pp).then(function (r3) {
               var v = (r3.data || {}).verify || {};
               var bad = renderVerify(v);
-              setMsg(v.ok ? 'Migration verified ✓ every table matches.'
-                : (bad.length + ' table(s) do not match — see the log below.'), v.ok ? 'ok' : 'err');
-              var envWrap = $('#dbEnvWrap');
-              if (v.ok) {
-                envWrap.hidden = false;
-                $('#dbEnv').textContent = 'AV_DB_DRIVER=' + pp.driver + '\nAV_DB_HOST=' + (pp.host || 'localhost')
-                  + '\nAV_DB_PORT=' + (pp.port || (pp.driver === 'pgsql' ? '5432' : '3306'))
-                  + '\nAV_DB_NAME=' + pp.name + '\nAV_DB_USER=' + pp.user
-                  + '\nAV_DB_PASS=your-password\nAV_DB_STRICT=1';
-              } else envWrap.hidden = true;
+              /* Behind is not wrong: on a live site the copy itself is logged
+                 (and people keep using it), so the source gains rows while it
+                 is copied. Those the switch carries across. Only a table the
+                 target lacks, or holds MORE rows of, is a real mismatch. */
+              var wrong = bad.filter(function (r) { return r.target === null || (r.target | 0) > (r.source | 0); });
+              var behind = bad.length - wrong.length, newRows = bad.reduce(function (n, r) { return n + (wrong.indexOf(r) < 0 ? (r.source | 0) - (r.target | 0) : 0); }, 0);
+              setMsg(v.ok ? 'Copied and checked ✓ every table matches.'
+                : (wrong.length ? (wrong.length + ' table(s) do not match — see the log below. Copy again with “Replace target tables” ticked.')
+                  : ('Copied ✓ ' + newRows + ' row' + (newRows === 1 ? '' : 's') + ' added to the site since the copy began (in ' + behind + ' table' + (behind === 1 ? '' : 's') + ') will be carried across when you switch.')),
+                v.ok || !wrong.length ? 'ok' : 'err');
+              offerSwitch(v.ok || !wrong.length, pp);
               loadDatabase();
               return null;
             });
