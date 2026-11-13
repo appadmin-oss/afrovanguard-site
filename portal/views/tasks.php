@@ -138,13 +138,14 @@
                       <option value="low">Low</option>
                     </select>
                   </label>
-                  <label class="task-af"><span>Assign</span>
+                  <label class="task-af" id="taskAssigneeWrap"><span>Assign</span>
                     <select id="taskAssignee" class="task-assignee" aria-label="Assign to"><option value="0">Me</option></select>
                   </label>
-                  <label class="task-af task-af--check"><input type="checkbox" id="taskPool"> <span>Open to anyone (pool)</span></label>
+                  <label class="task-af task-af--check" id="taskToPoolWrap" hidden><input type="checkbox" id="taskToPool"> <span>Open to anyone (pool)</span></label>
                   <button type="submit" class="pbtn pbtn-gold">Add task</button>
                 </div>
               </form>
+              <p class="task-add-err" id="taskAddErr" role="alert" hidden></p>
               <div class="task-suggest" id="taskSuggest" aria-live="polite" hidden></div>
               <div class="pseg task-filters" id="taskFilters" role="group" aria-label="Show tasks">
                 <button type="button" class="pseg-btn is-on" data-filter="all" aria-pressed="true">All <span class="pseg-n" id="fcAll">0</span></button>

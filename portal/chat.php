@@ -110,8 +110,11 @@ try {
             $writeGuard();
             if (!av_rate_ok('collab_task_' . $uid, 40, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
             $assignee = (int) ($body['assignee'] ?? 0);
-            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), $assignee, (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'));
-            if (!$id) json_out(['ok' => false, 'error' => 'Enter a task title.'], 400);
+            /* The same checks as the Tasks page (Collab::canGiveTo): a real,
+               active person, who is not away. */
+            $allocates = LmsAuth::isOrgMember($u) || (class_exists('Volunteers') && Volunteers::canRunTeams($u));
+            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), $assignee, (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'), 0, '', 'person', $allocates);
+            if (!$id) json_out(['ok' => false, 'error' => Collab::$lastError ?: 'Enter a task title.'], Collab::$lastError === '' || Collab::$lastError === 'Enter a task.' ? 400 : 422);
             json_out(['ok' => true, 'task' => Collab::oneTask($uid, $id), 'assigned_to' => $assignee]);
 
         case 'react':

@@ -196,16 +196,59 @@ final class Collab
     private static function normPriority(string $p): string { $p = strtolower(trim($p)); return in_array($p, ['low','normal','high'], true) ? $p : 'normal'; }
 
     /** Create a task. Assignee defaults to the creator. Returns the new id or 0. */
-    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal', int $goalId = 0, string $size = '', string $via = 'person'): int
+    /** Why the last addTask()/assignTask() refused, in words for the person (empty when it did not). */
+    public static string $lastError = '';
+
+    /**
+     * May $uid give a task to $assigneeId? '' when yes, else the reason, in
+     * words for the person. ONE check, for a task given when it is made and
+     * one given later: the somebody must be a real, active account, and
+     * nobody is given new work while they are away (TaskLedger).
+     *
+     * WHO may give is decided by the callers, and stays as designed: the
+     * creator of a task may give it to anyone; a POOL task is handed out only
+     * by whoever hands out work (assignTask). $mayAllocate is accepted for
+     * that reason and not used here.
+     *
+     * Made for somebody, a task used to skip even this: it could be given to
+     * an account that did not exist or was suspended — a task nobody could
+     * see but its creator — or to someone who had said they were away.
+     */
+    public static function canGiveTo(int $uid, int $assigneeId, bool $mayAllocate): string
     {
+        if ($assigneeId <= 0 || $assigneeId === $uid) return '';
+        $st = Database::pdo()->prepare("SELECT name FROM lms_users WHERE id = ? AND status = 'active'");
+        $st->execute([$assigneeId]);
+        $name = $st->fetchColumn();
+        if ($name === false) return 'That person is not an active member any more. Choose someone else.';
+        if (class_exists('TaskLedger')) {
+            $away = TaskLedger::awayUntil($assigneeId);
+            if ($away !== '' && $away >= gmdate('Y-m-d')) return trim((string) $name) . ' is away until ' . date('j M', strtotime($away)) . ' and is not taking new tasks. Choose someone else, or post it to the pool.';
+        }
+        return '';
+    }
+
+    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal', int $goalId = 0, string $size = '', string $via = 'person', ?bool $mayAllocate = null): int
+    {
+        self::$lastError = '';
         $title = trim(mb_substr(trim($title), 0, 300));
-        if ($creatorId <= 0 || $title === '') return 0;
+        if ($creatorId <= 0 || $title === '') { self::$lastError = 'Enter a task.'; return 0; }
         self::ensureTasks();
         $assignee = $assigneeId > 0 ? $assigneeId : $creatorId;
+        /* The person-facing routes pass a bool (and get the away check); the
+           AI planner and the goal mirror pass null and keep their own rules. */
+        if ($mayAllocate !== null && ($why = self::canGiveTo($creatorId, $assignee, $mayAllocate)) !== '') { self::$lastError = $why; return 0; }
+        /* The planner and the goal mirror (no $mayAllocate) still never give work to an account that is gone. */
+        if ($mayAllocate === null && $assignee !== $creatorId && str_contains(self::canGiveTo($creatorId, $assignee, true), 'not an active member')) { self::$lastError = 'That person is not an active member any more. Choose someone else.'; return 0; }
         $due = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($due)) ? trim($due) : '';
-        Database::pdo()->prepare("INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, size, state, created_at) VALUES (?,?,?,0,?,?,?,?,'todo',?)")
-            ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), max(0, $goalId), self::normSize($size), gmdate('Y-m-d H:i:s')]);
+        $now = gmdate('Y-m-d H:i:s');
+        /* Given to somebody else: say who gave it and when, as a later assignment does. */
+        $delegated = $assignee !== $creatorId;
+        if (class_exists('TaskMatch')) TaskMatch::ensure();
+        Database::pdo()->prepare("INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, size, state, created_at, assigned_at, assigned_by) VALUES (?,?,?,0,?,?,?,?,'todo',?,?,?)")
+            ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), max(0, $goalId), self::normSize($size), $now, $delegated ? $now : '', $delegated ? (string) $creatorId : '']);
         $newId = (int) Database::pdo()->lastInsertId();
+        if ($delegated) self::log($creatorId, self::nameOf($creatorId), 'gave a task to ' . self::nameOf($assignee), $title, '/portal/#tasks');
         // Notify + email the assignee when a task is delegated to them (not self-assigned).
         if ($assignee !== $creatorId && class_exists('Notifications')) {
             try {
@@ -285,21 +328,27 @@ final class Collab
      */
     public static function assignTask(int $uid, int $taskId, int $assigneeId, bool $mayAllocate, string $why = '', string $via = 'person'): ?array
     {
+        self::$lastError = '';
         self::ensureTasks();
-        if ($uid <= 0 || $taskId <= 0 || $assigneeId <= 0) return null;
+        if ($uid <= 0 || $taskId <= 0 || $assigneeId <= 0) { self::$lastError = 'Choose who to give it to.'; return null; }
         $st = Database::pdo()->prepare('SELECT * FROM collab_tasks WHERE id = ? AND done = 0');
         $st->execute([$taskId]);
         $t = $st->fetch(PDO::FETCH_ASSOC);
-        if (!$t) return null;
-        if ((int) $t['creator_id'] !== $uid && !((int) $t['assignee_id'] === 0 && $mayAllocate)) return null;
+        if (!$t) { self::$lastError = 'That task is finished or no longer exists.'; return null; }
+        if ((int) $t['creator_id'] !== $uid && !((int) $t['assignee_id'] === 0 && $mayAllocate)) { self::$lastError = 'Only whoever made this task can give it to someone.'; return null; }
         $u = Database::pdo()->prepare("SELECT 1 FROM lms_users WHERE id = ? AND status = 'active'");
         $u->execute([$assigneeId]);
-        if (!$u->fetchColumn()) return null;
+        if (!$u->fetchColumn()) { self::$lastError = 'That person is not an active member any more. Choose someone else.'; return null; }
+        if (($no = self::canGiveTo($uid, $assigneeId, $mayAllocate)) !== '') { self::$lastError = $no; return null; }
         if (class_exists('TaskMatch')) TaskMatch::ensure();
         Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ?, assigned_at = ?, assigned_by = ? WHERE id = ?')->execute([$assigneeId, gmdate('Y-m-d H:i:s'), (string) $uid, $taskId]);
         if ($assigneeId !== $uid && class_exists('Notifications')) {
-            try { Notifications::push($assigneeId, 'task', 'New task: ' . $t['title'], ($why !== '' ? $why : 'Assigned to you by ' . self::nameOf($uid) . '.'), '/portal/#tasks', 'task:' . $taskId . ':' . $assigneeId); }
-            catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
+            try {
+                Notifications::push($assigneeId, 'task', 'New task: ' . $t['title'], ($why !== '' ? $why : 'Assigned to you by ' . self::nameOf($uid) . '.'), '/portal/#tasks', 'task:' . $taskId . ':' . $assigneeId);
+                /* The same email a task given at creation sends: given later, it used to arrive as an app notice only. */
+                if ($via === 'person') Notifications::email($assigneeId, 'You’ve been assigned a task: ' . $t['title'],
+                    self::nameOf($uid) . ' assigned you a task' . ((string) $t['due'] !== '' ? ' (due ' . $t['due'] . ')' : '') . '. Open the portal to pick it up.', '/portal/#tasks');
+            } catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
         }
         self::log($uid, self::nameOf($uid), 'assigned a task to ' . self::nameOf($assigneeId), (string) $t['title'], '/portal/#tasks');
         if (class_exists('TaskLedger')) TaskLedger::record($taskId, $assigneeId, 'assigned', (string) $t['title'], '', $via);

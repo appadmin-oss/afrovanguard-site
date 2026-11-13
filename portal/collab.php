@@ -58,6 +58,7 @@ try {
                 'pool'     => $isOrg ? Collab::poolTasks(60) : [],
                 'roster'   => Collab::roster(200, $allocates),
                 'allocates'=> $allocates,
+                'org'      => $isOrg,   // may post to the pool (task_add_pool)
                 /* Not taking new tasks until this date (TaskLedger), and the reasons a task can be handed back with. */
                 'away_until' => class_exists('TaskLedger') ? TaskLedger::awayUntil($uid) : '',
                 'handback_reasons' => class_exists('TaskLedger') ? TaskLedger::REASONS : [],
@@ -97,10 +98,12 @@ try {
         case 'task_add':
             $writeGuard();
             if (!av_rate_ok('collab_task_' . $uid, 40, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
-            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), (int) ($body['assignee'] ?? 0), (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'));
-            if (!$id) json_out(['ok' => false, 'error' => 'Enter a task.'], 400);
-            $mine = array_values(array_filter(Collab::myTasks($uid), fn($t) => $t['id'] === $id));
-            json_out(['ok' => true, 'task' => $mine[0] ?? ['id' => $id]]);
+            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), (int) ($body['assignee'] ?? 0), (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'), 0, '', 'person', $allocates);
+            if (!$id) json_out(['ok' => false, 'error' => Collab::$lastError ?: 'Enter a task.'], Collab::$lastError === '' || Collab::$lastError === 'Enter a task.' ? 400 : 422);
+            /* The task itself, not a search of the first 50 of mine: with a long
+               list, a new undated task was not among them and came back as an
+               id with no title. */
+            json_out(['ok' => true, 'task' => Collab::oneTask($uid, $id) ?? ['id' => $id]]);
 
         case 'task_add_pool':
             $orgGuard();
@@ -164,7 +167,7 @@ try {
         case 'task_assign':
             $writeGuard();
             $task = Collab::assignTask($uid, (int) ($body['id'] ?? 0), (int) ($body['assignee'] ?? 0), $allocates);
-            if ($task === null) json_out(['ok' => false, 'error' => 'You cannot give this task to them.'], 403);
+            if ($task === null) json_out(['ok' => false, 'error' => Collab::$lastError ?: 'You cannot give this task to them.'], 422);
             json_out(['ok' => true, 'task' => $task]);
 
         case 'task_toggle':
