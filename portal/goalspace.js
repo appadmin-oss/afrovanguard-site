@@ -1,4 +1,4 @@
-/* portal/goalspace.js — CACENTRE's Goal workspaces, worked inline on the
+/* portal/goalspace.js — CACENTRE's Goalspace, worked inline on the
    Tasks page (lib/CacGoalspace.php; CACENTRE's api/afrovanguard-goalspace.php).
 
    For each of the member's workspaces: how the goal stands, their open tasks
@@ -43,7 +43,7 @@
               ? '<form class="gsp-done" novalidate data-t="'+t.id+'"><label class="sr-only" for="gsp-l'+t.id+'">The link that proves “'+esc(t.title)+'” is done</label>'
                 + '<input id="gsp-l'+t.id+'" type="url" inputmode="url" placeholder="Paste the link that proves it" required>'
                 + '<button type="submit" class="pbtn pbtn-sm">Mark done</button></form>'
-              : '<a class="gsp-open" href="'+esc(root.querySelector('.pcard-head a').href)+'" target="_blank" rel="noopener">Finish it in Goal workspaces<span class="sr-only"> (opens in a new tab)</span></a>');
+              : '<a class="gsp-open" href="'+esc(root.querySelector('.pcard-head a').href)+'" target="_blank" rel="noopener">Finish it in Goalspace<span class="sr-only"> (opens in a new tab)</span></a>');
     } else act = '';
     return '<li class="gsp-task" data-t="'+t.id+'">'+head+'<div class="gsp-act">'+act+'</div></li>';
   }
@@ -68,7 +68,7 @@
           + '<div class="gsp-fit" aria-live="polite" hidden></div>'
           + '<label>Who<select name="owner" required>'+people.map(function(m){ return '<option value="'+esc(m.actor)+'">'+esc(m.name)+'</option>'; }).join('')+'</select></label>'
           + '<label>Due<input type="date" name="due_on" required></label>'
-          + '<p class="gsp-m">They prove it with a link. For a file or a sign-off, add it in Goal workspaces.</p>'
+          + '<p class="gsp-m">They prove it with a link. For a file or a sign-off, add it in Goalspace.</p>'
           + '<button type="submit" class="pbtn pbtn-sm">Give the task</button></form>' : '')
         + '</details>';
     }
@@ -95,7 +95,7 @@
     else top += '<p class="gsp-calm">Nothing of yours needs anything today. Your open tasks are below.</p>';
     if ((d.needs_help||[]).length) top += '<section class="gsp-now gsp-help" aria-labelledby="gspHelpH"><h3 id="gspHelpH">Your team needs your help</h3><ul class="gsp-team">'
       + d.needs_help.map(function(x){ return '<li><span class="gsp-why">'+esc(x.why)+'</span> <span class="gsp-t">'+esc(x.task.title)+'</span> <span class="gsp-m">'+esc(x.ws_title)+'</span></li>'; }).join('') + '</ul>'
-      + '<p class="gsp-m">Checking proof and unblocking people is done in <a href="'+esc(root.querySelector('.pcard-head a').href)+'" target="_blank" rel="noopener">Goal workspaces<span class="sr-only"> (opens in a new tab)</span></a>.</p></section>';
+      + '<p class="gsp-m">Checking proof and unblocking people is done in <a href="'+esc(root.querySelector('.pcard-head a').href)+'" target="_blank" rel="noopener">Goalspace<span class="sr-only"> (opens in a new tab)</span></a>.</p></section>';
     /* Tasks already in "Needs you now" are not repeated below. */
     var shown = {}; (d.needs_you||[]).forEach(function(x){ shown[x.task.id] = true; });
     list.innerHTML = top + WS.map(function(w){ return wsHtml(Object.assign({}, w, { my_tasks: w.my_tasks.filter(function(t){ return !shown[t.id]; }) })); }).join('');

@@ -194,7 +194,7 @@ try {
             if (!Collab::deleteTask($uid, (int) ($body['id'] ?? 0))) json_out(['ok' => false, 'error' => 'Task not found.'], 404);
             json_out(['ok' => true, 'id' => (int) $body['id']]);
 
-        /* ── Goal workspaces at CACENTRE, worked here (lib/CacGoalspace.php) ──
+        /* ── Goalspace at CACENTRE, worked here (lib/CacGoalspace.php) ──
            CACENTRE acts as this member through Goalspace's own rules; this
            only passes their request and its answer, in words. */
         case 'gs':

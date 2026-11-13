@@ -1,10 +1,10 @@
 <?php
 /**
- * lib/CacGoalspace.php — CACENTRE's Goal workspaces, worked inline in the
+ * lib/CacGoalspace.php — CACENTRE's Goalspace, worked inline in the
  * portal's Tasks page (owner, 2026-11-13: "connect and work inline with the
  * Goalspace").
  *
- * A Goal workspace runs one measurable goal at CACENTRE: each task has an
+ * A Goalspace workspace runs one measurable goal at CACENTRE: each task has an
  * owner, a date and a proof; people report in one tap. The people doing the
  * work are here. This reads a member's workspaces through CACENTRE's door
  * (api/afrovanguard-goalspace.php) and sends their actions back:
@@ -32,7 +32,7 @@ final class CacGoalspace
 
     public static function ready(): bool { return class_exists('CacSso') && CacSso::ready(); }
 
-    /** Goal workspaces in CACENTRE's own screens: files, sign-offs, plans and a lead's tools live there. */
+    /** Goalspace in CACENTRE's own screens: files, sign-offs, plans and a lead's tools live there. */
     public static function openUrl(): string { return CacSso::base() . '/crm/goalspace.php'; }
 
     private static function token(array $u): string
@@ -60,7 +60,7 @@ final class CacGoalspace
         $path = trim($path, '/');
         $allowed = false;
         foreach (self::ROUTES as $re) if (preg_match($re, $path)) { $allowed = true; break; }
-        if (!$allowed) return ['ok' => false, 'error' => 'That is done in Goal workspaces itself.'];
+        if (!$allowed) return ['ok' => false, 'error' => 'That is done in Goalspace itself.'];
         $body = array_map(static fn($v) => is_scalar($v) ? mb_substr(trim((string) $v), 0, 500) : '', array_slice($body, 0, 20, true));
         $d = self::read(self::http(CacSso::base() . self::PATH . '?t=' . rawurlencode(self::token($u)), ['path' => $path, 'body' => $body]));
         return ['ok' => $d['ok'], 'error' => $d['ok'] ? '' : $d['error']];

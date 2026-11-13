@@ -1,6 +1,6 @@
 <?php
 /**
- * tests/goalspace.test.php — CACENTRE's Goal workspaces, worked inline on the
+ * tests/goalspace.test.php — CACENTRE's Goalspace, worked inline on the
  * Tasks page (owner, 2026-11-13: "connect and work inline with the
  * Goalspace" … "make it smarter").
  *
@@ -50,13 +50,13 @@ ck('needs your help: proof to check, then someone blocked; fine work is not list
 /* Only the door's own requests leave this site. */
 $src = (string) file_get_contents("$r/lib/CacGoalspace.php");
 ck('door: only reports, a lead\'s task, and accept/complete/decline are sent', str_contains($src, "private const ROUTES = ['~^workspaces/\\d+/(reports|tasks)$~', '~^tasks/\\d+/(accept|complete|decline)$~'];"));
-ck('door: anything else is refused here, before it is sent', str_contains(json_encode(CacGoalspace::act(['id' => 1, 'email' => 'x@y.z'], 'workspaces/1/close', [])), 'Goal workspaces itself') || !CacGoalspace::ready());
+ck('door: anything else is refused here, before it is sent', str_contains(json_encode(CacGoalspace::act(['id' => 1, 'email' => 'x@y.z'], 'workspaces/1/close', [])), 'Goalspace itself') || !CacGoalspace::ready());
 ck('door: signed for the goalspace door only', str_contains($src, "'goalspace');"));
 ck('who fits: only for a lead of that goal, checked with CACENTRE, among its members', str_contains($src, "if (\$x['id'] === \$wsId && \$x['role'] === 'lead')") && str_contains($src, 'array_diff(array_map(static fn($p) => (int) $p[\'id\'], TaskMatch::profiles()), array_keys($actorOf))'));
 
 /* The page. */
 $js = (string) file_get_contents("$r/portal/goalspace.js"); $view = (string) file_get_contents("$r/portal/views/tasks.php");
 ck('page: loading, empty, linked-not and an honest error with Try again', str_contains($js, 'Loading your goals') || str_contains($view, 'Loading your goals') ? str_contains($js, 'id="gspRetry"') && str_contains($js, 'You are not in any goal at CACENTRE yet') : false);
-ck('page: a file task or sign-off points to Goal workspaces, not a fake "done"', str_contains($js, 'Finish it in Goal workspaces'));
+ck('page: a file task or sign-off points to Goalspace, not a fake "done"', str_contains($js, 'Finish it in Goalspace'));
 ck('page: a bad link is refused on the page, in words', str_contains($js, 'novalidate') && str_contains($js, 'Paste the full link, starting with https://'));
 ck('page: shown only where the link to CACENTRE is set up', str_contains($view, "CacGoalspace::ready()"));
