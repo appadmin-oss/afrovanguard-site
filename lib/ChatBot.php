@@ -102,7 +102,7 @@ final class ChatBot
             );");
             foreach (['idx_chattask_msg ON av_chat_tasks(message_name)',
                       'idx_chattask_cmt ON av_chat_tasks(commitment_id)'] as $ix) {
-                try { $db->exec('CREATE INDEX IF NOT EXISTS ' . $ix); } catch (Throwable $e) {}
+                try { Database::execSchema($db, 'CREATE INDEX IF NOT EXISTS ' . $ix); } catch (Throwable $e) {}
             }
         } catch (Throwable $e) { error_log('[chatbot] ensure: ' . $e->getMessage()); }
     }

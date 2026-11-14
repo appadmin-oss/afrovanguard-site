@@ -426,7 +426,7 @@ final class AvRouter
             );");
             foreach (['idx_ai_calls_at ON av_ai_calls(created_at)',
                       'idx_ai_calls_provider ON av_ai_calls(provider)'] as $ix) {
-                try { $db->exec('CREATE INDEX IF NOT EXISTS ' . $ix); } catch (Throwable $e) {}
+                try { Database::execSchema($db, 'CREATE INDEX IF NOT EXISTS ' . $ix); } catch (Throwable $e) {}
             }
         } catch (Throwable $e) { error_log('[router] ensure: ' . $e->getMessage()); }
     }

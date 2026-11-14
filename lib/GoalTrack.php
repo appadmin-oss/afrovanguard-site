@@ -83,7 +83,7 @@ final class GoalTrack
             blocker VARCHAR(300) NOT NULL DEFAULT '',
             at VARCHAR(32) NOT NULL DEFAULT ''
         )");
-        try { $pdo->exec('CREATE INDEX IF NOT EXISTS ix_goal_checkins_goal ON goal_checkins(goal_id, at)'); } catch (Throwable $e) {}
+        try { Database::execSchema($pdo, 'CREATE INDEX IF NOT EXISTS ix_goal_checkins_goal ON goal_checkins(goal_id, at)'); } catch (Throwable $e) {}
     }
 
     /** The goal row, raw. */
