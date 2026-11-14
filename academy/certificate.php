@@ -12,15 +12,23 @@ $lms = new LmsRepository();
 $course = $slug ? $ac->bySlug($slug) : null;
 $user = LmsAuth::user();
 
-if (!$course) { require_once AV_ROOT . '/lib/errors.php'; av_error_render(404); exit; }
-if (!$user) { header('Location: ' . academy_url($slug . '/learn')); exit; }
+if (!$course) { require_once AV_ROOT . '/lib/errors.php'; av_error_render(404); return; }
+if (!$user) { header('Location: ' . academy_url($slug . '/learn')); return; }
 $cert = $lms->issueCertificate((int) $user['id'], (int) $course['id']);
-if (!$cert) { http_response_code(403); require_once AV_ROOT . '/lib/errors.php'; av_error_render(403); exit; }
+if (!$cert) { http_response_code(403); require_once AV_ROOT . '/lib/errors.php'; av_error_render(403); return; }
+
+/* A graded course's certificate states the grade it was issued on — the
+   grade recorded at issue, never today's (lib/Grading.php: certificates are
+   never revoked or rewritten by a later regrade). */
+$gradeLine = ($cert['grade_pct'] ?? null) !== null ? 'with a final grade of ' . Grading::num((float) $cert['grade_pct']) . '%' : '';
 
 $font = AV_ROOT . '/assets/fonts/display.ttf';
 $fontUI = AV_ROOT . '/assets/fonts/body.ttf';
-if (!extension_loaded('gd') || !is_file($font)) {
-    header('Content-Type: text/plain'); echo 'Certificate ' . $cert['serial'] . ' — ' . $user['name'] . ' — ' . $course['title']; exit;
+// ?format=txt is the plain-text version (and what a host without GD serves).
+if (($_GET['format'] ?? '') === 'txt' || !extension_loaded('gd') || !is_file($font)) {
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Certificate ' . $cert['serial'] . ' — ' . $user['name'] . ' — ' . $course['title'] . ($gradeLine !== '' ? ' — ' . $gradeLine : '');
+    return;
 }
 
 $W = 1600; $H = 1131; $im = imagecreatetruecolor($W, $H);
@@ -48,6 +56,7 @@ $center('has successfully completed the programme', 22, 575, $muted, $fontUI);
 $title = $course['title']; $size = 46; $bb = imagettfbbox($size, 0, $font, $title);
 if (($bb[2] - $bb[0]) > $W - 320) $size = 36;
 $center($title, $size, 650, $gold, $font);
+if ($gradeLine !== '') $center($gradeLine, 20, 705, $ink, $fontUI);
 
 $date = date('F j, Y', strtotime($cert['issued_at']));
 imagettftext($im, 18, 0, 220, 880, $ink, $fontUI, $date);

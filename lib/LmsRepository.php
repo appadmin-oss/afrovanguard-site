@@ -479,14 +479,43 @@ final class LmsRepository
     }
 
     /* ── Certificates ── */
+    /**
+     * Whether this learner has earned (or already holds) the certificate.
+     *
+     * A course with no graded items keeps the original rule: every lesson
+     * complete. A course with published graded items (lib/Grading) is earned
+     * by passing every item AND meeting the course pass mark — the lessons are
+     * then the route, not the test. A certificate already issued stands
+     * whatever happens to the rules or the grades afterwards.
+     */
+    public function certificateEligible(int $userId, int $courseId): bool
+    {
+        if ($this->getCertificate($userId, $courseId)) return true;
+        if (Grading::hasGradedItems($courseId)) return Grading::standing($userId, $courseId)['passed'];
+        return $this->progress($userId, $courseId)['complete'];
+    }
+
     public function issueCertificate(int $userId, int $courseId): ?array
     {
-        if (!$this->progress($userId, $courseId)['complete']) return null;
+        // Issued once, never revoked: an existing certificate is returned before
+        // any rule is consulted, so a later regrade cannot take it away.
         $cur = $this->getCertificate($userId, $courseId);
         if ($cur) return $cur;
+        $grade = null;
+        if (Grading::hasGradedItems($courseId)) {
+            $st = Grading::standing($userId, $courseId);
+            if (!$st['passed']) return null;
+            $grade = $st['grade'];
+        } elseif (!$this->progress($userId, $courseId)['complete']) {
+            return null;
+        }
         // Unguessable serial (48 random bits) — public verify.php must not be brute-forceable.
         $serial = 'AV-' . strtoupper(bin2hex(random_bytes(6))) . '-' . date('Y');
         $this->db->prepare(Database::insertIgnore('certificates', ['user_id', 'course_id', 'serial']))->execute([$userId, $courseId, $serial]);
+        if ($grade !== null) {
+            try { $this->db->prepare('UPDATE certificates SET grade_pct = ? WHERE user_id = ? AND course_id = ? AND grade_pct IS NULL')->execute([$grade, $userId, $courseId]); }
+            catch (Throwable $e) { error_log('[lms] certificate grade: ' . $e->getMessage()); }
+        }
         return $this->getCertificate($userId, $courseId);
     }
     public function getCertificate(int $userId, int $courseId): ?array
@@ -778,7 +807,7 @@ final class LmsRepository
      */
     public function completeIfDone(int $userId, int $courseId): array
     {
-        if (!$this->progress($userId, $courseId)['complete']) return ['complete' => false, 'newly' => false, 'cert' => null];
+        if (!$this->certificateEligible($userId, $courseId)) return ['complete' => false, 'newly' => false, 'cert' => null];
         $newly = !$this->getCertificate($userId, $courseId);
         $cert = $this->issueCertificate($userId, $courseId);
         return ['complete' => true, 'newly' => (bool) ($newly && $cert), 'cert' => $cert];

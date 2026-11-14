@@ -133,3 +133,32 @@ TaskLedger::ensure($my);
 $tlIx = $my->query("SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'task_assign_log' AND index_name = 'ix_task_assign_log_user'")->fetchColumn();
 ck('mysql: the task ledger\'s index exists, and ensuring it again is harmless', (int) $tlIx === 1);
 $my->exec('DROP TABLE IF EXISTS task_assign_log');
+
+/* Teaching teams and grading (lib/CourseTeam.php, lib/Grading.php). Every table
+   is created from the runtime DDL through execSchema — twice, because an ensure
+   runs on every request and the second run must be a no-op — and every index
+   must exist afterwards: a 1064 swallowed here would leave live_bookings
+   without the UNIQUE key that holds "one booking per learner per item". */
+$gradeTables = array_merge(['course_instructors'], Grading::TABLES);
+foreach ($gradeTables as $t) $my->exec('DROP TABLE IF EXISTS ' . $t);
+Database::execSchema($my, CourseTeam::ddl());
+Database::execSchema($my, Grading::ddl());
+Database::execSchema($my, CourseTeam::ddl());
+Database::execSchema($my, Grading::ddl());
+$have = $my->query("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()")->fetchAll(PDO::FETCH_COLUMN);
+$have = array_map('strtolower', $have);
+ck('mysql: every teaching and grading table is created', array_diff($gradeTables, $have) === []);
+$ix = array_map('strtolower', $my->query("SELECT DISTINCT index_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name IN ('" . implode("','", $gradeTables) . "')")->fetchAll(PDO::FETCH_COLUMN));
+foreach (['idx_course_instructors_user', 'idx_graded_items_course', 'idx_grade_sub_course', 'idx_grade_sub_user', 'idx_peer_reviews_reviewer', 'idx_live_sessions_item', 'idx_live_bookings_session'] as $want) {
+    ck("mysql: index $want exists", in_array($want, $ix, true));
+}
+$my->exec("INSERT INTO live_bookings (session_id, item_id, user_id, live_key, status) VALUES (1, 7, 9, 'live', 'booked')");
+$dupRefused = false;
+try { $my->exec("INSERT INTO live_bookings (session_id, item_id, user_id, live_key, status) VALUES (2, 7, 9, 'live', 'booked')"); } catch (Throwable $e) { $dupRefused = true; }
+ck('mysql: a second active live booking for the same learner and item is refused by the database', $dupRefused);
+$my->exec("UPDATE live_bookings SET live_key = CONCAT('b', id) WHERE item_id = 7");
+$my->exec("INSERT INTO live_bookings (session_id, item_id, user_id, live_key, status) VALUES (2, 7, 9, 'live', 'booked')");
+ck('mysql: a released booking frees the key for the next one', (int) $my->query('SELECT COUNT(*) FROM live_bookings WHERE item_id = 7')->fetchColumn() === 2);
+$my->exec("INSERT INTO grade_marks (submission_id, marker_id, points, max_points) VALUES (1, 2, 17.5, 20)");
+ck('mysql: fractional rubric points survive (REAL, not INTEGER)', (float) $my->query('SELECT points FROM grade_marks WHERE submission_id = 1')->fetchColumn() === 17.5);
+foreach ($gradeTables as $t) $my->exec('DROP TABLE IF EXISTS ' . $t);

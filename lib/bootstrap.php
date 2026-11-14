@@ -333,6 +333,10 @@ require_once __DIR__ . '/CacWifi.php';     /* and their Wi-Fi: CACENTRE runs it,
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/LmsDrip.php';
 require_once __DIR__ . '/CourseTeam.php';     /* who teaches a course, and what each role may do — the one rule */
+require_once __DIR__ . '/Grading.php';        /* graded items, weights, the pass mark, a learner's standing */
+require_once __DIR__ . '/GradingWork.php';    /* submissions, marking, moderation, release, the daily digest */
+require_once __DIR__ . '/PeerReview.php';     /* learners reviewing each other's work */
+require_once __DIR__ . '/LiveAssess.php';     /* live assessment sessions: booking, the panel, absences, reminders */
 require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/CfisCheckout.php';  /* CACENTRE collects where this site has no merchant account */
 require_once __DIR__ . '/CfisRequests.php';  /* a member asks CACENTRE finance for money */

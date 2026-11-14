@@ -122,6 +122,14 @@ if (class_exists('Appeals')) {
     try { $result['academy_drip'] = LmsDrip::cronTick(); }
     catch (Throwable $e) { $result['academy_drip_error'] = $e->getMessage(); }
 
+    /* Academy grading (lib/GradingWork.php): each course team's daily digest
+       of work waiting to be marked, and the day-before reminder for a booked
+       live assessment. Both are claimed in the database before they send
+       (grading_digests per course per Lagos day; live_bookings.reminded_at),
+       so a five-minute cron sends each once. */
+    try { $result['academy_grading'] = GradingWork::cronTick(); }
+    catch (Throwable $e) { error_log('[cron] academy grading: ' . $e->getMessage()); }
+
     try { $result['appeals'] = Appeals::cronTick(); }
     catch (Throwable $e) { error_log('[cron] appeals: ' . $e->getMessage()); }
 }
