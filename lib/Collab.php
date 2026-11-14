@@ -627,13 +627,34 @@ final class Collab
         return self::oneTask($uid, $taskId);
     }
 
+    /**
+     * Why $uid may not delete this task, or '' when they may (or it is not
+     * theirs at all — deleteTask answers that). What somebody finished is
+     * read from this table (TaskLedger::history, TaskReport): a creator
+     * deleting a task its assignee had already done erased that person's
+     * work from their record and from what the matcher weighs next time.
+     * Their own finished task stays theirs to delete.
+     */
+    public static function deleteRefused(int $uid, int $taskId): string
+    {
+        self::ensureTasks();
+        $t = self::ownedTask($uid, $taskId);
+        if ($t && (int) $t['done'] === 1 && (int) $t['assignee_id'] > 0 && (int) $t['assignee_id'] !== $uid) {
+            return self::nameOf((int) $t['assignee_id']) . ' has finished this task, so it stays on their record.';
+        }
+        return '';
+    }
+
     public static function deleteTask(int $uid, int $taskId): bool
     {
         self::ensureTasks();
         $t = self::ownedTask($uid, $taskId);
         if (!$t) return false;
+        if (self::deleteRefused($uid, $taskId) !== '') return false;
         if ((int) ($t['cac_commitment_id'] ?? 0) > 0 && class_exists('CacWeek')) CacWeek::changed($taskId, true);
         Database::pdo()->prepare('DELETE FROM collab_tasks WHERE id = ?')->execute([$taskId]);
+        /* A step gone from a goal moves it, as a tick or a resize does. */
+        if ((int) ($t['goal_id'] ?? 0) > 0 && class_exists('GoalPlanner')) GoalPlanner::syncProgress((int) $t['goal_id']);
         return true;
     }
 

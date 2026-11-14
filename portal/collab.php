@@ -191,6 +191,7 @@ try {
 
         case 'task_delete':
             $writeGuard();
+            if (($why = Collab::deleteRefused($uid, (int) ($body['id'] ?? 0))) !== '') json_out(['ok' => false, 'error' => $why], 409);
             if (!Collab::deleteTask($uid, (int) ($body['id'] ?? 0))) json_out(['ok' => false, 'error' => 'Task not found.'], 404);
             json_out(['ok' => true, 'id' => (int) $body['id']]);
 
