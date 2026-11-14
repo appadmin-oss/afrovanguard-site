@@ -130,9 +130,9 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 };
 ?>
 <body class="avh avac avco" id="top" data-slug="<?= e((string) $c['slug']) ?>">
-<a class="avh-skip" href="#main">Skip to content</a>
+<a class="avh-skip" href="#main">Skip to main content</a>
 <div class="avh-page">
-<?php avh_nav(); ?>
+<?php avh_nav(avh_here()); ?>
 <main id="main" tabindex="-1">
 <?php avac_pay_flash('avac-flash'); ?>
 

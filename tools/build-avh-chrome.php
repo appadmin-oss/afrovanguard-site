@@ -23,7 +23,8 @@ $drift = 0;
 foreach (avh_chrome_pages($root) as $p) {
     $html = (string) file_get_contents($p);
     if (!str_contains($html, '<!-- avh:nav -->') && !str_contains($html, '<!-- avh:foot -->')) continue;
-    $new = avh_chrome_splice($html, $c);
+    // The nav marks this page's own links aria-current="page" (avh_mark_current).
+    $new = avh_chrome_splice($html, ['nav' => avh_mark_current($c['nav'], avh_page_path($root, $p))] + $c);
     if ($new === $html) continue;
     $drift++;
     $rel = substr($p, strlen($root) + 1);

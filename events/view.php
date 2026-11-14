@@ -92,9 +92,9 @@ if ($private) { header('X-Robots-Tag: noindex, nofollow'); header('Cache-Control
   <script src="<?= e(av_asset('/assets/site/avh.js')) ?>" defer></script>
 </head>
 <body class="avh" id="top">
-<a class="avh-skip" href="#main">Skip to content</a>
+<a class="avh-skip" href="#main">Skip to main content</a>
 <div class="avh-page">
-<?php avh_nav(); ?>
+<?php avh_nav(avh_here()); ?>
 <main id="main" tabindex="-1">
 <article class="avev-one avev-pad">
   <div class="avev-wrap">
