@@ -1,32 +1,58 @@
 <?php
 /**
- * academy/teach.php — instructor dashboard.
- *   /academy/teach/                 → overview of my courses + stats
- *   /academy/teach/<course>/        → learner roster for one of my courses
+ * academy/teach.php — the instructor console.
+ *   /academy/teach/                       → the courses I teach + stats
+ *   /academy/teach/<course>/              → learner roster (default tab)
+ *   /academy/teach/<course>/?tab=items    → graded items, weights, pass mark, live sessions
+ *   /academy/teach/<course>/?tab=marking  → the marking queue, marking, moderation, release
+ *   /academy/teach/<course>/?tab=gradebook→ grades per learner (+ CSV)
+ *   /academy/teach/<course>/?tab=team     → the teaching team
+ *   /academy/teach/<course>/?tab=live&session=N → a live session's panel screen
  *
- * Gated by an LMS account with the instructor (or admin) role. Instructors
- * only ever see courses where courses.instructor_id is their own id.
+ * Who may open a course here and what they may do is CourseTeam::can() — the
+ * course's team (lead, instructor, assistant) and Academy staff (LMS admin or
+ * coordinator). This page never decides a permission itself.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
+require_once __DIR__ . '/_grading_actions.php';
 
 $user = LmsAuth::user();
 $lms  = new LmsRepository();
 $courseSlug   = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['course'] ?? '')));
-$isInstructor = $user && in_array($user['role'], ['instructor', 'admin'], true);
+$uid0 = $user ? (int) $user['id'] : 0;
+$isStaff = $user && CourseTeam::isStaff($uid0);
+$isInstructor = $user && ($isStaff || CourseTeam::coursesFor($uid0) !== [] || LmsAuth::canTeach($user));
 
 // Resolve the course up front (before any output) so a bad/forbidden slug
 // can return a clean 404 with the right status code.
 $course = null;
 if ($isInstructor && $courseSlug !== '') {
-    $course = $user['role'] === 'admin'
-        ? (new AcademyRepository())->bySlug($courseSlug, true)
-        : $lms->ownsCourse((int) $user['id'], $courseSlug);
+    $course = $lms->ownsCourse($uid0, $courseSlug);
     if (!$course) { require_once AV_ROOT . '/lib/errors.php'; av_error_render(404); exit; }
 }
+$tab = preg_replace('/[^a-z]/', '', (string) ($_GET['tab'] ?? 'roster')) ?: 'roster';
 
-/* ── CSV roster export (instructor-gated; streamed before any HTML) ── */
+/* ── Grading forms post here (CSRF-checked in avgr_teach_action) ── */
+if ($course && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    require_same_origin();
+    $r = avgr_teach_action($course, $uid0, $_POST, $_FILES);
+    avgr_flash_set($r);
+    $base = academy_url('teach/' . $course['slug'] . '/');
+    $to = (string) $r['to'];
+    $frag = '';
+    if (($p = strpos($to, '#')) !== false) { $frag = substr($to, $p); $to = substr($to, 0, $p); }
+    if (!headers_sent()) { header('Location: ' . $base . ($to !== '' ? '?' . $to : '') . $frag, true, 303); exit; }
+    parse_str($to, $q); $_GET = $q + $_GET; $tab = (string) ($_GET['tab'] ?? $tab);
+}
+
+/* ── CSV exports (team-gated; streamed before any HTML) ── */
+if ($course && $tab === 'gradebook' && ($_GET['export'] ?? '') === 'csv') {
+    require __DIR__ . '/_teach_grading.php';
+    avgr_gradebook_csv($course);
+    exit;
+}
 if ($course && ($_GET['export'] ?? '') === 'csv') {
     $stats  = $lms->courseStats((int) $course['id']);
     $roster = $lms->roster((int) $course['id'], 5000);
@@ -71,7 +97,7 @@ if (!$isInstructor) {
           <button class="btn btn-primary" data-auth="login">Sign in</button>
         </div>
 <?php else: ?>
-        <p>Your account doesn’t have instructor access yet. If you teach a programme, ask an Academy admin to assign it to <strong><?= e($user['email']) ?></strong>.</p>
+        <p>Your account isn’t on a teaching team yet. If you teach a programme, ask its lead or an Academy admin to add <strong><?= e($user['email']) ?></strong> to the team.</p>
         <a class="btn btn-outline" href="<?= e(academy_url('')) ?>">Back to the Academy</a>
 <?php endif; ?>
       </div>
@@ -85,7 +111,14 @@ if (!$isInstructor) {
 
 $uid = (int) $user['id'];
 
-/* ── Roster view for a single course ── */
+/* ── A single course: the grading tabs, or the roster ── */
+if ($course && $tab !== 'roster') {
+    require __DIR__ . '/_teach_grading.php';
+    avgr_teach_page($course, $user, $tab);
+    echo '<script src="/academy/academy.js" defer></script>';
+    render_footer();
+    return;
+}
 if ($course) {
     $stats = $lms->courseStats((int) $course['id']);
     $roster = $lms->roster((int) $course['id']);
@@ -102,6 +135,7 @@ if ($course) {
         <h1 class="teach-h1"><?= e($course['title']) ?></h1>
 <?php if ($roster): ?>        <a class="btn btn-pill-ghost btn-sm teach-export" href="<?= e(academy_url('teach/' . $course['slug'] . '/')) ?>?export=csv">↓ Export CSV</a><?php endif; ?>
       </div>
+<?php require_once __DIR__ . '/_teach_grading.php'; echo avgr_tabs($course, 'roster', $uid); ?>
       <div class="teach-stats">
         <div class="tstat"><span class="tn"><?= (int) $stats['enrolled'] ?></span><span class="tl">Learners</span></div>
         <div class="tstat"><span class="tn"><?= (int) $stats['completed'] ?></span><span class="tl">Completed</span></div>
@@ -168,7 +202,7 @@ if ($course) {
 }
 
 /* ── Overview: all of my courses ── */
-$courses = $user['role'] === 'admin'
+$courses = $isStaff
     ? array_map(function ($c) use ($lms) { $c['stats'] = $lms->courseStats((int) $c['id']); return $c; }, (new AcademyRepository())->allForAdmin())
     : $lms->coursesForInstructor($uid);
 $totLearners = array_sum(array_map(fn($c) => (int) $c['stats']['enrolled'], $courses));
@@ -179,17 +213,18 @@ $totCerts = array_sum(array_map(fn($c) => (int) $c['stats']['completed'], $cours
       <span class="diary-eyebrow">Instructor dashboard</span>
       <h1 class="teach-h1">Welcome, <?= e(explode(' ', $user['name'])[0]) ?></h1>
       <div class="teach-stats">
-        <div class="tstat"><span class="tn"><?= count($courses) ?></span><span class="tl"><?= $user['role'] === 'admin' ? 'All programmes' : 'My programmes' ?></span></div>
+        <div class="tstat"><span class="tn"><?= count($courses) ?></span><span class="tl"><?= $isStaff ? 'All programmes' : 'My programmes' ?></span></div>
         <div class="tstat"><span class="tn"><?= (int) $totLearners ?></span><span class="tl">Total learners</span></div>
         <div class="tstat"><span class="tn"><?= (int) $totCerts ?></span><span class="tl">Certificates issued</span></div>
       </div>
 <?php if (!$courses): ?>
-      <p class="teach-empty">No programmes are assigned to you yet. An Academy admin can assign a programme to <strong><?= e($user['email']) ?></strong> from the Studio.</p>
+      <p class="teach-empty">You aren’t on a teaching team yet. A course lead or an Academy admin can add <strong><?= e($user['email']) ?></strong> to a team.</p>
 <?php else: ?>
       <div class="teach-grid">
 <?php foreach ($courses as $c): $s = $c['stats']; ?>
         <a class="teach-card" href="<?= e(academy_url('teach/' . $c['slug'] . '/')) ?>">
           <div class="tc-head"><span class="tc-title"><?= e($c['title']) ?></span><span class="tc-status <?= $c['status'] === 'published' ? 'pub' : 'draft' ?>"><?= e($c['status']) ?></span></div>
+<?php if (!empty($c['team_role'])): ?>          <div class="tc-role"><?= e(CourseTeam::label((string) $c['team_role'])) ?></div><?php endif; ?>
           <div class="tc-stats"><span><strong><?= (int) $s['enrolled'] ?></strong> learners</span><span><strong><?= (int) $s['completed'] ?></strong> completed</span></div>
           <div class="r-bar"><span style="width:<?= (int) $s['avg_pct'] ?>%"></span></div>
           <span class="tc-link">View roster →</span>

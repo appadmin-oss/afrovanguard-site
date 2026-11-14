@@ -141,6 +141,22 @@ ck('live: the day before, every learner booked into the session is reminded', $n
 ck('live: the reminder names the time and place', str_contains((string) $sent[0]['html'], 'CACENTRE hall'));
 ck('live: the cron running again sends nothing more', LiveAssess::remind() === 0 && count($sent) === 3);
 
+/* ══ The screens: the panel and the learner's booking ═══════════════════ */
+
+$slug = (string) $db->query('SELECT slug FROM courses WHERE id = ' . $course)->fetchColumn();
+gt_sign_in($ins);
+$panel = render_page(AV_ROOT . '/academy/teach.php', ['course' => $slug, 'tab' => 'live', 'session' => (string) $S2]);
+ck('live: the panel screen lists the session roster with score forms', str_contains($panel, 'Ama Live') && str_contains($panel, 'value="live_score"') && !str_contains($panel, 'render_page: threw'));
+ck('live: every panel form carries a CSRF field', substr_count($panel, '<form method="post"') === substr_count($panel, 'name="csrf"'));
+$edit = render_page(AV_ROOT . '/academy/teach.php', ['course' => $slug, 'tab' => 'items', 'item' => (string) $item]);
+ck('live: the item page lists its sessions and schedules more', str_contains($edit, 'Live sessions') && str_contains($edit, 'value="session_save"'));
+gt_sign_in($A);
+$mine = render_page(AV_ROOT . '/academy/grades.php', ['course' => $slug, 'item' => (string) $item]);
+ck('live: the learner sees their session, its time and place', str_contains($mine, 'Your session') && str_contains($mine, 'CACENTRE hall') && str_contains($mine, 'Lagos time'));
+$sum = render_page(AV_ROOT . '/academy/grades.php', ['course' => $slug]);
+ck('live: and the session time on their grades list', str_contains($sum, 'Session '));
+gt_sign_in(0);
+
 Mailer::fakeRoads(null);
 putenv('AV_MAIL_DISABLED=1');
 Grading::setClock(null);

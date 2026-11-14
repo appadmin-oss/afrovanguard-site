@@ -43,6 +43,8 @@
 .avco-about img{max-width:100%;height:auto;border-radius:var(--av-r-10)}
 .avco-instructor{display:flex;gap:16px;align-items:center;border-top:1px solid var(--av-line);padding-top:32px}
 .avco-avatar{width:56px;height:56px;border-radius:50%;background:var(--av-ink);color:var(--av-gold-light);display:flex;align-items:center;justify-content:center;font-family:var(--av-serif);font-size:26px;font-weight:600;flex-shrink:0}
+.avco-team{display:grid;gap:14px;border-top:1px solid var(--av-line);padding-top:32px}
+.avco-team .avco-instructor{border-top:0;padding-top:0}
 .avco-ins-k{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--av-gold-text);margin-bottom:3px}
 .avco-ins-n{font-size:17px;font-weight:600}
 .avco-ins-r{font-size:14.5px;color:var(--av-copy-3)}

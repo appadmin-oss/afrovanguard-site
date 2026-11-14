@@ -68,6 +68,9 @@ $courseUrl = academy_url($courseSlug . '/');
 $nextUrl = $next ? $learnUrl((string) $next['slug']) : '';
 $pct = (int) $progress['pct'];
 $savedNote = ($user && $canAccess) ? $lms->getNote((int) $user['id'], (int) $lesson['id']) : '';
+// A graded course (lib/Grading) earns its certificate on grades, not lessons alone.
+$graded = Grading::hasGradedItems((int) $course['id']);
+$gradesUrl = academy_url($courseSlug . '/grades/');
 
 avac_head([
     'title' => $lesson['title'] . ' — ' . $course['title'] . ' · Afrovanguard Academy',
@@ -90,7 +93,8 @@ avac_head([
     <span class="avle-ring" style="--p:<?= $pct ?>" aria-hidden="true"></span><span class="avle-ring-n av-num" data-avle-count><?= (int) $progress['completed'] ?>/<?= (int) $progress['total'] ?></span><span class="av-sr" data-avle-count-sr><?= (int) $progress['completed'] ?> of <?= (int) $progress['total'] ?> lessons complete</span>
 <?php if ($canAccess): ?>    <button type="button" class="avle-btn avle-btn--line avle-notes-btn" data-avle-notes-toggle aria-controls="avle-notes" aria-expanded="false">Notes</button>
 <?php endif; ?>
-    <a class="avle-btn" href="<?= e($courseUrl) ?>">Exit</a>
+<?php if ($graded): ?>    <a class="avle-btn avle-btn--line" href="<?= e($gradesUrl) ?>">Grades</a>
+<?php endif; ?>    <a class="avle-btn" href="<?= e($courseUrl) ?>">Exit</a>
   </div>
   <div class="avle-read" aria-hidden="true"><span data-avle-readbar></span></div>
 </header>
@@ -222,7 +226,12 @@ avac_head([
     </form>
 <?php endif; ?>
 
-<?php if ($user): ?>
+<?php if ($user && $graded): ?>
+    <div class="avle-done" data-avle-done<?= !empty($progress['complete']) ? '' : ' hidden' ?>>
+      <span>You’ve finished the lessons of <strong><?= e((string) $course['title']) ?></strong>. This course is graded: your certificate comes with passing its graded work.</span>
+      <a class="avle-btn avle-btn--gold" href="<?= e($gradesUrl) ?>">See your grades →</a>
+    </div>
+<?php elseif ($user): ?>
     <div class="avle-done" data-avle-done<?= !empty($progress['complete']) ? '' : ' hidden' ?>>
       <span>You’ve completed <strong><?= e((string) $course['title']) ?></strong> — your certificate is ready.</span>
       <a class="avle-btn avle-btn--gold" href="<?= e(academy_url($courseSlug . '/certificate')) ?>" target="_blank" rel="noopener">Get your certificate →<span class="av-sr"> (opens in a new tab)</span></a>
