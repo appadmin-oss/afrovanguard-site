@@ -782,14 +782,42 @@ final class LmsRepository
     }
 
     /* ── Certificates ── */
+    /**
+     * Whether this learner has earned (or already holds) the certificate.
+     *
+     * A course with no graded items keeps the original rule: every lesson
+     * complete. A course with published graded items (lib/Grading) is earned
+     * by passing every item AND meeting the course pass mark — the lessons are
+     * then the route, not the test. A certificate already issued stands
+     * whatever happens to the rules or the grades afterwards.
+     */
+    public function certificateEligible(int $userId, int $courseId): bool
+    {
+        if ($this->getCertificate($userId, $courseId)) return true;
+        return $this->requirementsMet($userId, $courseId);
+    }
+
     public function issueCertificate(int $userId, int $courseId): ?array
     {
-        if (!$this->requirementsMet($userId, $courseId)) return null;
+        // Issued once, never revoked: an existing certificate is returned before
+        // any rule is consulted, so a later regrade cannot take it away.
         $cur = $this->getCertificate($userId, $courseId);
         if ($cur) return $cur;
+        $grade = null;
+        if (Grading::hasGradedItems($courseId)) {
+            $st = Grading::standing($userId, $courseId);
+            if (!$st['passed']) return null;
+            $grade = $st['grade'];
+        } elseif (!$this->requirementsMet($userId, $courseId)) {
+            return null;
+        }
         // Unguessable serial (48 random bits) — public verify.php must not be brute-forceable.
         $serial = 'AV-' . strtoupper(bin2hex(random_bytes(6))) . '-' . date('Y');
         $this->db->prepare(Database::insertIgnore('certificates', ['user_id', 'course_id', 'serial']))->execute([$userId, $courseId, $serial]);
+        if ($grade !== null) {
+            try { $this->db->prepare('UPDATE certificates SET grade_pct = ? WHERE user_id = ? AND course_id = ? AND grade_pct IS NULL')->execute([$grade, $userId, $courseId]); }
+            catch (Throwable $e) { error_log('[lms] certificate grade: ' . $e->getMessage()); }
+        }
         return $this->getCertificate($userId, $courseId);
     }
     public function getCertificate(int $userId, int $courseId): ?array
@@ -1091,10 +1119,11 @@ final class LmsRepository
      */
     public function completeIfDone(int $userId, int $courseId): array
     {
-        /* Every lesson ticked AND every quiz passed: a certificate says the
-           learner was assessed, so a progress row written for a quiz lesson
-           without a pass (an old tick, a direct request) does not earn one. */
-        if (!$this->requirementsMet($userId, $courseId))
+        /* Every lesson ticked AND every quiz passed (or, on a team-graded
+           course, every graded item passed): a certificate says the learner
+           was assessed, so a progress row written for a quiz lesson without a
+           pass (an old tick, a direct request) does not earn one. */
+        if (!$this->certificateEligible($userId, $courseId))
             return ['complete' => false, 'newly' => false, 'cert' => null];
         $newly = !$this->getCertificate($userId, $courseId);
         $cert = $this->issueCertificate($userId, $courseId);
@@ -1113,6 +1142,11 @@ final class LmsRepository
      */
     public function requirementsMet(int $userId, int $courseId): bool
     {
+        /* Two grading models met here (merge of 2026-11-14). A course with
+           published TEAM-graded items (lib/Grading: rubrics, peer, live,
+           release) is decided by Grading::standing — the lessons are the route,
+           not the test. Every other course keeps the courseware rule below. */
+        if (Grading::hasGradedItems($courseId)) return Grading::standing($userId, $courseId)['passed'];
         if (!$this->progress($userId, $courseId)['complete']) return false;
         $course = $this->courseRow($courseId);
         return $course !== null && (new LmsCourseware($this->db, $this))->grades($userId, $course)['passed'];
@@ -1155,12 +1189,14 @@ final class LmsRepository
         $v = $s->fetchColumn(); return $v === false ? null : (string) $v;
     }
 
-    /** Courses an instructor owns (any status), with light stats. */
+    /**
+     * Courses this person teaches (any status), with light stats and their
+     * team role. Read from the teaching team (lib/CourseTeam), not from
+     * courses.instructor_id, which only ever named one person.
+     */
     public function coursesForInstructor(int $userId): array
     {
-        $s = $this->db->prepare("SELECT id, slug, title, status, access_type, price_ngn FROM courses WHERE instructor_id = ? ORDER BY sort, title");
-        $s->execute([$userId]);
-        $rows = $s->fetchAll();
+        $rows = CourseTeam::coursesFor($userId);
         foreach ($rows as &$r) { $r['stats'] = $this->courseStats((int) $r['id']); }
         return $rows;
     }
@@ -1240,11 +1276,17 @@ final class LmsRepository
         return $rows;
     }
 
+    /**
+     * The course, if this person may open its teaching pages: anybody on its
+     * team (lead, instructor or assistant) or Academy staff. CourseTeam::can()
+     * decides; this only resolves the slug.
+     */
     public function ownsCourse(int $userId, string $slug): ?array
     {
-        $s = $this->db->prepare('SELECT * FROM courses WHERE slug = ? AND instructor_id = ?');
-        $s->execute([$slug, $userId]);
-        return $s->fetch() ?: null;
+        $s = $this->db->prepare('SELECT * FROM courses WHERE slug = ?');
+        $s->execute([$slug]);
+        $c = $s->fetch() ?: null;
+        return ($c && CourseTeam::can((int) $c['id'], $userId, 'view')) ? $c : null;
     }
 
     /* ── Member administration (Studio) ── */
@@ -1273,7 +1315,8 @@ final class LmsRepository
         }
         // Additive: older audit tables (any driver) gain the ip column.
         try { if (class_exists('Database') && Database::tableExists('lms_audit') && !Database::columnExists('lms_audit', 'ip')) {
-            $this->db->exec("ALTER TABLE lms_audit ADD COLUMN ip TEXT NOT NULL DEFAULT ''");
+            /* translated: a bare literal default on TEXT is error 1101 on MySQL 8 */
+            Database::execSchema($this->db, "ALTER TABLE lms_audit ADD COLUMN ip TEXT NOT NULL DEFAULT ''");
         } } catch (Throwable $e) { /* best-effort */ }
     }
     /**

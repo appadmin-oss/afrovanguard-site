@@ -911,7 +911,7 @@ SQL;
             // collide. All three engines allow repeated NULLs in a unique index.
             try { $this->db->exec('ALTER TABLE articles ADD COLUMN ref_code VARCHAR(32) DEFAULT NULL'); }
             catch (Throwable $e) { error_log('[diary] add ref_code: ' . $e->getMessage()); return; }
-            try { $this->db->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_refcode ON articles(ref_code)'); }
+            try { Database::execSchema($this->db, 'CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_refcode ON articles(ref_code)'); }
             catch (Throwable $e) { error_log('[diary] index ref_code: ' . $e->getMessage()); }
         }
 

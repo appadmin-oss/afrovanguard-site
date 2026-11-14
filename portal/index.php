@@ -229,6 +229,12 @@ if ($isNgv) {
     $fOwing = (int) $ngvVars['myFines']['owing'];
     $navStatus['ngv-fines'] = ['', $fOwing > 0 ? $hvMoney($fOwing) : '', 'warn'];
 }
+/* What a badge counts, for a screen reader: "Tasks, 3 open", not "Tasks 3".
+   A badge that already says what it is (₦…, 4/24, 80%, +12) needs no words. */
+$badgeSr = ['community' => ' new today', 'tasks' => ' open', 'bills' => ' waiting', 'mentorship' => ' sessions attended',
+            'learning' => ' courses', 'volunteer' => ' waiting', 'diary' => ' entries', 'membership' => ' waiting',
+            'quest' => ' points this month', 'attendance' => ' attendance', 'ngv' => ' books read',
+            'fines' => ' owed', 'ngv-fines' => ' owed', 'ngv-account' => ' owed', 'wallet' => ' owed'];
 $nav = [];
 foreach (PortalNav::groups($portalCtx) as $group => $items) {
     foreach ($items as [$id, $label]) $nav[$group][] = [$id, $label] + [2 => $navStatus[$id] ?? ['', '', '']];
@@ -281,7 +287,7 @@ if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) doc
 <?php endif; ?>
         <div class="avn-items" id="<?= e($gid) ?>">
 <?php foreach ($items as [$id, $label, $st]): ?>
-          <a class="avp-nav-link pnav-link avn-link" href="#<?= e($id) ?>" data-view="<?= e($id) ?>"><?= $navIco($id) ?><span class="avp-nav-label pnav-label"><?= e($label) ?></span><?= $navEnd($st) ?></a>
+          <a class="avp-nav-link pnav-link avn-link<?= $id === 'overview' ? ' is-active' : '' ?>" href="#<?= e($id) ?>" data-view="<?= e($id) ?>"<?= $id === 'overview' ? ' aria-current="page"' : '' ?>><?= $navIco($id) ?><span class="avp-nav-label pnav-label"><?= e($label) ?></span><?= $navEnd($st) ?></a>
 <?php endforeach; ?>
         </div>
       </div>
@@ -341,7 +347,7 @@ if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) doc
       <div class="avp-top-actions avn-top-actions">
 <?php if ($isOrg): ?>        <a class="avp-online avn-online" id="topOnline" href="/people/"<?= $onlineNow > 0 ? '' : ' hidden' ?>><span class="avn-dot" aria-hidden="true"></span><span><span class="av-num" id="tbCount"><?= (int) $onlineNow ?></span> online</span></a>
 <?php endif; ?>        <div class="avp-notif" id="notifWrap" data-csrf="<?= e($collabCsrf) ?>">
-          <button type="button" class="avp-bell avn-bell" id="notifBtn" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notifPanel">
+          <button type="button" class="avp-bell avn-bell" id="notifBtn" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="notifPanel">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg>
             <span class="avp-bell-n" id="notifBadge" hidden>0</span>
           </button>
@@ -379,7 +385,7 @@ if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) doc
 
   <nav class="avp-tabs avn-tabs" aria-label="Primary">
 <?php foreach ($tabs as [$id, $label]): ?>
-    <a class="avp-tab avn-tab" href="#<?= e($id) ?>" data-view="<?= e($id) ?>"><span class="avn-tab-i"><?= $navIco($id, 21) ?></span><span><?= e($label) ?></span></a>
+    <a class="avp-tab avn-tab<?= $id === 'overview' ? ' is-active' : '' ?>" href="#<?= e($id) ?>" data-view="<?= e($id) ?>"<?= $id === 'overview' ? ' aria-current="page"' : '' ?>><span class="avn-tab-i"><?= $navIco($id, 21) ?></span><span><?= e($label) ?></span></a>
 <?php endforeach; ?>
     <button type="button" class="avp-tab avn-tab" id="avpMore" aria-haspopup="dialog" aria-controls="avpSheet" aria-expanded="false">
       <span class="avn-tab-i"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.8"/></svg></span>

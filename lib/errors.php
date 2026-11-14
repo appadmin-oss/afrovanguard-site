@@ -94,7 +94,7 @@ function av_error_render(int $code, bool $static = false): void {
 <script src="<?= av_err_asset('/assets/site/ga.js') ?>" async></script>
 </head>
 <body class="avh" id="top">
-<a class="avh-skip" href="#main">Skip to content</a>
+<a class="avh-skip" href="#main">Skip to main content</a>
 <div class="avh-page">
 <?= $nav ?>
 

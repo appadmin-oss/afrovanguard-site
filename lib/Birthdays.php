@@ -38,7 +38,7 @@ final class Birthdays
                 catch (Throwable $e) { /* raced or already present */ }
             }
         }
-        try { $pdo->exec('CREATE INDEX IF NOT EXISTS idx_lms_users_birthday ON lms_users(birthday)'); } catch (Throwable $e) { /* already there */ }
+        try { Database::execSchema($pdo, 'CREATE INDEX IF NOT EXISTS idx_lms_users_birthday ON lms_users(birthday)'); } catch (Throwable $e) { /* already there */ }
     }
 
     /** @return array{birthday:string, year:int}|null */

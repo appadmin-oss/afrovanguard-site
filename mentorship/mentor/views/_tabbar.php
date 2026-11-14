@@ -6,5 +6,5 @@
     <a href="?v=mentees"<?= in_array($v, ['mentees', 'case'], true) ? ' aria-current="page"' : '' ?>><?= Icons::mentorPortal('people') ?>Mentees</a>
     <a href="?v=values"<?= $v === 'values' ? ' aria-current="page"' : '' ?>><?= Icons::mentorPortal('star') ?>Values</a>
     <a href="?v=academy"<?= in_array($v, ['academy', 'module'], true) ? ' aria-current="page"' : '' ?>><?= Icons::mentorPortal('cap') ?>Academy</a>
-    <a href="#avm-more" data-avm-open="more"<?= in_array($v, ['checkins', 'reflections', 'requests', 'profile', 'support'], true) ? ' aria-current="page"' : '' ?>><?= Icons::mentorPortal('more') ?>More</a>
+    <a href="#avm-more" data-avm-open="more" aria-haspopup="dialog"<?= in_array($v, ['checkins', 'reflections', 'requests', 'profile', 'support'], true) ? ' aria-current="page"' : '' ?>><?= Icons::mentorPortal('more') ?>More</a>
   </nav>

@@ -218,6 +218,11 @@ final class AvSettings
             'ph' => 'ABCD-EFGH-JKLM-NPQR',
             'help' => 'Ask CACENTRE’s finance team for a pairing code (`php artisan cfis:pair avg`). Enter it here and this site collects its signing key directly from CFIS. The code works once and expires in fifteen minutes; the key itself is never shown to anybody. Afterwards, compare the key fingerprint this shows with the one finance has on screen — the same sixteen characters means the same key. A code can be re-issued as often as you like without changing the key, so a lost hand-over no longer means a rotation.',
         ],
+        'AV_FINANCE_EMAIL' => [
+            'group' => 'CACENTRE finance (CFIS)', 'label' => 'Finance mailbox', 'secret' => false, 'type' => 'email',
+            'ph' => 'finance@afrovanguard.org.ng',
+            'help' => 'Where finance hears of money: every finance request a member makes (with what became of it), and every donation and in-kind gift. Blank uses finance@afrovanguard.org.ng. The general site mailbox (ADMIN_EMAIL) still gets donations as before.',
+        ],
         'CFIS_URL' => [
             'group' => 'CACENTRE finance (CFIS)', 'label' => 'Finance address', 'secret' => false, 'type' => 'url',
             'ph' => 'https://cacentre.afrovanguard.org.ng/finance',

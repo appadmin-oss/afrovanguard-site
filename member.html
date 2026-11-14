@@ -87,6 +87,7 @@ button{font-family:var(--fb)}
 .pf-breadcrumb{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:rgba(255,255,255,.3);margin-bottom:24px;flex-wrap:wrap}
 .pf-breadcrumb a{color:rgba(255,255,255,.3)}.pf-breadcrumb a:hover{color:var(--gold)}
 .pf-breadcrumb sep{color:rgba(255,255,255,.15);margin:0 2px}
+.pf-breadcrumb .av-crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:inherit;margin:0;padding:0;list-style:none}.pf-breadcrumb .av-crumbs>li{display:inline-flex;align-items:center;gap:inherit}
 
 .pf-prefix-badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--fb);font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:14px}
 .pf-prefix-badge::before{content:'';width:24px;height:2px;background:var(--gold)}
@@ -188,14 +189,14 @@ button{font-family:var(--fb)}
         <span class="nav-badge">.ORG.NG</span>
       </a>
       <a href="about.html#our-people" class="nav-back" id="back-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true" focusable="false"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
         Back to Team
       </a>
     </div>
   </div>
 </header>
 
-<main id="main">
+<main id="main" tabindex="-1">
 
   <!-- LOADING STATE -->
   <div class="page-state" id="st-load" role="status" aria-live="polite">
@@ -224,11 +225,11 @@ button{font-family:var(--fb)}
       <div class="pf-hero-content">
         <div class="W">
           <nav class="pf-breadcrumb" aria-label="Breadcrumb">
-            <a href="/">Home</a>
-            <sep aria-hidden="true">&rsaquo;</sep>
-            <a href="about.html#our-people">Team</a>
-            <sep aria-hidden="true">&rsaquo;</sep>
-            <span id="bc-name">Profile</span>
+            <ol class="av-crumbs">
+              <li><a href="/">Home</a><sep aria-hidden="true">&rsaquo;</sep></li>
+              <li><a href="about.html#our-people">Team</a><sep aria-hidden="true">&rsaquo;</sep></li>
+              <li><span id="bc-name" aria-current="page">Profile</span></li>
+            </ol>
           </nav>
           <p class="pf-prefix-badge au" id="pf-prefix">Van.</p>
           <h1 class="pf-name au au1" id="pf-name">Loading…</h1>

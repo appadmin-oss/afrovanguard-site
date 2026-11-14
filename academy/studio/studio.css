@@ -207,6 +207,14 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 .toast.ok{background:var(--ok)} .toast.err{background:var(--danger)}
 @keyframes slidein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 
+/* ── Keyboard: skip link and a visible focus ring on every nav control ──
+   (docs/accessibility-navigation.md). Gold on the navy sidebar, the design
+   system's focus blue (--afg-focus) on the light surfaces; both well over 3:1. */
+.skip-link{position:absolute;left:-999px;top:0;z-index:999;background:#1d4ed8;color:#fff;font-weight:600;padding:12px 20px;border-radius:8px}
+.skip-link:focus{left:12px;top:12px}
+.side :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.hamburger:focus-visible,.topbar :focus-visible{outline:2px solid var(--afg-focus,#1d4ed8);outline-offset:2px}
+
 /* ── Responsive ── */
 @media (max-width:900px){
   .editor{grid-template-columns:1fr}
@@ -215,6 +223,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
   .shell{grid-template-columns:1fr}
   .side{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .22s ease;width:262px;box-shadow:0 0 60px rgba(0,0,0,.4)}
   .shell.nav-open .side{transform:none}
+  .shell:not(.nav-open) .side{visibility:hidden;transition:transform .22s ease,visibility 0s linear .22s}
   .hamburger{display:inline-flex}
   .content{padding:18px}
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:25}
@@ -468,3 +477,8 @@ body.is-editing .list-tools .find input{min-width:0}
 .a11y-cap{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .badge.a11y-fix{background:rgba(180,35,24,.12);color:var(--fix-ink);white-space:nowrap}
 .badge.a11y-tip{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line);white-space:nowrap}
+/* Teaching team card (course editor) */
+.team-list{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:8px}
+.team-list li{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
+.team-form{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:8px}
+.small{font-size:12.5px}

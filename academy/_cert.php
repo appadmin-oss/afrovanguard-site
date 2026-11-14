@@ -332,7 +332,7 @@ function avac_cert_image($im, string $file, float $x, float $top, float $h, floa
  *
  * @param string $variant 'course' | 'programme'
  */
-function avac_cert_render(string $learner, string $variant, string $title, string $issuedAt, string $serial, ?array &$trace = null): ?string
+function avac_cert_render(string $learner, string $variant, string $title, string $issuedAt, string $serial, ?array &$trace = null, string $gradeLine = ''): ?string
 {
     $F = avac_cert_font_paths();
     if ($F === null) return null;
@@ -427,6 +427,12 @@ function avac_cert_render(string $learner, string $variant, string $title, strin
     foreach ($t['lines'] as $i => $line) {
         $text('serif600', $t['size'], 'ink', AVAC_CERT_COL_X, $L['titleTop'] + $i * 1.1 * $t['size'], $line, 1.1);
     }
+    /* A graded course states the grade it was issued on (lib/Grading.php), in
+       the space under the title — only when it fits above the signature band. */
+    if ($gradeLine !== '') {
+        $gTop = $L['titleTop'] + count($t['lines']) * 1.1 * $t['size'] + 14;
+        if ($gTop + 22 <= AVAC_CERT_SIG_BAND_TOP - AVAC_CERT_GUARD) $text('sans400', 20, 'text2', AVAC_CERT_COL_X, $gTop, avac_cert_clean($gradeLine));
+    }
 
     /* CERT-17: optional signature, in the band above the signatory rule, bottom-aligned to it. */
     $sig = AV_ROOT . AVAC_CERT_SIGNATURE;
@@ -462,12 +468,13 @@ function avac_cert_render(string $learner, string $variant, string $title, strin
  *
  * @param string $variant 'course' | 'programme'
  */
-function avac_cert_png(string $learner, string $variant, string $title, string $issuedAt, string $serial, string $file): void
+function avac_cert_png(string $learner, string $variant, string $title, string $issuedAt, string $serial, string $file, string $gradeLine = ''): void
 {
-    $png = avac_cert_render($learner, $variant, $title, $issuedAt, $serial);
+    $trace = null;
+    $png = avac_cert_render($learner, $variant, $title, $issuedAt, $serial, $trace, $gradeLine);
     if ($png === null) {
         header('Content-Type: text/plain; charset=utf-8');
-        echo avac_cert_copy($variant)['kind'] . ' ' . $serial . ' — ' . $learner . ' — ' . $title;
+        echo avac_cert_copy($variant)['kind'] . ' ' . $serial . ' — ' . $learner . ' — ' . $title . ($gradeLine !== '' ? ' — ' . $gradeLine : '');
         return;
     }
     header('Content-Type: image/png');

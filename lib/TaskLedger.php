@@ -36,10 +36,13 @@ final class TaskLedger
     /** How far back history is read. */
     private const DAYS = 180;
 
-    public static function ensure(): void
+    /** $db: another connection to provision (tests/mysql.test.php); the app's own by default. */
+    public static function ensure(?PDO $db = null): void
     {
-        static $done = false; if ($done) return; $done = true;
-        Database::execSchema(Database::pdo(), "CREATE TABLE IF NOT EXISTS task_assign_log (
+        static $done = false;
+        if ($db === null) { if ($done) return; $done = true; }
+        $db = $db ?? Database::pdo();
+        Database::execSchema($db, "CREATE TABLE IF NOT EXISTS task_assign_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             task_id INTEGER NOT NULL DEFAULT 0,
             user_id INTEGER NOT NULL DEFAULT 0,
@@ -49,7 +52,11 @@ final class TaskLedger
             title VARCHAR(300) NOT NULL DEFAULT '',
             at VARCHAR(32) NOT NULL DEFAULT ''
         )");
-        try { Database::pdo()->exec('CREATE INDEX IF NOT EXISTS ix_task_assign_log_user ON task_assign_log(user_id, event, at)'); } catch (Throwable $e) {}
+        /* Through execSchema, which drops the IF NOT EXISTS MySQL does not
+           have and treats "already there" as done. A bare exec was a syntax
+           error on MySQL, swallowed here, so the index history() reads by
+           was never created there. */
+        Database::execSchema($db, 'CREATE INDEX IF NOT EXISTS ix_task_assign_log_user ON task_assign_log(user_id, event, at)');
     }
 
     /** Keep one event. Never fatal: losing a line of history is not worth a failed click. */
@@ -86,7 +93,12 @@ final class TaskLedger
                 $o = &$out[(int) $r['assignee_id']];
                 if (count($o['done']) < 30) $o['done'][] = (string) $r['title'];
                 $due = (string) $r['due'];
-                if ($due !== '' && (string) $r['done_at'] !== '') { if (substr((string) $r['done_at'], 0, 10) <= $due) $o['on_time']++; else $o['late']++; }
+                /* done_at is UTC; the due date is a Lagos day. Finished at 23:30 UTC on
+                   the due date is past midnight in Lagos — late, as the report says. */
+                if ($due !== '' && (string) $r['done_at'] !== '') {
+                    $doneDay = TaskReport::today((int) (strtotime((string) $r['done_at'] . ' UTC') ?: 0));
+                    if ($doneDay <= $due) $o['on_time']++; else $o['late']++;
+                }
                 unset($o);
             }
         } catch (Throwable $e) {}

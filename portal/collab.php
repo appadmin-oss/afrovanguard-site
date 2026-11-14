@@ -42,7 +42,7 @@ $orgGuard = function () use ($isOrg) {
     if (!$isOrg) json_out(['ok' => false, 'error' => 'The task pool is for Afrovanguard members.'], 403);
 };
 /* Who hands out work: organisation members and volunteer coordinators. */
-$allocates = $isOrg || (class_exists('Volunteers') && Volunteers::canRunTeams($u));
+$allocates = Collab::mayAllocate($u);
 
 try {
     switch ($action) {
@@ -98,8 +98,9 @@ try {
         case 'task_add':
             $writeGuard();
             if (!av_rate_ok('collab_task_' . $uid, 40, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
-            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), (int) ($body['assignee'] ?? 0), (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'), 0, '', 'person', $allocates);
-            if (!$id) json_out(['ok' => false, 'error' => Collab::$lastError ?: 'Enter a task.'], Collab::$lastError === '' || Collab::$lastError === 'Enter a task.' ? 400 : 422);
+            $to = (int) ($body['assignee'] ?? 0);
+            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), $to, (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'), 0, '', 'person', $allocates);
+            if (!$id) json_out(['ok' => false, 'error' => Collab::$lastError ?: 'Enter a task.'], Collab::$lastError === 'You cannot give a task to somebody else.' ? 403 : (Collab::$lastError === '' || Collab::$lastError === 'Enter a task.' ? 400 : 422));
             /* The task itself, not a search of the first 50 of mine: with a long
                list, a new undated task was not among them and came back as an
                id with no title. */
@@ -191,6 +192,7 @@ try {
 
         case 'task_delete':
             $writeGuard();
+            if (($why = Collab::deleteRefused($uid, (int) ($body['id'] ?? 0))) !== '') json_out(['ok' => false, 'error' => $why], 409);
             if (!Collab::deleteTask($uid, (int) ($body['id'] ?? 0))) json_out(['ok' => false, 'error' => 'Task not found.'], 404);
             json_out(['ok' => true, 'id' => (int) $body['id']]);
 

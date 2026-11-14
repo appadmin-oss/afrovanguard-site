@@ -106,9 +106,9 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <script src="<?= e(av_asset('/assets/site/avev.js')) ?>" defer></script>
 </head>
 <body class="avh" id="top">
-<a class="avh-skip" href="#main">Skip to content</a>
+<a class="avh-skip" href="#main">Skip to main content</a>
 <div class="avh-page">
-<?php avh_nav(); ?>
+<?php avh_nav(avh_here()); ?>
 <main id="main" tabindex="-1">
 
 <header class="avev-hero avev-pad">

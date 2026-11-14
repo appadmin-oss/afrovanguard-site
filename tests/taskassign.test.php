@@ -42,7 +42,7 @@ ck('tasks: …and it records who gave it and when, as a later assignment does', 
 ck('tasks: the person given it sees it as theirs', (Collab::oneTask($ada, $id)['mine'] ?? false) === true);
 ck('tasks: a task for yourself has no "given by"', ($own = Collab::addTask($ada, 'Read chapter two', 0, '', 'normal', 0, '', 'person', false)) > 0 && Collab::oneTask($ada, $own)['assigned_out'] === false);
 ck('tasks: an empty title is refused, saying so', Collab::addTask($boss, '   ', 0, '', 'normal', 0, '', 'person', true) === 0 && Collab::$lastError === 'Enter a task.');
-ck('tasks: callers with their own rules (the planner) still give work to active people', Collab::addTask($ada, 'Planner step', $boss) > 0);
+ck('tasks: callers with their own rules (the planner) still give work to active people', Collab::addTask($ada, 'Planner step', $boss, '', 'normal', 0, '', 'ai', null) > 0);
 
 /* Given later: a reason when refused. */
 $mine = Collab::addTask($ada, 'Fold the chairs', 0, '', 'normal', 0, '', 'person', false);

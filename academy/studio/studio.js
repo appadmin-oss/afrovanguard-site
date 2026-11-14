@@ -66,7 +66,19 @@
     var d = document.documentElement, next = d.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     d.setAttribute('data-theme', next); try { localStorage.setItem('av.theme', next); } catch (e) {}
   });
-  $('#hamburger').addEventListener('click', function () { $('#app').classList.toggle('nav-open'); });
+  /* The phone drawer: a disclosure. Opening moves focus to the current section; Esc
+     closes it and hands focus back to the button. Closed, it is visibility:hidden
+     (studio.css), so it is out of the Tab order and the screen reader's view. */
+  function setNav(open, refocus) {
+    var app = $('#app'), btn = $('#hamburger');
+    var was = app.classList.contains('nav-open');
+    app.classList.toggle('nav-open', open); btn.setAttribute('aria-expanded', String(open));
+    if (open) { var cur = $('.nav-item.is-active') || $('.nav-item'); if (cur) setTimeout(function () { cur.focus(); }, 30); }
+    else if (was && refocus) btn.focus();
+  }
+  $('#hamburger').addEventListener('click', function () { setNav(!$('#app').classList.contains('nav-open')); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('#app').classList.contains('nav-open') && $('#lessonModal').hidden) setNav(false, true); });
+  document.addEventListener('click', function (e) { if ($('#app').classList.contains('nav-open') && !e.target.closest('#side, #hamburger')) setNav(false); });
 
   /* ── Routing ── */
   var VIEWS = {
@@ -84,10 +96,14 @@
   function route(name, arg) {
     var v = VIEWS[name] || VIEWS.overview;
     $$('.view').forEach(function (el) { el.hidden = el.id !== 'view-' + name; });
-    $$('.nav-item').forEach(function (b) { b.classList.toggle('is-active', b.getAttribute('data-view') === (name === 'course' ? 'courses' : (name === 'programme' ? 'programmes' : name))); });
+    $$('.nav-item').forEach(function (b) {
+      var on = b.getAttribute('data-view') === (name === 'course' ? 'courses' : (name === 'programme' ? 'programmes' : name));
+      b.classList.toggle('is-active', on);
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
     $('#viewTitle').textContent = v.title; $('#viewSub').textContent = v.sub;
     $('#topActions').innerHTML = v.actions;
-    $('#app').classList.remove('nav-open');
+    $('#app').classList.remove('nav-open'); $('#hamburger').setAttribute('aria-expanded', 'false');
     if (name === 'overview') loadOverview();
     if (name === 'courses') { loadCourses(); var nb = $('#newCourse'); if (nb) nb.onclick = function () { openCourse(null); }; }
     if (name === 'course') { $('#courseBack').onclick = function () { route('courses'); }; $('#courseSave').onclick = saveCourse; }
@@ -219,7 +235,7 @@
 
   var CF = { title: 'c_title', slug: 'c_slug', summary: 'c_summary', body_html: 'c_body', outcomes: 'c_outcomes',
     category: 'c_category', level: 'c_level', format: 'c_format', duration: 'c_duration', price: 'c_pricelabel',
-    cover_url: 'c_cover', cta_url: 'c_cta', sort: 'c_sort', price_ngn: 'c_price_ngn', instructor_email: 'c_instructor',
+    cover_url: 'c_cover', cta_url: 'c_cta', sort: 'c_sort', price_ngn: 'c_price_ngn',
     language: 'c_language', skills: 'c_skills', prerequisites: 'c_prereqs', pass_mark: 'c_pass_mark', pace_weeks: 'c_pace_weeks' };
   function toggledPrice() { $('#priceWrap').hidden = $('#c_access').value !== 'paid'; }
   $('#c_access').addEventListener('change', toggledPrice);
@@ -242,18 +258,46 @@
       $('#c_gradient').value = c.gradient || 'g-gold';
       $('#c_featured').checked = !!(c.featured && c.featured != '0');
       $('#c_sequential').checked = !!(c.sequential && c.sequential != '0');
-      $('#c_instructor').value = c.instructor_email || '';
       if (c.level && !$$('#c_level option').some(function (o) { return o.value === c.level; })) { var o = document.createElement('option'); o.textContent = c.level; $('#c_level').appendChild(o); }
       $('#c_level').value = c.level || 'All levels';
       showCover();
       richInit('c_body', c.body_html || '');
       get('ac_categories').then(function (r) { $('#c_categories').innerHTML = ((r && r.categories) || []).map(function (x) { return '<option value="' + esc(x) + '">'; }).join(''); });
       toggledPrice();
+      loadTeam(slug);
       VIEWS.course.title = slug ? 'Edit course' : 'New course';
       route('course');
     }
     if (!slug) { fill(blank); return; }
     get('ac_get', 'slug=' + encodeURIComponent(slug)).then(function (d) { fill((d && d.course) || blank); });
+  }
+  /* ── Teaching team (lib/CourseTeam via ac_team_*) ── */
+  var ROLE_LABEL = { lead: 'Lead instructor', instructor: 'Instructor', assistant: 'Teaching assistant' };
+  function renderTeam(slug, team) {
+    var list = $('#teamList');
+    list.innerHTML = (team || []).map(function (m) {
+      var opts = ['lead', 'instructor', 'assistant'].map(function (r) { return '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>'; }).join('');
+      return '<li><span><strong>' + esc(m.name) + '</strong><br><small>' + esc(m.email) + '</small></span>'
+        + '<select data-team-role="' + esc(m.user_id) + '" aria-label="Role for ' + esc(m.name) + '">' + opts + '</select>'
+        + '<button type="button" class="btn btn-ghost btn-sm" data-team-remove="' + esc(m.user_id) + '" aria-label="Remove ' + esc(m.name) + '">Remove</button></li>';
+    }).join('') || '<li class="muted">Nobody yet. The first person added is the lead.</li>';
+    function done(d) { if (d && d.ok) renderTeam(slug, d.team); else toast((d && d.error) || 'Not changed', 'err'); }
+    $$('[data-team-role]', list).forEach(function (sel) { sel.onchange = function () { post('ac_team_role', { slug: slug, user_id: +sel.getAttribute('data-team-role'), role: sel.value }).then(function (d) { if (!(d && d.ok)) loadTeam(slug); done(d); }); }; });
+    $$('[data-team-remove]', list).forEach(function (b) { b.onclick = function () { post('ac_team_remove', { slug: slug, user_id: +b.getAttribute('data-team-remove') }).then(done); }; });
+  }
+  function loadTeam(slug) {
+    var form = $('#teamForm'); if (!form) return;
+    $('#teamList').innerHTML = '';
+    form.hidden = !slug; $('#teamHint').hidden = !!slug;
+    if (!slug) return;
+    get('ac_team', 'slug=' + encodeURIComponent(slug)).then(function (d) { renderTeam(slug, d && d.team); });
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      post('ac_team_add', { slug: slug, email: $('#teamEmail').value, role: $('#teamRole').value }).then(function (d) {
+        if (d && d.ok) { $('#teamEmail').value = ''; renderTeam(slug, d.team); toast('Team updated', 'ok'); }
+        else toast((d && d.error) || 'Not added', 'err');
+      });
+    };
   }
   function saveCourse() {
     var payload = {};

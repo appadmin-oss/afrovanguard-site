@@ -22,7 +22,7 @@ function avcw_open(array $o): void
         'css' => ['/assets/site/avh.css', '/academy/avac.css', '/academy/avcw.css'],
         'js' => ['/assets/site/avh.js', '/academy/avac.js', '/academy/avcw.js'],
     ]);
-    echo '<body class="avh avac avcw" id="top">' . "\n" . '<a class="avh-skip" href="#main">Skip to content</a>' . "\n" . '<div class="avh-page">' . "\n";
+    echo '<body class="avh avac avcw" id="top">' . "\n" . '<a class="avh-skip" href="#main">Skip to main content</a>' . "\n" . '<div class="avh-page">' . "\n";
     avh_nav();
     echo '<main id="main" tabindex="-1" class="avcw-main avh-pad"><div class="avh-wrap">' . "\n";
     if (!empty($o['crumbs'])) {

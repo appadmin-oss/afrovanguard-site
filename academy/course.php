@@ -50,9 +50,19 @@ $hasAccess = $user && $lms->canAccess($user, $c, ['is_preview' => 0]);
 $price = (int) ($c['price_ngn'] ?? 0);
 $ngn = static fn(int $n): string => '₦' . number_format($n);
 $enrolledCount = $lms->enrolledCount($id);
-$instructorName = $lms->instructorName(isset($c['instructor_id']) ? (int) $c['instructor_id'] : null);
+/* The teaching team, lead first (lib/CourseTeam). The hero names them all;
+   the overview lists each with their role. */
+$team = CourseTeam::members($id);
+$instructorName = $team ? implode(', ', array_map(static fn($m) => (string) $m['name'], $team)) : null;
+$graded = Grading::hasGradedItems($id);
+/* Learners' feedback (lib/LearnerFeedback): no stars and no averages. Only
+   approved feedback a learner said may be quoted appears, as a testimonial;
+   and a learner who qualifies is invited to give feedback. */
+$testimonials = LearnerFeedback::testimonials($id);
+$inviteFeedback = $user && LearnerFeedback::shouldInvite($id, (int) $user['id']);
 $started = $progress && !empty($progress['completed']);
-$complete = $progress && !empty($progress['complete']);
+// Certificate-ready: all lessons on an ungraded course; every item passed and the pass mark on a graded one.
+$complete = $user ? $lms->certificateEligible((int) $user['id'], $id) : false;
 $certUrl = academy_url($c['slug'] . '/certificate');
 $cw = new LmsCourseware(null, $lms);
 $skills = LmsCourseware::skills($c);
@@ -154,9 +164,9 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 };
 ?>
 <body class="avh avac avco" id="top" data-slug="<?= e((string) $c['slug']) ?>">
-<a class="avh-skip" href="#main">Skip to content</a>
+<a class="avh-skip" href="#main">Skip to main content</a>
 <div class="avh-page">
-<?php avh_nav(); ?>
+<?php avh_nav(avh_here()); ?>
 <main id="main" tabindex="-1">
 <?php avac_pay_flash('avac-flash'); ?>
 
@@ -232,10 +242,36 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
           </ul>
         </div>
 <?php endif; ?>
-        <div class="avco-instructor">
-          <span class="avco-avatar" aria-hidden="true"><?= e(mb_substr($instructorName ?: 'Afrovanguard', 0, 1)) ?></span>
-          <div><div class="avco-ins-k">Your instructor</div><div class="avco-ins-n"><?= e($instructorName ?: 'The Afrovanguard Academy Faculty') ?></div><div class="avco-ins-r"><?= $instructorName ? 'Programme instructor · Afrovanguard Academy' : 'Practitioners and mentors raising one million incorruptible leaders' ?></div></div>
+<?php if ($team): ?>
+        <div class="avco-team">
+          <div class="avco-ins-k"><?= count($team) > 1 ? 'Your teaching team' : 'Your instructor' ?></div>
+<?php foreach ($team as $m): ?>
+          <div class="avco-instructor">
+            <span class="avco-avatar" aria-hidden="true"><?= e(mb_substr((string) $m['name'], 0, 1)) ?></span>
+            <div><div class="avco-ins-n"><?= e((string) $m['name']) ?></div><div class="avco-ins-r"><?= e(CourseTeam::label((string) $m['role'])) ?> · Afrovanguard Academy</div></div>
+          </div>
+<?php endforeach; ?>
         </div>
+<?php else: ?>
+        <div class="avco-instructor">
+          <span class="avco-avatar" aria-hidden="true">A</span>
+          <div><div class="avco-ins-k">Your instructor</div><div class="avco-ins-n">The Afrovanguard Academy Faculty</div><div class="avco-ins-r">Practitioners and mentors raising one million incorruptible leaders</div></div>
+        </div>
+<?php endif; ?>
+<?php if ($inviteFeedback): ?>
+        <p class="avco-rate">Tell the course team what is working and what could be clearer. <a href="<?= e(academy_url($c['slug'] . '/grades/?feedback=1')) ?>">Give feedback on this course →</a></p>
+<?php endif; ?>
+<?php if ($testimonials): ?>
+        <div class="avco-quotes">
+          <h2 class="avco-h2">What learners say</h2>
+<?php foreach ($testimonials as $t): ?>
+          <figure class="avco-review">
+            <blockquote><?= nl2br(e($t['text'])) ?></blockquote>
+            <figcaption><?= e($t['who']) ?> · <?= e($t['month']) ?> · Shared with permission</figcaption>
+          </figure>
+<?php endforeach; ?>
+        </div>
+<?php endif; ?>
       </section>
 
 <?php if ($curriculum): ?>
@@ -283,7 +319,15 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 
       <section class="avco-panel" role="tabpanel" id="avco-p-certificate" aria-labelledby="avco-t-certificate" data-avco-panel="certificate" hidden>
         <h2 class="avco-h2 avco-h2--tight">Your certificate</h2>
+<?php if ($graded): ?>
+        <p class="avco-lede"><?= $graded ? 'Pass every graded item and reach the course pass mark to earn a verifiable Afrovanguard Academy certificate showing your grade.' : 'Complete every lesson to earn a verifiable Afrovanguard Academy certificate with a unique serial you can share on LinkedIn and your CV.' ?></p>
+<?php if ($graded && $user): ?>        <p><a class="avac-more" href="<?= e(academy_url($c['slug'] . '/grades/')) ?>">Your grades →</a></p>
+<?php endif; ?>
+<?php else: ?>
         <p class="avco-lede"><?= $hasGraded ? 'Complete every item and pass the graded work (' . $passMark . '% overall, every graded item passed) to earn' : 'Complete every lesson to earn' ?> a verifiable Afrovanguard Academy certificate with a unique serial you can share on LinkedIn and your CV.</p>
+<?php if ($hasGraded && $user): ?>        <p><a class="avac-more" href="<?= e(academy_url($c['slug'] . '/grades')) ?>">Your grades →</a></p>
+<?php endif; ?>
+<?php endif; ?>
         <div class="avco-cert" aria-hidden="true">
           <div class="avco-cert-k">Afrovanguard Academy · Certificate of completion</div>
           <div class="avco-cert-n"><?= $user ? e((string) $user['name']) : 'Your name here' ?></div>

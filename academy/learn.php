@@ -88,6 +88,8 @@ $replies = $prompt ? $cw->posts((int) $prompt['id']) : [];
 $selfComplete = !$quiz && !in_array($lType, ['assignment', 'discussion'], true);
 $gradesUrl = academy_url($courseSlug . '/grades');
 $forumUrl = academy_url($courseSlug . '/discussions');
+// A course with team-graded items (lib/Grading) earns its certificate on those grades, not lessons alone.
+$graded = Grading::hasGradedItems((int) $course['id']);
 
 avac_head([
     'title' => $lesson['title'] . ' — ' . $course['title'] . ' · Afrovanguard Academy',
@@ -115,7 +117,8 @@ avac_head([
 <?php endif; ?>
 <?php if ($canAccess): ?>    <button type="button" class="avle-btn avle-btn--line avle-notes-btn" data-avle-notes-toggle aria-controls="avle-notes" aria-expanded="false">Notes</button>
 <?php endif; ?>
-    <a class="avle-btn" href="<?= e($courseUrl) ?>">Exit</a>
+<?php if ($graded && !($user && $canAccess)): ?>    <a class="avle-btn avle-btn--line" href="<?= e($gradesUrl) ?>">Grades</a>
+<?php endif; ?>    <a class="avle-btn" href="<?= e($courseUrl) ?>">Exit</a>
   </div>
   <div class="avle-read" aria-hidden="true"><span data-avle-readbar></span></div>
 </header>
@@ -378,7 +381,12 @@ if ($curMod && (trim((string) ($curMod['summary'] ?? '')) !== '' || LmsCoursewar
     </section>
 <?php endif; ?>
 
-<?php if ($user): ?>
+<?php if ($user && $graded): ?>
+    <div class="avle-done" data-avle-done<?= !empty($progress['complete']) ? '' : ' hidden' ?>>
+      <span>You’ve finished the lessons of <strong><?= e((string) $course['title']) ?></strong>. This course is graded: your certificate comes with passing its graded work.</span>
+      <a class="avle-btn avle-btn--gold" href="<?= e($gradesUrl) ?>">See your grades →</a>
+    </div>
+<?php elseif ($user): ?>
     <div class="avle-done" data-avle-done<?= $lms->getCertificate((int) $user['id'], (int) $course['id']) ? '' : ' hidden' ?>>
       <span>You’ve completed <strong><?= e((string) $course['title']) ?></strong> — your certificate is ready.</span>
       <a class="avle-btn avle-btn--gold" href="<?= e(academy_url($courseSlug . '/certificate')) ?>" target="_blank" rel="noopener">Get your certificate →<span class="av-sr"> (opens in a new tab)</span></a>

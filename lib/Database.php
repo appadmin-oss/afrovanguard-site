@@ -975,7 +975,13 @@ final class Database
      */
     public static function mysqlTextDefaults(string $sql): string
     {
-        return (string) preg_replace("/\b((?:TINY|MEDIUM|LONG)?TEXT)(\s+NOT\s+NULL)?\s+DEFAULT\s+('(?:[^']|'')*'|-?[0-9.]+)/i", '$1$2 DEFAULT ($3)', $sql);
+        /* Both sessions fixed this (merge of 2026-11-14); this pattern is the
+           wider of the two: BLOB too, and NULL / COLLATE / CHARACTER SET
+           between the type and DEFAULT. Only a literal is wrapped: NULL is
+           legal bare, and an expression is already in parentheses. */
+        return (string) preg_replace(
+            "/\\b((?:TINY|MEDIUM|LONG)?(?:TEXT|BLOB)(?:\\s+(?:NOT\\s+NULL|NULL|COLLATE\\s+\\w+|CHARACTER\\s+SET\\s+\\w+))*\\s+DEFAULT\\s+)('(?:[^']|'')*'|-?\\d+(?:\\.\\d+)?)/i",
+            '$1($2)', $sql);
     }
 
     public static function migrate(): void

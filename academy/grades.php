@@ -1,76 +1,74 @@
 <?php
 /**
- * academy/grades.php — a learner's grades for one course. /academy/<course>/grades
+ * academy/grades.php — a learner's grades for one course.
+ *   /academy/<course>/grades/            every graded item, status, score, the grade so far
+ *   /academy/<course>/grades/?item=N     one item: instructions, submit, feedback, peer
+ *                                        reviews to do, live session booking
+ *   /academy/<course>/grades/?feedback=1 written feedback on the course for its team
+ *                                        (lib/LearnerFeedback; works on ungraded courses too)
  *
- * Every graded item (graded quizzes and assignments) with its weight, pass
- * mark, score and status; the weighted overall grade against the course's
- * pass mark; and what is left before the certificate. The figures are
- * LmsCourseware::grades(), the same answer the certificate is issued on.
+ * What a learner sees is only what has been RELEASED (lib/Grading::result):
+ * a mark a team member has typed is invisible until the team releases it.
+ * Forms are plain POSTs with a CSRF field, handled by avgr_learner_action().
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
-require_once __DIR__ . '/_avcw.php';
+require_once AV_ROOT . '/lib/partials.php';
+require_once __DIR__ . '/_grading_actions.php';
+require_once __DIR__ . '/_grades_view.php';
+require_once __DIR__ . '/_instructor_actions.php';
+require_once __DIR__ . '/_instructor_views.php';
 
 $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['course'] ?? '')));
-$ac = new AcademyRepository(); $lms = new LmsRepository(); $cw = new LmsCourseware(null, $lms);
-$c = $slug ? $ac->bySlug($slug) : null;
-if (!$c) { require_once AV_ROOT . '/lib/errors.php'; av_error_render(404); exit; }
-$u = avcw_need_login();
-$g = $cw->grades((int) $u['id'], $c);
-$pr = $lms->progress((int) $u['id'], (int) $c['id']);
-$cert = $lms->getCertificate((int) $u['id'], (int) $c['id']);
-if (!$cert && $lms->requirementsMet((int) $u['id'], (int) $c['id'])) $cert = $lms->issueCertificate((int) $u['id'], (int) $c['id']);
-$learn = static fn(string $s): string => academy_url($slug . '/learn/' . $s);
-$typeName = ['quiz' => 'Graded quiz', 'assignment' => 'Assignment'];
-$left = array_values(array_filter($g['items'], static fn($i) => $i['status'] !== 'passed'));
+$course = $slug ? (new AcademyRepository())->bySlug($slug) : null;
+if (!$course) { require_once AV_ROOT . '/lib/errors.php'; av_error_render(404); return; }
+/* Two grading models (merge of 2026-11-14): a course with team-graded items
+   (lib/Grading) is shown here; every other course's graded quizzes and
+   assignments (LmsCourseware::grades) are shown by _grades_courseware.php.
+   Course feedback (?feedback=1) is here for both. */
+if (empty($_GET['feedback']) && ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST' && !Grading::hasGradedItems((int) $course['id'])) {
+    require __DIR__ . '/_grades_courseware.php';
+    return;
+}
+$user = LmsAuth::user();
+$uid = $user ? (int) $user['id'] : 0;
+$cid = (int) $course['id'];
+$base = academy_url($course['slug'] . '/grades/');
 
-avcw_open([
-    'title' => 'Grades — ' . $c['title'] . ' · Afrovanguard Academy',
-    'canonical' => academy_url($slug . '/grades'), 'private' => true,
-    'crumbs' => [['Academy', '/academy/'], [(string) $c['title'], academy_url($slug . '/')], ['Grades', null]],
+if ($user && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    require_same_origin();
+    $r = ($_POST['act'] ?? '') === 'feedback' ? avin_feedback_action($course, $uid, $_POST) : avgr_learner_action($course, $uid, $_POST, $_FILES);
+    avgr_flash_set($r);
+    if (!headers_sent()) { header('Location: ' . $base . ($r['to'] !== '' ? '?' . $r['to'] : ''), true, 303); exit; }
+    parse_str((string) $r['to'], $q); $_GET = $q + $_GET;
+}
+
+render_head([
+    'title' => 'Grades — ' . $course['title'] . ' · Afrovanguard Academy',
+    'desc' => 'Your graded work, scores and feedback.',
+    'canonical' => $base, 'og_kind' => 'website', 'robots' => 'noindex,nofollow',
+    'css' => ['/academy/academy.css'], 'body_class' => 'academy',
 ]);
-?>
-<header class="avcw-head">
-  <div class="avac-eyebrow"><?= e((string) $c['title']) ?></div>
-  <h1 class="avcw-h1">Grades</h1>
-  <div class="avcw-actions">
-    <a class="avac-btn" href="<?= e(academy_url($slug . '/learn')) ?>">Resume course →</a>
-    <a class="avac-btn avac-btn--line" href="<?= e(academy_url($slug . '/discussions')) ?>">Discussions</a>
-  </div>
-</header>
+render_nav('academy');
+echo '<main id="main" tabindex="-1"><div class="container teach grd">';
+echo '<nav class="breadcrumb" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="' . e(academy_url($course['slug'] . '/')) . '">' . e((string) $course['title']) . '</a><span class="sep" aria-hidden="true">/</span></li><li><span aria-current="page">Grades</span></li></ol></nav>';
 
-<section class="avcw-summary" aria-label="Summary">
-  <div class="avcw-stat"><span>Overall grade</span><b class="av-num"><?= $g['graded_count'] ? (int) $g['overall'] . '%' : '—' ?></b><small>Pass mark <?= (int) $g['pass_mark'] ?>%</small></div>
-  <div class="avcw-stat"><span>Items done</span><b class="av-num"><?= (int) $pr['completed'] ?>/<?= (int) $pr['total'] ?></b><small><?= (int) $pr['pct'] ?>% of the course</small></div>
-  <div class="avcw-stat"><span>Certificate</span>
-<?php if ($cert): ?>
-    <b>Earned</b><small><a href="<?= e(academy_url($slug . '/certificate')) ?>" target="_blank" rel="noopener">Open certificate →</a></small>
-<?php else: ?>
-    <b>Not yet</b><small><?= !$pr['complete'] ? 'Finish every item' : ($left ? 'Pass every graded item' : 'Reach the pass mark') ?></small>
-<?php endif; ?>
-  </div>
-</section>
-
-<?php if (!$g['items']): ?>
-<p class="avcw-empty">This course has no graded work. Complete every item to earn the certificate.</p>
-<?php else: ?>
-<div class="avcw-tablewrap">
-<table class="avcw-table">
-  <caption class="av-sr">Graded items in <?= e((string) $c['title']) ?></caption>
-  <thead><tr><th scope="col">Item</th><th scope="col">Status</th><th scope="col" class="num avcw-opt">Weight</th><th scope="col" class="num avcw-opt">Pass</th><th scope="col" class="num">Score</th></tr></thead>
-  <tbody>
-<?php foreach ($g['items'] as $it): ?>
-    <tr>
-      <td><a href="<?= e($learn($it['slug'])) ?>"><?= e($it['title']) ?></a><span class="avcw-sub"><?= e($typeName[$it['type']] ?? 'Graded item') ?> · pass <?= (int) $it['pass'] ?>%<?= (int) $it['weight'] > 1 ? ' · weight ' . (int) $it['weight'] : '' ?></span></td>
-      <td><?= avcw_status($it['status']) ?></td>
-      <td class="num av-num avcw-opt"><?= (int) $it['weight'] ?></td>
-      <td class="num av-num avcw-opt"><?= (int) $it['pass'] ?>%</td>
-      <td class="num av-num"><?= $it['score'] === null ? '—' : (int) $it['score'] . '%' ?></td>
-    </tr>
-<?php endforeach; ?>
-  </tbody>
-</table>
-</div>
-<p class="avcw-note">Your overall grade is the weighted average of these items; an item not yet graded counts as 0. To pass, score <?= (int) $g['pass_mark'] ?>% overall and pass every item.</p>
-<?php endif; ?>
-<?php avcw_close();
+if (!$user) {
+    echo '<div class="gate"><h2>Your grades</h2><p>Sign in to see your graded work for this course.</p><a class="btn btn-primary" href="/login?next=' . e(rawurlencode('/academy/' . $course['slug'] . '/grades/')) . '" data-auth="login">Sign in</a></div>';
+} elseif (!empty($_GET['feedback'])) {
+    echo avgr_flash_html(avgr_flash_take());
+    avin_feedback_form($course, $uid, $base);
+} elseif (!Grading::hasGradedItems($cid)) {
+    echo '<h1 class="teach-h1">Grades</h1>' . avin_invite($course, $uid) . '<p class="teach-empty">This course has no graded work. Complete every lesson to earn your certificate.</p>';
+} else {
+    echo avgr_flash_html(avgr_flash_take());
+    if (empty($_GET['item'])) echo avin_invite($course, $uid);
+    $itemId = (int) ($_GET['item'] ?? 0);
+    $item = $itemId ? Grading::item($itemId) : null;
+    if ($item && ((int) $item['course_id'] !== $cid || $item['status'] !== 'published')) $item = null;
+    if ($item) avgr_learner_item($course, $item, $uid, $base);
+    else avgr_learner_summary($course, $uid, $base);
+}
+echo '</div></main>';
+echo '<script src="/academy/academy.js" defer></script>';
+render_footer();

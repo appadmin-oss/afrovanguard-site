@@ -20,6 +20,7 @@ declare(strict_types=1);
 <link href="/academy/studio/studio.css" rel="stylesheet" />
 </head>
 <body>
+<a class="skip-link" href="#content">Skip to main content</a>
 
 <!-- ░░ LOGIN ░░ -->
 <section class="login" id="login" hidden>
@@ -43,35 +44,39 @@ declare(strict_types=1);
       <span class="side-mark">A</span>
       <span class="side-name">Academy<small>Studio</small></span>
     </div>
-    <nav class="side-nav" aria-label="Sections">
-      <button class="nav-item is-active" data-view="overview"><svg viewBox="0 0 24 24"><path d="M3 13h8V3H3zM13 21h8V3h-8zM3 21h8v-6H3z"/></svg><span>Overview</span></button>
-      <button class="nav-item" data-view="courses"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M4 9h16"/></svg><span>Courses</span></button>
-      <button class="nav-item" data-view="programmes"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg><span>Programmes</span></button>
-      <button class="nav-item" data-view="curriculum"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Curriculum</span></button>
-      <button class="nav-item" data-view="learners"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0112 0M16 3.5a3 3 0 010 5.8M21 20a6 6 0 00-5-5.9"/></svg><span>Learners</span></button>
-      <button class="nav-item" data-view="applications"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h6"/></svg><span>Applications</span></button>
-      <button class="nav-item" data-view="a11y"><svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2"/><path d="M5 8.5l7 1.5 7-1.5M12 10v5M12 15l-3.5 6M12 15l3.5 6"/></svg><span>Accessibility</span></button>
-      <button class="nav-item" data-view="activity"><svg viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg><span>Activity</span></button>
+    <nav class="side-nav" aria-label="Academy Studio sections">
+      <button type="button" class="nav-item is-active" data-view="overview" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 13h8V3H3zM13 21h8V3h-8zM3 21h8v-6H3z"/></svg><span>Overview</span></button>
+      <button type="button" class="nav-item" data-view="courses"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5h16v14H4z"/><path d="M4 9h16"/></svg><span>Courses</span></button>
+      <button type="button" class="nav-item" data-view="programmes"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg><span>Programmes</span></button>
+      <button type="button" class="nav-item" data-view="curriculum"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Curriculum</span></button>
+      <button type="button" class="nav-item" data-view="learners"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0112 0M16 3.5a3 3 0 010 5.8M21 20a6 6 0 00-5-5.9"/></svg><span>Learners</span></button>
+      <button type="button" class="nav-item" data-view="applications"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h6"/></svg><span>Applications</span></button>
+      <button type="button" class="nav-item" data-view="a11y"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="4.5" r="2"/><path d="M5 8.5l7 1.5 7-1.5M12 10v5M12 15l-3.5 6M12 15l3.5 6"/></svg><span>Accessibility</span></button>
+      <button type="button" class="nav-item" data-view="activity"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg><span>Activity</span></button>
     </nav>
     <div class="side-foot">
-      <button class="ghost" id="themeToggle" title="Toggle theme"><svg class="t-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="t-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/></svg><span>Theme</span></button>
-      <a class="ghost" href="/academy/teach/grading" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2h9"/></svg><span>Grading queue</span></a>
-      <a class="ghost" href="/academy/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M14 3h7v7M21 3l-9 9M19 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h5"/></svg><span>View Academy</span></a>
-      <button class="ghost danger" id="logout"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg><span>Log out</span></button>
+      <button class="ghost" id="themeToggle" title="Toggle theme"><svg class="t-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="t-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/></svg><span>Theme</span></button>
+      <a class="ghost" href="/academy/teach/grading" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2h9"/></svg><span>Grading queue</span></a>
+      <!-- Instructors being assessed live in the instructor console, signed in with an
+           Academy account (role admin or coordinator): the instructor list and its CSV,
+           learners' course feedback to moderate, and teaching observations. -->
+      <a class="ghost" href="/academy/teach/?view=instructors" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Instructors &amp; feedback</span></a>
+      <a class="ghost" href="/academy/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3h7v7M21 3l-9 9M19 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h5"/></svg><span>View Academy</span></a>
+      <button class="ghost danger" id="logout"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg><span>Log out</span></button>
     </div>
   </aside>
 
   <!-- Main -->
   <div class="main">
     <header class="topbar">
-      <button class="hamburger" id="hamburger" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+      <button type="button" class="hamburger" id="hamburger" aria-label="Sections" aria-controls="side" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
       <div class="top-title"><h1 id="viewTitle">Overview</h1><p id="viewSub" class="muted"></p></div>
       <button type="button" class="top-search" id="searchOpen" aria-haspopup="dialog" aria-keyshortcuts="/ Control+K">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Search courses, items, learners</span><kbd>/</kbd></button>
       <div class="top-actions" id="topActions"></div>
     </header>
 
-    <div class="content" id="content">
+    <main class="content" id="content" tabindex="-1">
 
       <!-- OVERVIEW -->
       <section class="view" id="view-overview">
@@ -149,7 +154,17 @@ declare(strict_types=1);
                 <select id="c_access"><option value="open">Free — anyone, no account</option><option value="tracked">Free — with an account (progress saved)</option><option value="membership">Members only</option><option value="paid">Paid</option></select>
               </label>
               <label class="fld" id="priceWrap" hidden><span>Price</span><span class="suffix">₦<input id="c_price_ngn" type="number" min="0" value="0" /></span></label>
-              <label class="fld"><span>Instructor’s email <em class="muted">(optional)</em></span><input id="c_instructor" type="email" placeholder="name@afrovanguard.org.ng" /></label>
+            </div>
+            <div class="card" id="teamCard">
+              <h3>Teaching team</h3>
+              <p class="muted" id="teamHint">Save the course first, then add its team.</p>
+              <ul class="team-list" id="teamList"></ul>
+              <form id="teamForm" class="team-form" hidden>
+                <input id="teamEmail" type="email" placeholder="Their Academy account email" aria-label="Team member email" autocomplete="off" />
+                <select id="teamRole" aria-label="Role"><option value="lead">Lead instructor</option><option value="instructor">Instructor</option><option value="assistant" selected>Teaching assistant</option></select>
+                <button class="btn btn-outline btn-sm" type="submit">+ Add</button>
+              </form>
+              <p class="muted small">Leads run the course and its team; instructors set up graded items, mark and release grades; assistants mark. A course always keeps one lead.</p>
             </div>
             <div class="card">
               <h3>Certificate &amp; pace</h3>
@@ -288,7 +303,7 @@ declare(strict_types=1);
         </div>
       </section>
 
-    </div>
+    </main>
   </div>
 </div>
 

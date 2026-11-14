@@ -87,9 +87,9 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <script src="<?= e(av_asset('/assets/site/avh.js')) ?>" defer></script>
 </head>
 <body class="avh avpj" id="top">
-<a class="avh-skip" href="#main">Skip to content</a>
+<a class="avh-skip" href="#main">Skip to main content</a>
 <div class="avh-page">
-<?php avh_nav(); ?>
+<?php avh_nav(avh_here()); ?>
 <main id="main" tabindex="-1">
 
 <header class="avpj-hero">
@@ -97,7 +97,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <div class="avpj-hero-shade" aria-hidden="true"></div>
   <div class="avpj-hero-in avh-pad">
     <div class="avpj-hero-copy">
-      <nav class="avpj-crumbs" aria-label="Breadcrumb"><a href="/projects/">Projects</a><span aria-hidden="true">›</span><span aria-current="page"><?= e($P['abbr']) ?></span></nav>
+      <nav class="avpj-crumbs" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="/projects/">Projects</a><span aria-hidden="true">›</span></li><li><span aria-current="page"><?= e($P['abbr']) ?></span></li></ol></nav>
       <h1><?= e($P['name']) ?></h1>
     </div>
     <span class="avpj-pill"><i class="avpj-dot<?= $P['selective'] ? ' avpj-dot--sel' : '' ?>" aria-hidden="true"></i><?= e($P['status']) ?></span>

@@ -1985,6 +1985,11 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
   font:inherit; background:var(--surface,#fff); color:inherit; width:100%; }
 .mr-form textarea { resize:vertical; }
 .mr-form .mr-wide, .mr-form details, .mr-form button { grid-column:1 / -1; }
+/* Already paid, or money needed: two plain choices, side by side. */
+.mr-form .mr-kind { border:0; padding:0; margin:0; display:flex; flex-wrap:wrap; gap:6px 16px; }
+.mr-form .mr-kind legend { font-size:12px; font-weight:600; margin-bottom:4px; }
+.mr-form .mr-kind label { flex-direction:row; align-items:center; gap:6px; font-weight:500; }
+.mr-form .mr-kind input { width:auto; }
 .mr-form details { font-size:12.5px; }
 .mr-form details label { margin-top:8px; }
 .mr-form button { justify-self:start; }
@@ -1997,6 +2002,22 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .mr-sub { margin:3px 0 0; font-size:12.5px; color:var(--muted); line-height:1.5; }
 .mr-sub.is-bad { color:var(--red); }
 .mr-row .pbtn { margin-top:8px; }
+/* Where a request stands, in finance's words, and why it was refused. */
+.mr-stage { color:var(--ink); }
+.mr-reason { color:var(--ink); border-left:3px solid var(--red); padding-left:8px; }
+/* Several lines in one request: each line a small row of its own. */
+.mr-form .mr-lines { border:0; padding:0; margin:0; }
+.mr-form .mr-lines > legend { font-size:12px; font-weight:600; margin-bottom:4px; }
+.mr-line { border:1px solid var(--divider,#ddd); border-radius:8px; padding:8px 10px; margin:0 0 8px;
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; align-items:end; }
+.mr-line > legend { font-size:12px; font-weight:600; padding:0 4px; }
+.mr-line .mr-line-what { grid-column:1 / -1; }
+.mr-form .mr-line button { grid-column:auto; justify-self:start; min-height:24px; }
+.mr-total { margin:2px 0 0; font-size:13px; font-weight:600; color:var(--ink); }
+.mr-form .mr-wide > .pbtn { min-height:24px; }
+.mr-acct { margin-top:6px; }
+.mr-earlier { margin-top:16px; }
+.mr-earlier h3 { font-size:14px; margin:0 0 2px; color:var(--ink); }
 .enroll-msg.is-bad { color:var(--red); }
 
 /* Handing a task back: why, in one tap (lib/TaskLedger.php). Away until a date. */

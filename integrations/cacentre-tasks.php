@@ -103,16 +103,41 @@ if ($method === 'POST') {
     $taskId = (int) ($body['id'] ?? 0);
     if ($taskId <= 0) $refuse('no-task', 400);
 
+    /* Answer, then do the slow part. Telling CACENTRE's commitment about a
+       tick (CacWeek::changed) is a round trip back to the site that is
+       waiting on this answer with a 3-second timeout; on FPM or LiteSpeed the
+       response is finished first and the call made after. Elsewhere it runs
+       where it always did, before the connection closes. */
+    $answer = static function (array $out): void {
+        echo json_encode($out, JSON_UNESCAPED_SLASHES);
+        if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+        elseif (function_exists('litespeed_finish_request')) litespeed_finish_request();
+        Collab::releaseCac();
+        exit;
+    };
+    Collab::holdCac();
+
     try {
         switch ((string) ($body['action'] ?? '')) {
+            case 'done':
+                /* CACENTRE's tick means DONE, not "the other state": a retry,
+                   a double press or a replay inside the token's minute must
+                   not reopen finished work. Idempotent — done twice answers
+                   ok, done, and does nothing the second time. Same ownership
+                   check as toggle. */
+                $now = Collab::completeTask($uid, $taskId);
+                if ($now === null) $refuse('not-yours', 404);
+                $answer(['ok' => true, 'done' => $now]);
+
             case 'toggle':
+                /* Kept exactly as it was for CACENTRE deploys that still send
+                   it; `done` is what a tick should send. */
                 /* Collab::toggleTask() returns null when the task is not this
                    member's, which is the ownership check — the caller being
                    another site does not widen it. */
                 $now = Collab::toggleTask($uid, $taskId);
                 if ($now === null) $refuse('not-yours', 404);
-                echo json_encode(['ok' => true, 'done' => $now], JSON_UNESCAPED_SLASHES);
-                exit;
+                $answer(['ok' => true, 'done' => $now]);
 
             case 'update':
                 $in = [];
