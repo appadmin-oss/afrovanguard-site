@@ -64,7 +64,7 @@ ck('forecast: and a goal finishing late says so', in_array('late', array_column(
 
 /* ── Steps: weighted by size, and the leading signal ─────────────────── */
 $u = Goals::create(9931, 'Open the Ikotun library', '', ['start_on' => $day(-20), 'due_on' => $day(20)]);
-$s1 = Collab::addTask(9931, 'Shelve the donated books', 9932, '', 'normal', $u, 'L');
+$s1 = Collab::addTask(9931, 'Shelve the donated books', 9932, '', 'normal', $u, 'L', mayAllocate: true);
 $s2 = Collab::addTask(9931, 'Print the borrowing cards', 9931, '', 'normal', $u, 'S');
 $s3 = Collab::addTask(9931, 'Agree opening hours', 9931, '', 'normal', $u, '');
 ck('steps: an unmeasured goal follows its steps, and says it is unmeasured', !$shape($u)['measured'] && in_array('unmeasured', array_column($shape($u)['warnings'], 'kind'), true));

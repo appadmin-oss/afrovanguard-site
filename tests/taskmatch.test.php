@@ -57,7 +57,7 @@ $sh = TaskMatch::shortlist('Teach the catering practical', 3);
 ck('match: the reason is given in words', str_contains(implode(' ', $sh[0]['why']), 'Instructor — Catering'));
 
 /* Load */
-for ($i = 0; $i < 6; $i++) Collab::addTask(9807, 'busy ' . $i, 9803);
+for ($i = 0; $i < 6; $i++) Collab::addTask(9807, 'busy ' . $i, 9803, mayAllocate: true);
 TaskMatch::forget();
 ck('match: the busy admin loses to the free one when the fit is the same', $first('Collate the attendance register') === 9804);
 [$bs, $bwhy] = TaskMatch::score(TaskMatch::profiles()[9803], 'Collate the attendance register');

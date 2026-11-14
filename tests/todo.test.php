@@ -27,7 +27,7 @@ $learner = $mk(9954, 'Lola Learner', 'lola.td@gmail.test');
 TaskMatch::forget();
 
 $today = gmdate('Y-m-d'); $yday = gmdate('Y-m-d', time() - 86400); $next = gmdate('Y-m-d', time() + 5 * 86400);
-$given = Collab::addTask(9951, 'Prepare the catering practical', 9952, $next);
+$given = Collab::addTask(9951, 'Prepare the catering practical', 9952, $next, mayAllocate: true);
 $own   = Collab::addTask(9952, 'Buy flour', 9952, $yday);
 $later = Collab::addTask(9952, 'Plan next month', 9952, $next);
 $pool1 = Collab::addPoolTask(9951, 'Teach the catering class at Egbeda');

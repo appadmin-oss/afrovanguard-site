@@ -195,13 +195,36 @@ final class Collab
     /** Valid task priorities (low → normal → high). */
     private static function normPriority(string $p): string { $p = strtolower(trim($p)); return in_array($p, ['low','normal','high'], true) ? $p : 'normal'; }
 
-    /** Create a task. Assignee defaults to the creator. Returns the new id or 0. */
-    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal', int $goalId = 0, string $size = '', string $via = 'person'): int
+    /**
+     * May this person hand out work — give a task to somebody else?
+     * Organisation members and volunteer coordinators. One rule for every
+     * door that gives or creates a task for another person.
+     */
+    public static function mayAllocate(array $u): bool
+    {
+        return LmsAuth::isOrgMember($u) || (class_exists('Volunteers') && Volunteers::canRunTeams($u));
+    }
+
+    /**
+     * Create a task. Assignee defaults to the creator. Returns the new id or 0.
+     *
+     * Creating one for somebody else is handing out work, and asks what
+     * assignTask() asks: the right to ($mayAllocate) and an active account at
+     * the other end. Without it any signed-in learner could put a notification
+     * and an email of their own wording in front of any user id they typed.
+     */
+    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal', int $goalId = 0, string $size = '', string $via = 'person', bool $mayAllocate = false): int
     {
         $title = trim(mb_substr(trim($title), 0, 300));
         if ($creatorId <= 0 || $title === '') return 0;
         self::ensureTasks();
         $assignee = $assigneeId > 0 ? $assigneeId : $creatorId;
+        if ($assignee !== $creatorId) {
+            if (!$mayAllocate) return 0;
+            $u = Database::pdo()->prepare("SELECT 1 FROM lms_users WHERE id = ? AND status = 'active'");
+            $u->execute([$assignee]);
+            if (!$u->fetchColumn()) return 0;
+        }
         $due = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($due)) ? trim($due) : '';
         Database::pdo()->prepare("INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, size, state, created_at) VALUES (?,?,?,0,?,?,?,?,'todo',?)")
             ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), max(0, $goalId), self::normSize($size), gmdate('Y-m-d H:i:s')]);
@@ -408,7 +431,7 @@ final class Collab
         foreach ($plan as $k => $pl) {
             $due = $pl['due']; $pri = $pl['priority']; $size = $pl['size'];
             $fit = $fits[$k] ?? null;
-            if ($autoAssign && $fit) { $id = self::addTask($uid, $pl['title'], (int) $fit['id'], $due, $pri, $goalId, $size, 'ai'); $assigned++; }
+            if ($autoAssign && $fit) { $id = self::addTask($uid, $pl['title'], (int) $fit['id'], $due, $pri, $goalId, $size, 'ai', true);   /* $autoAssign: the caller may allocate */ $assigned++; }
             else $id = self::addPoolTask($uid, $pl['title'], $due, $pri, $goalId, $size);
             if ($id > 0 && ($t = self::oneTask($uid, $id))) {
                 if ($fit) $t['suggest'] = ['id' => (int) $fit['id'], 'name' => (string) $fit['name'], 'why' => (string) ($fit['why'][0] ?? $fit['summary'])];

@@ -36,14 +36,14 @@ $now = time();
 $P = static function (int $id) { TaskMatch::forget(); return TaskMatch::profiles()[$id] ?? null; };
 
 /* ── The ledger ──────────────────────────────────────────────────────── */
-$t1 = Collab::addTask(9941, 'Photograph the robotics showcase', 9942, gmdate('Y-m-d', $now + 86400));
+$t1 = Collab::addTask(9941, 'Photograph the robotics showcase', 9942, gmdate('Y-m-d', $now + 86400), mayAllocate: true);
 ck('ledger: a task given to somebody is kept as given, by a person', (bool) $lp->query("SELECT 1 FROM task_assign_log WHERE task_id = $t1 AND user_id = 9942 AND event = 'assigned' AND via = 'person'")->fetchColumn());
 Collab::toggleTask(9942, $t1);
 ck('ledger: and as done when they tick it', (bool) $lp->query("SELECT 1 FROM task_assign_log WHERE task_id = $t1 AND user_id = 9942 AND event = 'done'")->fetchColumn());
-$t2 = Collab::addTask(9941, 'Film the graduation video', 9943);
+$t2 = Collab::addTask(9941, 'Film the graduation video', 9943, mayAllocate: true);
 ck('ledger: handed back with a reason', Collab::releaseTask(9943, $t2, 'not_mine')
    && (string) $lp->query("SELECT reason FROM task_assign_log WHERE task_id = $t2 AND event = 'handed_back'")->fetchColumn() === 'not_mine');
-$t3 = Collab::addTask(9941, 'Sort the hall chairs', 9943);
+$t3 = Collab::addTask(9941, 'Sort the hall chairs', 9943, mayAllocate: true);
 Collab::releaseTask(9941, $t3);
 ck('ledger: taken back by whoever gave it is not the holder handing it back', !$lp->query("SELECT 1 FROM task_assign_log WHERE task_id = $t3 AND event = 'handed_back'")->fetchColumn());
 $h = TaskLedger::history([9942, 9943]);
@@ -70,12 +70,12 @@ ck('handed back for no time, two days ago: said, and weighed a little', (bool) a
 
 /* ── Whether they can ────────────────────────────────────────────────── */
 $base = TaskMatch::score($P(9943), $task)[0];
-foreach (['L', 'L'] as $sz) Collab::addTask(9941, 'Big job ' . $sz . mt_rand(), 9943, '', 'normal', 0, $sz);
+foreach (['L', 'L'] as $sz) Collab::addTask(9941, 'Big job ' . $sz . mt_rand(), 9943, '', 'normal', 0, $sz, mayAllocate: true);
 $loaded = TaskMatch::score($P(9943), $task)[0];
 ck('load: two large tasks (8 points) weigh more than their count', $loaded < $base && (bool) array_filter(TaskMatch::score($P(9943), $task)[1], fn($w) => str_contains($w, '8 points')));
 $soon = TaskMatch::score($P(9943), $task, '', ['due' => gmdate('Y-m-d', $now + 86400)])[0];
 ck('load: and weigh double when the task is due within three days', $soon < $loaded);
-Collab::addTask(9941, 'Overdue thing', 9943, gmdate('Y-m-d', $now - 3 * 86400));
+Collab::addTask(9941, 'Overdue thing', 9943, gmdate('Y-m-d', $now - 3 * 86400), mayAllocate: true);
 ck('load: overdue work counts against them, and says so', (bool) array_filter(TaskMatch::score($P(9943), $task)[1], fn($w) => str_contains($w, '1 overdue')));
 [$sGone, $wGone, $fGone] = TaskMatch::score($P(9945), $task);
 [$sHere, , $fHere] = TaskMatch::score($P(9944), $task);

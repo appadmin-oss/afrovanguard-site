@@ -42,7 +42,7 @@ $orgGuard = function () use ($isOrg) {
     if (!$isOrg) json_out(['ok' => false, 'error' => 'The task pool is for Afrovanguard members.'], 403);
 };
 /* Who hands out work: organisation members and volunteer coordinators. */
-$allocates = $isOrg || (class_exists('Volunteers') && Volunteers::canRunTeams($u));
+$allocates = Collab::mayAllocate($u);
 
 try {
     switch ($action) {
@@ -97,8 +97,11 @@ try {
         case 'task_add':
             $writeGuard();
             if (!av_rate_ok('collab_task_' . $uid, 40, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
-            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), (int) ($body['assignee'] ?? 0), (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'));
-            if (!$id) json_out(['ok' => false, 'error' => 'Enter a task.'], 400);
+            $to = (int) ($body['assignee'] ?? 0);
+            /* For somebody else: the right task_assign asks for, and a real, active person. */
+            if ($to > 0 && $to !== $uid && !$allocates) json_out(['ok' => false, 'error' => 'You cannot give a task to somebody else.'], 403);
+            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), $to, (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'), 0, '', 'person', $allocates);
+            if (!$id) json_out(['ok' => false, 'error' => $to > 0 && $to !== $uid ? 'You cannot give this task to them.' : 'Enter a task.'], 400);
             $mine = array_values(array_filter(Collab::myTasks($uid), fn($t) => $t['id'] === $id));
             json_out(['ok' => true, 'task' => $mine[0] ?? ['id' => $id]]);
 

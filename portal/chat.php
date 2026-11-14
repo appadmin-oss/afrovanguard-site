@@ -110,8 +110,12 @@ try {
             $writeGuard();
             if (!av_rate_ok('collab_task_' . $uid, 40, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
             $assignee = (int) ($body['assignee'] ?? 0);
-            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), $assignee, (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'));
-            if (!$id) json_out(['ok' => false, 'error' => 'Enter a task title.'], 400);
+            /* Chat is open to any account holder; handing out work is not
+               (Collab::mayAllocate, the rule the task pool uses). */
+            $allocates = Collab::mayAllocate($u);
+            if ($assignee > 0 && $assignee !== $uid && !$allocates) json_out(['ok' => false, 'error' => 'You cannot give a task to somebody else.'], 403);
+            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), $assignee, (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'), 0, '', 'person', $allocates);
+            if (!$id) json_out(['ok' => false, 'error' => $assignee > 0 && $assignee !== $uid ? 'You cannot give this task to them.' : 'Enter a task title.'], 400);
             json_out(['ok' => true, 'task' => Collab::oneTask($uid, $id), 'assigned_to' => $assignee]);
 
         case 'react':
