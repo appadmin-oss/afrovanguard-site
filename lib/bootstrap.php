@@ -332,6 +332,7 @@ require_once __DIR__ . '/CacLeads.php';    /* and the follow-ups a member owes *
 require_once __DIR__ . '/CacWifi.php';     /* and their Wi-Fi: CACENTRE runs it, the PIN is shown here */
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/LmsDrip.php';
+require_once __DIR__ . '/CourseTeam.php';     /* who teaches a course, and what each role may do — the one rule */
 require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/CfisCheckout.php';  /* CACENTRE collects where this site has no merchant account */
 require_once __DIR__ . '/CfisRequests.php';  /* a member asks CACENTRE finance for money */

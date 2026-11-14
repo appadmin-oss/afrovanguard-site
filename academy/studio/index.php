@@ -124,7 +124,17 @@ declare(strict_types=1);
                 <select id="c_access"><option value="open">Open — all lessons free</option><option value="tracked">Tracked — free, account-gated</option><option value="membership">Membership only</option><option value="paid">Paid (one-off)</option></select>
               </label>
               <label class="fld" id="priceWrap" hidden><span>Price (₦)</span><input id="c_price_ngn" type="number" min="0" value="0" /></label>
-              <label class="fld"><span>Instructor email</span><input id="c_instructor" type="email" placeholder="instructor@afrovanguard.org.ng" /></label>
+            </div>
+            <div class="card" id="teamCard">
+              <h3>Teaching team</h3>
+              <p class="muted" id="teamHint">Save the course first, then add its team.</p>
+              <ul class="team-list" id="teamList"></ul>
+              <form id="teamForm" class="team-form" hidden>
+                <input id="teamEmail" type="email" placeholder="Their Academy account email" aria-label="Team member email" autocomplete="off" />
+                <select id="teamRole" aria-label="Role"><option value="lead">Lead instructor</option><option value="instructor">Instructor</option><option value="assistant" selected>Teaching assistant</option></select>
+                <button class="btn btn-outline btn-sm" type="submit">+ Add</button>
+              </form>
+              <p class="muted small">Leads run the course and its team; instructors set up graded items, mark and release grades; assistants mark. A course always keeps one lead.</p>
             </div>
             <div class="card">
               <h3>Details</h3>

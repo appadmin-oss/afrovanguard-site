@@ -801,12 +801,14 @@ final class LmsRepository
         $v = $s->fetchColumn(); return $v === false ? null : (string) $v;
     }
 
-    /** Courses an instructor owns (any status), with light stats. */
+    /**
+     * Courses this person teaches (any status), with light stats and their
+     * team role. Read from the teaching team (lib/CourseTeam), not from
+     * courses.instructor_id, which only ever named one person.
+     */
     public function coursesForInstructor(int $userId): array
     {
-        $s = $this->db->prepare("SELECT id, slug, title, status, access_type, price_ngn FROM courses WHERE instructor_id = ? ORDER BY sort, title");
-        $s->execute([$userId]);
-        $rows = $s->fetchAll();
+        $rows = CourseTeam::coursesFor($userId);
         foreach ($rows as &$r) { $r['stats'] = $this->courseStats((int) $r['id']); }
         return $rows;
     }
@@ -871,11 +873,17 @@ final class LmsRepository
         return $rows;
     }
 
+    /**
+     * The course, if this person may open its teaching pages: anybody on its
+     * team (lead, instructor or assistant) or Academy staff. CourseTeam::can()
+     * decides; this only resolves the slug.
+     */
     public function ownsCourse(int $userId, string $slug): ?array
     {
-        $s = $this->db->prepare('SELECT * FROM courses WHERE slug = ? AND instructor_id = ?');
-        $s->execute([$slug, $userId]);
-        return $s->fetch() ?: null;
+        $s = $this->db->prepare('SELECT * FROM courses WHERE slug = ?');
+        $s->execute([$slug]);
+        $c = $s->fetch() ?: null;
+        return ($c && CourseTeam::can((int) $c['id'], $userId, 'view')) ? $c : null;
     }
 
     /* ── Member administration (Studio) ── */

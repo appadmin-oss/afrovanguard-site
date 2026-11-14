@@ -149,6 +149,9 @@ try {
         // (NGV youth among them); enrolment, grants and certificates change
         // their records. Content editors write courses, not people.
         'ac_roster', 'ac_export', 'ac_grants', 'ac_grant', 'ac_revoke',
+        // Teaching teams decide who marks, releases grades and runs a course
+        // (lib/CourseTeam) — a people decision, not content.
+        'ac_team', 'ac_team_add', 'ac_team_role', 'ac_team_remove',
         'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke',
         // Events: ours are written here; Africa GATES events are read from there.
         'sev_list', 'sev_refresh', 'sev_save', 'sev_delete',
@@ -2034,21 +2037,50 @@ try {
                 'access_type' => (string) ($body['access_type'] ?? 'open'), 'price_ngn' => (int) ($body['price_ngn'] ?? 0),
                 'pass_code' => (string) ($body['pass_code'] ?? ''),
             ];
-            // Resolve an instructor by email (must already have an Academy account).
+            /* An instructor email (older callers) puts that person on the
+               teaching team as a lead. courses.instructor_id is no longer
+               written here: CourseTeam keeps it in step with the team's lead,
+               and a team is managed with ac_team_* below. */
             $instructorMsg = null;
-            if (array_key_exists('instructor_email', $body)) {
-                $iem = strtolower(trim((string) $body['instructor_email']));
-                if ($iem === '') { $fields['instructor_id'] = null; }
-                else {
-                    $iu = $lms->findUserByEmail($iem);
-                    if ($iu) { $lms->promoteToInstructor((int) $iu['id']); $fields['instructor_id'] = (int) $iu['id']; }
-                    else { $instructorMsg = 'Saved, but no Academy account exists for ' . $iem . ' yet — ask them to create one, then re-save to assign.'; }
-                }
-            }
+            $iem = array_key_exists('instructor_email', $body) ? strtolower(trim((string) $body['instructor_email'])) : '';
             $fields['_editing'] = trim((string) ($body['editing'] ?? ''));
             $slug = $ac->save($fields);
+            if ($iem !== '') {
+                $iu = $lms->findUserByEmail($iem);
+                $saved = $ac->bySlug($slug, true);
+                if (!$iu) $instructorMsg = 'Saved, but no Academy account exists for ' . $iem . ' yet — ask them to create one, then add them to the team.';
+                elseif ($saved) {
+                    $tr = CourseTeam::add((int) $saved['id'], (int) $iu['id'], 'lead', CourseTeam::STUDIO);
+                    if (empty($tr['ok'])) $instructorMsg = 'Saved, but ' . $iem . ' was not added: ' . ($tr['error'] ?? '');
+                }
+            }
             Sitemap::rebuild();
             json_out(['ok' => true, 'slug' => $slug, 'url' => rtrim(SITE_URL, '/') . '/academy/' . $slug . '/', 'notice' => $instructorMsg]);
+        /* ── Teaching teams (lib/CourseTeam). The Studio acts as CourseTeam::STUDIO:
+              require_admin() above has already authorised the session. ── */
+        case 'ac_team': {
+            $tc = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
+            if (!$tc) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            json_out(['ok' => true, 'team' => CourseTeam::members((int) $tc['id']), 'roles' => CourseTeam::ROLES]);
+        }
+        case 'ac_team_add':
+        case 'ac_team_role':
+        case 'ac_team_remove': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $tc = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))), true);
+            if (!$tc) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            if ($action === 'ac_team_add') {
+                $tu = $lms->findUserByEmail((string) ($body['email'] ?? ''));
+                if (!$tu) json_out(['ok' => false, 'error' => 'No Academy account uses that email yet — ask them to sign in once, then add them.'], 404);
+                $tr = CourseTeam::add((int) $tc['id'], (int) $tu['id'], (string) ($body['role'] ?? ''), CourseTeam::STUDIO);
+            } elseif ($action === 'ac_team_role') {
+                $tr = CourseTeam::add((int) $tc['id'], (int) ($body['user_id'] ?? 0), (string) ($body['role'] ?? ''), CourseTeam::STUDIO);
+            } else {
+                $tr = CourseTeam::remove((int) $tc['id'], (int) ($body['user_id'] ?? 0), CourseTeam::STUDIO);
+            }
+            if (empty($tr['ok'])) json_out(['ok' => false, 'error' => (string) ($tr['error'] ?? 'Not changed.')], 422);
+            json_out(['ok' => true, 'team' => CourseTeam::members((int) $tc['id'])]);
+        }
         case 'ac_grants': {
             // List members explicitly granted access to a restricted course.
             $gslug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? $body['slug'] ?? '')));

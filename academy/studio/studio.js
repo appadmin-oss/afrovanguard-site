@@ -163,7 +163,7 @@
 
   var CF = { title: 'c_title', slug: 'c_slug', summary: 'c_summary', body_html: 'c_body', outcomes: 'c_outcomes',
     category: 'c_category', level: 'c_level', format: 'c_format', duration: 'c_duration', price: 'c_pricelabel',
-    cover_url: 'c_cover', cta_url: 'c_cta', sort: 'c_sort', price_ngn: 'c_price_ngn', instructor_email: 'c_instructor' };
+    cover_url: 'c_cover', cta_url: 'c_cta', sort: 'c_sort', price_ngn: 'c_price_ngn' };
   function toggledPrice() { $('#priceWrap').hidden = $('#c_access').value !== 'paid'; }
   $('#c_access').addEventListener('change', toggledPrice);
   function openCourse(slug) {
@@ -176,13 +176,41 @@
       $('#c_access').value = c.access_type || 'open';
       $('#c_gradient').value = c.gradient || 'g-gold';
       $('#c_featured').checked = !!(c.featured && c.featured != '0');
-      $('#c_instructor').value = c.instructor_email || '';
       toggledPrice();
+      loadTeam(slug);
       VIEWS.course.title = slug ? 'Edit course' : 'New course';
       route('course');
     }
     if (!slug) { fill(blank); return; }
     get('ac_get', 'slug=' + encodeURIComponent(slug)).then(function (d) { fill((d && d.course) || blank); });
+  }
+  /* ── Teaching team (lib/CourseTeam via ac_team_*) ── */
+  var ROLE_LABEL = { lead: 'Lead instructor', instructor: 'Instructor', assistant: 'Teaching assistant' };
+  function renderTeam(slug, team) {
+    var list = $('#teamList');
+    list.innerHTML = (team || []).map(function (m) {
+      var opts = ['lead', 'instructor', 'assistant'].map(function (r) { return '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>'; }).join('');
+      return '<li><span><strong>' + esc(m.name) + '</strong><br><small>' + esc(m.email) + '</small></span>'
+        + '<select data-team-role="' + esc(m.user_id) + '" aria-label="Role for ' + esc(m.name) + '">' + opts + '</select>'
+        + '<button type="button" class="btn btn-ghost btn-sm" data-team-remove="' + esc(m.user_id) + '" aria-label="Remove ' + esc(m.name) + '">Remove</button></li>';
+    }).join('') || '<li class="muted">Nobody yet. The first person added is the lead.</li>';
+    function done(d) { if (d && d.ok) renderTeam(slug, d.team); else toast((d && d.error) || 'Not changed', 'err'); }
+    $$('[data-team-role]', list).forEach(function (sel) { sel.onchange = function () { post('ac_team_role', { slug: slug, user_id: +sel.getAttribute('data-team-role'), role: sel.value }).then(function (d) { if (!(d && d.ok)) loadTeam(slug); done(d); }); }; });
+    $$('[data-team-remove]', list).forEach(function (b) { b.onclick = function () { post('ac_team_remove', { slug: slug, user_id: +b.getAttribute('data-team-remove') }).then(done); }; });
+  }
+  function loadTeam(slug) {
+    var form = $('#teamForm'); if (!form) return;
+    $('#teamList').innerHTML = '';
+    form.hidden = !slug; $('#teamHint').hidden = !!slug;
+    if (!slug) return;
+    get('ac_team', 'slug=' + encodeURIComponent(slug)).then(function (d) { renderTeam(slug, d && d.team); });
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      post('ac_team_add', { slug: slug, email: $('#teamEmail').value, role: $('#teamRole').value }).then(function (d) {
+        if (d && d.ok) { $('#teamEmail').value = ''; renderTeam(slug, d.team); toast('Team updated', 'ok'); }
+        else toast((d && d.error) || 'Not added', 'err');
+      });
+    };
   }
   function saveCourse() {
     var payload = {};

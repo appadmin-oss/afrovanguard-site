@@ -218,3 +218,9 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:25}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* Teaching team card (course editor) */
+.team-list{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:8px}
+.team-list li{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
+.team-form{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:8px}
+.small{font-size:12.5px}
