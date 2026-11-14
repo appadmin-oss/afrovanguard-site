@@ -210,11 +210,12 @@ active booking per learner per item" in the database itself: it is UNIQUE on
 (item, learner, `live_key`), and `live_key` is `live` only while a booking is
 active.
 
-## 10. Building on this
+## 10. Instructors being assessed
 
-The next pieces (learners rating instructors, coordinator observations, an
-instructor scorecard) should key on `CourseTeam::members()` /
-`CourseTeam::coursesFor()` for who taught what, and add any new permission as
-a right in `CourseTeam::RIGHTS` checked through `CourseTeam::can()`. Marks
-(`grade_marks.marker_id`, timestamps) and the audit trail already record which
-team member marked, moderated and released what.
+Learners' written feedback on a course (no ratings), teaching observations by
+Academy staff, and the instructor scorecard are described in
+[academy-instructors.md](academy-instructors.md). They key on
+`CourseTeam::members()` / `CourseTeam::coursesFor()` for who taught what, and
+their permissions are rights in `CourseTeam::RIGHTS` (`view_team_scorecard`,
+`view_all_scorecards`, `observe`, `moderate_feedback`) checked through
+`CourseTeam::can()`.
