@@ -275,12 +275,18 @@ body{font-family:var(--font-b);background:var(--bg);color:var(--text);-webkit-fo
   .donor-grid{grid-template-columns:1fr;}
   .nav-links .hide-mob{display:none;}
 }
+/* docs/accessibility-navigation.md: skip link, visible only on focus */
+.skip{position:absolute;top:-100%;left:16px;z-index:9999;background:#1D4ED8;color:#fff;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px}
+.skip:focus{top:16px}
+main:focus{outline:none}
 </style>
 </head>
 <body>
+<a href="#main" class="skip">Skip to main content</a>
 
 <!-- Nav -->
-<nav class="nav">
+<header>
+<nav class="nav" aria-label="Main">
   <a href="/" class="nav-logo">AFRO<span>VANGUARD</span></a>
   <div class="nav-links">
     <a href="/projects/" class="hide-mob">Projects</a>
@@ -288,6 +294,8 @@ body{font-family:var(--font-b);background:var(--bg);color:var(--text);-webkit-fo
     <a href="/donate" class="nav-cta">Give Now</a>
   </div>
 </nav>
+</header>
+<main id="main" tabindex="-1">
 
 <!-- Hero -->
 <section class="hero">
@@ -487,6 +495,7 @@ body{font-family:var(--font-b);background:var(--bg);color:var(--text);-webkit-fo
 </section>
 
 <!-- Footer -->
+</main>
 <footer class="footer">
   <p>© <span id="yr"></span> Afrovanguard · <a href="/">afrovanguard.org.ng</a></p>
   <p><a href="/cdn-cgi/l/email-protection#1a797b797f746e687f5a7b7c68756c7b747d6f7b687e3475687d34747d"><span class="__cf_email__" data-cfemail="92f1f3f1f7fce6e0f7d2f3f4e0fde4f3fcf5e7f3e0f6bcfde0f5bcfcf5">[email&#160;protected]</span></a> · <a href="tel:+2349037776318">+234 903 777 6318</a></p>

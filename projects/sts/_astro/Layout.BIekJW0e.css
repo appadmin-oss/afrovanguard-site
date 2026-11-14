@@ -3,3 +3,4 @@
 /* docs/accessibility-navigation.md: the phone menu, closed, is out of the Tab order and not read out (it was only transparent), and every nav link is at least 24px tall (WCAG 2.5.8). */
 @media(max-width:1100px){.nav-links:not(.open){visibility:hidden;transition:transform .22s cubic-bezier(.3,.7,.4,1),opacity .18s ease,visibility 0s linear .22s}}
 .nav-links a{display:inline-flex;align-items:center;min-height:24px}
+main[tabindex="-1"]:focus{outline:none}
