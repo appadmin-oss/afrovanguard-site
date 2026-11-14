@@ -49,7 +49,13 @@
     celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), sessions: $('#sessionsView'), psEdit: $('#psEditView'), events: $('#eventsView'), evEdit: $('#evEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
     site: $('#siteView'), media: $('#mediaView')
   };
-  function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
+  function show(v) {
+    /* The sign-in field is autofocused in the markup; when a live session hides that
+       screen at once, the browser's Tab starting point stayed where it was and the
+       first Tab skipped the skip link and the header. Leaving sign-in, start from the top. */
+    var ae = document.activeElement, fromLogin = v !== 'login' && v !== 'mfa' && ae && ((views.login && views.login.contains(ae)) || (views.mfa && views.mfa.contains(ae)));
+    Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
+    if (fromLogin) { document.body.setAttribute('tabindex', '-1'); document.body.focus({ preventScroll: true }); document.body.removeAttribute('tabindex'); }
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
     document.body.classList.toggle('studio-authed', v !== 'login');
     var burger = $('#studioBurger'); if (burger) burger.hidden = (v === 'login');
@@ -146,7 +152,16 @@
     else if (which === 'media') { show('media'); if (window.AvSite) window.AvSite.open('media'); }
     else { show('inbox'); loadInbox(); }
     var on = document.querySelector('.tab.active');
-    if (on && on.scrollIntoView) { try { on.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
+    /* Keep the active section in view by scrolling its container, not with
+       scrollIntoView(): that moves Chrome's Tab starting point to the button, so on
+       load the first Tab skipped the skip link and the header and landed on Diary. */
+    var box = on && (on.closest('.studio-nav') || on.closest('.studio-side'));
+    [box, box && box.parentElement].forEach(function (c) {
+      if (!c || !on) return;
+      var r = on.getBoundingClientRect(), b = c.getBoundingClientRect();
+      if (c.scrollHeight > c.clientHeight && (r.top < b.top || r.bottom > b.bottom)) c.scrollTop += r.top - b.top - (b.height - r.height) / 2;
+      if (c.scrollWidth > c.clientWidth && (r.left < b.left || r.right > b.right)) c.scrollLeft += r.left - b.left - (b.width - r.width) / 2;
+    });
   }
   document.querySelectorAll('.tab').forEach(function (tab) {
     tab.addEventListener('click', function () { activateTab(tab.getAttribute('data-tab')); });

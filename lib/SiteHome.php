@@ -214,7 +214,8 @@ final class SiteHome
 
     private static function e(string $s): string { return htmlspecialchars($s, ENT_COMPAT | ENT_SUBSTITUTE, 'UTF-8'); }
 
-    /** The <header class="avh-hero"> block, exactly as avh.js expects it. */
+    /** The <section class="avh-hero"> block, exactly as avh.js expects it. A section, not a
+     *  header: the page's one banner landmark is the nav's <header> (docs/accessibility-navigation.md). */
     public static function heroHtml(array $d): string
     {
         $e = [self::class, 'e'];
@@ -231,7 +232,7 @@ final class SiteHome
             ? ['eyebrow' => $v['eyebrow'], 'title' => $v['title'], 'sub' => $v['sub'], 'href' => $v['href']]
             : $slides[0];
 
-        $o = '<header class="avh-hero" aria-roledescription="carousel" aria-label="Featured stories" data-avh-hero data-mode="' . ($video ? 'video' : 'carousel') . '" data-video="' . $e($v['src']) . '" data-poster="' . $e($v['poster']) . '"'
+        $o = '<section class="avh-hero" aria-roledescription="carousel" aria-label="Featured stories" data-avh-hero data-mode="' . ($video ? 'video' : 'carousel') . '" data-video="' . $e($v['src']) . '" data-poster="' . $e($v['poster']) . '"'
            . ((int) $d['interval'] !== 6 ? ' data-interval="' . (int) $d['interval'] . '"' : '') . ($v['href'] !== '/about.html' ? ' data-video-href="' . $e($v['href']) . '"' : '') . "\n"
            . '  data-video-eyebrow="' . $e($v['eyebrow']) . '" data-video-title="' . $e($v['title']) . '" data-video-sub="' . $e($v['sub']) . '">' . "\n"
            . '  <video class="avh-hero-video" muted loop playsinline aria-hidden="true" hidden></video>' . "\n";
@@ -254,7 +255,7 @@ final class SiteHome
         $o .= "</div>\n"
             . '      <button type="button" class="avh-next" data-avh-next aria-label="Next story">›</button>' . "\n"
             . '      <button type="button" class="avh-play" data-avh-play aria-label="' . ($video ? 'Pause video' : 'Pause slideshow') . '">❚❚</button>' . "\n"
-            . "    </div>\n  </div>\n</header>";
+            . "    </div>\n  </div>\n</section>";
         return $o;
     }
 }
