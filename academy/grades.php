@@ -4,6 +4,8 @@
  *   /academy/<course>/grades/            every graded item, status, score, the grade so far
  *   /academy/<course>/grades/?item=N     one item: instructions, submit, feedback, peer
  *                                        reviews to do, live session booking
+ *   /academy/<course>/grades/?feedback=1 written feedback on the course for its team
+ *                                        (lib/LearnerFeedback; works on ungraded courses too)
  *
  * What a learner sees is only what has been RELEASED (lib/Grading::result):
  * a mark a team member has typed is invisible until the team releases it.
@@ -14,6 +16,8 @@ require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 require_once __DIR__ . '/_grading_actions.php';
 require_once __DIR__ . '/_grades_view.php';
+require_once __DIR__ . '/_instructor_actions.php';
+require_once __DIR__ . '/_instructor_views.php';
 
 $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['course'] ?? '')));
 $course = $slug ? (new AcademyRepository())->bySlug($slug) : null;
@@ -25,7 +29,7 @@ $base = academy_url($course['slug'] . '/grades/');
 
 if ($user && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     require_same_origin();
-    $r = avgr_learner_action($course, $uid, $_POST, $_FILES);
+    $r = ($_POST['act'] ?? '') === 'feedback' ? avin_feedback_action($course, $uid, $_POST) : avgr_learner_action($course, $uid, $_POST, $_FILES);
     avgr_flash_set($r);
     if (!headers_sent()) { header('Location: ' . $base . ($r['to'] !== '' ? '?' . $r['to'] : ''), true, 303); exit; }
     parse_str((string) $r['to'], $q); $_GET = $q + $_GET;
@@ -43,10 +47,14 @@ echo '<nav class="breadcrumb"><a href="' . e(academy_url($course['slug'] . '/'))
 
 if (!$user) {
     echo '<div class="gate"><h2>Your grades</h2><p>Sign in to see your graded work for this course.</p><a class="btn btn-primary" href="/login?next=' . e(rawurlencode('/academy/' . $course['slug'] . '/grades/')) . '" data-auth="login">Sign in</a></div>';
+} elseif (!empty($_GET['feedback'])) {
+    echo avgr_flash_html(avgr_flash_take());
+    avin_feedback_form($course, $uid, $base);
 } elseif (!Grading::hasGradedItems($cid)) {
-    echo '<h1 class="teach-h1">Grades</h1><p class="teach-empty">This course has no graded work. Complete every lesson to earn your certificate.</p>';
+    echo '<h1 class="teach-h1">Grades</h1>' . avin_invite($course, $uid) . '<p class="teach-empty">This course has no graded work. Complete every lesson to earn your certificate.</p>';
 } else {
     echo avgr_flash_html(avgr_flash_take());
+    if (empty($_GET['item'])) echo avin_invite($course, $uid);
     $itemId = (int) ($_GET['item'] ?? 0);
     $item = $itemId ? Grading::item($itemId) : null;
     if ($item && ((int) $item['course_id'] !== $cid || $item['status'] !== 'published')) $item = null;

@@ -8,6 +8,8 @@
  *   /academy/teach/<course>/?tab=gradebook→ grades per learner (+ CSV)
  *   /academy/teach/<course>/?tab=team     → the teaching team
  *   /academy/teach/<course>/?tab=live&session=N → a live session's panel screen
+ *   /academy/teach/?view=scorecard|instructors|feedback|observations|observation
+ *                                         → instructors being assessed (academy/_instructor_views.php)
  *
  * Who may open a course here and what they may do is CourseTeam::can() — the
  * course's team (lead, instructor, assistant) and Academy staff (LMS admin or
@@ -17,6 +19,8 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 require_once __DIR__ . '/_grading_actions.php';
+require_once __DIR__ . '/_instructor_actions.php';
+require_once __DIR__ . '/_instructor_views.php';
 
 $user = LmsAuth::user();
 $lms  = new LmsRepository();
@@ -33,6 +37,21 @@ if ($isInstructor && $courseSlug !== '') {
     if (!$course) { require_once AV_ROOT . '/lib/errors.php'; av_error_render(404); exit; }
 }
 $tab = preg_replace('/[^a-z]/', '', (string) ($_GET['tab'] ?? 'roster')) ?: 'roster';
+$view = $course ? '' : (string) preg_replace('/[^a-z]/', '', (string) ($_GET['view'] ?? ''));
+
+/* ── Assessment forms (observations, feedback moderation) post here ── */
+if (!$course && $isInstructor && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    require_same_origin();
+    $r = avin_action($uid0, $_POST);
+    avgr_flash_set($r);
+    $to = (string) $r['to'];
+    if (!headers_sent()) { header('Location: ' . academy_url('teach/') . ($to !== '' ? '?' . $to : ''), true, 303); exit; }
+    parse_str($to, $q); $_GET = $q + $_GET; $view = (string) preg_replace('/[^a-z]/', '', (string) ($_GET['view'] ?? ''));
+}
+/* ── The instructor list as CSV (staff; streamed before any HTML) ── */
+if (!$course && $isInstructor && $view === 'instructors' && ($_GET['export'] ?? '') === 'csv') {
+    if (avin_instructors_csv($uid0)) exit;
+}
 
 /* ── Grading forms post here (CSRF-checked in avgr_teach_action) ── */
 if ($course && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
@@ -110,6 +129,14 @@ if (!$isInstructor) {
 }
 
 $uid = (int) $user['id'];
+
+/* ── Instructors being assessed: scorecards, observations, course feedback ── */
+if (!$course && $view !== '') {
+    avin_page($user, $view);
+    echo '<script src="/academy/academy.js" defer></script>';
+    render_footer();
+    return;
+}
 
 /* ── A single course: the grading tabs, or the roster ── */
 if ($course && $tab !== 'roster') {
@@ -217,6 +244,7 @@ $totCerts = array_sum(array_map(fn($c) => (int) $c['stats']['completed'], $cours
         <div class="tstat"><span class="tn"><?= (int) $totLearners ?></span><span class="tl">Total learners</span></div>
         <div class="tstat"><span class="tn"><?= (int) $totCerts ?></span><span class="tl">Certificates issued</span></div>
       </div>
+<?= avin_subnav($uid, '') ?>
 <?php if (!$courses): ?>
       <p class="teach-empty">You aren’t on a teaching team yet. A course lead or an Academy admin can add <strong><?= e($user['email']) ?></strong> to a team.</p>
 <?php else: ?>

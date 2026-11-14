@@ -418,6 +418,10 @@ function avgr_view_team(array $course, int $uid): void
     echo '<section class="grd-card"><h2>Teaching team</h2><p class="grd-sub">Leads run the course and its team; instructors set up items, mark, moderate and release; assistants mark.</p><ul class="grd-team">';
     foreach (CourseTeam::members($cid) as $m) {
         echo '<li><div><strong>' . e((string) $m['name']) . '</strong><span>' . e((string) $m['email']) . '</span></div>';
+        // Scorecards: your own, or (as the lead, or staff) a team member's on this course.
+        if (Scorecard::canSee($uid, (int) $m['user_id'], $cid)) {
+            echo '<a class="btn btn-pill-ghost btn-sm" href="' . e(academy_url('teach/') . '?view=scorecard&u=' . (int) $m['user_id'] . '&cid=' . $cid) . '">Scorecard</a>';
+        }
         if ($can) {
             echo '<form method="post" action="' . e(avgr_url($course)) . '" class="grd-inline">' . avgr_csrf_field()
                . '<input type="hidden" name="act" value="team_role"><input type="hidden" name="tab" value="team"><input type="hidden" name="id" value="' . (int) $m['user_id'] . '">'
