@@ -130,7 +130,7 @@ if ($course) {
     ?>
   <main id="main" tabindex="-1">
     <div class="container teach" data-teach-roster>
-      <nav class="breadcrumb"><a href="<?= e(academy_url('teach/')) ?>">Dashboard</a><span class="sep">/</span><span><?= e($course['title']) ?></span></nav>
+      <nav class="breadcrumb" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="<?= e(academy_url('teach/')) ?>">Dashboard</a><span class="sep" aria-hidden="true">/</span></li><li><span aria-current="page"><?= e($course['title']) ?></span></li></ol></nav>
       <div class="teach-head-row">
         <h1 class="teach-h1"><?= e($course['title']) ?></h1>
 <?php if ($roster): ?>        <a class="btn btn-pill-ghost btn-sm teach-export" href="<?= e(academy_url('teach/' . $course['slug'] . '/')) ?>?export=csv">↓ Export CSV</a><?php endif; ?>
@@ -162,11 +162,11 @@ if ($course) {
 <?php endif; ?>
       <div class="teach-toolbar">
         <div class="search-wrap"><?= Icons::SEARCH ?><input type="search" class="search-input" data-roster-search placeholder="Search learners…" aria-label="Search learners" /></div>
-        <div class="teach-filters" role="tablist" aria-label="Filter learners">
-          <button class="chip active" data-roster-filter="all" role="tab" aria-selected="true">All <?= count($roster) ?></button>
-          <button class="chip" data-roster-filter="active" role="tab" aria-selected="false">In progress <?= $active ?></button>
-          <button class="chip" data-roster-filter="completed" role="tab" aria-selected="false">Completed <?= $done ?></button>
-          <button class="chip" data-roster-filter="notstarted" role="tab" aria-selected="false">Not started <?= $notStarted ?></button>
+        <div class="teach-filters" role="group" aria-label="Filter learners">
+          <button class="chip active" data-roster-filter="all" type="button" aria-pressed="true">All <?= count($roster) ?></button>
+          <button class="chip" data-roster-filter="active" type="button" aria-pressed="false">In progress <?= $active ?></button>
+          <button class="chip" data-roster-filter="completed" type="button" aria-pressed="false">Completed <?= $done ?></button>
+          <button class="chip" data-roster-filter="notstarted" type="button" aria-pressed="false">Not started <?= $notStarted ?></button>
         </div>
       </div>
       <div class="teach-table-wrap">
