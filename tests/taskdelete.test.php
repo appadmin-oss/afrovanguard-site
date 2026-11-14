@@ -19,7 +19,7 @@ $tdl = Database::pdo();
 GoalPlanner::ensure();
 $tdl->exec('DELETE FROM lms_users WHERE id IN (9991, 9992)');
 $tdl->prepare("INSERT INTO lms_users (id, name, email, password_hash, role, status) VALUES
-    (9991, 'Gail Giver', 'gail.td@afrovanguard.org.ng', 'x', 'coordinator', 'active'),
+    (9991, 'Gail Giver', 'gail.td@mail.test', 'x', 'coordinator', 'active'),
     (9992, 'Hal Doer', 'hal.td@mail.test', 'x', 'member', 'active')")->execute();
 
 /* The goal follows. */

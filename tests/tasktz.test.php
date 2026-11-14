@@ -19,7 +19,7 @@ $tz = Database::pdo();
 Collab::myTasks(0, 1); TaskMatch::ensure(); TaskLedger::ensure();
 $tz->exec('DELETE FROM lms_users WHERE id IN (9961, 9962)');
 $tz->prepare("INSERT INTO lms_users (id, name, email, password_hash, role, status, last_login) VALUES
-    (9961, 'Tobi Tz', 'tobi.tz@afrovanguard.org.ng', 'x', 'coordinator', 'active', ''),
+    (9961, 'Tobi Tz', 'tobi.tz@mail.test', 'x', 'coordinator', 'active', ''),
     (9962, 'Uche Tz', 'uche.tz@mail.test', 'x', 'member', 'active', '')")->execute();
 
 /* 23:30 UTC today is 00:30 tomorrow in Lagos. Today, not a fixed date: a
