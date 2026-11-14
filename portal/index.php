@@ -224,6 +224,12 @@ if ($isNgv) {
     $fOwing = (int) $ngvVars['myFines']['owing'];
     $navBadges['ngv-fines'] = [$fOwing > 0 ? 'gold' : 'gray', $fOwing > 0 ? '₦' . number_format($fOwing) : ''];
 }
+/* What a badge counts, for a screen reader: "Tasks, 3 open", not "Tasks 3".
+   A badge that already says what it is (₦…, 4/24, 80%, +12) needs no words. */
+$badgeSr = ['community' => ' new today', 'tasks' => ' open', 'bills' => ' waiting', 'mentorship' => ' sessions attended',
+            'learning' => ' courses', 'volunteer' => ' waiting', 'diary' => ' entries', 'membership' => ' waiting',
+            'quest' => ' points this month', 'attendance' => ' attendance', 'ngv' => ' books read',
+            'fines' => ' owed', 'ngv-fines' => ' owed', 'ngv-account' => ' owed', 'wallet' => ' owed'];
 $nav = [];
 foreach (PortalNav::groups($portalCtx) as $group => $items) {
     foreach ($items as [$id, $label]) $nav[$group][] = [$id, $label, $navBadges[$id][0] ?? 'gray', $navBadges[$id][1] ?? ''];
@@ -263,10 +269,10 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
       <div class="avp-nav-group">
         <div class="avp-nav-title"><?= e($group) ?></div>
 <?php foreach ($items as [$id, $label, $dot, $badge]): ?>
-        <a class="avp-nav-link pnav-link" href="#<?= e($id) ?>" data-view="<?= e($id) ?>">
+        <a class="avp-nav-link pnav-link<?= $id === 'overview' ? ' is-active' : '' ?>" href="#<?= e($id) ?>" data-view="<?= e($id) ?>"<?= $id === 'overview' ? ' aria-current="page"' : '' ?>>
           <span class="avp-dot avp-dot--<?= e($dot) ?>" aria-hidden="true"></span>
           <span class="avp-nav-label pnav-label"><?= e($label) ?></span>
-<?php if ($badge !== ''): ?>          <span class="avp-nav-badge pnav-badge"><?= e($badge) ?></span>
+<?php if ($badge !== ''): ?>          <span class="avp-nav-badge pnav-badge"><?= e($badge) ?><span class="av-sr"><?= e($badgeSr[$id] ?? '') ?></span></span>
 <?php endif; ?>        </a>
 <?php endforeach; ?>
       </div>
@@ -322,7 +328,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
       <div class="avp-top-actions">
 <?php if ($isOrg): ?>        <span class="avp-online" id="topOnline"<?= $onlineNow > 0 ? '' : ' hidden' ?>><span class="avp-online-dot" aria-hidden="true"></span><span><span class="av-num" id="tbCount"><?= (int) $onlineNow ?></span> online</span></span>
 <?php endif; ?>        <div class="avp-notif" id="notifWrap" data-csrf="<?= e($collabCsrf) ?>">
-          <button type="button" class="avp-bell" id="notifBtn" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notifPanel">
+          <button type="button" class="avp-bell" id="notifBtn" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="notifPanel">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg>
             <span class="avp-bell-n" id="notifBadge" hidden>0</span>
           </button>
@@ -359,7 +365,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
 
   <nav class="avp-tabs" aria-label="Primary">
 <?php foreach ($tabs as [$id, $label]): ?>
-    <a class="avp-tab" href="#<?= e($id) ?>" data-view="<?= e($id) ?>">
+    <a class="avp-tab<?= $id === 'overview' ? ' is-active' : '' ?>" href="#<?= e($id) ?>" data-view="<?= e($id) ?>"<?= $id === 'overview' ? ' aria-current="page"' : '' ?>>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="<?= e($avpIcons[$id]) ?>"/></svg>
       <span><?= e($label) ?></span>
     </a>
