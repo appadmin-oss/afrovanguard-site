@@ -113,7 +113,12 @@
     // Homepage and Pages were their own screens; their names open the Site workspace.
     var siteRef = which === 'homepage' ? 'hero' : '';
     if (which === 'homepage' || which === 'pages') which = 'site';
-    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.getAttribute('data-tab') === which); });
+    // The section you are in is said in words too (aria-current), not only by the highlight.
+    document.querySelectorAll('.tab').forEach(function (t) {
+      var on = t.getAttribute('data-tab') === which;
+      t.classList.toggle('active', on);
+      if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
+    });
     try { localStorage.setItem('av.studio.tab', which); } catch (e) {}
     if (which === 'overview') { show('overview'); loadOverview(); }
     else if (which === 'entries') { show('entries'); loadList(); }
@@ -148,9 +153,37 @@
   });
 
   /* ---- Sidebar drawer (mobile) ---- */
-  function closeSide() { var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger'); if (s) s.classList.remove('open'); if (sc) sc.hidden = true; if (b) b.setAttribute('aria-expanded', 'false'); }
-  function toggleSide() { var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger'); if (!s) return; var open = !s.classList.contains('open'); s.classList.toggle('open', open); if (sc) sc.hidden = !open; if (b) b.setAttribute('aria-expanded', String(open)); }
-  (function () { var b = $('#studioBurger'), sc = $('#studioScrim'); if (b) b.addEventListener('click', toggleSide); if (sc) sc.addEventListener('click', closeSide); document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSide(); }); })();
+  /* Opening moves focus into the sections (the current one); Esc or the scrim closes
+     and gives focus back to the button. On a phone the closed drawer is visibility:hidden
+     (admin.css), so its buttons are out of the Tab order and the screen reader's view. */
+  function closeSide(refocus) {
+    var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger');
+    var was = s && s.classList.contains('open');
+    if (s) s.classList.remove('open'); if (sc) sc.hidden = true; if (b) b.setAttribute('aria-expanded', 'false');
+    if (was && refocus && b && !b.hidden) b.focus();
+  }
+  function toggleSide() {
+    var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger'); if (!s) return;
+    var open = !s.classList.contains('open'); s.classList.toggle('open', open); if (sc) sc.hidden = !open; if (b) b.setAttribute('aria-expanded', String(open));
+    if (open) { var f = s.querySelector('.tab.active') || s.querySelector('.tab'); if (f) setTimeout(function () { f.focus(); }, 30); }
+  }
+  (function () {
+    var b = $('#studioBurger'), sc = $('#studioScrim');
+    if (b) b.addEventListener('click', toggleSide);
+    if (sc) sc.addEventListener('click', function () { closeSide(true); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSide(true); });
+    // A section picked from the phone drawer closes it, so the view it opened is not under it.
+    document.querySelectorAll('.tab').forEach(function (t) { t.addEventListener('click', function () { if (b && !b.hidden && getComputedStyle(b).display !== 'none') closeSide(false); }); });
+    // Skip link: land on the <main> that is showing (only one is ever not hidden).
+    var skip = document.querySelector('[data-studio-skip]');
+    if (skip) skip.addEventListener('click', function (e) {
+      var m = document.querySelector('main.studio-main:not([hidden])') || document.querySelector('section:not([hidden]) .login-card');
+      if (!m) return;
+      e.preventDefault();
+      if (!m.hasAttribute('tabindex')) m.setAttribute('tabindex', '-1');
+      m.focus();
+    });
+  })();
 
   /* ---- Auth ---- */
   $('#loginForm').addEventListener('submit', function (e) {

@@ -50,7 +50,19 @@
     var d = document.documentElement, next = d.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     d.setAttribute('data-theme', next); try { localStorage.setItem('av.theme', next); } catch (e) {}
   });
-  $('#hamburger').addEventListener('click', function () { $('#app').classList.toggle('nav-open'); });
+  /* The phone drawer: a disclosure. Opening moves focus to the current section; Esc
+     closes it and hands focus back to the button. Closed, it is visibility:hidden
+     (studio.css), so it is out of the Tab order and the screen reader's view. */
+  function setNav(open, refocus) {
+    var app = $('#app'), btn = $('#hamburger');
+    var was = app.classList.contains('nav-open');
+    app.classList.toggle('nav-open', open); btn.setAttribute('aria-expanded', String(open));
+    if (open) { var cur = $('.nav-item.is-active') || $('.nav-item'); if (cur) setTimeout(function () { cur.focus(); }, 30); }
+    else if (was && refocus) btn.focus();
+  }
+  $('#hamburger').addEventListener('click', function () { setNav(!$('#app').classList.contains('nav-open')); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('#app').classList.contains('nav-open') && $('#lessonModal').hidden) setNav(false, true); });
+  document.addEventListener('click', function (e) { if ($('#app').classList.contains('nav-open') && !e.target.closest('#side, #hamburger')) setNav(false); });
 
   /* ── Routing ── */
   var VIEWS = {
@@ -65,10 +77,14 @@
   function route(name, arg) {
     var v = VIEWS[name] || VIEWS.overview;
     $$('.view').forEach(function (el) { el.hidden = el.id !== 'view-' + name; });
-    $$('.nav-item').forEach(function (b) { b.classList.toggle('is-active', b.getAttribute('data-view') === (name === 'course' ? 'courses' : name)); });
+    $$('.nav-item').forEach(function (b) {
+      var on = b.getAttribute('data-view') === (name === 'course' ? 'courses' : name);
+      b.classList.toggle('is-active', on);
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
     $('#viewTitle').textContent = v.title; $('#viewSub').textContent = v.sub;
     $('#topActions').innerHTML = v.actions;
-    $('#app').classList.remove('nav-open');
+    $('#app').classList.remove('nav-open'); $('#hamburger').setAttribute('aria-expanded', 'false');
     if (name === 'overview') loadOverview();
     if (name === 'courses') { loadCourses(); var nb = $('#newCourse'); if (nb) nb.onclick = function () { openCourse(null); }; }
     if (name === 'course') { $('#courseBack').onclick = function () { route('courses'); }; $('#courseSave').onclick = saveCourse; }

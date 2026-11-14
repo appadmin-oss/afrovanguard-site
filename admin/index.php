@@ -15,26 +15,30 @@
   <link href="/assets/site/avc-photo.css" rel="stylesheet" />
 </head>
 <body class="studio">
+  <?php /* First thing Tab reaches. The Studio shows one <main> at a time (the
+           others are hidden), so the link lands on #studio-main just before
+           them and app.js moves focus on into whichever is showing. */ ?>
+  <a href="#studio-main" class="skip-link" data-studio-skip>Skip to main content</a>
   <header class="studio-bar">
     <div class="studio-brand">
-      <button class="studio-burger" id="studioBurger" aria-label="Toggle sections" aria-expanded="false" hidden><span></span><span></span><span></span></button>
+      <button type="button" class="studio-burger" id="studioBurger" aria-label="Studio sections" aria-controls="studioSide" aria-expanded="false" hidden><span></span><span></span><span></span></button>
       <span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span> <span class="studio-tag">Studio</span>
     </div>
     <div class="studio-actions">
       <button class="icon-btn theme-toggle" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
-        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-        <svg class="moon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       </button>
-      <a class="btn btn-outline btn-sm" href="/diary/" target="_blank" rel="noopener">View site ↗</a>
+      <a class="btn btn-outline btn-sm" href="/diary/" target="_blank" rel="noopener">View site <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a>
       <button class="btn btn-outline btn-sm" id="logoutBtn" hidden>Log out</button>
     </div>
   </header>
 
   <!-- Left sidebar — grouped sections (data-tab preserved; driven by app.js) -->
-  <aside class="studio-side" id="studioSide" aria-label="Studio sections">
-    <nav class="studio-nav" id="tabs" hidden>
+  <aside class="studio-side" id="studioSide">
+    <nav class="studio-nav" id="tabs" aria-label="Studio sections" hidden>
       <div class="nav-group">
-        <button class="tab active" data-tab="overview"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Overview</span></button>
+        <button class="tab active" data-tab="overview" aria-current="page"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Overview</span></button>
       </div>
       <div class="nav-group">
         <p class="nav-group-h">Content</p>
@@ -144,6 +148,7 @@
     </div>
   </section>
 
+  <div id="studio-main" tabindex="-1" data-skip-target></div>
   <!-- DIARY LIST -->
   <!-- OVERVIEW (landing dashboard) -->
   <main class="studio-main" id="overviewView" hidden>
