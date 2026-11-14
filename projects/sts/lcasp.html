@@ -808,7 +808,7 @@
     </span>
   </a>
 
-  <main id="main">
+  <main id="main" tabindex="-1">
 
     <!-- HERO ─────────────────────────────────────── -->
     <div class="hero-wrap">
@@ -821,13 +821,11 @@
           <div class="hero-content">
             <!-- Breadcrumb -->
             <nav aria-label="Breadcrumb">
-              <div class="hbc">
-                <a href="/">Afrovanguard</a>
-                <sep aria-hidden="true">></sep>
-                <a href="/projects/">Projects</a>
-                <sep aria-hidden="true">></sep>
-                <span style="color:rgba(255,255,255,.55);">LCASP 2026</span>
-              </div>
+              <ol class="hbc" style="list-style:none;margin:0;padding:0">
+                <li style="display:inline"><a href="/">Afrovanguard</a> <sep aria-hidden="true">></sep></li>
+                <li style="display:inline"><a href="/projects/">Projects</a> <sep aria-hidden="true">></sep></li>
+                <li style="display:inline"><span style="color:rgba(255,255,255,.55);" aria-current="page">LCASP 2026</span></li>
+              </ol>
             </nav>
 
             <p class="hero-tag fu fu1">Street-To-Stardom Project · 2026</p>

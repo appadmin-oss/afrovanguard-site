@@ -205,6 +205,15 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 .toast.ok{background:var(--ok)} .toast.err{background:var(--danger)}
 @keyframes slidein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 
+/* ── Keyboard: skip link and a visible focus ring on every nav control ──
+   (docs/accessibility-navigation.md). Gold on the navy sidebar, the design
+   system's focus blue (--afg-focus) on the light surfaces; both well over 3:1. */
+.skip-link{position:absolute;left:-999px;top:0;z-index:999;background:#1d4ed8;color:#fff;font-weight:600;padding:12px 20px;border-radius:8px}
+.skip-link:focus{left:12px;top:12px}
+.content:focus{outline:none}
+.side :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.hamburger:focus-visible,.topbar :focus-visible{outline:2px solid var(--afg-focus,#1d4ed8);outline-offset:2px}
+
 /* ── Responsive ── */
 @media (max-width:900px){
   .editor{grid-template-columns:1fr}
@@ -213,6 +222,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
   .shell{grid-template-columns:1fr}
   .side{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .22s ease;width:262px;box-shadow:0 0 60px rgba(0,0,0,.4)}
   .shell.nav-open .side{transform:none}
+  .shell:not(.nav-open) .side{visibility:hidden;transition:transform .22s ease,visibility 0s linear .22s}
   .hamburger{display:inline-flex}
   .content{padding:18px}
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:25}

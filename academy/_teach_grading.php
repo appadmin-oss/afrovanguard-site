@@ -50,7 +50,7 @@ function avgr_teach_page(array $course, array $user, string $tab): void
     $cid = (int) $course['id'];
     $flash = avgr_flash_html(avgr_flash_take());
     echo '<main id="main" tabindex="-1"><div class="container teach grd">';
-    echo '<nav class="breadcrumb"><a href="' . e(academy_url('teach/')) . '">Dashboard</a><span class="sep">/</span><span>' . e((string) $course['title']) . '</span></nav>';
+    echo '<nav class="breadcrumb" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="' . e(academy_url('teach/')) . '">Dashboard</a><span class="sep" aria-hidden="true">/</span></li><li><span aria-current="page">' . e((string) $course['title']) . '</span></li></ol></nav>';
     echo '<h1 class="teach-h1">' . e((string) $course['title']) . '</h1>';
     echo avgr_tabs($course, $tab, $uid) . $flash;
     switch ($tab) {

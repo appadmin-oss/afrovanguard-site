@@ -484,7 +484,7 @@
     chips.forEach(function (c) {
       c.addEventListener('click', function () {
         filter = c.getAttribute('data-roster-filter') || 'all';
-        chips.forEach(function (x) { var on = x === c; x.classList.toggle('active', on); x.setAttribute('aria-selected', on ? 'true' : 'false'); });
+        chips.forEach(function (x) { var on = x === c; x.classList.toggle('active', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); });
         apply();
       });
     });

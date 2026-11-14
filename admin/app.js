@@ -49,7 +49,13 @@
     celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), sessions: $('#sessionsView'), psEdit: $('#psEditView'), events: $('#eventsView'), evEdit: $('#evEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
     site: $('#siteView'), media: $('#mediaView')
   };
-  function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
+  function show(v) {
+    /* The sign-in field is autofocused in the markup; when a live session hides that
+       screen at once, the browser's Tab starting point stayed where it was and the
+       first Tab skipped the skip link and the header. Leaving sign-in, start from the top. */
+    var ae = document.activeElement, fromLogin = v !== 'login' && v !== 'mfa' && ae && ((views.login && views.login.contains(ae)) || (views.mfa && views.mfa.contains(ae)));
+    Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
+    if (fromLogin) { document.body.setAttribute('tabindex', '-1'); document.body.focus({ preventScroll: true }); document.body.removeAttribute('tabindex'); }
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
     document.body.classList.toggle('studio-authed', v !== 'login');
     var burger = $('#studioBurger'); if (burger) burger.hidden = (v === 'login');
@@ -113,7 +119,12 @@
     // Homepage and Pages were their own screens; their names open the Site workspace.
     var siteRef = which === 'homepage' ? 'hero' : '';
     if (which === 'homepage' || which === 'pages') which = 'site';
-    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.getAttribute('data-tab') === which); });
+    // The section you are in is said in words too (aria-current), not only by the highlight.
+    document.querySelectorAll('.tab').forEach(function (t) {
+      var on = t.getAttribute('data-tab') === which;
+      t.classList.toggle('active', on);
+      if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
+    });
     try { localStorage.setItem('av.studio.tab', which); } catch (e) {}
     if (which === 'overview') { show('overview'); loadOverview(); }
     else if (which === 'entries') { show('entries'); loadList(); }
@@ -141,16 +152,53 @@
     else if (which === 'media') { show('media'); if (window.AvSite) window.AvSite.open('media'); }
     else { show('inbox'); loadInbox(); }
     var on = document.querySelector('.tab.active');
-    if (on && on.scrollIntoView) { try { on.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
+    /* Keep the active section in view by scrolling its container, not with
+       scrollIntoView(): that moves Chrome's Tab starting point to the button, so on
+       load the first Tab skipped the skip link and the header and landed on Diary. */
+    var box = on && (on.closest('.studio-nav') || on.closest('.studio-side'));
+    [box, box && box.parentElement].forEach(function (c) {
+      if (!c || !on) return;
+      var r = on.getBoundingClientRect(), b = c.getBoundingClientRect();
+      if (c.scrollHeight > c.clientHeight && (r.top < b.top || r.bottom > b.bottom)) c.scrollTop += r.top - b.top - (b.height - r.height) / 2;
+      if (c.scrollWidth > c.clientWidth && (r.left < b.left || r.right > b.right)) c.scrollLeft += r.left - b.left - (b.width - r.width) / 2;
+    });
   }
   document.querySelectorAll('.tab').forEach(function (tab) {
     tab.addEventListener('click', function () { activateTab(tab.getAttribute('data-tab')); });
   });
 
   /* ---- Sidebar drawer (mobile) ---- */
-  function closeSide() { var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger'); if (s) s.classList.remove('open'); if (sc) sc.hidden = true; if (b) b.setAttribute('aria-expanded', 'false'); }
-  function toggleSide() { var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger'); if (!s) return; var open = !s.classList.contains('open'); s.classList.toggle('open', open); if (sc) sc.hidden = !open; if (b) b.setAttribute('aria-expanded', String(open)); }
-  (function () { var b = $('#studioBurger'), sc = $('#studioScrim'); if (b) b.addEventListener('click', toggleSide); if (sc) sc.addEventListener('click', closeSide); document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSide(); }); })();
+  /* Opening moves focus into the sections (the current one); Esc or the scrim closes
+     and gives focus back to the button. On a phone the closed drawer is visibility:hidden
+     (admin.css), so its buttons are out of the Tab order and the screen reader's view. */
+  function closeSide(refocus) {
+    var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger');
+    var was = s && s.classList.contains('open');
+    if (s) s.classList.remove('open'); if (sc) sc.hidden = true; if (b) b.setAttribute('aria-expanded', 'false');
+    if (was && refocus && b && !b.hidden) b.focus();
+  }
+  function toggleSide() {
+    var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger'); if (!s) return;
+    var open = !s.classList.contains('open'); s.classList.toggle('open', open); if (sc) sc.hidden = !open; if (b) b.setAttribute('aria-expanded', String(open));
+    if (open) { var f = s.querySelector('.tab.active') || s.querySelector('.tab'); if (f) setTimeout(function () { f.focus(); }, 30); }
+  }
+  (function () {
+    var b = $('#studioBurger'), sc = $('#studioScrim');
+    if (b) b.addEventListener('click', toggleSide);
+    if (sc) sc.addEventListener('click', function () { closeSide(true); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSide(true); });
+    // A section picked from the phone drawer closes it, so the view it opened is not under it.
+    document.querySelectorAll('.tab').forEach(function (t) { t.addEventListener('click', function () { if (b && !b.hidden && getComputedStyle(b).display !== 'none') closeSide(false); }); });
+    // Skip link: land on the <main> that is showing (only one is ever not hidden).
+    var skip = document.querySelector('[data-studio-skip]');
+    if (skip) skip.addEventListener('click', function (e) {
+      var m = document.querySelector('main.studio-main:not([hidden])') || document.querySelector('section:not([hidden]) .login-card');
+      if (!m) return;
+      e.preventDefault();
+      if (!m.hasAttribute('tabindex')) m.setAttribute('tabindex', '-1');
+      m.focus();
+    });
+  })();
 
   /* ---- Auth ---- */
   $('#loginForm').addEventListener('submit', function (e) {

@@ -139,16 +139,16 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <script src="<?= e(av_asset('/assets/site/aveth.js')) ?>" defer></script>
 </head>
 <body class="avh" id="top">
-<a class="avh-skip" href="#main">Skip to content</a>
+<a class="avh-skip" href="#main">Skip to main content</a>
 <div class="avh-page">
-<?php avh_nav(); ?>
+<?php avh_nav(avh_here()); ?>
 
 <main id="main" tabindex="-1" class="aveth">
 
 <header class="aveth-hero">
   <div class="avh-topo" data-avh-topo="light" data-seed="7" aria-hidden="true"></div>
   <div class="aveth-wrap">
-    <nav class="aveth-crumbs" aria-label="Breadcrumb"><a href="/" data-cms="ethos-a-1">Home</a><span aria-hidden="true">›</span><a href="/about.html" data-cms="ethos-a-2">About</a><span aria-hidden="true">›</span><span aria-current="page">Ethos</span></nav>
+    <nav class="aveth-crumbs" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="/" data-cms="ethos-a-1">Home</a><span aria-hidden="true">›</span></li><li><a href="/about.html" data-cms="ethos-a-2">About</a><span aria-hidden="true">›</span></li><li><span aria-current="page">Ethos</span></li></ol></nav>
     <div class="aveth-hero-grid">
       <div class="aveth-hero-copy">
         <div class="aveth-eyebrow">The Force for Good</div>

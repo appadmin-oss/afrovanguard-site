@@ -16,6 +16,10 @@
   const pushLayer = l => { if (!layers.includes(l)) layers.push(l); };
   const dropLayer = l => { const i = layers.indexOf(l); if (i > -1) layers.splice(i, 1); };
   const run = (name, fn) => { try { fn(); } catch (err) { console.error('[avh] ' + name, err); } };
+  // A disclosure that opens moves focus to the first link in what it opened, so a
+  // keyboard or screen-reader user lands in the panel rather than having to find it.
+  const focusFirst = panel => { const t = panel && panel.querySelector('a[href],button:not([disabled]),input'); if (t) t.focus(); };
+  const panelOf = b => document.getElementById(b.getAttribute('aria-controls'));
 
   run('nav', () => {
     const nav = $('[data-avh-nav]'); if (!nav) return;
@@ -42,9 +46,22 @@
       b.addEventListener('mouseenter', () => { if (deskMq.matches && open !== b.dataset.avhMenu) { set(b.dataset.avhMenu); hoverAt = Date.now(); } });
       b.addEventListener('click', () => {
         const k = b.dataset.avhMenu;
-        if (open === k && Date.now() - hoverAt < 600) return;
+        if (open === k && Date.now() - hoverAt < 600) { focusFirst(panelOf(b)); return; }
         set(open === k ? null : k);
+        if (open === k) focusFirst(panelOf(b));
       });
+    });
+    // A click anywhere outside the nav closes an open menu (Esc does too: the layers below).
+    document.addEventListener('click', e => { if (open && !nav.contains(e.target)) set(null); });
+
+    // Where you are, said in words and not only in colour. PHP pages are marked on the
+    // server (av_site_nav) and static pages at build time (tools/build-avh-chrome.php);
+    // this catches any page that was neither.
+    const here = location.pathname.replace(/index\.html$/, '');
+    $$('a[href]', nav).concat($$('a[href]', $('[data-avh-drawer]') || nav)).forEach(a => {
+      const h = a.getAttribute('href');
+      if (!h || h.includes('#') || h.includes('?') || /^[a-z]+:/i.test(h)) return;
+      if (h.replace(/index\.html$/, '') === here && !a.hasAttribute('aria-current')) a.setAttribute('aria-current', 'page');
     });
     $$('[data-avh-close]').forEach(a => a.addEventListener('mouseenter', () => open && set(null)));
     nav.addEventListener('mouseleave', () => { if (open && deskMq.matches) set(null); });
@@ -62,7 +79,7 @@
     if (btn && menu && wrap) {
       const layer = { close: () => { set(false); btn.focus(); } };
       const set = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', String(on)); on ? pushLayer(layer) : dropLayer(layer); };
-      btn.addEventListener('click', () => set(menu.hidden));
+      btn.addEventListener('click', () => { set(menu.hidden); if (!menu.hidden) focusFirst(menu); });
       document.addEventListener('click', e => { if (!menu.hidden && !wrap.contains(e.target)) set(false); });
       wrap.addEventListener('focusout', e => { if (!menu.hidden && e.relatedTarget && !wrap.contains(e.relatedTarget)) set(false); });
       onMq(deskMq, () => set(false));
@@ -125,7 +142,6 @@
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     });
     const accs = $$('[data-avh-acc]', drawer);
-    const panelOf = b => document.getElementById(b.getAttribute('aria-controls'));
     accs.forEach(b => b.addEventListener('click', () => {
       const willOpen = b.getAttribute('aria-expanded') !== 'true';
       accs.forEach(o => { o.setAttribute('aria-expanded', 'false'); const p = panelOf(o); if (p) p.hidden = true; });

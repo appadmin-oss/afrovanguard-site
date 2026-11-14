@@ -27,8 +27,8 @@ $hooks = [
     'popover Sign out'     => '<button type="button" class="avh-acct-out" data-avh-logout>Sign out</button>',
 ];
 foreach ($hooks as $label => $needle) ck("navmember: shared nav has the $label", str_contains($nav, $needle));
-ck('navmember: the button starts collapsed and names its popover',
-   str_contains($nav, 'aria-expanded="false" aria-haspopup="true" aria-controls="avh-acct-menu"'));
+ck('navmember: the button starts collapsed and names its popover (a disclosure: no aria-haspopup)',
+   str_contains($nav, 'aria-expanded="false" aria-controls="avh-acct-menu"'));
 ck('navmember: popover links match nav.js (portal, academy, diary, community)',
    str_contains($nav, '<a class="avh-acct-cta" href="/portal/">Your portal')
    && str_contains($nav, '<a href="/academy/">Academy</a><a href="/diary/">The Diary</a><a href="/community/">Community</a>'));
@@ -39,7 +39,7 @@ foreach (['index.html', 'about.html'] as $page) {
     $h = (string) file_get_contents(AV_ROOT . '/' . $page);
     ck("navmember: $page carries the account button", str_contains($h, 'data-avh-acct-btn'));
     ck("navmember: $page carries the drawer member card and Sign out", str_contains($h, 'class="avh-drawer-me"') && str_contains($h, 'avh-drawer-out'));
-    ck("navmember: $page nav is the shared nav", str_contains($h, $nav));
+    ck("navmember: $page nav is the shared nav (marking its own links current)", str_contains($h, avh_mark_current($nav, avh_page_path(AV_ROOT, AV_ROOT . '/' . $page))));
 }
 
 $js = (string) file_get_contents(AV_ROOT . '/assets/site/avh.js');

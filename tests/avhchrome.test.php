@@ -24,7 +24,8 @@ foreach ($it as $f) {
     if (!str_ends_with($p, '.html') || str_contains($sub, '/vendor/') || str_contains($sub, '/node_modules/') || str_contains($sub, '/.claude/') || str_contains($sub, '/.git/')) continue;
     $h = (string) file_get_contents($p);
     $rel = substr($p, strlen(AV_ROOT) + 1);
-    if (str_contains($h, '<!-- avh:nav -->')) ck("avh chrome: $rel nav in sync (php tools/build-avh-chrome.php)", str_contains($h, "<!-- avh:nav -->\n" . $c['nav'] . "\n<!-- /avh:nav -->"));
+    // Each page's copy marks its own links aria-current="page", and nothing else differs.
+    if (str_contains($h, '<!-- avh:nav -->')) ck("avh chrome: $rel nav in sync (php tools/build-avh-chrome.php)", str_contains($h, "<!-- avh:nav -->\n" . avh_mark_current($c['nav'], avh_page_path(AV_ROOT, $p)) . "\n<!-- /avh:nav -->"));
     if (str_contains($h, '<!-- avh:foot -->')) ck("avh chrome: $rel footer in sync (php tools/build-avh-chrome.php)", str_contains($h, "<!-- avh:foot -->\n" . $c['foot'] . "\n<!-- /avh:foot -->"));
 }
 
