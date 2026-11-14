@@ -107,7 +107,7 @@ render_nav('diary');
 <?php if ($isFeature): $hcid = (int) ($a['cover_is_dark'] ?? -1); $heroTone = $hcid === 1 ? ' is-on-dark' : ($hcid === 0 ? ' is-on-light' : ''); ?>
       <header class="feature-hero<?= $heroTone ?>" style="background-image:url('<?= e($cover) ?>')">
         <div class="container">
-          <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/diary/">The Diary</a><span class="sep">/</span><span><?= e($a['category']) ?></span></nav>
+          <nav class="breadcrumb" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="/diary/">The Diary</a><span class="sep" aria-hidden="true">/</span></li><li><span aria-current="page"><?= e($a['category']) ?></span></li></ol></nav>
           <h1><?= e($a['title']) ?></h1>
           <p class="feature-dek"><?= e($a['dek']) ?></p>
         </div>

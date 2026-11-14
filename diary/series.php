@@ -40,7 +40,7 @@ render_nav('diary');
 <main id="main" tabindex="-1">
   <section class="series-page">
     <div class="container">
-      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/diary/">The Diary</a><span class="sep">/</span><span>Series</span></nav>
+      <nav class="breadcrumb" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="/diary/">The Diary</a><span class="sep" aria-hidden="true">/</span></li><li><span aria-current="page">Series</span></li></ol></nav>
       <p class="series-eyebrow"><?= count($posts) ?>-part series</p>
       <h1 class="series-page-title"><?= e($series['title']) ?></h1>
 <?php if (!empty($series['description'])): ?>      <p class="series-page-dek"><?= e($series['description']) ?></p>

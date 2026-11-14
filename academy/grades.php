@@ -39,7 +39,7 @@ render_head([
 ]);
 render_nav('academy');
 echo '<main id="main" tabindex="-1"><div class="container teach grd">';
-echo '<nav class="breadcrumb"><a href="' . e(academy_url($course['slug'] . '/')) . '">' . e((string) $course['title']) . '</a><span class="sep">/</span><span>Grades</span></nav>';
+echo '<nav class="breadcrumb" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="' . e(academy_url($course['slug'] . '/')) . '">' . e((string) $course['title']) . '</a><span class="sep" aria-hidden="true">/</span></li><li><span aria-current="page">Grades</span></li></ol></nav>';
 
 if (!$user) {
     echo '<div class="gate"><h2>Your grades</h2><p>Sign in to see your graded work for this course.</p><a class="btn btn-primary" href="/login?next=' . e(rawurlencode('/academy/' . $course['slug'] . '/grades/')) . '" data-auth="login">Sign in</a></div>';
