@@ -87,6 +87,45 @@ TaskMatch::autoAssign();
 ck('sweep: somebody not seen for two months is not handed work, however well they fit', $who($pool4) === 0);
 $tdp->prepare('UPDATE lms_users SET last_login = ? WHERE id = 9952')->execute([gmdate('Y-m-d H:i:s')]);
 
+/* The sweep against a person: a member who claims a task while the sweep is
+   still scoring it keeps it. The sweep used to assign as the task's creator,
+   whose branch ignored the holder, with no `assignee_id = 0` on the UPDATE —
+   so the claim was overwritten, and the member told about a task "nobody
+   had taken". The stand-in model is called mid-scoring, which is exactly
+   where a real claim lands while a real model is thinking. */
+$both = 'Collate the attendance register for the catering class at Egbeda';
+$race = Collab::addPoolTask(9951, $both); $tdp->prepare('UPDATE collab_tasks SET created_at = ? WHERE id = ?')->execute([$stale, $race]);
+$tdp->prepare('UPDATE lms_users SET last_login = ? WHERE id IN (9952, 9953)')->execute([gmdate('Y-m-d H:i:s')]);
+$ledgerOf = static fn(int $id) => (int) $tdp->query("SELECT COUNT(*) FROM task_assign_log WHERE task_id = " . $id . " AND event = 'assigned'")->fetchColumn();
+$noticesOf = static fn(int $id) => (int) $tdp->query("SELECT COUNT(*) FROM user_notifications WHERE dedupe_key LIKE 'task:" . $id . ":%'")->fetchColumn();
+$asked = 0;
+TaskMatch::$aiForTests = static function () use (&$asked, $race): array {
+    $asked++;
+    Collab::claimTask(9953, $race);   /* the clerk takes it while the model is thinking */
+    return ['ok' => true, 'text' => '[{"id":9952,"confidence":0.9,"why":"cooks"}]'];
+};
+TaskMatch::forget();
+$rr = TaskMatch::autoAssign();
+ck('sweep race: the stand-in model was asked (so the claim landed mid-scoring)', $asked >= 1);
+ck('sweep race: a member who claimed it while the sweep was scoring keeps it', $who($race) === 9953);
+ck('sweep race: nobody else is told it is theirs, and no ledger row says it was given', $noticesOf($race) === 0 && $ledgerOf($race) === 0 && $rr['assigned'] === 0);
+
+/* Two overlapping ticks: each read the task as untouched and each gave it
+   away — two notices, two ledger rows. A tick now claims the task before it
+   scores it, so the second finds nothing to do. */
+$race2 = Collab::addPoolTask(9951, $both); $tdp->prepare('UPDATE collab_tasks SET created_at = ? WHERE id = ?')->execute([$stale, $race2]);
+$nested = 0;
+TaskMatch::$aiForTests = static function () use (&$nested): array {
+    if ($nested++ === 0) { TaskMatch::forget(); TaskMatch::autoAssign(); }   /* a second tick starts while this one scores */
+    return ['ok' => true, 'text' => '[{"id":9952,"confidence":0.9,"why":"cooks"}]'];
+};
+TaskMatch::forget();
+TaskMatch::autoAssign();
+TaskMatch::$aiForTests = null;
+ck('sweep race: two overlapping ticks give the task once', $who($race2) === 9952 && $ledgerOf($race2) === 1);
+ck('sweep race: and its assignee is told once', $noticesOf($race2) === 1);
+ck('sweep race: and the second tick does not score it at all (one model call, not two)', $nested === 1);
+
 /* ── Tailored: a member, a volunteer, a learner ── */
 $mem = $mk(9960, 'Mo Member', 'mo.td@afrovanguard.org.ng', 'member');
 $md = Todo::for($mem);

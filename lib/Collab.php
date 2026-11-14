@@ -296,7 +296,15 @@ final class Collab
         $u->execute([$assigneeId]);
         if (!$u->fetchColumn()) return null;
         if (class_exists('TaskMatch')) TaskMatch::ensure();
-        Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ?, assigned_at = ?, assigned_by = ? WHERE id = ?')->execute([$assigneeId, gmdate('Y-m-d H:i:s'), (string) $uid, $taskId]);
+        /* The sweep (TaskMatch::autoAssign) assigns as the task's creator, and
+           the creator may take a task back from whoever holds it — but the
+           sweep only ever means a task nobody took. A member who claimed it
+           while the sweep was scoring keeps it: the UPDATE says so, and when
+           it changes nothing there is no notice and no ledger row. */
+        $auto = $via === 'auto';
+        $up = Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ?, assigned_at = ?, assigned_by = ? WHERE id = ?' . ($auto ? ' AND assignee_id = 0 AND done = 0' : ''));
+        $up->execute([$assigneeId, gmdate('Y-m-d H:i:s'), (string) $uid, $taskId]);
+        if ($auto && $up->rowCount() === 0) return null;
         if ($assigneeId !== $uid && class_exists('Notifications')) {
             try { Notifications::push($assigneeId, 'task', 'New task: ' . $t['title'], ($why !== '' ? $why : 'Assigned to you by ' . self::nameOf($uid) . '.'), '/portal/#tasks', 'task:' . $taskId . ':' . $assigneeId); }
             catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }

@@ -630,6 +630,14 @@ final class TaskMatch
         $st = Database::pdo()->prepare("SELECT * FROM collab_tasks WHERE assignee_id = 0 AND done = 0 AND auto_assigned_at = '' AND created_at <> '' AND created_at <= ? ORDER BY id ASC LIMIT " . max(1, $max));
         $st->execute([gmdate('Y-m-d H:i:s', $now - $hours * 3600)]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
+            /* Claimed for this tick before it is scored, and marked either way:
+               a task nobody fits is not re-scored every tick. The read above is
+               not a claim — two overlapping ticks (a slow model, a web cron and
+               a shell cron) both saw the task untouched and both gave it away,
+               two notices and two ledger rows. The compare-and-set lets one. */
+            $claim = Database::pdo()->prepare("UPDATE collab_tasks SET auto_assigned_at = ? WHERE id = ? AND auto_assigned_at = '' AND assignee_id = 0 AND done = 0");
+            $claim->execute([gmdate('Y-m-d H:i:s', $now), (int) $t['id']]);
+            if ($claim->rowCount() === 0) continue;
             $title = (string) $t['title'];
             /* Given without asking, so only to somebody who fits well, is not loaded, and has been here lately. */
             $short = array_values(array_filter(self::shortlist($title, 10, '', [(int) $t['creator_id']], $t),
@@ -641,8 +649,6 @@ final class TaskMatch
                    model did not answer: the labels decide, as without AI. */
                 if (!self::$aiFailed) $pick = $ai[0] ?? null;
             }
-            /* Marked either way: a task nobody fits is not re-scored every tick. */
-            Database::pdo()->prepare('UPDATE collab_tasks SET auto_assigned_at = ? WHERE id = ?')->execute([gmdate('Y-m-d H:i:s', $now), (int) $t['id']]);
             if (!$pick) { $out['left']++; continue; }
             $why = 'Nobody had taken it in ' . $hours . ' hours, and it fits you: ' . ($pick['why'][0] ?? $pick['summary']) . '. Not for you? Hand it back to the pool from Tasks.';
             if (Collab::assignTask((int) $t['creator_id'], (int) $t['id'], (int) $pick['id'], true, $why, 'auto')) {
