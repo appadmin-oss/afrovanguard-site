@@ -70,7 +70,10 @@ function av_team_ensure(PDO $pdo): void
         "ALTER TABLE team ADD COLUMN listed_consent_at TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE team ADD COLUMN listed_consent_text TEXT NOT NULL DEFAULT ''",
     ] as $sql) {
-        try { $pdo->exec($sql); } catch (\Throwable $e) { /* column already present */ }
+        /* Through execSchema, not a bare exec: these are SQLite DDL, and a
+           literal default on TEXT is error 1101 on MySQL 8 until translateDDL
+           has rewritten it. A column already present is a benign error there. */
+        try { Database::execSchema($pdo, $sql); } catch (\Throwable $e) { /* column already present */ }
     }
 }
 

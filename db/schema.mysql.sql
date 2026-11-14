@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS articles (
   published     TEXT NOT NULL,          -- human display date, e.g. "Jun 18, 2026"
   published_at  VARCHAR(32) NOT NULL,   -- ISO date for ordering, e.g. "2026-06-18" (VARCHAR so MySQL can index it)
   read_minutes  INTEGER NOT NULL DEFAULT 5,
-  gradient      TEXT NOT NULL DEFAULT 'g-gold',
+  gradient      TEXT NOT NULL DEFAULT ('g-gold'),
   mc_session    TEXT,
   mc_title      TEXT,
   mc_tag        TEXT,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS articles (
   base_claps    INTEGER NOT NULL DEFAULT 0,
   featured      INTEGER NOT NULL DEFAULT 0,
   status        VARCHAR(32) NOT NULL DEFAULT 'published',  -- draft | published (VARCHAR so MySQL can index it)
-  format        TEXT NOT NULL DEFAULT 'standard',   -- standard | qa | feature
+  format        TEXT NOT NULL DEFAULT ('standard'),   -- standard | qa | feature
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS reactions (
 CREATE TABLE IF NOT EXISTS subscribers (
   id          INTEGER PRIMARY KEY AUTO_INCREMENT,
   email       VARCHAR(191) UNIQUE NOT NULL,
-  source      TEXT NOT NULL DEFAULT 'diary',
+  source      TEXT NOT NULL DEFAULT ('diary'),
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -82,25 +82,25 @@ CREATE TABLE IF NOT EXISTS courses (
   id            INTEGER PRIMARY KEY AUTO_INCREMENT,
   slug          VARCHAR(191) UNIQUE NOT NULL,
   title         TEXT NOT NULL,
-  summary       TEXT NOT NULL DEFAULT '',
-  body_html     TEXT NOT NULL DEFAULT '',
+  summary       TEXT NOT NULL DEFAULT (''),
+  body_html     TEXT NOT NULL DEFAULT (''),
   cover_url     TEXT,
   og_image      TEXT,
-  category      TEXT NOT NULL DEFAULT 'Programme',
-  level         TEXT NOT NULL DEFAULT 'All levels',
-  format        TEXT NOT NULL DEFAULT 'In-person',
-  duration      TEXT NOT NULL DEFAULT '',
-  price         TEXT NOT NULL DEFAULT 'Free',
-  location      TEXT NOT NULL DEFAULT 'Alimosho, Lagos',
-  gradient      TEXT NOT NULL DEFAULT 'g-gold',
-  outcomes      TEXT NOT NULL DEFAULT '',   -- newline-separated
+  category      TEXT NOT NULL DEFAULT ('Programme'),
+  level         TEXT NOT NULL DEFAULT ('All levels'),
+  format        TEXT NOT NULL DEFAULT ('In-person'),
+  duration      TEXT NOT NULL DEFAULT (''),
+  price         TEXT NOT NULL DEFAULT ('Free'),
+  location      TEXT NOT NULL DEFAULT ('Alimosho, Lagos'),
+  gradient      TEXT NOT NULL DEFAULT ('g-gold'),
+  outcomes      TEXT NOT NULL DEFAULT (''),   -- newline-separated
   cta_url       TEXT,
   featured      INTEGER NOT NULL DEFAULT 0,
   status        VARCHAR(32) NOT NULL DEFAULT 'published',
   sort          INTEGER NOT NULL DEFAULT 0,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  access_type   TEXT NOT NULL DEFAULT 'open',   -- open | tracked | membership | paid | restricted (also added by ensureAcademy)
+  access_type   TEXT NOT NULL DEFAULT ('open'),   -- open | tracked | membership | paid | restricted (also added by ensureAcademy)
   price_ngn     INTEGER NOT NULL DEFAULT 0,
   instructor_id INTEGER,
   pass_code     VARCHAR(191) NOT NULL DEFAULT '', -- access_type=restricted: any member holding this pass gets in
@@ -126,8 +126,8 @@ CREATE TABLE IF NOT EXISTS lms_users (
   name          TEXT NOT NULL,
   email         VARCHAR(191) UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
-  role          TEXT NOT NULL DEFAULT 'learner',   -- learner | instructor | admin
-  status        TEXT NOT NULL DEFAULT 'active',
+  role          TEXT NOT NULL DEFAULT ('learner'),   -- learner | instructor | admin
+  status        TEXT NOT NULL DEFAULT ('active'),
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_login    TEXT,
   email_verified INTEGER NOT NULL DEFAULT 0,   -- email-verification (also added by ensureLmsVerify on old DBs)
@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS lessons (
   course_id    INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
   slug         TEXT NOT NULL,
   title        TEXT NOT NULL,
-  body_html    TEXT NOT NULL DEFAULT '',
+  body_html    TEXT NOT NULL DEFAULT (''),
   video_url    TEXT,
   duration_min INTEGER NOT NULL DEFAULT 0,
   is_preview   INTEGER NOT NULL DEFAULT 0,
@@ -187,8 +187,8 @@ CREATE TABLE IF NOT EXISTS lesson_notes (
 CREATE TABLE IF NOT EXISTS memberships (
   id         INTEGER PRIMARY KEY AUTO_INCREMENT,
   user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
-  tier       TEXT NOT NULL DEFAULT 'member',
-  status     TEXT NOT NULL DEFAULT 'active',     -- active | expired | cancelled
+  tier       TEXT NOT NULL DEFAULT ('member'),
+  status     TEXT NOT NULL DEFAULT ('active'),     -- active | expired | cancelled
   started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at TEXT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -232,12 +232,12 @@ CREATE TABLE IF NOT EXISTS payments (
   id          INTEGER PRIMARY KEY AUTO_INCREMENT,
   reference   VARCHAR(191) UNIQUE NOT NULL,
   user_id     INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
-  provider    TEXT NOT NULL DEFAULT 'paystack',   -- paystack | flutterwave
+  provider    TEXT NOT NULL DEFAULT ('paystack'),   -- paystack | flutterwave
   kind        TEXT NOT NULL,                       -- course | membership
   course_id   INTEGER,
   amount_kobo INTEGER NOT NULL DEFAULT 0,
-  currency    TEXT NOT NULL DEFAULT 'NGN',
-  status      TEXT NOT NULL DEFAULT 'pending',     -- pending | paid | failed
+  currency    TEXT NOT NULL DEFAULT ('NGN'),
+  status      TEXT NOT NULL DEFAULT ('pending'),     -- pending | paid | failed
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   paid_at     TEXT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -251,7 +251,7 @@ CREATE TABLE IF NOT EXISTS diary_entries (
   id             INTEGER PRIMARY KEY AUTO_INCREMENT,
   author_id      INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
   kind           VARCHAR(32) NOT NULL DEFAULT 'private',  -- event | private | public (VARCHAR so MySQL can index it)
-  title          TEXT NOT NULL DEFAULT '',
+  title          TEXT NOT NULL DEFAULT (''),
   body           TEXT NOT NULL,                       -- plain text; escaped on render
   entry_date     VARCHAR(32) NOT NULL,                -- ISO date, backdatable (VARCHAR so MySQL can index it)
   status         VARCHAR(32) NOT NULL DEFAULT 'logged',   -- logged | pending | approved | rejected (VARCHAR so MySQL can index it)
@@ -269,7 +269,7 @@ CREATE INDEX idx_diary_entries_mod    ON diary_entries(kind, status);
 -- year wrap for festive windows). See lib/AuthArt.php.
 CREATE TABLE IF NOT EXISTS auth_illustrations (
   id            INTEGER PRIMARY KEY AUTO_INCREMENT,
-  label         TEXT NOT NULL DEFAULT '',
+  label         TEXT NOT NULL DEFAULT (''),
   image_url     TEXT NOT NULL,
   active        INTEGER NOT NULL DEFAULT 1,
   schedule_kind VARCHAR(32) NOT NULL DEFAULT 'always',  -- always | range | annual (VARCHAR so MySQL can index it)
@@ -285,9 +285,9 @@ CREATE INDEX idx_auth_art_active ON auth_illustrations(active, schedule_kind);
 -- ── Member-management audit trail (Studio) ──
 CREATE TABLE IF NOT EXISTS lms_audit (
   id         INTEGER PRIMARY KEY AUTO_INCREMENT,
-  actor      TEXT NOT NULL DEFAULT 'admin',
+  actor      TEXT NOT NULL DEFAULT ('admin'),
   action     TEXT NOT NULL,
-  target     TEXT NOT NULL DEFAULT '',
-  detail     TEXT NOT NULL DEFAULT '',
+  target     TEXT NOT NULL DEFAULT (''),
+  detail     TEXT NOT NULL DEFAULT (''),
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -904,7 +904,8 @@ final class LmsRepository
         }
         // Additive: older audit tables (any driver) gain the ip column.
         try { if (class_exists('Database') && Database::tableExists('lms_audit') && !Database::columnExists('lms_audit', 'ip')) {
-            $this->db->exec("ALTER TABLE lms_audit ADD COLUMN ip TEXT NOT NULL DEFAULT ''");
+            /* translated: a bare literal default on TEXT is error 1101 on MySQL 8 */
+            Database::execSchema($this->db, "ALTER TABLE lms_audit ADD COLUMN ip TEXT NOT NULL DEFAULT ''");
         } } catch (Throwable $e) { /* best-effort */ }
     }
     /**

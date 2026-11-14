@@ -159,7 +159,12 @@ idempotency, payment finalize, and the `celebrations`/`team` lazy tables):
 ## Remaining caveats
 
 - **MySQL/MariaDB version**: needs **InnoDB + `utf8mb4`** (the generated DDL sets
-  this). `DEFAULT` on `TEXT` columns requires **MySQL ≥ 8.0.13 / MariaDB ≥ 10.2**;
+  this). A `DEFAULT` on a `TEXT` column needs **MariaDB ≥ 10.2** (any form) or
+  **MySQL ≥ 8.0.13 — and on MySQL only as a parenthesised expression**:
+  `DEFAULT ('')` is accepted, `DEFAULT ''` is error 1101 on every MySQL version.
+  `translateDDL()` writes the expression form; a statement that bypasses it
+  (a bare `->exec()` of SQLite DDL) is refused on MySQL 8, and
+  `tests/ddltextdefault.test.php` sweeps for both;
   descending indexes are honoured on **MySQL ≥ 8.0 / MariaDB ≥ 10.8** (older
   versions treat them as ascending — harmless). Validated on MariaDB 10.11.
 - **Data migration**: the schema files create empty tables only. Copy existing

@@ -816,6 +816,23 @@ final class Database
             $sql = preg_replace('/\n([ \t]*)\);/', "\n\$1) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", $sql);
             // MySQL lacks IF NOT EXISTS on indexes — strip it for both plain and UNIQUE indexes.
             $sql = preg_replace('/CREATE\s+(UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS/i', 'CREATE $1INDEX', $sql);
+            /* MySQL 8 refuses a LITERAL default on a TEXT/BLOB column outright
+               (error 1101) and accepts only an expression: DEFAULT ('') works,
+               DEFAULT '' does not. MariaDB ≥ 10.2 takes either, which is how
+               `TEXT NOT NULL DEFAULT ''` — the house column — passed every
+               MariaDB validation while collab_tasks, av_settings and dozens
+               more were never created on MySQL 8: execSchema() logs the 1101
+               and carries on, and the feature 500s on its first query.
+               Wrapping the literal keeps the type (VARCHAR(191) would truncate
+               a bio or a reflection under strict mode) and the same default on
+               both engines. Only a literal is wrapped: NULL is legal bare,
+               CURRENT_TIMESTAMP was promoted to DATETIME above, and an
+               expression is already in parentheses. Postgres takes a TEXT
+               default as it is, so this is MySQL-only. Migrator::createLike()
+               writes its defaults the same way. */
+            $sql = preg_replace(
+                "/\\b((?:TINY|MEDIUM|LONG)?(?:TEXT|BLOB)(?:\\s+(?:NOT\\s+NULL|NULL|COLLATE\\s+\\w+|CHARACTER\\s+SET\\s+\\w+))*\\s+DEFAULT\\s+)('(?:[^']|'')*'|-?\\d+(?:\\.\\d+)?)/i",
+                '$1($2)', $sql);
         }
         return $sql;
     }

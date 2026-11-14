@@ -40,7 +40,9 @@ $meta = function (string $table) use ($my): array {
                         WHERE table_schema = DATABASE() AND table_name = ?');
     $st->execute([$table]);
     $out = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $out[strtolower((string) $r['column_name'])] = $r;
+    /* MySQL 8 names information_schema's columns in capitals (COLUMN_NAME);
+       MariaDB in lower case. Read them case-blind or every lookup is empty. */
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) { $r = array_change_key_case($r, CASE_LOWER); $out[strtolower((string) $r['column_name'])] = $r; }
     return $out;
 };
 
@@ -107,3 +109,17 @@ ck('mysql: and the repaired timestamp populates itself',
 
 ck('mysql: the sync is idempotent', Database::syncTablesFromDdl($my, $ddl, 'mysql', 'test') === 0);
 $my->exec('DROP TABLE IF EXISTS t_my_sync');
+
+/* A literal default on TEXT is error 1101 on MySQL 8 (MariaDB takes it, which
+   is how it passed every earlier run here). execSchema logs and carries on, so
+   the only symptom was a table that never existed — collab_tasks among them. */
+$my->exec('DROP TABLE IF EXISTS t_my_textdef');
+Database::execSchema($my, "CREATE TABLE IF NOT EXISTS t_my_textdef (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  due TEXT NOT NULL DEFAULT '',\n  kind TEXT NOT NULL DEFAULT 'normal'\n)");
+$tdm = $meta('t_my_textdef');
+ck('mysql: a table whose TEXT columns carry literal defaults is created', isset($tdm['due'], $tdm['kind']));
+if ($tdm) {
+    $my->exec('INSERT INTO t_my_textdef () VALUES ()');
+    $tdr = $my->query('SELECT due, kind FROM t_my_textdef')->fetch(PDO::FETCH_ASSOC);
+    ck('mysql: and the defaults are the ones the DDL named', ($tdr['due'] ?? null) === '' && ($tdr['kind'] ?? null) === 'normal');
+}
+$my->exec('DROP TABLE IF EXISTS t_my_textdef');
