@@ -26,9 +26,41 @@ cacentre-site `finance/`, ADR 56.
 
 Held by `tests/cfisfinance.test.php` here and `tests/Feature/Requests/RequestCategoriesTest.php` in CFIS; each rule was broken on purpose and its test failed.
 
+## Follow-up, 14 November 2026 (CFIS ADR 58)
+
+The CFIS side (`finance/docs/api.md`) gained one middleware for every signed property call, a stable
+`code` on every refusal, a spent nonce on calls that change something, `/api/v1/...` beside every
+existing path, and four member-request endpoints. The portal now uses them:
+
+- **Withdraw.** Requests nobody has decided show a *Withdraw* button (with a confirm). One kept here
+  and never sent is withdrawn here and never sent; one in CFIS is withdrawn there by our own
+  reference, and CFIS refuses once a decision or payment exists. Nothing is deleted on either side.
+- **Where it is, and why.** Each request shows CFIS's stage ("Waiting for approval — step 2 of 3",
+  "Paid on 12 Nov 2026") and, when refused, the reason the approver gave — the words CFIS already
+  emailed the member. Nothing else said inside finance reaches the page.
+- **Earlier requests.** What the member asked for from another device or account, from CFIS's own
+  record by their email, listed under *Earlier requests* without repeating anything already shown.
+- **The bank.** A bank picker from CFIS's list (fetched with the status, kept a day), and "The bank
+  has this account as …" before sending. A lookup that cannot be made says so and never stops a send.
+  It has its own allowance, separate from the eight requests an hour.
+- **Several lines** (up to ten, each with its own kind of spending, a running total) with
+  *+ Add another line*; without script the single line posts as before. **Needed by** is on the form.
+
+Every call mints a fresh envelope (CFIS now refuses a re-sent one as a replay). Against a CFIS
+deployed before ADR 58 the new endpoints answer 404 with no `code`; the portal reads that as "not
+offered yet" — no earlier list, "ask finance to cancel" for a withdrawal, "could not check" for a
+name — and everything that worked before still does. Held by `tests/cfisrequestsfollow.test.php`.
+
+**Deploy order:** CFIS first, then this site. Either order is safe; only CFIS-first gives members
+the new features on the day the portal ships.
+
 ## Still open
 
-- A member cannot withdraw a request once CFIS has it, and is not told the reason a request was refused (deliberately — CFIS keeps what was said inside finance).
-- No account-name check on the bank details a member types; CFIS can resolve names from the bank (it does on its own form) but the portal does not ask it yet.
-- The member history in CFIS (`historyFor`) has no route, so a member who changes account still cannot see older claims.
-- Receipts on a request kept here are sent only when CFIS answers; a request older than 60 days is no longer sent by itself.
+- A request sent back to finance's desk for correction cannot be withdrawn or corrected by the member;
+  CFIS treats it as decided. They hear from finance.
+- Receipts on a request kept here are sent only when CFIS answers; a request older than 60 days is no
+  longer sent by itself.
+- The bank name is shown, never required to match the account name typed; CFIS checks it again
+  before paying.
+- The new calls use `/api/v1/`; the existing ones still use the unversioned paths, which CFIS keeps
+  as aliases. Moving them is a one-line change each once every CFIS in use has `v1`.

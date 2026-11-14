@@ -106,6 +106,22 @@ final class CfisRequests
     /** Kept requests older than this are no longer sent by themselves; the member sends them again. */
     private const PENDING_DAYS = 60;
 
+    /** Lines one request may carry; CFIS's own figure (`max_lines`) is the same. */
+    public const MAX_LINES = 10;
+
+    /** How long the bank list CFIS publishes is kept here before it is asked for again. */
+    private const BANKS_TTL = 86400;
+
+    /**
+     * The wire, replaceable. Null is curl to CFIS; the suite puts a function
+     * here — fn (string $path, array $claims, array $extra): array{0:int, 1:?array}
+     * returning the HTTP status and the decoded answer — so the portal's half
+     * of every endpoint can be driven without a CFIS to talk to.
+     *
+     * @var null|callable(string, array, array): array{0:int, 1:?array}
+     */
+    public static $transport = null;
+
     public static function configured(): bool
     {
         return CfisCheckout::configured();
@@ -141,7 +157,9 @@ final class CfisRequests
            receipts themselves (name, hash, and where the file waits until
            finance has it), kept with a request that waits. */
         foreach (['bank' => 'TEXT', 'asker_name' => "VARCHAR(160) NOT NULL DEFAULT ''", 'asker_email' => "VARCHAR(191) NOT NULL DEFAULT ''",
-                  'claim_kind' => "VARCHAR(16) NOT NULL DEFAULT 'advance'", 'no_receipt' => 'TEXT', 'evidence' => 'TEXT'] as $col => $decl) {
+                  'claim_kind' => "VARCHAR(16) NOT NULL DEFAULT 'advance'", 'no_receipt' => 'TEXT', 'evidence' => 'TEXT',
+                  /* Several things in one request (CFIS ADR 58), and the day it is needed by. */
+                  'lines' => 'TEXT', 'needed_by' => "VARCHAR(10) NOT NULL DEFAULT ''"] as $col => $decl) {
             try {
                 if (!Database::columnExists('cfis_member_requests', $col)) Database::pdo()->exec("ALTER TABLE cfis_member_requests ADD COLUMN $col $decl");
             } catch (Throwable $e) {}
@@ -165,6 +183,35 @@ final class CfisRequests
 
         if ($title === '' || $purpose === '') {
             return ['ok' => false, 'error' => 'Say what the money is for, and why it is needed.'];
+        }
+
+        /* Several things in one request: a fare, a night and a printing
+           bill for one trip are one claim, not three ladders. The form adds
+           lines only with script; without it the one line above posts as it
+           always did. One line sent as a list is just that one line. */
+        $lines = self::linesFrom($in['lines'] ?? null);
+        if (isset($lines['error'])) return ['ok' => false, 'error' => $lines['error']];
+        $lines = $lines['lines'];
+        if (count($lines) === 1) {
+            $category = $lines[0]['category'];
+            $amount = $lines[0]['minor'] / 100;
+            $lines = [];
+        } elseif ($lines !== []) {
+            $category = $lines[0]['category'];
+            $amount = array_sum(array_column($lines, 'minor')) / 100;
+        }
+
+        /* Needed by: optional, a real date, not in the past. CFIS ignores a
+           past one; refusing it here says so while the member can fix it. */
+        $neededBy = trim((string) ($in['needed_by'] ?? ''));
+        if ($neededBy !== '') {
+            $d = DateTime::createFromFormat('!Y-m-d', $neededBy);
+            if (!$d || $d->format('Y-m-d') !== $neededBy) {
+                return ['ok' => false, 'error' => 'Give the date it is needed by as a date, or leave it empty.'];
+            }
+            if ($neededBy < gmdate('Y-m-d')) {
+                return ['ok' => false, 'error' => 'The date it is needed by has already passed.'];
+            }
         }
         if ($amount < self::MIN_NGN) {
             return ['ok' => false, 'error' => 'A request has to be for at least ₦' . number_format(self::MIN_NGN) . '.'];
@@ -210,15 +257,18 @@ final class CfisRequests
         $evidence = self::keep($ref, $receipts['files']);
 
         $pdo = Database::pdo();
+        $linesJson = $lines === [] ? '' : (string) json_encode(array_map(
+            fn ($l) => ['description' => $l['description'], 'category' => $l['category'], 'minor' => $l['minor']], $lines));
         $st = $pdo->prepare("INSERT INTO cfis_member_requests
-            (user_id, ref, title, purpose, category, amount_minor, status, created_at, updated_at, bank, asker_name, asker_email, claim_kind, no_receipt, evidence)
-            VALUES (?, ?, ?, ?, ?, ?, 'unsent', ?, ?, ?, ?, ?, ?, ?, ?)");
+            (user_id, ref, title, purpose, category, amount_minor, status, created_at, updated_at, bank, asker_name, asker_email, claim_kind, no_receipt, evidence, lines, needed_by)
+            VALUES (?, ?, ?, ?, ?, ?, 'unsent', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $st->execute([$userId, $ref, mb_substr($title, 0, 160), $purpose, $category, $minor, $now, $now, (string) json_encode($bank),
-                      mb_substr($name, 0, 160), mb_substr(strtolower($email), 0, 191), $claimKind, $noReceipt, (string) json_encode($evidence)]);
+                      mb_substr($name, 0, 160), mb_substr(strtolower($email), 0, 191), $claimKind, $noReceipt, (string) json_encode($evidence),
+                      $linesJson, $neededBy]);
         $id = (int) $pdo->lastInsertId();
         $row = ['id' => $id, 'ref' => $ref, 'title' => $title, 'purpose' => $purpose, 'category' => $category,
                 'amount_minor' => $minor, 'bank' => json_encode($bank), 'claim_kind' => $claimKind,
-                'no_receipt' => $noReceipt, 'evidence' => json_encode($evidence)];
+                'no_receipt' => $noReceipt, 'evidence' => json_encode($evidence), 'lines' => $linesJson, 'needed_by' => $neededBy];
 
         if (!self::configured()) {
             $pdo->prepare("UPDATE cfis_member_requests SET last_error = ? WHERE id = ?")
@@ -289,6 +339,19 @@ final class CfisRequests
             'claim_kind' => (string) ($row['claim_kind'] ?? 'advance') === 'reimbursement' ? 'reimbursement' : 'advance',
         ] + (is_array($bank) ? $bank : []);
         if (trim((string) ($row['no_receipt'] ?? '')) !== '') $claims['no_receipt_reason'] = (string) $row['no_receipt'];
+        /* The lines, each under its own heading. `amount` and `category`
+           above still carry the total and the first line's heading, so a
+           CFIS from before lines books the whole of it under that one
+           heading rather than refusing it. */
+        $lines = json_decode((string) ($row['lines'] ?? ''), true);
+        if (is_array($lines) && count($lines) > 1) {
+            $claims['lines'] = array_map(fn ($l) => [
+                'description' => (string) ($l['description'] ?? ''),
+                'category' => (string) ($l['category'] ?? ''),
+                'amount' => number_format(((int) ($l['minor'] ?? 0)) / 100, 2, '.', ''),
+            ], array_values(array_filter($lines, 'is_array')));
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($row['needed_by'] ?? ''))) $claims['needed_by'] = (string) $row['needed_by'];
         $evidence = self::evidenceOf($row);
         if ($evidence !== []) {
             $claims['evidence'] = array_map(fn ($e) => ['name' => $e['name'], 'sha256' => $e['sha256']], $evidence);
@@ -301,6 +364,38 @@ final class CfisRequests
     {
         $e = json_decode((string) ($row['evidence'] ?? ''), true);
         return is_array($e) ? array_values(array_filter($e, fn ($x) => is_array($x) && !empty($x['sha256']))) : [];
+    }
+
+    /**
+     * The lines a member added, checked before anything is written.
+     *
+     * From JSON (a list of objects) or a multipart form (`lines[0][amount]`
+     * arrives as the same nested array). Rows left entirely blank are
+     * dropped — a form with an empty last row is not an error.
+     *
+     * @return array{lines: list<array{description:string, category:string, minor:int}>, error?: string}
+     */
+    private static function linesFrom(mixed $raw): array
+    {
+        if (!is_array($raw)) return ['lines' => []];
+        $out = [];
+        foreach (array_values($raw) as $l) {
+            if (!is_array($l)) continue;
+            $description = mb_substr(trim((string) ($l['description'] ?? '')), 0, 160);
+            $category = trim((string) ($l['category'] ?? ''));
+            $amountRaw = trim((string) ($l['amount'] ?? ''));
+            if ($description === '' && $amountRaw === '') continue;
+            $n = count($out) + 1;
+            if ($description === '') return ['lines' => [], 'error' => 'Line ' . $n . ': say what it is for.'];
+            if ($category === '') return ['lines' => [], 'error' => 'Line ' . $n . ': choose what kind of spending it is.'];
+            $minor = (int) round(((float) $amountRaw) * 100);
+            if ($minor <= 0) return ['lines' => [], 'error' => 'Line ' . $n . ': give an amount, or remove the line.'];
+            $out[] = ['description' => $description, 'category' => $category, 'minor' => $minor];
+        }
+        if (count($out) > self::MAX_LINES) {
+            return ['lines' => [], 'error' => 'Up to ' . self::MAX_LINES . ' lines in one request. Ask for the rest separately.'];
+        }
+        return ['lines' => $out];
     }
 
     /**
@@ -446,9 +541,94 @@ final class CfisRequests
 
         if (!$row) return ['ok' => false, 'error' => 'No such request.'];
         if (($row['cfis_reference'] ?? '') !== '') return ['ok' => true, 'reference' => $row['cfis_reference']];
+        /* Withdrawn before it was sent: it stays withdrawn. */
+        if ((string) $row['status'] !== 'unsent') return ['ok' => false, 'error' => 'This request was withdrawn, so it is not sent.'];
 
         if (!self::configured()) return ['ok' => false, 'error' => 'Finance is not connected yet. Your request is kept and goes by itself as soon as it is.'];
         return self::send((int) $row['id'], (string) $row['ref'], self::claimsOf($row, $name, $email), self::evidenceOf($row));
+    }
+
+    /**
+     * Take a request back while nobody has decided it (CFIS ADR 58).
+     *
+     * One kept here and never sent is withdrawn HERE: it is marked and is
+     * never sent, and finance — which never had it — is asked nothing. The
+     * UPDATE is conditional on it still being unsent, so a cron send racing
+     * this press either wins (and the withdrawal then goes to finance) or
+     * loses (and the request never leaves).
+     *
+     * One finance has is withdrawn in CFIS, by our own reference, which
+     * refuses once any decision or payment exists. Nothing is deleted on
+     * either side.
+     *
+     * @return array{ok: bool, error?: string, message?: string, local?: bool}
+     */
+    public static function withdraw(int $userId, int $id, string $email): array
+    {
+        self::table();
+        $pdo = Database::pdo();
+        $st = $pdo->prepare("SELECT * FROM cfis_member_requests WHERE id = ? AND user_id = ?");
+        $st->execute([$id, $userId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return ['ok' => false, 'error' => 'No such request.'];
+        if (in_array((string) $row['status'], ['withdrawn', 'cancelled'], true)) {
+            return ['ok' => true, 'message' => 'Already withdrawn.'];
+        }
+
+        if ((string) $row['cfis_reference'] === '') {
+            $up = $pdo->prepare("UPDATE cfis_member_requests SET status = 'withdrawn', last_error = NULL, updated_at = ?
+                                  WHERE id = ? AND cfis_reference = '' AND status = 'unsent'");
+            $up->execute([gmdate('c'), $id]);
+            if ($up->rowCount() === 1) {
+                /* Its receipts were kept only to go with it. */
+                foreach (self::evidenceOf($row) as $e) if (is_file((string) ($e['path'] ?? ''))) @unlink((string) $e['path']);
+                return ['ok' => true, 'local' => true, 'message' => 'Withdrawn. It had not reached finance, and now it never will.'];
+            }
+            /* Sent while the member was pressing: withdraw it there instead. */
+            $st->execute([$id, $userId]);
+            $row = $st->fetch(PDO::FETCH_ASSOC) ?: $row;
+        }
+
+        if (!self::configured()) return ['ok' => false, 'error' => 'Finance is not connected, so this cannot be withdrawn just now.'];
+        $email = strtolower(trim((string) ($row['asker_email'] ?? '') ?: $email));
+        $r = self::post(self::v1('/withdraw'), ['ref' => (string) $row['ref'], 'email' => $email]);
+        if (!empty($r['missing'])) {
+            return ['ok' => false, 'error' => 'Finance cannot take a withdrawal from here yet. Ask finance to cancel ' . ((string) $row['cfis_reference'] ?: (string) $row['ref']) . '.'];
+        }
+        if (empty($r['ok'])) {
+            return ['ok' => false, 'error' => (string) ($r['error'] ?? 'Finance could not be reached. Try again in a moment.')];
+        }
+        $pdo->prepare("UPDATE cfis_member_requests SET status = 'cancelled', updated_at = ? WHERE id = ?")->execute([gmdate('c'), $id]);
+        return ['ok' => true, 'message' => 'Withdrawn. Finance will not consider it.'];
+    }
+
+    /**
+     * The name the bank holds for an account, so the form can show it
+     * before the member sends. NEVER a reason not to send: anything short of
+     * an answer — finance not connected, not answering, an older CFIS, the
+     * bank's lookup down, too many checks — is `checked: false`.
+     *
+     * @return array{ok: true, name: ?string, checked: bool, note?: string}
+     */
+    public static function accountName(string $email, string $number, string $bankCode): array
+    {
+        $number = preg_replace('/\D+/', '', $number) ?: '';
+        $bankCode = trim($bankCode);
+        $none = ['ok' => true, 'name' => null, 'checked' => false];
+        if (strlen($number) !== 10 || $bankCode === '' || !self::configured()) return $none;
+
+        $r = self::post(self::v1('/account-name'), ['email' => strtolower(trim($email)), 'account_number' => $number, 'bank_code' => $bankCode]);
+        if (empty($r['ok'])) {
+            return $none + (($r['code'] ?? '') === 'throttled' ? ['note' => (string) ($r['error'] ?? '')] : []);
+        }
+        $name = trim((string) ($r['name'] ?? ''));
+        return ['ok' => true, 'name' => $name !== '' ? $name : null, 'checked' => (bool) ($r['checked'] ?? false)];
+    }
+
+    /** A new endpoint on the versioned address (CFIS docs/api.md). */
+    private static function v1(string $tail): string
+    {
+        return '/api/v1/requests/' . rawurlencode(CfisCheckout::source()) . $tail;
     }
 
     /* ── looking ────────────────────────────────────────────────────── */
@@ -463,7 +643,7 @@ final class CfisRequests
      *
      * @return array{ok: bool, requests: list<array<string,mixed>>, categories: list<string>, max?: string, finance_reachable: bool}
      */
-    public static function forUser(int $userId): array
+    public static function forUser(int $userId, string $email = ''): array
     {
         self::table();
 
@@ -473,10 +653,14 @@ final class CfisRequests
         $st->execute([$userId]);
         $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+        /* The bank list is asked for with the status, when the copy here is
+           a day old: two hundred names do not need fetching per page. */
+        $banks = self::cachedBanks();
         $live = self::post('/api/requests/' . rawurlencode(CfisCheckout::source()) . '/status', [
             'refs' => array_values(array_map(fn ($r) => (string) $r['ref'], $rows)),
-        ]);
+        ] + ($banks === null ? ['banks' => true] : []));
         $reachable = (bool) ($live['ok'] ?? false);
+        if ($reachable && is_array($live['banks'] ?? null)) $banks = self::storeBanks($live['banks']);
         $states = (array) ($live['requests'] ?? []);
         /* The words come from finance with the list (category_list); a
            CFIS from before it published them sends keys only. */
@@ -485,33 +669,82 @@ final class CfisRequests
                 ? array_values(array_filter($live['category_list'], 'is_array'))
                 : array_map(fn ($k) => ['key' => (string) $k, 'label' => self::labelOf((string) $k), 'hint' => ''], (array) ($live['categories'] ?? [])))
             : self::DEFAULT_CATEGORY_LIST;
+        $words = array_merge($list, self::DEFAULT_CATEGORY_LIST);
 
         $out = [];
+        $mine = [];
         foreach ($rows as $row) {
+            $mine[(string) $row['ref']] = true;
             $state = $states[(string) $row['ref']] ?? null;
             if ($state && ($state['status'] ?? '') !== (string) $row['status']) {
                 Database::pdo()->prepare("UPDATE cfis_member_requests SET status = ?, updated_at = ? WHERE id = ?")
                     ->execute([(string) $state['status'], gmdate('c'), (int) $row['id']]);
             }
+            $sent = ((string) $row['cfis_reference']) !== '';
+            $local = (string) $row['status'];
+            $lines = json_decode((string) ($row['lines'] ?? ''), true);
             $out[] = [
                 'id' => (int) $row['id'],
                 'title' => (string) $row['title'],
-                'category' => self::labelOf((string) $row['category'], array_merge($list, self::DEFAULT_CATEGORY_LIST)),
+                'category' => self::labelOf((string) $row['category'], $words),
                 'claim_kind' => (string) ($row['claim_kind'] ?? 'advance'),
                 'receipts' => count(self::evidenceOf($row)),
+                'lines' => is_array($lines) ? count($lines) : 1,
                 'amount' => number_format(((int) $row['amount_minor']) / 100, 2),
                 'reference' => (string) ($state['reference'] ?? $row['cfis_reference']),
-                'status' => (string) ($state['status'] ?? $row['status']),
+                'status' => (string) ($state['status'] ?? $local),
                 'paid' => (bool) ($state['paid'] ?? false),
-                'sent' => ((string) $row['cfis_reference']) !== '',
-                'error' => (string) ($row['last_error'] ?? ''),
+                'sent' => $sent,
+                'error' => $local === 'withdrawn' ? '' : (string) ($row['last_error'] ?? ''),
                 'asked_on' => substr((string) $row['created_at'], 0, 10),
+                'needed_by' => (string) ($row['needed_by'] ?? ''),
+                /* Finance's words for where it is, and — only when it was
+                   refused — the reason the approver gave (CFIS ADR 58). A
+                   CFIS from before these sends neither and the page falls
+                   back to the bare status. */
+                'stage' => (string) ($state['stage'] ?? ($local === 'withdrawn' ? 'Withdrawn before it reached finance'
+                    : ($local === 'cancelled' ? 'Withdrawn' : ''))),
+                'reason' => isset($state['reason']) && $state['reason'] !== null ? (string) $state['reason'] : '',
+                'paid_on' => (string) ($state['paid_on'] ?? ''),
+                /* Only where pressing it can work: kept here and not yet
+                   sent, or in finance and undecided by finance's own word.
+                   An older CFIS says nothing, so nothing is offered. */
+                'can_withdraw' => $sent ? (bool) ($state['can_withdraw'] ?? false) : $local === 'unsent',
             ];
+        }
+
+        /* What this member asked for from anywhere — another device, an
+           account they no longer use — that is not in the list above. By
+           email, from finance, which bounds it to this site and this member.
+           A CFIS without the route (404) simply has no earlier list. */
+        $earlier = [];
+        $historyOn = false;
+        if ($reachable && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $h = self::post(self::v1('/history'), ['email' => strtolower(trim($email))]);
+            $historyOn = !empty($h['ok']);
+            foreach ($historyOn ? (array) ($h['requests'] ?? []) : [] as $r) {
+                if (!is_array($r)) continue;
+                $own = (string) ($r['own_reference'] ?? '');
+                if ($own !== '' && isset($mine[$own])) continue;    // already listed above
+                $earlier[] = [
+                    'title' => (string) ($r['title'] ?? ''),
+                    'reference' => (string) ($r['reference'] ?? ''),
+                    'own_reference' => $own,
+                    'status' => (string) ($r['status'] ?? ''),
+                    'stage' => (string) ($r['stage'] ?? ''),
+                    'reason' => (string) ($r['reason'] ?? ''),
+                    'amount' => (string) ($r['amount'] ?? ''),
+                    'paid' => (bool) ($r['paid'] ?? false),
+                    'asked_on' => (string) ($r['raised_on'] ?? ''),
+                ];
+            }
         }
 
         return [
             'ok' => true,
             'requests' => $out,
+            'earlier' => $earlier,
+            'history_available' => $historyOn,
             /* Never a local copy. If finance cannot be reached the form
                says so, rather than offering a list that may no longer be
                what CFIS accepts. */
@@ -519,7 +752,10 @@ final class CfisRequests
             'category_list' => $list,
             'receipt_over' => (string) ($live['receipt_over'] ?? self::RECEIPT_OVER_NGN),
             'max_files' => self::MAX_FILES,
+            'max_lines' => (int) ($live['max_lines'] ?? self::MAX_LINES),
             'max' => (string) ($live['max'] ?? ''),
+            /* For the bank picker; empty means type the bank and code. */
+            'banks' => $banks ?? [],
             'finance_reachable' => $reachable,
             /* Not set up is not "cannot be reached just now": one is a
                setting an administrator makes once, the other passes. */
@@ -527,6 +763,28 @@ final class CfisRequests
             /* Asking is always open: what finance cannot take yet is kept. */
             'accepting' => true,
         ];
+    }
+
+    /** @return null|list<array{name:string, code:string}> null when the copy here is missing or a day old */
+    private static function cachedBanks(): ?array
+    {
+        $f = av_private_path('cfis-banks.json');
+        if (!is_file($f) || filemtime($f) < time() - self::BANKS_TTL) return null;
+        $d = json_decode((string) @file_get_contents($f), true);
+        return is_array($d) ? $d : null;
+    }
+
+    /** @return list<array{name:string, code:string}> */
+    private static function storeBanks(array $raw): array
+    {
+        $banks = [];
+        foreach ($raw as $b) {
+            $name = trim((string) ($b['name'] ?? '')); $code = trim((string) ($b['code'] ?? ''));
+            if ($name !== '' && preg_match('/^[A-Za-z0-9]{2,12}$/', $code)) $banks[] = ['name' => mb_substr($name, 0, 80), 'code' => $code];
+        }
+        /* An empty list is kept too (transfers not set up): asked again tomorrow, not on every page. */
+        @file_put_contents(av_private_path('cfis-banks.json'), (string) json_encode($banks));
+        return $banks;
     }
 
     /**
@@ -546,8 +804,8 @@ final class CfisRequests
 
         $row = Database::pdo()->prepare(
             "SELECT COUNT(*) AS total,
-                    SUM(CASE WHEN cfis_reference = '' THEN 1 ELSE 0 END) AS unsent,
-                    SUM(CASE WHEN status NOT IN ('paid', 'rejected', 'cancelled') THEN 1 ELSE 0 END) AS open
+                    SUM(CASE WHEN cfis_reference = '' AND status = 'unsent' THEN 1 ELSE 0 END) AS unsent,
+                    SUM(CASE WHEN status NOT IN ('paid', 'rejected', 'cancelled', 'withdrawn') THEN 1 ELSE 0 END) AS open
              FROM cfis_member_requests WHERE user_id = ?"
         );
         $row->execute([$userId]);
@@ -576,6 +834,15 @@ final class CfisRequests
             return ['ok' => false, 'error' => 'Finance is not connected.', 'unreachable' => true];
         }
 
+        if (is_callable(self::$transport)) {
+            [$code, $json] = (self::$transport)($path, $claims, $extra);
+            if ((int) $code === 0) return ['ok' => false, 'error' => 'Finance could not be reached.', 'unreachable' => true];
+            return self::answer((int) $code, $json);
+        }
+
+        /* A fresh envelope for every call, retries included: CFIS spends the
+           nonce of a call that changes something, so re-sending one would be
+           refused as a replay (CFIS docs/api.md). */
         $token = CfisCheckout::mint($claims);
 
         $ch = curl_init(CfisCheckout::base() . $path);
@@ -597,9 +864,25 @@ final class CfisRequests
             return ['ok' => false, 'error' => 'Finance could not be reached' . ($err !== '' ? ' (' . $err . ')' : '') . '.', 'unreachable' => true];
         }
 
-        $json = json_decode((string) $body, true);
+        return self::answer($code, json_decode((string) $body, true));
+    }
+
+    /**
+     * What CFIS said, read the same way whatever carried it.
+     *
+     * A 404 that carries no `code` is a CFIS that does not have the route
+     * — one deployed before it — and is `missing`, so a caller can fall
+     * back rather than show a member "not found" for their own request.
+     * CFIS's own not-found always carries `code: not_found`.
+     */
+    private static function answer(int $code, mixed $json): array
+    {
         if (!is_array($json)) {
-            return ['ok' => false, 'error' => 'Finance answered with something unreadable.', 'unreachable' => $code >= 500 || $code === 404];
+            return ['ok' => false, 'error' => 'Finance answered with something unreadable.', 'unreachable' => $code >= 500 || $code === 404,
+                    'missing' => $code === 404];
+        }
+        if ($code === 404 && !isset($json['code'])) {
+            return ['ok' => false, 'missing' => true, 'error' => 'Finance does not offer this yet.'];
         }
 
         /* A refusal from CFIS is a sentence written for the member — the
