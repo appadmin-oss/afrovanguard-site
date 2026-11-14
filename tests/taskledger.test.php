@@ -138,3 +138,8 @@ $lp->exec('DELETE FROM task_assign_log WHERE user_id BETWEEN 9940 AND 9949');
 $lp->exec('DELETE FROM user_prefs WHERE user_id BETWEEN 9940 AND 9949');
 $lp->exec('DELETE FROM lms_users WHERE id BETWEEN 9940 AND 9949');
 TaskMatch::forget();
+
+/* Its index goes through execSchema, not a bare exec MySQL refuses
+   (tests/mysql.test.php proves the index exists on a real server). */
+ck('ledger: the index is created through execSchema, which MySQL can run',
+   !preg_match('/->exec\(\s*[\'"]CREATE\s+INDEX/i', (string) file_get_contents(AV_ROOT . '/lib/TaskLedger.php')));

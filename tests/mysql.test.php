@@ -123,3 +123,13 @@ if ($tdm) {
     ck('mysql: and the defaults are the ones the DDL named', ($tdr['due'] ?? null) === '' && ($tdr['kind'] ?? null) === 'normal');
 }
 $my->exec('DROP TABLE IF EXISTS t_my_textdef');
+
+/* TaskLedger's index went through a bare ->exec('CREATE INDEX IF NOT EXISTS …'),
+   a syntax error on MySQL swallowed by its catch: the table existed, the index
+   history() reads by never did. Twice, because the second run must be quiet. */
+$my->exec('DROP TABLE IF EXISTS task_assign_log');
+TaskLedger::ensure($my);
+TaskLedger::ensure($my);
+$tlIx = $my->query("SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'task_assign_log' AND index_name = 'ix_task_assign_log_user'")->fetchColumn();
+ck('mysql: the task ledger\'s index exists, and ensuring it again is harmless', (int) $tlIx === 1);
+$my->exec('DROP TABLE IF EXISTS task_assign_log');
