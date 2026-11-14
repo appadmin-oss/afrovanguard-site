@@ -445,23 +445,60 @@ final class Collab
     /** Toggle done — only the assignee or creator may. Returns the new state (or null). */
     public static function toggleTask(int $uid, int $taskId): ?bool
     {
+        return self::setDone($uid, $taskId, null);
+    }
+
+    /**
+     * Mark done, idempotently — what CACENTRE means by its tick. Already done
+     * answers true and does nothing again: no second activity line, no second
+     * ledger row, no call back to CACENTRE. A toggle cannot be retried safely
+     * (the retry un-does the work it confirms); this can.
+     */
+    public static function completeTask(int $uid, int $taskId): ?bool
+    {
+        return self::setDone($uid, $taskId, true);
+    }
+
+    /** $to null flips; true marks done only if it is not, by compare-and-set,
+     *  so two "done"s racing each other cannot flip it back. */
+    private static function setDone(int $uid, int $taskId, ?bool $to): ?bool
+    {
         self::ensureTasks();
         $t = self::ownedTask($uid, $taskId);
         if (!$t) return null;
+        if ($to !== null && (bool) $t['done'] === $to) return $to;
         $new = $t['done'] ? 0 : 1;
         $now = gmdate('Y-m-d H:i:s');
         /* Ticked: done, and when — the finish times are what a goal's
            forecast is drawn from (GoalTrack::forecast). Put back: where it was
            before, or to do. */
-        Database::pdo()->prepare('UPDATE collab_tasks SET done = ?, state = ?, state_at = ?, done_at = ?, blocked_reason = ? WHERE id = ?')
-            ->execute([$new, $new ? 'done' : ((string) ($t['started_at'] ?? '') !== '' ? 'doing' : 'todo'), $now, $new ? $now : '', '', $taskId]);
+        $up = Database::pdo()->prepare('UPDATE collab_tasks SET done = ?, state = ?, state_at = ?, done_at = ?, blocked_reason = ? WHERE id = ?' . ($to !== null ? ' AND done = ?' : ''));
+        $up->execute(array_merge([$new, $new ? 'done' : ((string) ($t['started_at'] ?? '') !== '' ? 'doing' : 'todo'), $now, $new ? $now : '', '', $taskId], $to !== null ? [(int) $t['done']] : []));
+        if ($to !== null && $up->rowCount() === 0) return $to;   /* another request finished it first */
         if ($new === 1) self::log($uid, self::nameOf($uid), 'completed a task', (string) $t['title'], '/portal/#tasks');
         if ($new === 1 && class_exists('TaskLedger')) TaskLedger::record($taskId, (int) (($t['assignee_id'] ?? 0) ?: $uid), 'done', (string) $t['title']);
         /* A step towards a goal: the goal's progress follows. */
         if ((int) ($t['goal_id'] ?? 0) > 0 && class_exists('GoalPlanner')) GoalPlanner::syncProgress((int) $t['goal_id']);
         /* Counted toward a CACENTRE commitment: the tick counts there too. */
-        if ((int) ($t['cac_commitment_id'] ?? 0) > 0 && class_exists('CacWeek')) CacWeek::changed($taskId);
+        if ((int) ($t['cac_commitment_id'] ?? 0) > 0) self::cacChanged($taskId);
         return (bool) $new;
+    }
+
+    /* CACENTRE's tick arrives over integrations/cacentre-tasks.php with a
+       3-second timeout, and telling CACENTRE's commitment about it is a
+       second round trip to the same site. Held, the door answers first and
+       sends it after (holdCac/releaseCac); not held, it is sent at once. */
+    private static ?array $cacHeld = null;
+    public static function holdCac(): void { self::$cacHeld = []; }
+    public static function releaseCac(): void
+    {
+        $q = self::$cacHeld ?? []; self::$cacHeld = null;
+        foreach ($q as $id => $deleted) if (class_exists('CacWeek')) CacWeek::changed((int) $id, $deleted);
+    }
+    private static function cacChanged(int $taskId, bool $deleted = false): void
+    {
+        if (self::$cacHeld !== null) { self::$cacHeld[$taskId] = $deleted; return; }
+        if (class_exists('CacWeek')) CacWeek::changed($taskId, $deleted);
     }
 
     /**
