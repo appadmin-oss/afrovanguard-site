@@ -63,6 +63,13 @@ final class CourseTeam
         'edit_course'    => ['lead'],
         'manage_team'    => ['lead'],
         'set_pass_mark'  => ['lead'],
+        /* Instructors being assessed (lib/LearnerFeedback, lib/Observations, lib/Scorecard).
+           An empty list means Academy staff only: can() lets staff do anything,
+           and no team role is named. */
+        'view_team_scorecard' => ['lead'],                        // a team member's scorecard, on a course this person leads
+        'view_all_scorecards' => [],                              // every instructor's scorecard and the instructor list
+        'observe'             => [],                              // record a teaching observation
+        'moderate_feedback'   => [],                              // approve or hide learners' feedback on a course
     ];
 
     private const LABELS = ['lead' => 'Lead instructor', 'instructor' => 'Instructor', 'assistant' => 'Teaching assistant'];
@@ -149,6 +156,23 @@ final class CourseTeam
         if (self::isStaff($userId)) return true;
         $role = self::roleOf($courseId, $userId);
         return $role !== null && in_array($role, self::RIGHTS[$action], true);
+    }
+
+    /**
+     * May this user do $action anywhere — on at least one course? For the
+     * questions that are not about one course (the instructor list, the
+     * ratings moderation queue, the observation criteria). Answered from the
+     * same RIGHTS table: staff always, otherwise a role on some course that
+     * the right names. A staff-only right (empty list) is staff only here too.
+     */
+    public static function canAnywhere(int $userId, string $action): bool
+    {
+        if (!isset(self::RIGHTS[$action]) || $userId <= 0) return false;
+        if (self::isStaff($userId)) return true;
+        foreach (self::coursesFor($userId) as $c) {
+            if (in_array((string) $c['team_role'], self::RIGHTS[$action], true)) return true;
+        }
+        return false;
     }
 
     /** The team, lead first, then instructors, then assistants; earliest-added first within a role. */
