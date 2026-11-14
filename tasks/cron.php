@@ -130,6 +130,15 @@ if (class_exists('Appeals')) {
     try { $result['academy_grading'] = GradingWork::cronTick(); }
     catch (Throwable $e) { error_log('[cron] academy grading: ' . $e->getMessage()); }
 
+    /* Instructors being assessed: the one "give feedback on your course"
+       reminder per learner per course (claimed in feedback_prompts) and the day-before
+       reminder of an observation's follow-up (claimed in
+       teaching_observations.followup_reminded_at). Both send once. */
+    try { $result['academy_feedback_reminders'] = LearnerFeedback::remind(); }
+    catch (Throwable $e) { error_log('[cron] academy feedback reminders: ' . $e->getMessage()); }
+    try { $result['academy_observation_followups'] = Observations::remindFollowUps(); }
+    catch (Throwable $e) { error_log('[cron] academy observation follow-ups: ' . $e->getMessage()); }
+
     try { $result['appeals'] = Appeals::cronTick(); }
     catch (Throwable $e) { error_log('[cron] appeals: ' . $e->getMessage()); }
 }

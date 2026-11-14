@@ -55,6 +55,11 @@ $enrolledCount = $lms->enrolledCount($id);
 $team = CourseTeam::members($id);
 $instructorName = $team ? implode(', ', array_map(static fn($m) => (string) $m['name'], $team)) : null;
 $graded = Grading::hasGradedItems($id);
+/* Learners' feedback (lib/LearnerFeedback): no stars and no averages. Only
+   approved feedback a learner said may be quoted appears, as a testimonial;
+   and a learner who qualifies is invited to give feedback. */
+$testimonials = LearnerFeedback::testimonials($id);
+$inviteFeedback = $user && LearnerFeedback::shouldInvite($id, (int) $user['id']);
 $started = $progress && !empty($progress['completed']);
 // Certificate-ready: all lessons on an ungraded course; every item passed and the pass mark on a graded one.
 $complete = $user ? $lms->certificateEligible((int) $user['id'], $id) : false;
@@ -199,6 +204,20 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
         <div class="avco-instructor">
           <span class="avco-avatar" aria-hidden="true">A</span>
           <div><div class="avco-ins-k">Your instructor</div><div class="avco-ins-n">The Afrovanguard Academy Faculty</div><div class="avco-ins-r">Practitioners and mentors raising one million incorruptible leaders</div></div>
+        </div>
+<?php endif; ?>
+<?php if ($inviteFeedback): ?>
+        <p class="avco-rate">Tell the course team what is working and what could be clearer. <a href="<?= e(academy_url($c['slug'] . '/grades/?feedback=1')) ?>">Give feedback on this course →</a></p>
+<?php endif; ?>
+<?php if ($testimonials): ?>
+        <div class="avco-reviews">
+          <h2 class="avco-h2">What learners say</h2>
+<?php foreach ($testimonials as $t): ?>
+          <figure class="avco-review">
+            <blockquote><?= nl2br(e($t['text'])) ?></blockquote>
+            <figcaption><?= e($t['who']) ?> · <?= e($t['month']) ?> · Shared with permission</figcaption>
+          </figure>
+<?php endforeach; ?>
         </div>
 <?php endif; ?>
       </section>

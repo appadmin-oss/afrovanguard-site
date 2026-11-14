@@ -337,6 +337,9 @@ require_once __DIR__ . '/Grading.php';        /* graded items, weights, the pass
 require_once __DIR__ . '/GradingWork.php';    /* submissions, marking, moderation, release, the daily digest */
 require_once __DIR__ . '/PeerReview.php';     /* learners reviewing each other's work */
 require_once __DIR__ . '/LiveAssess.php';     /* live assessment sessions: booking, the panel, absences, reminders */
+require_once __DIR__ . '/LearnerFeedback.php'; /* learners' written feedback on a course, read by its whole team */
+require_once __DIR__ . '/Observations.php';   /* Academy staff observe teaching */
+require_once __DIR__ . '/Scorecard.php';      /* an instructor's scorecard: every figure derived, each with its count */
 require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/CfisCheckout.php';  /* CACENTRE collects where this site has no merchant account */
 require_once __DIR__ . '/CfisRequests.php';  /* a member asks CACENTRE finance for money */

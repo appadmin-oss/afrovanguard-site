@@ -133,3 +133,12 @@
 .no-js .avco-tabs{display:none}
 .no-js .avco .avco-panel[hidden]{display:flex!important;margin-top:56px}
 .no-js .avco .avco-q p[hidden]{display:block!important}
+/* Learners' feedback on the course page (lib/LearnerFeedback): testimonials
+   learners allowed us to quote, and the invitation to give feedback. */
+.avco-rate{margin:24px 0 0;padding:14px 18px;border:1px solid var(--av-line);border-radius:12px;font-size:15px}
+.avco-rate a{font-weight:700;color:var(--av-gold-text)}
+.avco-reviews{border-top:1px solid var(--av-line);padding-top:32px;margin-top:32px;display:grid;gap:18px}
+.avco-reviews .avco-h2{margin-bottom:0}
+.avco-review{margin:0;display:grid;gap:6px}
+.avco-review blockquote{margin:0;font-size:16px;line-height:1.6;color:var(--av-ink);overflow-wrap:anywhere}
+.avco-review figcaption{font-size:14px;color:var(--av-copy-3)}

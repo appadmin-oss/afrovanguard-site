@@ -162,3 +162,30 @@ ck('mysql: a released booking frees the key for the next one', (int) $my->query(
 $my->exec("INSERT INTO grade_marks (submission_id, marker_id, points, max_points) VALUES (1, 2, 17.5, 20)");
 ck('mysql: fractional rubric points survive (REAL, not INTEGER)', (float) $my->query('SELECT points FROM grade_marks WHERE submission_id = 1')->fetchColumn() === 17.5);
 foreach ($gradeTables as $t) $my->exec('DROP TABLE IF EXISTS ' . $t);
+
+/* Instructors being assessed (lib/LearnerFeedback.php, lib/Observations.php).
+   Created twice through execSchema, as an ensure on every request would; every
+   index must then exist, and "one feedback per learner per course" must be the
+   DATABASE's refusal, not only the code's. */
+$assessTables = array_merge(LearnerFeedback::TABLES, Observations::TABLES);
+foreach (array_merge($assessTables, ['course_ratings', 'instructor_ratings', 'rating_prompts']) as $t) $my->exec('DROP TABLE IF EXISTS ' . $t);
+foreach ([1, 2] as $_) { Database::execSchema($my, LearnerFeedback::ddl()); Database::execSchema($my, Observations::ddl()); }
+$have = array_map('strtolower', $my->query("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()")->fetchAll(PDO::FETCH_COLUMN));
+ck('mysql: every feedback and observation table is created', array_diff($assessTables, $have) === []);
+$ix = array_map('strtolower', $my->query("SELECT DISTINCT index_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name IN ('" . implode("','", $assessTables) . "')")->fetchAll(PDO::FETCH_COLUMN));
+foreach (['idx_course_feedback_state', 'idx_observations_instructor', 'idx_observations_followup'] as $want) {
+    ck("mysql: index $want exists", in_array($want, $ix, true));
+}
+$my->exec("INSERT INTO course_feedback (course_id, user_id, helped, created_at) VALUES (5, 9, 'The examples', '2026-11-14 10:00:00')");
+$dupRefused = false;
+try { $my->exec("INSERT INTO course_feedback (course_id, user_id, helped) VALUES (5, 9, 'Again')"); } catch (Throwable $e) { $dupRefused = true; }
+ck('mysql: a second feedback by the same learner on the same course is refused by the database', $dupRefused);
+$my->exec("INSERT INTO feedback_prompts (course_id, user_id, sent_at) VALUES (5, 9, 'x')");
+$ig = $my->prepare("INSERT IGNORE INTO feedback_prompts (course_id, user_id, sent_at) VALUES (5, 9, 'y')");
+$ig->execute();
+ck('mysql: the reminder claim on feedback_prompts takes once', $ig->rowCount() === 0);
+$my->exec("UPDATE course_feedback SET clearer = '" . str_repeat('x', 2000) . "', anything_else = 'ok' WHERE course_id = 5");
+ck('mysql: long feedback fits (TEXT)', (int) $my->query('SELECT LENGTH(clearer) FROM course_feedback')->fetchColumn() === 2000);
+$my->exec("INSERT INTO teaching_observations (course_id, instructor_id, observer_id, scores_json, strengths) VALUES (5, 3, 4, '[]', '" . str_repeat('x', 3000) . "')");
+ck('mysql: long observation notes fit (TEXT)', (int) $my->query('SELECT LENGTH(strengths) FROM teaching_observations')->fetchColumn() === 3000);
+foreach ($assessTables as $t) $my->exec('DROP TABLE IF EXISTS ' . $t);

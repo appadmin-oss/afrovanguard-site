@@ -433,3 +433,56 @@ CREATE TABLE IF NOT EXISTS grading_digests (
   recipients  INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (course_id, digest_day)
 );
+
+-- ── Academy: instructors being assessed ──
+-- Learners' written feedback on a course (no ratings or scores), the once-only
+-- feedback reminder, and coordinators' teaching observations. Also ensured at
+-- runtime by lib/LearnerFeedback.php and lib/Observations.php (the same DDL;
+-- tests/instructorpages.test.php holds the two in step). See docs/academy-instructors.md.
+CREATE TABLE IF NOT EXISTS course_feedback (
+  id            SERIAL PRIMARY KEY,
+  course_id     INTEGER NOT NULL,
+  user_id       INTEGER NOT NULL,
+  helped        TEXT,
+  clearer       TEXT,
+  anything_else TEXT,
+  share_public  INTEGER NOT NULL DEFAULT 0,
+  state         VARCHAR(16) NOT NULL DEFAULT '',
+  hide_reason   VARCHAR(32) NOT NULL DEFAULT '',
+  moderated_by  INTEGER NOT NULL DEFAULT 0,
+  moderated_at  VARCHAR(32) NOT NULL DEFAULT '',
+  created_at    VARCHAR(32) NOT NULL DEFAULT '',
+  updated_at    VARCHAR(32) NOT NULL DEFAULT '',
+  UNIQUE (course_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_course_feedback_state ON course_feedback (state, course_id);
+CREATE TABLE IF NOT EXISTS feedback_prompts (
+  course_id  INTEGER NOT NULL,
+  user_id    INTEGER NOT NULL,
+  sent_at    VARCHAR(32) NOT NULL DEFAULT '',
+  PRIMARY KEY (course_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS teaching_observations (
+  id                   SERIAL PRIMARY KEY,
+  course_id            INTEGER NOT NULL,
+  instructor_id        INTEGER NOT NULL,
+  observer_id          INTEGER NOT NULL,
+  observed_on          VARCHAR(10) NOT NULL DEFAULT '',
+  target_kind          VARCHAR(16) NOT NULL DEFAULT 'other',
+  target_id            INTEGER NOT NULL DEFAULT 0,
+  target_note          VARCHAR(300) NOT NULL DEFAULT '',
+  scores_json          TEXT,
+  strengths            TEXT,
+  develop              TEXT,
+  action_text          TEXT,
+  follow_up_on         VARCHAR(10) NOT NULL DEFAULT '',
+  status               VARCHAR(16) NOT NULL DEFAULT 'draft',
+  finalised_at         VARCHAR(32) NOT NULL DEFAULT '',
+  reflection           TEXT,
+  reflection_at        VARCHAR(32) NOT NULL DEFAULT '',
+  followup_reminded_at VARCHAR(32) NOT NULL DEFAULT '',
+  created_at           VARCHAR(32) NOT NULL DEFAULT '',
+  updated_at           VARCHAR(32) NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_observations_instructor ON teaching_observations (instructor_id, status);
+CREATE INDEX IF NOT EXISTS idx_observations_followup ON teaching_observations (status, follow_up_on);
