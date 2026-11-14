@@ -708,7 +708,7 @@ final class Collab
         $creator  = (int) $r['creator_id'];
         $due = (string) $r['due'];
         $goalId = (int) ($r['goal_id'] ?? 0);
-        $overdue = $due !== '' && !$r['done'] && $due < gmdate('Y-m-d');
+        $overdue = $due !== '' && !$r['done'] && $due < TaskReport::today();   /* Lagos's day, as the daily report and the reminders count it */
         return [
             'id'       => (int) $r['id'],
             'title'    => (string) $r['title'],

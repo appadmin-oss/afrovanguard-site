@@ -23,10 +23,14 @@ final class TaskReport
     /** Most rows a list shows; the counts are always whole. */
     private const SHOW = 40;
 
+    /** For tests: the clock "today" reads when no time is passed. Lagos and
+     *  UTC disagree for an hour a day, and only a pinned clock can reach it. */
+    public static ?int $nowForTests = null;
+
     /** Today in Lagos, YYYY-MM-DD. */
     public static function today(?int $now = null): string
     {
-        return (new DateTimeImmutable('@' . ($now ?? time())))->setTimezone(new DateTimeZone(self::TZ))->format('Y-m-d');
+        return (new DateTimeImmutable('@' . ($now ?? self::$nowForTests ?? time())))->setTimezone(new DateTimeZone(self::TZ))->format('Y-m-d');
     }
 
     /** The UTC span of a Lagos day, as the 'Y-m-d H:i:s' strings collab_tasks keeps. */

@@ -183,7 +183,7 @@ final class TaskMatch
         } catch (Throwable $e) {}
         /* Open load: how many, how big, and how many past their date. */
         try {
-            $today = gmdate('Y-m-d');
+            $today = TaskReport::today();   /* Lagos's day, as the daily report counts overdue */
             foreach ($pdo->query("SELECT assignee_id, size, due FROM collab_tasks WHERE done = 0 AND assignee_id IN ($in)")->fetchAll(PDO::FETCH_ASSOC) as $r) {
                 $id = (int) $r['assignee_id'];
                 if (!isset($out[$id])) continue;

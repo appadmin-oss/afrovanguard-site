@@ -93,7 +93,12 @@ final class TaskLedger
                 $o = &$out[(int) $r['assignee_id']];
                 if (count($o['done']) < 30) $o['done'][] = (string) $r['title'];
                 $due = (string) $r['due'];
-                if ($due !== '' && (string) $r['done_at'] !== '') { if (substr((string) $r['done_at'], 0, 10) <= $due) $o['on_time']++; else $o['late']++; }
+                /* done_at is UTC; the due date is a Lagos day. Finished at 23:30 UTC on
+                   the due date is past midnight in Lagos — late, as the report says. */
+                if ($due !== '' && (string) $r['done_at'] !== '') {
+                    $doneDay = TaskReport::today((int) (strtotime((string) $r['done_at'] . ' UTC') ?: 0));
+                    if ($doneDay <= $due) $o['on_time']++; else $o['late']++;
+                }
                 unset($o);
             }
         } catch (Throwable $e) {}
