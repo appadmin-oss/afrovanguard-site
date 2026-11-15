@@ -16,6 +16,12 @@ $path = __DIR__ . $uri;
 // db/private writes its own deny), but this router served any file it found,
 // so the private store (receipts, donor and contact records) was readable here.
 if (preg_match('~^/db(/|$)~i', $uri)) { http_response_code(403); echo 'Forbidden'; return true; }
+// Mirror the root .htaccess's dotfile rule (.env beside index.php, .htaccess,
+// .git …) except .well-known, and its refusal of the settings file and template.
+if (preg_match('~(^|/)\.(?!well-known/|\.|/|$)~', $uri)
+    || preg_match('~^/config(\.example)?(\.[a-z0-9]+)*\.php$|^/config(\.example)?\.php\.~i', $uri)) {
+    http_response_code(403); echo 'Forbidden'; return true;
+}
 // Mirror the root .htaccess: command-line tools, the test suite, vendor code and
 // the STS form backups are never web endpoints. Without this the dev server ran
 // scripts/seed-mentor-200.php and tests/run.php for anybody who asked.

@@ -36,6 +36,15 @@
  * driver is live and where its settings came from.
  */
 
+/* Required by lib/bootstrap.php (as config.php), never requested: answered
+   directly over HTTP it would run and log every missing secret. The root
+   .htaccess refuses it too; this holds where that file is not read. */
+if (PHP_SAPI !== 'cli' && isset($_SERVER['SCRIPT_FILENAME'])
+    && realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)) {
+    http_response_code(404);
+    exit;
+}
+
 /**
  * Read a secret from the environment.
  *

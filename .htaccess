@@ -30,6 +30,13 @@ RewriteRule ^\.well-known/ - [L]
 # here so the two rules cannot be separated by a later edit and break SSL renewal.
 RewriteRule (^|/)\.(?!well-known/) - [F,L]
 
+# The settings file and its template are require()d by lib/bootstrap.php, never
+# requested. Over HTTP the template ran (defining constants, logging every
+# missing secret) and config.php could be probed; both are refused, along with
+# any editor or upload copy of them (config.php.bak, config.old.php …).
+RewriteRule ^config(\.example)?(\.[a-z0-9]+)*\.php$ - [F,L,NC]
+RewriteRule ^config(\.example)?\.php\. - [F,L,NC]
+
 # Server-side PHP libraries are require()d, never requested directly over HTTP.
 RewriteRule ^lib/  - [F,L]
 RewriteRule ^db/   - [F,L]
