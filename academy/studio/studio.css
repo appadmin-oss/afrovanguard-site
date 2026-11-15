@@ -482,3 +482,15 @@ body.is-editing .list-tools .find input{min-width:0}
 .team-list li{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
 .team-form{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:8px}
 .small{font-size:12.5px}
+
+/* Pricing card (Overview) */
+.price-card{margin-top:22px}
+.price-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px}
+.price-form .fld{margin:0}
+.price-form .suffix input{width:140px;font-variant-numeric:tabular-nums}
+.price-form input[aria-invalid="true"]{border-color:var(--danger)}
+.price-actions{display:flex;align-items:center;gap:10px;margin-bottom:2px}
+.price-msg{margin:6px 0 0;font-size:13px;color:var(--ink-2)}
+.price-hist{margin-top:8px;font-size:13px}
+.price-hist summary{cursor:pointer;min-height:32px;display:flex;align-items:center}
+.price-hist ul{margin:6px 0 0;padding-left:18px;color:var(--ink-2)}

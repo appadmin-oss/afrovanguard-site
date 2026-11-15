@@ -397,7 +397,7 @@ try {
             $stream = $kind === 'membership' ? 'membership' : 'tuition';
             if ($kind === 'membership') {
                 if ($lms->isMember((int) $u['id']) || LmsAuth::isOrgMember($u)) json_out(['ok' => true, 'already' => true, 'message' => 'You are already a member.']);
-                $amountNgn = (int) AV_MEMBERSHIP_NGN;
+                $amountNgn = AcademyPricing::membershipNgn();
                 $meta['purpose'] = 'Afrovanguard Academy — annual membership';
             } else {
                 $c = $slug ? $ac->bySlug($slug) : null;

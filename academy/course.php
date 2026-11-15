@@ -97,7 +97,7 @@ if ($lessonTotal && $firstLesson && !$hasAccess && !in_array($access, ['open', '
 
 /* Price block. */
 if ($access === 'paid') { $priceBig = $price > 0 ? $ngn($price) : ((string) ($c['price'] ?? '') ?: 'Paid'); $priceNote = 'One-time fee · certificate included.'; }
-elseif ($access === 'membership') { $priceBig = $ngn((int) AV_MEMBERSHIP_NGN) . ' / yr'; $priceNote = 'Included with Academy membership.'; }
+elseif ($access === 'membership') { $priceBig = $ngn(AcademyPricing::membershipNgn()) . ' / yr'; $priceNote = 'Included with Academy membership.'; }
 elseif ($access === 'restricted') { $priceBig = 'Restricted'; $priceNote = $hasAccess ? 'Access unlocked.' : 'Invite or pass required.'; }
 else { $priceBig = 'Free'; $priceNote = $access === 'tracked' ? ($user ? 'Free — your progress is saved to your account.' : 'Free to join — sign in to save your progress.') : 'Open programme — start straight away.'; }
 
@@ -119,7 +119,7 @@ $faqs = [
     ['How much does it cost?', $access === 'paid'
         ? 'This programme is ' . ($price > 0 ? $ngn($price) . ' (one-time)' : 'paid') . '. Academy members get it included — see membership.'
         : ($access === 'membership'
-            ? 'This programme is included with Academy membership (' . $ngn((int) AV_MEMBERSHIP_NGN) . ' / year).'
+            ? 'This programme is included with Academy membership (' . $ngn(AcademyPricing::membershipNgn()) . ' / year).'
             : ($access === 'restricted'
                 ? 'This programme is restricted to invited members or those holding a pass.'
                 : 'This programme is free. ' . ($access === 'tracked' ? 'Create a free account to save your progress and earn your certificate.' : 'You can start straight away.')))],

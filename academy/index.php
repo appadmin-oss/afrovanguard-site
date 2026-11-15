@@ -268,7 +268,7 @@ $projects = [
       <p class="avac-member-p">Unlock the full catalogue, priority cohorts and your verifiable certificates — and back the mission to raise one million incorruptible leaders.</p>
     </div>
     <div class="avac-plan" data-avac-paycard>
-      <p class="avac-plan-price"><span class="av-num">₦<?= e(number_format((int) AV_MEMBERSHIP_NGN)) ?></span><span>/ year</span></p>
+      <p class="avac-plan-price"><span class="av-num">₦<?= e(number_format(AcademyPricing::membershipNgn())) ?></span><span>/ year</span></p>
       <ul class="avac-perks" role="list">
         <li>Unlock the full catalogue</li>
         <li>Priority places in new cohorts</li>

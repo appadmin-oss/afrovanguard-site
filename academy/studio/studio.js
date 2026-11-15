@@ -118,8 +118,50 @@
   $$('.nav-item').forEach(function (b) { b.addEventListener('click', function () { route(b.getAttribute('data-view')); }); });
   $$('.qbtn').forEach(function (b) { b.addEventListener('click', function () { var go = b.getAttribute('data-go'); if (b.getAttribute('data-new')) openCourse(null); else route(go); }); });
 
+  /* ── Pricing (lib/AcademyPricing via ac_pricing*) ── */
+  function naira(n) { return '₦' + Number(n || 0).toLocaleString('en-NG'); }
+  function renderPricing(d) {
+    var s = d.settings || {}, inp = $('#pr_membership'), msg = $('#pricingMsg');
+    if (!inp) return;
+    inp.value = s.membership_ngn || '';
+    inp.disabled = !d.can_edit; $('#pricingSave').hidden = !d.can_edit;
+    $('#pricingReset').hidden = !d.can_edit || s.source !== 'studio';
+    msg.textContent = s.source === 'studio'
+      ? 'Set in the Studio' + (s.updated_by ? ' by ' + s.updated_by : '') + (s.updated_at ? ' on ' + s.updated_at.slice(0, 10) : '') + '.'
+      : 'The starting price from the site’s configuration (' + naira(d.shipped_ngn) + ').' + (d.can_edit ? '' : ' An administrator can change it.');
+    var h = s.history || [], box = $('#pricingHist');
+    box.hidden = !h.length;
+    $('#pricingHistList').innerHTML = h.map(function (x) {
+      return '<li>' + esc(naira(x.from)) + ' → ' + esc(naira(x.to)) + (x.reset ? ' (back to the starting price)' : '') + ' · ' + esc(String(x.at || '').slice(0, 16)) + ' UTC · ' + esc(x.by || '') + '</li>';
+    }).join('');
+  }
+  function loadPricing() {
+    var f = $('#pricingForm'); if (!f) return;
+    get('ac_pricing').then(function (d) { if (d && d.ok) renderPricing(d); });
+    f.onsubmit = function (e) {
+      e.preventDefault();
+      var inp = $('#pr_membership'), msg = $('#pricingMsg');
+      var v = String(inp.value || '').replace(/[₦,\s]/g, '');
+      if (!/^\d+$/.test(v)) { inp.setAttribute('aria-invalid', 'true'); msg.textContent = 'Enter the price as a whole number of naira, like 5000.'; inp.focus(); return; }
+      inp.removeAttribute('aria-invalid');
+      if (!confirm('Charge ' + naira(v) + ' a year for Academy membership from now on?')) return;
+      post('ac_pricing_save', { membership_ngn: v }).then(function (d) {
+        if (d && d.ok) { toast(d.unchanged ? 'That is already the price' : 'Membership price saved', 'ok'); get('ac_pricing').then(function (r) { if (r && r.ok) renderPricing(r); }); }
+        else { inp.setAttribute('aria-invalid', 'true'); msg.textContent = (d && d.error) || 'Not saved.'; inp.focus(); }
+      });
+    };
+    $('#pricingReset').onclick = function () {
+      if (!confirm('Go back to the starting price from the site’s configuration?')) return;
+      post('ac_pricing_reset', {}).then(function (d) {
+        if (d && d.ok) { toast('Back to the starting price', 'ok'); get('ac_pricing').then(function (r) { if (r && r.ok) renderPricing(r); }); }
+        else toast((d && d.error) || 'Not changed', 'err');
+      });
+    };
+  }
+
   /* ── Overview ── */
   function loadOverview() {
+    loadPricing();
     get('ac_overview').then(function (d) {
       if (!d || !d.ok) return;
       var s = d.stats, cards = [
