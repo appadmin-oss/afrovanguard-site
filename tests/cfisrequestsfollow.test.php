@@ -133,7 +133,7 @@ $fuAnswer($fuV1 . '/withdraw', 200, ['ok' => true, 'already' => false, 'request'
 $fuW2 = CfisRequests::withdraw($fuUser, (int) $fuRowA['id'], 'ada@test.ng');
 $fuWc = $fuLast($fuV1 . '/withdraw');
 ck('one finance has is withdrawn there, by this site\'s own reference and the member who asked',
-   ($fuW2['ok'] ?? false) === true && ($fuWc['claims'] ?? null) === ['ref' => $fuRowA['ref'], 'email' => 'ada@test.ng']
+   ($fuW2['ok'] ?? false) === true && ($fuWc['claims'] ?? null) === ['ref' => $fuRowA['ref'], 'email' => 'ada@test.ng', 'typ' => 'cfis.requests.withdraw']
    && $fuRow((string) $fuRowA['ref'])['status'] === 'cancelled');
 
 $fuRowB = $fuRow((string) $fuVenue['ref']);
@@ -177,8 +177,8 @@ ck('one withdrawn before it was sent says so, offers nothing to press, and shows
 ck('earlier requests from finance\'s record are listed once — one already on the page is not repeated',
    count($fuMine['earlier']) === 1 && $fuMine['earlier'][0]['own_reference'] === 'AVG-REQ-OLD-PHONE'
    && $fuMine['earlier'][0]['stage'] === 'Paid on 2 Oct 2026' && $fuMine['history_available'] === true);
-ck('the history is asked for by this member\'s email, and nothing else',
-   ($fuLast('/history')['claims'] ?? null) === ['email' => 'ada@test.ng']);
+ck('the history is asked for by this member\'s email, and nothing else (bar the door it is for)',
+   ($fuLast('/history')['claims'] ?? null) === ['email' => 'ada@test.ng', 'typ' => 'cfis.requests.history']);
 ck('the bank list comes with the status when the copy here is stale, and only well-formed codes are kept',
    ($fuLast($fuS . '/status')['claims']['banks'] ?? false) === true
    && $fuMine['banks'] === [['name' => 'Guaranty Trust Bank', 'code' => '058']]);
@@ -200,7 +200,7 @@ $fuAnswer($fuV1 . '/account-name', 200, ['ok' => true, 'name' => 'NWOSU ADA CHIO
 $fuN = CfisRequests::accountName('ada@test.ng', '0123456789', '058');
 ck('the name the bank holds is shown back before sending',
    $fuN === ['ok' => true, 'name' => 'NWOSU ADA CHIOMA', 'checked' => true]
-   && ($fuLast('/account-name')['claims'] ?? null) === ['email' => 'ada@test.ng', 'account_number' => '0123456789', 'bank_code' => '058']);
+   && ($fuLast('/account-name')['claims'] ?? null) === ['email' => 'ada@test.ng', 'account_number' => '0123456789', 'bank_code' => '058', 'typ' => 'cfis.requests.account_name']);
 $fuCallsBefore = count($fuCalls);
 ck('a number that is not ten digits is not looked up at all',
    CfisRequests::accountName('ada@test.ng', '12345', '058')['checked'] === false && count($fuCalls) === $fuCallsBefore);

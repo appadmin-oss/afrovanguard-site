@@ -592,7 +592,7 @@ final class CfisRequests
 
         if (!self::configured()) return ['ok' => false, 'error' => 'Finance is not connected, so this cannot be withdrawn just now.'];
         $email = strtolower(trim((string) ($row['asker_email'] ?? '') ?: $email));
-        $r = self::post(self::v1('/withdraw'), ['ref' => (string) $row['ref'], 'email' => $email]);
+        $r = self::post(self::v1('/withdraw'), ['ref' => (string) $row['ref'], 'email' => $email, 'typ' => 'cfis.requests.withdraw']);
         if (!empty($r['missing'])) {
             return ['ok' => false, 'error' => 'Finance cannot take a withdrawal from here yet. Ask finance to cancel ' . ((string) $row['cfis_reference'] ?: (string) $row['ref']) . '.'];
         }
@@ -618,7 +618,7 @@ final class CfisRequests
         $none = ['ok' => true, 'name' => null, 'checked' => false];
         if (strlen($number) !== 10 || $bankCode === '' || !self::configured()) return $none;
 
-        $r = self::post(self::v1('/account-name'), ['email' => strtolower(trim($email)), 'account_number' => $number, 'bank_code' => $bankCode]);
+        $r = self::post(self::v1('/account-name'), ['email' => strtolower(trim($email)), 'account_number' => $number, 'bank_code' => $bankCode, 'typ' => 'cfis.requests.account_name']);
         if (empty($r['ok'])) {
             return $none + (($r['code'] ?? '') === 'throttled' ? ['note' => (string) ($r['error'] ?? '')] : []);
         }
@@ -722,7 +722,7 @@ final class CfisRequests
         $earlier = [];
         $historyOn = false;
         if ($reachable && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $h = self::post(self::v1('/history'), ['email' => strtolower(trim($email))]);
+            $h = self::post(self::v1('/history'), ['email' => strtolower(trim($email)), 'typ' => 'cfis.requests.history']);
             $historyOn = !empty($h['ok']);
             foreach ($historyOn ? (array) ($h['requests'] ?? []) : [] as $r) {
                 if (!is_array($r)) continue;
