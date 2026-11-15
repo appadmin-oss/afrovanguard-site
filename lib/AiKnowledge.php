@@ -83,10 +83,12 @@ final class AiKnowledge
     {
         $lines = [];
 
-        // Membership dues (the annual fee).
+        // The Academy membership (members-only courses), set in the Academy Studio;
+        // the movement's dues are a different price (lib/Membership.php).
         try {
-            $ngn = defined('AV_MEMBERSHIP_NGN') ? (int) AV_MEMBERSHIP_NGN : 0;
-            if ($ngn > 0) $lines[] = 'Academy membership / annual dues: ₦' . number_format($ngn) . ' per year (pay or renew in the member Portal).';
+            $ngn = AcademyPricing::membershipNgn();
+            if ($ngn > 0) $lines[] = 'Academy membership (opens every members-only course): ₦' . number_format($ngn) . ' per year (join or renew from any members-only course page).';
+            if (class_exists('Membership') && Membership::annual() > 0) $lines[] = 'Afrovanguard membership dues: ₦' . number_format(Membership::annual()) . ' a year or ₦' . number_format(Membership::monthly()) . ' a month (pay in the member Portal).';
         } catch (\Throwable $e) {}
 
         // How Afrovanguard works — the membership progression framework.

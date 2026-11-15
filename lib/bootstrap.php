@@ -329,7 +329,8 @@ require_once __DIR__ . '/VanQuest.php';     /* VanQuest players: seats, onboardi
 require_once __DIR__ . '/Approvals.php';
 require_once __DIR__ . '/MemberRequests.php';   /* a member asks from their own portal; an admin decides */        /* an admin's sensitive member acts wait for a second person (as NGG's do) */          /* the centres members belong to, one list with codes (as NGG keeps them) */
 require_once __DIR__ . '/MemberRoles.php';      /* the work roles members hold, kept as one list with descriptions */
-require_once __DIR__ . '/Membership.php';       /* dues membership: state, grant, lifetime, cancel */
+require_once __DIR__ . '/Membership.php';
+require_once __DIR__ . '/AcademyPricing.php';  /* the Academy membership price, set in the Studio */       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/MemberVerification.php'; /* being a member is an act with a record, not an email domain */
 require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited once the receipt is verified */
 require_once __DIR__ . '/MemberStatement.php';  /* the wallet: every ledger's money on one statement, read only */

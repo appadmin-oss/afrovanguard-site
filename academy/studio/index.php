@@ -17,7 +17,7 @@ declare(strict_types=1);
   <title>Academy Studio — Afrovanguard</title>
   <script>(function(){try{var t=localStorage.getItem('av.theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
   <link href="/assets/site/fonts.css" rel="stylesheet" />
-<link href="/academy/studio/studio.css" rel="stylesheet" />
+<link href="/academy/studio/studio.css?v=<?= substr((string) @md5_file(__DIR__ . '/studio.css'), 0, 10) ?>" rel="stylesheet" />
 </head>
 <body>
 <a class="skip-link" href="#content">Skip to main content</a>
@@ -81,6 +81,21 @@ declare(strict_types=1);
       <!-- OVERVIEW -->
       <section class="view" id="view-overview">
         <div class="stat-grid" id="statGrid"></div>
+        <section class="quick price-card" id="pricingCard" aria-labelledby="pricingH">
+          <h2 id="pricingH">Pricing</h2>
+          <form id="pricingForm" class="price-form" novalidate>
+            <label class="fld" for="pr_membership"><span>Academy membership, per year</span>
+              <span class="suffix">₦<input id="pr_membership" name="membership_ngn" type="text" inputmode="numeric" autocomplete="off" aria-describedby="pricingHelp pricingMsg" /></span>
+            </label>
+            <div class="price-actions">
+              <button class="btn btn-primary btn-sm" type="submit" id="pricingSave">Save price</button>
+              <button class="link-btn" type="button" id="pricingReset" hidden>Use the starting price</button>
+            </div>
+          </form>
+          <p class="muted fld-help" id="pricingHelp">Opens every course marked “Members only”. A change applies to payments started after it; anyone already at checkout pays the price they were shown. Each course’s own price is set on the course.</p>
+          <p class="price-msg" id="pricingMsg" role="status" aria-live="polite"></p>
+          <details class="price-hist" id="pricingHist" hidden><summary>Recent changes</summary><ul id="pricingHistList"></ul></details>
+        </section>
         <div class="quick">
           <h2>Quick actions</h2>
           <div class="quick-row">
@@ -438,6 +453,6 @@ declare(strict_types=1);
 </div>
 
 <div class="toast-wrap" id="toasts"></div>
-<script src="/academy/studio/studio.js" defer></script>
+<script src="/academy/studio/studio.js?v=<?= substr((string) @md5_file(__DIR__ . '/studio.js'), 0, 10) ?>" defer></script>
 </body>
 </html>

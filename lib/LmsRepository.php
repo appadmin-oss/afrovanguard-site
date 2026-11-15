@@ -965,7 +965,7 @@ final class LmsRepository
 
     /**
      * Membership-dues status for the member dashboard. "Dues" are the annual
-     * membership fee (AV_MEMBERSHIP_NGN). Returns a render-ready shape:
+     * membership fee (Membership::annual(); the Academy membership is AcademyPricing). Returns a render-ready shape:
      *   state: active | due_soon | overdue | none
      */
     public function duesStatus(int $userId): array

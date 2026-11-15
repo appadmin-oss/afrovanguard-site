@@ -166,6 +166,8 @@ try {
            fee and every plan's programme fee off the page it writes, so saving it
            sets what members are charged (docs/audits/2026-11-02-studio, S1). */
         'ngv_save', 'ngv_reset', 'ngv_restore',
+        // The Academy membership price is what Paystack is asked to charge.
+        'ac_pricing_save', 'ac_pricing_reset',
         // The homepage is the organisation's front door: editors draft it, an admin publishes.
         // Content goes live only through an admin: publishing, scheduling and approving.
         'media_delete', 'cms_publish', 'cms_schedule', 'cms_unschedule', 'cms_reject',
@@ -1671,6 +1673,18 @@ try {
             json_out(['ok' => true, 'settings' => Membership::settings(), 'levels' => class_exists('Levels') ? Levels::order() : ['O'],
                       'owing_levels' => Membership::owingLevels(), 'plan' => defined('AV_DUES_PLAN_CODE') && AV_DUES_PLAN_CODE,
                       'can_edit' => $role === 'superadmin', 'obliged' => Membership::countWhere(Membership::obligedSql())] + ['owing' => Membership::owingSummary()]);
+        /* The Academy membership price (lib/AcademyPricing). Anyone in the
+           Studio may see it; admins and above set it ($managementOnly). */
+        case 'ac_pricing':
+            json_out(['ok' => true, 'settings' => AcademyPricing::settings(), 'shipped_ngn' => AcademyPricing::shipped(),
+                'can_edit' => !in_array($role, ['editor'], true)]);
+        case 'ac_pricing_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = AcademyPricing::save(['membership_ngn' => $body['membership_ngn'] ?? ''], av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'ac_pricing_reset':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            json_out(AcademyPricing::reset(av_admin_actor()));
         case 'dues_settings_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = Membership::saveSettings(array_intersect_key($body, array_flip(['enabled', 'monthly_ngn', 'annual_ngn', 'start', 'from_level'])), av_admin_actor());

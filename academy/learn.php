@@ -190,7 +190,7 @@ avac_head([
       <p><strong><?= e((string) $course['title']) ?></strong> is a members’ programme. Become a member to unlock every lesson.</p>
 <?php if (Payments::canCollect()): ?>
       <div class="avle-gate-btns">
-        <button type="button" class="avle-btn avle-btn--lg" data-avac-pay="membership">Become a member — ₦<?= e(number_format((int) AV_MEMBERSHIP_NGN)) ?>/yr →</button>
+        <button type="button" class="avle-btn avle-btn--lg" data-avac-pay="membership">Become a member — ₦<?= e(number_format(AcademyPricing::membershipNgn())) ?>/yr →</button>
         <a class="avle-btn avle-btn--line avle-btn--lg" href="<?= e($courseUrl) ?>">Course overview</a>
       </div>
 <?php else: ?>
