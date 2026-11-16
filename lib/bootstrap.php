@@ -235,6 +235,11 @@ foreach (['FLW_PUBLIC_KEY', 'FLW_SECRET_KEY'] as $k) {
     if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
 }
 if (!defined('AV_MEMBERSHIP_NGN')) { $v = getenv('AV_MEMBERSHIP_NGN'); define('AV_MEMBERSHIP_NGN', $v !== false && $v !== '' ? (int) $v : 5000); }
+// Academy membership is a donation (lib/AcademyDonation.php): from AV_MEMBERSHIP_MIN_USD dollars a
+// year, charged in naira at AV_USD_NGN naira per dollar. AV_MEMBERSHIP_NGN above is no longer the
+// price; it is kept so an old config file still loads.
+if (!defined('AV_MEMBERSHIP_MIN_USD')) { $v = getenv('AV_MEMBERSHIP_MIN_USD'); define('AV_MEMBERSHIP_MIN_USD', $v !== false && $v !== '' ? (int) $v : 20); }
+if (!defined('AV_USD_NGN')) { $v = getenv('AV_USD_NGN'); define('AV_USD_NGN', $v !== false && $v !== '' ? (int) $v : 1500); }
 // Membership DUES (the "How Afrovanguard Works" framework contribution) — distinct
 // from the Academy membership price above. Voluntary from Level A: ₦1,000/month
 // or ₦12,000/year (mandatory from Level C).
@@ -324,7 +329,8 @@ require_once __DIR__ . '/VanQuest.php';     /* VanQuest players: seats, onboardi
 require_once __DIR__ . '/Approvals.php';
 require_once __DIR__ . '/MemberRequests.php';   /* a member asks from their own portal; an admin decides */        /* an admin's sensitive member acts wait for a second person (as NGG's do) */          /* the centres members belong to, one list with codes (as NGG keeps them) */
 require_once __DIR__ . '/MemberRoles.php';      /* the work roles members hold, kept as one list with descriptions */
-require_once __DIR__ . '/Membership.php';       /* dues membership: state, grant, lifetime, cancel */
+require_once __DIR__ . '/Membership.php';
+require_once __DIR__ . '/AcademyDonation.php';  /* Academy membership by donation, from $20 a year */       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/MemberVerification.php'; /* being a member is an act with a record, not an email domain */
 require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited once the receipt is verified */
 require_once __DIR__ . '/MemberStatement.php';  /* the wallet: every ledger's money on one statement, read only */

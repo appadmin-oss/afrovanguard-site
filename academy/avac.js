@@ -51,7 +51,10 @@
       const label = t.textContent;
       t.disabled = true; t.textContent = 'Starting secure checkout…';
       const reset = () => { t.disabled = false; t.textContent = label; };
-      api('pay_init', { kind: t.dataset.avacPay, course: t.dataset.course || '' })
+      /* A membership card carries the donor's chosen amount (lib/AcademyDonation.php). */
+      const card = t.closest('[data-avac-paycard]');
+      const amt = card && $('[data-avac-amount]', card);
+      api('pay_init', { kind: t.dataset.avacPay, course: t.dataset.course || '', amount_usd: amt ? amt.value : '' })
         .then(d => {
           if (d && d.ok && d.authorization_url) { location.href = d.authorization_url; return; }
           if (d && d.ok && d.already) { noteIn(t, d.message || 'You already have access.', true); setTimeout(() => location.reload(), 900); return; }
@@ -59,6 +62,21 @@
           noteIn(t, (d && d.error) || 'Could not start the payment. Please try again.', false); reset();
         })
         .catch(() => { noteIn(t, 'Network error — please try again.', false); reset(); });
+    });
+  });
+
+  /* The naira a donation costs, shown as the donor types. The server works it out again. */
+  run('give', () => {
+    const fmt = n => n.toLocaleString('en-NG');
+    document.addEventListener('input', e => {
+      const inp = e.target.closest('[data-avac-amount]');
+      if (!inp) return;
+      const card = inp.closest('[data-avac-paycard]') || inp.parentNode;
+      const out = card && $('[data-avac-ngn]', card);
+      if (!out) return;
+      const min = Number(inp.min) || 0, rate = Number(inp.dataset.rate) || 0, usd = Number(inp.value);
+      if (!usd || usd < min) { out.textContent = 'The minimum is $' + min + ' a year.'; return; }
+      out.textContent = 'You pay ₦' + fmt(Math.ceil((usd * rate) / 100) * 100) + ' at ₦' + fmt(rate) + ' to the dollar.';
     });
   });
 

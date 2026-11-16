@@ -85,8 +85,11 @@ final class AiKnowledge
 
         // Membership dues (the annual fee).
         try {
-            $ngn = defined('AV_MEMBERSHIP_NGN') ? (int) AV_MEMBERSHIP_NGN : 0;
-            if ($ngn > 0) $lines[] = 'Academy membership / annual dues: ₦' . number_format($ngn) . ' per year (pay or renew in the member Portal).';
+            if (class_exists('AcademyDonation')) {
+                $lines[] = 'Academy membership is a donation: from $' . AcademyDonation::minUsd() . ' a year (' . AcademyDonation::minNgnText()
+                    . ', paid in naira at ₦' . number_format(AcademyDonation::rate()) . ' to the dollar), chosen on any members’ programme page; it unlocks every members’ programme for a year. '
+                    . 'Afrovanguard member dues are separate (see the member Portal).';
+            }
         } catch (\Throwable $e) {}
 
         // How Afrovanguard works — the membership progression framework.

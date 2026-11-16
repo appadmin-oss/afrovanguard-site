@@ -152,7 +152,12 @@ define('FLW_PUBLIC_KEY', getenv('AV_FLW_PK') ?: '');
 define('FLW_SECRET_KEY', getenv('AV_FLW_SK') ?: '');
 
 /* ─── Academy membership ────────────────────────────────────────
- * Annual membership price (NGN) unlocking all members’ programmes. */
+ * Membership is a DONATION: from AV_MEMBERSHIP_MIN_USD dollars a year, unlocking every
+ * members’ programme for twelve months. The checkout charges naira, at AV_USD_NGN naira per
+ * dollar — SET THIS to the rate the office wants to use, and review it when the naira moves.
+ * AV_MEMBERSHIP_NGN is no longer the price (kept so older code and configs still load). */
+define('AV_MEMBERSHIP_MIN_USD', (int) (getenv('AV_MEMBERSHIP_MIN_USD') ?: 20));
+define('AV_USD_NGN', (int) (getenv('AV_USD_NGN') ?: 1500));
 define('AV_MEMBERSHIP_NGN', (int) (getenv('AV_MEMBERSHIP_NGN') ?: 5000));
 
 /* ─── Static Bank Account (Zenith) ─────────────────────────── */
