@@ -3513,7 +3513,7 @@
     if (which === 'dups') loadMemDups();
     if (which === 'volunteers') { loadVolProjects(); vsStatus(); }
     if (which === 'offline') loadOffline();
-    if (which === 'dues') loadDues();
+    if (which === 'dues') { loadDues(); loadAcademyMembership(); }
   }
   function loadMembers() { memTab(($('.subtab[data-mv].active') || { getAttribute: function () { return 'dash'; } }).getAttribute('data-mv')); }
 
@@ -3968,6 +3968,36 @@
       }).join('') : '<p class="muted">Nobody is behind on dues.</p>';
     }).catch(function () { box.innerHTML = '<p class="muted">Could not load who is behind. <button class="btn btn-outline btn-sm" id="duesRetry">Retry</button></p>'; });
   }
+  /* ── Academy membership: donation or fixed price (lib/AcademyDonation.php) ── */
+  function acmShowMode() {
+    var m = $('#acm_mode').value;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-acm]'), function (el) { el.hidden = el.getAttribute('data-acm') !== m; });
+  }
+  function loadAcademyMembership() {
+    api('academy_membership').then(function (r) {
+      var d = r.data || {}; if (!d.ok) { $('#acm_preview').textContent = 'Could not load the Academy membership settings.'; return; }
+      var s = d.settings || {}, p = d.preview || {};
+      $('#acm_mode').value = s.mode; $('#acm_min').value = s.min_usd; $('#acm_rate').value = s.usd_ngn; $('#acm_fixed').value = s.fixed_ngn;
+      $('#acm_headline').value = s.headline || ''; $('#acm_note').value = s.note || '';
+      ['#acm_mode', '#acm_min', '#acm_rate', '#acm_fixed', '#acm_headline', '#acm_note', '#acm_save'].forEach(function (x) { $(x).disabled = !d.can_edit; });
+      acmShowMode();
+      $('#acm_preview').textContent = 'On the site now: “' + (p.headline || '') + '” — ' + (p.note || '') + ' Button: “' + (p.button || '') + '”. Least anyone pays: ' + naira(p.from_ngn)
+        + (d.can_edit ? '' : '. Only a Super Admin changes this') + (s.updated_at ? '. Last changed ' + String(s.updated_at).slice(0, 10) + ' by ' + s.updated_by + '.' : '.');
+    }).catch(function () { $('#acm_preview').textContent = 'Could not load the Academy membership settings.'; });
+  }
+  function saveAcademyMembership(e) {
+    e.preventDefault();
+    var payload = { mode: $('#acm_mode').value, min_usd: $('#acm_min').value.trim(), usd_ngn: $('#acm_rate').value.trim(), fixed_ngn: $('#acm_fixed').value.trim(),
+                    headline: $('#acm_headline').value, note: $('#acm_note').value };
+    if (!confirm('Change what Academy membership costs on the site?')) return;
+    $('#acm_save').disabled = true;
+    post('academy_membership_save', payload).then(function (r) {
+      var d = r.data || {}; $('#acm_save').disabled = false;
+      var err = $('#acm_errors');
+      if (!d.ok) { err.hidden = false; err.textContent = d.error || 'Not saved.'; return; }
+      err.hidden = true; toast(d.unchanged ? 'Nothing changed.' : 'Academy membership saved.'); loadAcademyMembership();
+    }).catch(function () { $('#acm_save').disabled = false; toast('Network error — nothing was saved.'); });
+  }
   function saveDues(e) {
     e.preventDefault();
     var payload = { enabled: $('#dr_enabled').checked, monthly_ngn: $('#dr_monthly').value.trim(), annual_ngn: $('#dr_annual').value.trim(), start: $('#dr_start').value, from_level: $('#dr_level').value };
@@ -4330,6 +4360,8 @@
       memPage = 1; memSel = {}; memTab('roster');
     });
     $('#duesRules').addEventListener('submit', saveDues);
+    $('#acmRules').addEventListener('submit', saveAcademyMembership);
+    $('#acm_mode').addEventListener('change', acmShowMode);
     $('[data-pane="dues"]').addEventListener('click', function (e) {
       if (e.target.closest('#duesRetry')) { loadDues(); return; }
       var o = e.target.closest('.dues-open'); if (o) { openMember(+o.getAttribute('data-id')); return; }

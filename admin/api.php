@@ -132,13 +132,15 @@ try {
         'card_format_save',
         // What every member is charged in dues, and from when.
         'dues_settings_save',
+        // What Academy membership costs: a donation and its minimum, or a fixed price.
+        'academy_membership_save',
         // Clearing somebody's second factor so they can enrol afresh.
         'mfa_reset'];
     $managementOnly = [ // not available to editors
         'mem_list', 'mem_save', 'mem_create',
         // The member desk names every member, their phone and their birthday.
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
-        'roster_membership', 'roster_membership_change', 'dues_settings', 'dues_owing', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
+        'roster_membership', 'roster_membership_change', 'dues_settings', 'dues_owing', 'academy_membership', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
         'roles_list', 'role_save', 'role_delete',
         'member_verify_list', 'member_verify', 'member_unverify', 'member_decline',
         'centres_list', 'centre_save', 'centre_status', 'centre_delete',
@@ -1596,6 +1598,14 @@ try {
         case 'dues_settings_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = Membership::saveSettings(array_intersect_key($body, array_flip(['enabled', 'monthly_ngn', 'annual_ngn', 'start', 'from_level'])), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        /* ── Academy membership: donation or fixed price (lib/AcademyDonation.php) ── */
+        case 'academy_membership':
+            json_out(['ok' => true, 'settings' => AcademyDonation::settings(), 'can_edit' => $role === 'superadmin',
+                      'preview' => ['headline' => AcademyDonation::headline(), 'note' => AcademyDonation::note(), 'button' => AcademyDonation::buttonLabel(), 'from_ngn' => AcademyDonation::fromNgn()]]);
+        case 'academy_membership_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = AcademyDonation::save(array_intersect_key($body, array_flip(['mode', 'min_usd', 'usd_ngn', 'fixed_ngn', 'headline', 'note'])), av_admin_actor());
             json_out($r, $r['ok'] ? 200 : 422);
         case 'dues_owing':
             /* The largest debts first, with names: the list the office calls from. */

@@ -369,9 +369,13 @@ try {
                 $gift = AcademyDonation::check($body['amount_usd'] ?? '');
                 if (!$gift['ok']) json_out(['ok' => false, 'error' => $gift['error']], 400);
                 $amountNgn = (int) $gift['ngn'];
-                $meta['purpose'] = 'Afrovanguard Academy — membership donation (' . AcademyDonation::usdText($gift['usd']) . ')';
-                $meta['donation_usd'] = $gift['usd'];
-                $meta['usd_ngn_rate'] = AcademyDonation::rate();
+                if ($gift['usd'] !== null) {
+                    $meta['purpose'] = 'Afrovanguard Academy — membership donation (' . AcademyDonation::usdText($gift['usd']) . ')';
+                    $meta['donation_usd'] = $gift['usd'];
+                    $meta['usd_ngn_rate'] = AcademyDonation::rate();
+                } else {
+                    $meta['purpose'] = 'Afrovanguard Academy — annual membership';
+                }
             } else {
                 $c = $slug ? $ac->bySlug($slug) : null;
                 if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);

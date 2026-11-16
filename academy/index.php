@@ -268,8 +268,8 @@ $projects = [
       <p class="avac-member-p">Unlock the full catalogue, priority cohorts and your verifiable certificates — and back the mission to raise one million incorruptible leaders.</p>
     </div>
     <div class="avac-plan" data-avac-paycard>
-      <p class="avac-plan-price"><span class="av-num">From $<?= (int) AcademyDonation::minUsd() ?></span><span>/ year</span></p>
-      <p class="avac-plan-note">Membership is a donation. Give what you can, from $<?= (int) AcademyDonation::minUsd() ?> (<?= e(AcademyDonation::minNgnText()) ?>).</p>
+      <p class="avac-plan-price"><span class="av-num"><?= e(AcademyDonation::headline('year')) ?></span></p>
+      <p class="avac-plan-note"><?= e(AcademyDonation::note()) ?></p>
       <ul class="avac-perks">
         <li>Unlock the full catalogue</li>
         <li>Priority places in new cohorts</li>
@@ -280,7 +280,7 @@ $projects = [
       <p class="avac-plan-on">You’re an active member. Thank you for building Africa with us.</p>
 <?php elseif ($user): ?>
       <?= AcademyDonation::field('avac-give') ?>
-      <button type="button" class="avac-plan-btn" data-avac-pay="membership">Donate and become a member →</button>
+      <button type="button" class="avac-plan-btn" data-avac-pay="membership"><?= e(AcademyDonation::buttonLabel()) ?></button>
 <?php else: ?>
       <a class="avac-plan-btn" href="/login?next=%2Facademy%2F&amp;mode=register" data-avac-auth="register">Create an account to join →</a>
       <p class="avac-plan-note">Already have an account? <a href="/login?next=%2Facademy%2F" data-avac-auth="login">Sign in</a></p>

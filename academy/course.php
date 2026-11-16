@@ -87,7 +87,7 @@ if ($lessonTotal && $firstLesson && !$hasAccess && !in_array($access, ['open', '
 
 /* Price block. */
 if ($access === 'paid') { $priceBig = $price > 0 ? $ngn($price) : ((string) ($c['price'] ?? '') ?: 'Paid'); $priceNote = 'One-time fee · certificate included.'; }
-elseif ($access === 'membership') { $priceBig = AcademyDonation::headline(); $priceNote = 'Membership is a donation: give $' . AcademyDonation::minUsd() . ' or more a year (' . AcademyDonation::minNgnText() . ') to unlock this and every members’ programme.'; }
+elseif ($access === 'membership') { $priceBig = AcademyDonation::headline(); $priceNote = AcademyDonation::note(); }
 elseif ($access === 'restricted') { $priceBig = 'Restricted'; $priceNote = $hasAccess ? 'Access unlocked.' : 'Invite or pass required.'; }
 else { $priceBig = 'Free'; $priceNote = $access === 'tracked' ? ($user ? 'Free — your progress is saved to your account.' : 'Free to join — sign in to save your progress.') : 'Open programme — start straight away.'; }
 
@@ -109,7 +109,7 @@ $faqs = [
     ['How much does it cost?', $access === 'paid'
         ? 'This programme is ' . ($price > 0 ? $ngn($price) . ' (one-time)' : 'paid') . '. Academy members get it included — see membership.'
         : ($access === 'membership'
-            ? 'This programme is included with Academy membership, which is a donation of $' . AcademyDonation::minUsd() . ' or more a year (' . AcademyDonation::minNgnText() . ', paid in naira).'
+            ? 'This programme is included with Academy membership. ' . AcademyDonation::summary() . '.'
             : ($access === 'restricted'
                 ? 'This programme is restricted to invited members or those holding a pass.'
                 : 'This programme is free. ' . ($access === 'tracked' ? 'Create a free account to save your progress and earn your certificate.' : 'You can start straight away.')))],
@@ -369,7 +369,7 @@ $startBtn = static function (string $cls) use ($resumeUrl, $started): void {
 <?php if ($firstLesson) $startBtn('avco-go'); ?>
 <?php elseif ($user): ?>
       <?= AcademyDonation::field('avco-give') ?>
-      <button type="button" class="avco-go" data-avac-pay="membership">Donate and become a member →</button>
+      <button type="button" class="avco-go" data-avac-pay="membership"><?= e(AcademyDonation::buttonLabel()) ?></button>
       <p class="avco-note">Unlocks every members’ programme for a year.</p>
 <?php else: ?>
       <a class="avco-go" href="/login?mode=register" data-avac-auth="register">Create an account to join →</a>
