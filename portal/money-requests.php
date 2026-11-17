@@ -16,6 +16,18 @@
  *                         withdraws it (and refuses once anything is decided).
  *   POST ?action=account_name → the name the bank holds for an account, to
  *                         show before sending. Never a reason not to send.
+ *   POST ?action=answer → id, ask, answer, optional photos/PDFs (`files[]`):
+ *                         answer a question finance asked about a request.
+ *   POST ?action=receipt → id and `receipts[]`: add a receipt to a request
+ *                         finance holds (after a decision, a receipt only).
+ *   POST ?action=read_receipt → one photo or PDF (`receipt`): what it says,
+ *                         to fill the form for the member to check. Never an
+ *                         error the member has to deal with: "nothing read"
+ *                         leaves the form as it was.
+ *
+ * A create that looks like one this member asked for in the last 30 days
+ * comes back `needs_confirm` with the earlier one; sent again with
+ * `confirm_similar=1` it goes.
  *
  * The create form takes `lines[i][description|category|amount]` for several
  * things in one request (added by the script; without it the single line
@@ -49,6 +61,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
 $body = json_decode((string) file_get_contents('php://input'), true);
 if (!is_array($body)) $body = $_POST;
 
+/* A multipart file field as one entry per file, whether one was sent or several. */
+$filesOf = static function (string $field): array {
+    $up = $_FILES[$field] ?? null;
+    if (!is_array($up)) return [];
+    if (!is_array($up['name'] ?? null)) {
+        return [['name' => $up['name'] ?? '', 'tmp_name' => $up['tmp_name'] ?? '', 'error' => $up['error'] ?? UPLOAD_ERR_NO_FILE, 'size' => $up['size'] ?? 0]];
+    }
+    $out = [];
+    foreach (array_keys($up['name']) as $i) {
+        $out[] = ['name' => $up['name'][$i] ?? '', 'tmp_name' => $up['tmp_name'][$i] ?? '',
+                  'error' => $up['error'][$i] ?? UPLOAD_ERR_NO_FILE, 'size' => $up['size'][$i] ?? 0];
+    }
+    return $out;
+};
+
 /* Looking a name up is not asking for money, so it has its own allowance
    rather than spending the eight an hour a member has to ask with. Finance
    limits it again per member. */
@@ -59,6 +86,25 @@ if ($action === 'account_name') {
 if ($action === 'withdraw') {
     av_require_write($uid, 'cfis_withdraw', 10, 3600);
     $r = CfisRequests::withdraw($uid, (int) ($body['id'] ?? 0), $email);
+    json_out($r, ($r['ok'] ?? false) ? 200 : 422);
+}
+
+/* Answering finance, and adding a receipt, are not asking for money: each
+   has its own allowance. Reading a photo costs finance a call to a reader,
+   so it has the tightest one; finance limits it again per member. */
+if ($action === 'answer') {
+    av_require_write($uid, 'cfis_answer', 20, 3600);
+    $r = CfisRequests::answerAsk($uid, (int) ($body['id'] ?? 0), $email, (int) ($body['ask'] ?? 0), (string) ($body['answer'] ?? ''), $filesOf('files'));
+    json_out($r, ($r['ok'] ?? false) ? 200 : 422);
+}
+if ($action === 'receipt') {
+    av_require_write($uid, 'cfis_receipt', 20, 3600);
+    $r = CfisRequests::addReceipt($uid, (int) ($body['id'] ?? 0), $email, $filesOf('receipts'));
+    json_out($r, ($r['ok'] ?? false) ? 200 : 422);
+}
+if ($action === 'read_receipt') {
+    av_require_write($uid, 'cfis_read_receipt', 10, 3600);
+    $r = CfisRequests::readReceipt($email, $filesOf('receipt'));
     json_out($r, ($r['ok'] ?? false) ? 200 : 422);
 }
 
@@ -74,16 +120,8 @@ if ($email === '') {
     json_out(['ok' => false, 'error' => 'Your account has no email address, so finance would have nobody to reply to.'], 422);
 }
 
-/* Receipts come as multipart `receipts[]`; PHP's per-field arrays are
-   turned into one entry per file. */
-$files = [];
-$up = $_FILES['receipts'] ?? null;
-if (is_array($up) && is_array($up['name'] ?? null)) {
-    foreach (array_keys($up['name']) as $i) {
-        $files[] = ['name' => $up['name'][$i] ?? '', 'tmp_name' => $up['tmp_name'][$i] ?? '',
-                    'error' => $up['error'][$i] ?? UPLOAD_ERR_NO_FILE, 'size' => $up['size'][$i] ?? 0];
-    }
-}
+/* Receipts come as multipart `receipts[]`, one entry per file. */
+$files = $filesOf('receipts');
 
 $r = CfisRequests::submit($uid, $body, $name, $email, $files);
 
