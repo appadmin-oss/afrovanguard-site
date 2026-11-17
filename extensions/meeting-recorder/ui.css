@@ -1,0 +1,14 @@
+:root { --ink:#15120e; --muted:#5d6470; --line:#e7e9ee; --bg:#fff; --soft:#f5f6f8; --brand:#e4162b; --ok:#137a3a; --warn:#9a5b00; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --ink:#f1efe9; --muted:#a8adb7; --line:#2b2f36; --bg:#1a1d22; --soft:#22262c; --ok:#4fc27a; --warn:#e0a640; } }
+* { box-sizing: border-box }
+body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink) }
+h1 { font-size: 16px; margin: 0 } h2 { font-size: 13px; margin: 14px 0 6px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em }
+p { margin: 0 0 8px } .muted { color: var(--muted) } .small { font-size: 12px }
+a { color: var(--brand) }
+.btn { display: block; width: 100%; border: 0; border-radius: 999px; padding: 11px 16px; font: 600 15px/1 inherit; background: var(--brand); color: #fff; cursor: pointer; text-align: center; text-decoration: none }
+.btn:disabled { opacity: .5; cursor: default }
+.btn--stop { background: var(--ink); color: var(--bg) }
+.btn--line { background: transparent; color: var(--ink); border: 1px solid var(--line); font-size: 13px; padding: 8px 12px; width: auto; display: inline-block }
+.note { background: var(--soft); border-radius: 10px; padding: 8px 10px; margin: 8px 0; font-size: 13px }
+.note--warn { color: var(--warn) }
+.err { color: var(--brand); font-weight: 600 }

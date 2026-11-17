@@ -1,32 +1,77 @@
 <?php
 /**
- * academy/teach.php — instructor dashboard.
- *   /academy/teach/                 → overview of my courses + stats
- *   /academy/teach/<course>/        → learner roster for one of my courses
+ * academy/teach.php — the instructor console.
+ *   /academy/teach/                       → the courses I teach + stats
+ *   /academy/teach/<course>/              → learner roster (default tab)
+ *   /academy/teach/<course>/?tab=items    → graded items, weights, pass mark, live sessions
+ *   /academy/teach/<course>/?tab=marking  → the marking queue, marking, moderation, release
+ *   /academy/teach/<course>/?tab=gradebook→ grades per learner (+ CSV)
+ *   /academy/teach/<course>/?tab=team     → the teaching team
+ *   /academy/teach/<course>/?tab=live&session=N → a live session's panel screen
+ *   /academy/teach/?view=scorecard|instructors|feedback|observations|observation
+ *                                         → instructors being assessed (academy/_instructor_views.php)
  *
- * Gated by an LMS account with the instructor (or admin) role. Instructors
- * only ever see courses where courses.instructor_id is their own id.
+ * Who may open a course here and what they may do is CourseTeam::can() — the
+ * course's team (lead, instructor, assistant) and Academy staff (LMS admin or
+ * coordinator). This page never decides a permission itself.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
+require_once __DIR__ . '/_grading_actions.php';
+require_once __DIR__ . '/_instructor_actions.php';
+require_once __DIR__ . '/_instructor_views.php';
 
 $user = LmsAuth::user();
 $lms  = new LmsRepository();
 $courseSlug   = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['course'] ?? '')));
-$isInstructor = $user && in_array($user['role'], ['instructor', 'admin'], true);
+$uid0 = $user ? (int) $user['id'] : 0;
+$isStaff = $user && CourseTeam::isStaff($uid0);
+$isInstructor = $user && ($isStaff || CourseTeam::coursesFor($uid0) !== [] || LmsAuth::canTeach($user));
 
 // Resolve the course up front (before any output) so a bad/forbidden slug
 // can return a clean 404 with the right status code.
 $course = null;
 if ($isInstructor && $courseSlug !== '') {
-    $course = $user['role'] === 'admin'
-        ? (new AcademyRepository())->bySlug($courseSlug, true)
-        : $lms->ownsCourse((int) $user['id'], $courseSlug);
+    $course = $lms->ownsCourse($uid0, $courseSlug);
     if (!$course) { require_once AV_ROOT . '/lib/errors.php'; av_error_render(404); exit; }
 }
+$tab = preg_replace('/[^a-z]/', '', (string) ($_GET['tab'] ?? 'roster')) ?: 'roster';
+$view = $course ? '' : (string) preg_replace('/[^a-z]/', '', (string) ($_GET['view'] ?? ''));
 
-/* ── CSV roster export (instructor-gated; streamed before any HTML) ── */
+/* ── Assessment forms (observations, feedback moderation) post here ── */
+if (!$course && $isInstructor && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    require_same_origin();
+    $r = avin_action($uid0, $_POST);
+    avgr_flash_set($r);
+    $to = (string) $r['to'];
+    if (!headers_sent()) { header('Location: ' . academy_url('teach/') . ($to !== '' ? '?' . $to : ''), true, 303); exit; }
+    parse_str($to, $q); $_GET = $q + $_GET; $view = (string) preg_replace('/[^a-z]/', '', (string) ($_GET['view'] ?? ''));
+}
+/* ── The instructor list as CSV (staff; streamed before any HTML) ── */
+if (!$course && $isInstructor && $view === 'instructors' && ($_GET['export'] ?? '') === 'csv') {
+    if (avin_instructors_csv($uid0)) exit;
+}
+
+/* ── Grading forms post here (CSRF-checked in avgr_teach_action) ── */
+if ($course && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    require_same_origin();
+    $r = avgr_teach_action($course, $uid0, $_POST, $_FILES);
+    avgr_flash_set($r);
+    $base = academy_url('teach/' . $course['slug'] . '/');
+    $to = (string) $r['to'];
+    $frag = '';
+    if (($p = strpos($to, '#')) !== false) { $frag = substr($to, $p); $to = substr($to, 0, $p); }
+    if (!headers_sent()) { header('Location: ' . $base . ($to !== '' ? '?' . $to : '') . $frag, true, 303); exit; }
+    parse_str($to, $q); $_GET = $q + $_GET; $tab = (string) ($_GET['tab'] ?? $tab);
+}
+
+/* ── CSV exports (team-gated; streamed before any HTML) ── */
+if ($course && $tab === 'gradebook' && ($_GET['export'] ?? '') === 'csv') {
+    require __DIR__ . '/_teach_grading.php';
+    avgr_gradebook_csv($course);
+    exit;
+}
 if ($course && ($_GET['export'] ?? '') === 'csv') {
     $stats  = $lms->courseStats((int) $course['id']);
     $roster = $lms->roster((int) $course['id'], 5000);
@@ -64,14 +109,14 @@ if (!$isInstructor) {
   <main id="main" tabindex="-1">
     <div class="container">
       <div class="gate">
-        <h2>Instructor access</h2>
+        <h1 class="gate-h">Instructor access</h1>
 <?php if (!$user): ?>
         <p>Sign in with your instructor account to manage your programmes and see how your learners are progressing.</p>
         <div class="err-actions" style="justify-content:center;display:flex;gap:12px;flex-wrap:wrap">
           <button class="btn btn-primary" data-auth="login">Sign in</button>
         </div>
 <?php else: ?>
-        <p>Your account doesn’t have instructor access yet. If you teach a programme, ask an Academy admin to assign it to <strong><?= e($user['email']) ?></strong>.</p>
+        <p>Your account isn’t on a teaching team yet. If you teach a programme, ask its lead or an Academy admin to add <strong><?= e($user['email']) ?></strong> to the team.</p>
         <a class="btn btn-outline" href="<?= e(academy_url('')) ?>">Back to the Academy</a>
 <?php endif; ?>
       </div>
@@ -85,11 +130,37 @@ if (!$isInstructor) {
 
 $uid = (int) $user['id'];
 
-/* ── Roster view for a single course ── */
+/* ── Instructors being assessed: scorecards, observations, course feedback ── */
+if (!$course && $view !== '') {
+    avin_page($user, $view);
+    echo '<script src="/academy/academy.js" defer></script>';
+    render_footer();
+    return;
+}
+
+/* ── A single course: the grading tabs, or the roster ── */
+if ($course && $tab !== 'roster') {
+    require __DIR__ . '/_teach_grading.php';
+    avgr_teach_page($course, $user, $tab);
+    echo '<script src="/academy/academy.js" defer></script>';
+    render_footer();
+    return;
+}
 if ($course) {
     $stats = $lms->courseStats((int) $course['id']);
     $roster = $lms->roster((int) $course['id']);
     $funnel = $lms->lessonFunnel((int) $course['id']);
+    /* THE GRADEBOOK. A learner can see their own grades (academy/grades.php)
+       and an instructor could see nobody's. The figures are LmsCourseware
+       ::grades() — the same weighted answer the certificate is issued on, so
+       the roster and the learner cannot disagree about what somebody scored.
+
+       The questions are the course's own forum threads, unanswered first: a
+       thread nobody with an answer reads is worse than no thread at all. */
+    $cw = new LmsCourseware(null, $lms);
+    $book = $cw->gradebook((int) $course['id'], $course);
+    $asks = array_values(array_filter($cw->threads((int) $course['id']), static fn($t) => (int) ($t['replies'] ?? 0) === 0));
+    $unanswered = count($asks);
     // Learner status buckets, for the filter chips + summary.
     $notStarted = 0; $active = 0; $done = 0;
     foreach ($roster as $r) { if ($r['pct'] >= 100) $done++; elseif ($r['done'] > 0) $active++; else $notStarted++; }
@@ -97,30 +168,97 @@ if ($course) {
     ?>
   <main id="main" tabindex="-1">
     <div class="container teach" data-teach-roster>
-      <nav class="breadcrumb"><a href="<?= e(academy_url('teach/')) ?>">Dashboard</a><span class="sep">/</span><span><?= e($course['title']) ?></span></nav>
+      <nav class="breadcrumb" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="<?= e(academy_url('teach/')) ?>">Dashboard</a><span class="sep" aria-hidden="true">/</span></li><li><span aria-current="page"><?= e($course['title']) ?></span></li></ol></nav>
       <div class="teach-head-row">
         <h1 class="teach-h1"><?= e($course['title']) ?></h1>
-<?php if ($roster): ?>        <a class="btn btn-pill-ghost btn-sm teach-export" href="<?= e(academy_url('teach/' . $course['slug'] . '/')) ?>?export=csv">↓ Export CSV</a><?php endif; ?>
+<?php if ($roster): ?>        <a class="btn btn-pill-ghost btn-sm teach-export" href="<?= e(academy_url('teach/' . $course['slug'] . '/')) ?>?export=csv"><span aria-hidden="true">↓ </span>Export CSV<span class="av-sr"> of every learner's grades</span></a><?php endif; ?>
       </div>
+<?php require_once __DIR__ . '/_teach_grading.php'; echo avgr_tabs($course, 'roster', $uid); ?>
       <div class="teach-stats">
         <div class="tstat"><span class="tn"><?= (int) $stats['enrolled'] ?></span><span class="tl">Learners</span></div>
         <div class="tstat"><span class="tn"><?= (int) $stats['completed'] ?></span><span class="tl">Completed</span></div>
         <div class="tstat"><span class="tn"><?= (int) $stats['avg_pct'] ?>%</span><span class="tl">Avg. progress</span></div>
+<?php if ($book['average'] !== null): ?>
+        <div class="tstat"><span class="tn"><?= (int) $book['average'] ?>%</span><span class="tl">Avg. grade</span></div>
+<?php endif; ?>
+<?php if ($unanswered): ?>
+        <div class="tstat tstat--ask"><span class="tn"><?= (int) $unanswered ?></span><span class="tl">Unanswered</span></div>
+<?php endif; ?>
         <div class="tstat"><span class="tn"><?= (int) $stats['lessons'] ?></span><span class="tl">Lessons</span></div>
       </div>
+
+<?php /* ── QUESTIONS WAITING ───────────────────────────────────────────
+         Unanswered first, because a thread nobody with an answer reads is
+         worse than no thread at all — it is a room where asking visibly
+         does nothing. */ ?>
+<?php if ($asks): ?>
+      <section class="teach-asks">
+        <div class="funnel-head">
+          <h2>Questions from your learners</h2>
+          <p><?= $unanswered ? '<strong>' . (int) $unanswered . ' waiting for an answer</strong> — those come first.' : 'Every question has at least one reply. Nice.' ?></p>
+        </div>
+        <ul class="ask-list" role="list">
+<?php foreach (array_slice($asks, 0, 8) as $a): ?>
+          <li class="ask is-open">
+            <p class="ask-by"><b><?= e((string) ($a['author'] ?? 'A learner')) ?></b>
+              <a href="<?= e(academy_url($course['slug'] . '/discussions/' . (int) $a['id'])) ?>"><?= e((string) $a['title']) ?></a>
+              <span class="ask-n">No reply yet</span></p>
+            <p class="ask-b"><?= e(mb_strimwidth((string) ($a['body'] ?? ''), 0, 260, '…')) ?></p>
+          </li>
+<?php endforeach; ?>
+        </ul>
+      </section>
+<?php endif; ?>
+
+<?php /* ── GRADEBOOK ───────────────────────────────────────────────────
+         Best attempt per learner per graded lesson. An instructor had no
+         way to see a score at all before this, though every one has been
+         recorded since the LMS shipped. */ ?>
+<?php if ($book['items'] && $book['learners']): ?>
+      <section class="teach-grades">
+        <div class="funnel-head">
+          <h2>Gradebook</h2>
+          <p>The same weighted figures the learner sees on their own grades page, and the ones a certificate is issued on. The <strong>best</strong> attempt at a quiz counts, so a retake can only help. A dash means not attempted yet.</p>
+        </div>
+        <div class="gb-scroll">
+          <table class="gb">
+            <caption class="av-sr">Each learner's grade on each graded item of <?= e((string) $course['title']) ?></caption>
+            <thead><tr><th scope="col">Learner</th>
+<?php foreach ($book['items'] as $bl): ?>              <th scope="col" class="gb-n" title="<?= e((string) $bl['title']) ?>"><?= e(mb_strimwidth((string) $bl['title'], 0, 22, '…')) ?><span class="gb-pass">pass <?= (int) $bl['pass'] ?>%<?= (int) $bl['weight'] > 1 ? ' · ×' . (int) $bl['weight'] : '' ?></span></th>
+<?php endforeach; ?>
+              <th scope="col" class="gb-n">Overall</th></tr></thead>
+            <tbody>
+<?php foreach ($book['learners'] as $bu): $bg = $bu['grade']; ?>
+              <tr><th scope="row"><?= e((string) $bu['name']) ?><span class="gb-em"><?= e((string) $bu['email']) ?></span></th>
+<?php foreach ($bg['items'] as $cell): ?>
+                <td class="gb-n<?= $cell['status'] === 'passed' ? ' is-pass' : ($cell['status'] === 'failed' ? ' is-fail' : '') ?>"><?php
+                  if ($cell['score'] !== null) { echo (int) $cell['score'], '%'; }
+                  elseif ($cell['status'] === 'pending') { echo '<span class="gb-w">to mark</span>'; }
+                  elseif ($cell['status'] === 'returned') { echo '<span class="gb-w">returned</span>'; }
+                  else { echo '—'; }
+                  if (($cell['tries'] ?? 0) > 1) echo '<span class="gb-t">', (int) $cell['tries'], ' tries</span>';
+                ?></td>
+<?php endforeach; ?>
+                <td class="gb-n gb-avg<?= $bg['passed'] ? ' is-pass' : '' ?>"><?= $bu['started'] ? (int) $bg['overall'] . '%' : '—' ?></td></tr>
+<?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </section>
+<?php endif; ?>
 <?php if (!$roster): ?>
       <p class="teach-empty">No learners have enrolled yet. Share your programme to get started.</p>
 <?php else: ?>
 <?php if ($funnel): ?>
       <section class="funnel">
         <div class="funnel-head"><h2>Lesson completion</h2><p>How many of your <?= (int) $stats['enrolled'] ?> learner<?= $stats['enrolled'] === 1 ? '' : 's' ?> have finished each lesson — watch for the drop-off.</p></div>
-        <ol class="funnel-list">
+        <ol class="funnel-list" role="list">
 <?php foreach ($funnel as $fi => $f): ?>
           <li class="funnel-row">
             <span class="funnel-num"><?= $fi + 1 ?></span>
             <span class="funnel-title"><?= e($f['title']) ?></span>
             <span class="funnel-track"><span class="funnel-fill" style="width:<?= (int) $f['pct'] ?>%"></span></span>
-            <span class="funnel-val"><?= (int) $f['done'] ?> · <?= (int) $f['pct'] ?>%</span>
+            <span class="funnel-val"><span aria-hidden="true"><?= (int) $f['done'] ?> · <?= (int) $f['pct'] ?>%</span><span class="av-sr"><?= (int) $f['done'] ?> <?= (int) $f['done'] === 1 ? 'learner' : 'learners' ?> finished, <?= (int) $f['pct'] ?>%</span></span>
           </li>
 <?php endforeach; ?>
         </ol>
@@ -128,11 +266,11 @@ if ($course) {
 <?php endif; ?>
       <div class="teach-toolbar">
         <div class="search-wrap"><?= Icons::SEARCH ?><input type="search" class="search-input" data-roster-search placeholder="Search learners…" aria-label="Search learners" /></div>
-        <div class="teach-filters" role="tablist" aria-label="Filter learners">
-          <button class="chip active" data-roster-filter="all" role="tab" aria-selected="true">All <?= count($roster) ?></button>
-          <button class="chip" data-roster-filter="active" role="tab" aria-selected="false">In progress <?= $active ?></button>
-          <button class="chip" data-roster-filter="completed" role="tab" aria-selected="false">Completed <?= $done ?></button>
-          <button class="chip" data-roster-filter="notstarted" role="tab" aria-selected="false">Not started <?= $notStarted ?></button>
+        <div class="teach-filters" role="group" aria-label="Filter learners">
+          <button class="chip active" data-roster-filter="all" type="button" aria-pressed="true">All <?= count($roster) ?></button>
+          <button class="chip" data-roster-filter="active" type="button" aria-pressed="false">In progress <?= $active ?></button>
+          <button class="chip" data-roster-filter="completed" type="button" aria-pressed="false">Completed <?= $done ?></button>
+          <button class="chip" data-roster-filter="notstarted" type="button" aria-pressed="false">Not started <?= $notStarted ?></button>
         </div>
       </div>
       <div class="teach-table-wrap">
@@ -168,7 +306,7 @@ if ($course) {
 }
 
 /* ── Overview: all of my courses ── */
-$courses = $user['role'] === 'admin'
+$courses = $isStaff
     ? array_map(function ($c) use ($lms) { $c['stats'] = $lms->courseStats((int) $c['id']); return $c; }, (new AcademyRepository())->allForAdmin())
     : $lms->coursesForInstructor($uid);
 $totLearners = array_sum(array_map(fn($c) => (int) $c['stats']['enrolled'], $courses));
@@ -181,17 +319,19 @@ $totCerts = array_sum(array_map(fn($c) => (int) $c['stats']['completed'], $cours
 <?php $waiting = count((new LmsCourseware(null, $lms))->queue($user['role'] === 'admin' || LmsAuth::atLeast($user, 'coordinator') ? null : array_map(static fn($x) => (int) $x['id'], $lms->coursesForInstructor((int) $user['id'])))); ?>
       <p><a class="btn btn-primary" href="/academy/teach/grading">Grading queue<?= $waiting ? ' (' . $waiting . ' waiting)' : '' ?> →</a></p>
       <div class="teach-stats">
-        <div class="tstat"><span class="tn"><?= count($courses) ?></span><span class="tl"><?= $user['role'] === 'admin' ? 'All programmes' : 'My programmes' ?></span></div>
+        <div class="tstat"><span class="tn"><?= count($courses) ?></span><span class="tl"><?= $isStaff ? 'All programmes' : 'My programmes' ?></span></div>
         <div class="tstat"><span class="tn"><?= (int) $totLearners ?></span><span class="tl">Total learners</span></div>
         <div class="tstat"><span class="tn"><?= (int) $totCerts ?></span><span class="tl">Certificates issued</span></div>
       </div>
+<?= avin_subnav($uid, '') ?>
 <?php if (!$courses): ?>
-      <p class="teach-empty">No programmes are assigned to you yet. An Academy admin can assign a programme to <strong><?= e($user['email']) ?></strong> from the Studio.</p>
+      <p class="teach-empty">You aren’t on a teaching team yet. A course lead or an Academy admin can add <strong><?= e($user['email']) ?></strong> to a team.</p>
 <?php else: ?>
       <div class="teach-grid">
 <?php foreach ($courses as $c): $s = $c['stats']; ?>
         <a class="teach-card" href="<?= e(academy_url('teach/' . $c['slug'] . '/')) ?>">
           <div class="tc-head"><span class="tc-title"><?= e($c['title']) ?></span><span class="tc-status <?= $c['status'] === 'published' ? 'pub' : 'draft' ?>"><?= e($c['status']) ?></span></div>
+<?php if (!empty($c['team_role'])): ?>          <div class="tc-role"><?= e(CourseTeam::label((string) $c['team_role'])) ?></div><?php endif; ?>
           <div class="tc-stats"><span><strong><?= (int) $s['enrolled'] ?></strong> learners</span><span><strong><?= (int) $s['completed'] ?></strong> completed</span></div>
           <div class="r-bar"><span style="width:<?= (int) $s['avg_pct'] ?>%"></span></div>
           <span class="tc-link">View roster →</span>

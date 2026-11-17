@@ -96,7 +96,7 @@ try {
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
         'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save', 'ngv_save', 'ngv_reset', 'ngv_restore',
-        'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify',
+        'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify', 'db_switch', 'db_switch_back',
         'rules_save', 'rules_reset', 'kb_save', 'kb_delete', 'prompts_save', 'prompts_reset', 'level_recommend',
         'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test',
         'summit_resend', 'summit_resend_failed',
@@ -116,7 +116,7 @@ try {
     $role = function_exists('av_admin_role') ? av_admin_role() : 'superadmin';
     $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'superadmin_reveal', 'auth_policy_save', 'auth_policy_get',
         'db_status', 'db_test', 'db_migrate', 'brand_get', 'brand_save',
-        'db_job_state', 'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify',
+        'db_job_state', 'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify', 'db_switch', 'db_switch_back',
         // The rules ARE the organisation's constitution — they decide promotions
         // and escalations movement-wide — and the prompts steer every AI reply.
         // Both stay with the Super Admin. The knowledge base is management-level.
@@ -151,6 +151,9 @@ try {
         // (NGV youth among them); enrolment, grants and certificates change
         // their records. Content editors write courses, not people.
         'ac_roster', 'ac_export', 'ac_grants', 'ac_grant', 'ac_revoke',
+        // Teaching teams decide who marks, releases grades and runs a course
+        // (lib/CourseTeam) — a people decision, not content.
+        'ac_team', 'ac_team_add', 'ac_team_role', 'ac_team_remove',
         'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke',
         // Events: ours are written here; Africa GATES events are read from there.
         'sev_list', 'sev_refresh', 'sev_save', 'sev_delete',
@@ -165,6 +168,8 @@ try {
            fee and every plan's programme fee off the page it writes, so saving it
            sets what members are charged (docs/audits/2026-11-02-studio, S1). */
         'ngv_save', 'ngv_reset', 'ngv_restore',
+        // The Academy membership price is what Paystack is asked to charge.
+        'ac_pricing_save', 'ac_pricing_reset',
         // The homepage is the organisation's front door: editors draft it, an admin publishes.
         // Content goes live only through an admin: publishing, scheduling and approving.
         'media_delete', 'cms_publish', 'cms_schedule', 'cms_unschedule', 'cms_reject',
@@ -1016,7 +1021,82 @@ try {
                 'db'         => $driver === 'sqlite' ? basename((string) (defined('AV_DB_PATH') ? AV_DB_PATH : '')) : (string) (getenv('AV_DB_NAME') ?: ''),
                 'tables'     => $counts,
                 'total_rows' => $total,
+                /* Whether the site was switched from here, and whether the host's own settings choose instead. */
+                'switch'     => DbSwitch::status(),
+                'fell_back'  => Database::fellBack(),
             ]);
+        }
+        /* ── Switch the site onto the database it was copied to (lib/DbSwitch) ──
+           The migration fills the target and stops; on a host with no shell
+           there was then no way to use it. This checks the target holds what
+           this site holds, copies rows added since the copy, and only then
+           points the site at it. db_switch_back returns it to SQLite. */
+        case 'db_switch': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/Migrator.php';
+            require_once AV_ROOT . '/lib/DbMigrateJob.php';
+            $conf = ['driver' => strtolower(trim((string) ($body['driver'] ?? 'mysql'))),
+                     'host' => (string) ($body['host'] ?? ''), 'port' => (string) ($body['port'] ?? ''),
+                     'name' => (string) ($body['name'] ?? ''), 'user' => (string) ($body['user'] ?? ''),
+                     'pass' => (string) ($body['pass'] ?? '')];
+            if (!in_array($conf['driver'], ['mysql', 'pgsql'], true)) json_out(['ok' => false, 'error' => 'Choose a MySQL or PostgreSQL database.'], 422);
+            $sw = DbSwitch::status();
+            if ($sw['host_chose']) json_out(['ok' => false, 'error' => 'Your hosting settings (.env or the server) already choose the database, and they win over a switch made here. Change them there instead.'], 409);
+            if (Database::fellBack() !== null) json_out(['ok' => false, 'error' => 'The site is on its fallback copy because ' . strtoupper((string) Database::fellBack()) . ' could not be reached. Fix that connection first.'], 409);
+            if (Database::driver() !== 'sqlite') json_out(['ok' => false, 'error' => 'The site is already on ' . strtoupper(Database::driver()) . '.'], 409);
+            if (!$sw['can_write']) json_out(['ok' => false, 'error' => 'This host does not let the site save its own settings, so it cannot switch itself. Add these lines to .env by hand instead.'], 409);
+            try { $dst = DbMigrateJob::connect($conf); }
+            catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Could not connect: ' . $e->getMessage()], 502); }
+            $src = Database::pdo();
+            $label = DbMigrateJob::label($conf);
+            /* Rows added to this site since the copy finished, copied across, then
+               every table checked. A live site can gain a row between the two, so
+               up to three rounds before refusing. */
+            $added = 0; $v = ['ok' => false, 'tables' => []];
+            for ($round = 0; $round < 3; $round++) {
+                if (DbMigrateJob::reopenForNewRows($label)) {
+                    try {
+                        $before = array_sum(array_map(static fn($t) => (int) $t['copied'], (DbMigrateJob::state()['tables'] ?? [])));
+                        $job = DbMigrateJob::step($src, $dst, 15.0, $label);
+                        if (($job['phase'] ?? '') !== 'done') json_out(['ok' => false, 'error' => 'Too many new rows to copy in one go. Press Switch again to carry on.'], 409);
+                        $added += array_sum(array_map(static fn($t) => (int) $t['copied'], $job['tables'])) - $before;
+                    } catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Copying the newest rows failed: ' . $e->getMessage()], 422); }
+                }
+                $v = DbMigrateJob::verify($src, $dst);
+                if (!empty($v['ok'])) break;
+            }
+            /* Every table must hold what this site holds. */
+            if (empty($v['ok'])) {
+                $bad = array_values(array_filter($v['tables'] ?? [], static fn($r) => empty($r['ok'])));
+                json_out(['ok' => false, 'error' => count($bad) . ' table(s) in ' . $label . ' do not match this site (' . implode(', ', array_slice(array_map(static fn($r) => $r['table'], $bad), 0, 6))
+                    . '). Copy the data again (tick “Replace target tables”), then switch.', 'verify' => $v], 409);
+            }
+            try {
+                DbSwitch::write($conf, function_exists('av_admin_actor') ? av_admin_actor() : 'admin');
+            } catch (Throwable $e) { json_out(['ok' => false, 'error' => $e->getMessage()], 500); }
+            $note = 'switched from SQLite' . ($added ? "; $added newest rows copied first" : '') . '; every table matched';
+            AdminAudit::log('database', 'db_switch', $label, $note);
+            /* …and in the database the site now runs on, where the next person to
+               ask "who moved the site, and when?" will be looking. */
+            try {
+                $dst->prepare('INSERT INTO lms_audit (actor, action, target, detail, ip, area, undone) VALUES (?,?,?,?,?,?,0)')
+                    ->execute([function_exists('av_admin_actor') ? av_admin_actor() : 'admin', 'db_switch', mb_substr($label, 0, 300), $note, function_exists('av_client_ip') ? av_client_ip() : '', 'database']);
+            } catch (Throwable $e) { error_log('[db-switch] audit on target: ' . $e->getMessage()); }
+            json_out(['ok' => true, 'target' => DbSwitch::label($conf), 'added' => $added, 'tables' => count($v['tables'] ?? [])]);
+        }
+        case 'db_switch_back': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $sw = DbSwitch::status();
+            if (!$sw['saved']) json_out(['ok' => false, 'error' => 'This site was not switched from here, so there is nothing to switch back.'], 409);
+            try { $was = DbSwitch::clear(); } catch (Throwable $e) { json_out(['ok' => false, 'error' => $e->getMessage()], 500); }
+            AdminAudit::log('database', 'db_switch_back', $was, 'back to the SQLite file');
+            /* …and in the SQLite file the site runs on from the next request. */
+            try {
+                $sq = new PDO('sqlite:' . AV_DB_PATH, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+                $sq->prepare('INSERT INTO lms_audit (actor, action, target, detail, ip, area, undone) VALUES (?,?,?,?,?,?,0)')
+                    ->execute([function_exists('av_admin_actor') ? av_admin_actor() : 'admin', 'db_switch_back', mb_substr($was, 0, 300), 'back to the SQLite file', function_exists('av_client_ip') ? av_client_ip() : '', 'database']);
+            } catch (Throwable $e) { error_log('[db-switch] audit on SQLite: ' . $e->getMessage()); }
+            json_out(['ok' => true, 'was' => $was]);
         }
         /* ── Resumable migration (lib/DbMigrateJob) ────────────────────────
            db_migrate below copies everything in ONE request. A shared host
@@ -1595,17 +1675,37 @@ try {
             json_out(['ok' => true, 'settings' => Membership::settings(), 'levels' => class_exists('Levels') ? Levels::order() : ['O'],
                       'owing_levels' => Membership::owingLevels(), 'plan' => defined('AV_DUES_PLAN_CODE') && AV_DUES_PLAN_CODE,
                       'can_edit' => $role === 'superadmin', 'obliged' => Membership::countWhere(Membership::obligedSql())] + ['owing' => Membership::owingSummary()]);
+        /* The Academy membership price (lib/AcademyPricing). Anyone in the
+           Studio may see it; admins and above set it ($managementOnly). */
+        case 'ac_pricing':
+            json_out(['ok' => true, 'settings' => AcademyPricing::settings(), 'shipped_ngn' => AcademyPricing::shipped(),
+                'mode' => AcademyDonation::settings()['mode'], 'min_usd' => AcademyDonation::minUsd(),
+                'can_edit' => !in_array($role, ['editor'], true)]);
+        case 'ac_pricing_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = AcademyPricing::save(['membership_ngn' => $body['membership_ngn'] ?? ''], av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'ac_pricing_reset':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            json_out(AcademyPricing::reset(av_admin_actor()));
         case 'dues_settings_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = Membership::saveSettings(array_intersect_key($body, array_flip(['enabled', 'monthly_ngn', 'annual_ngn', 'start', 'from_level'])), av_admin_actor());
             json_out($r, $r['ok'] ? 200 : 422);
         /* ── Academy membership: donation or fixed price (lib/AcademyDonation.php) ── */
         case 'academy_membership':
-            json_out(['ok' => true, 'settings' => AcademyDonation::settings(), 'can_edit' => $role === 'superadmin',
+            json_out(['ok' => true, 'settings' => AcademyDonation::settings() + ['fixed_ngn' => AcademyDonation::fixedNgn()], 'can_edit' => $role === 'superadmin',
                       'preview' => ['headline' => AcademyDonation::headline(), 'note' => AcademyDonation::note(), 'button' => AcademyDonation::buttonLabel(), 'from_ngn' => AcademyDonation::fromNgn()]]);
         case 'academy_membership_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            $r = AcademyDonation::save(array_intersect_key($body, array_flip(['mode', 'min_usd', 'usd_ngn', 'fixed_ngn', 'headline', 'note'])), av_admin_actor());
+            /* The fixed price has one home, AcademyPricing (its history, and payments in flight held
+               to the price they started at); this card edits that same figure. */
+            if (isset($body['fixed_ngn']) && trim((string) $body['fixed_ngn']) !== '' && (int) preg_replace('/\D/', '', (string) $body['fixed_ngn']) !== AcademyPricing::membershipNgn()) {
+                $p = AcademyPricing::save(['membership_ngn' => $body['fixed_ngn']], av_admin_actor());
+                if (!$p['ok']) json_out(['ok' => false, 'error' => $p['error'] ?? 'The fixed price was not saved.', 'fields' => ['fixed_ngn' => $p['error'] ?? '']], 422);
+            }
+            $r = AcademyDonation::save(array_intersect_key($body, array_flip(['mode', 'min_usd', 'usd_ngn', 'headline', 'note'])), av_admin_actor());
+            if ($r['ok']) $r['settings'] = ($r['settings'] ?? AcademyDonation::settings()) + ['fixed_ngn' => AcademyDonation::fixedNgn()];
             json_out($r, $r['ok'] ? 200 : 422);
         case 'dues_owing':
             /* The largest debts first, with names: the list the office calls from. */
@@ -1659,9 +1759,10 @@ try {
                 'verify'   => OfflinePayments::verify($oid, av_admin_actor()),
                 'reject'   => OfflinePayments::reject($oid, (string) ($body['note'] ?? ''), av_admin_actor()),
                 'override' => OfflinePayments::override($oid, (string) ($body['note'] ?? ''), av_admin_actor(), $role),
+                'confirm'  => OfflinePayments::confirm($oid, (string) ($body['note'] ?? ''), av_admin_actor(), $role),
                 default    => ['ok' => false, 'error' => 'Unknown decision.'],
             };
-            json_out($r, $r['ok'] ? 200 : (($r['code'] ?? '') === 'superadmin_only' ? 403 : 422));
+            json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['superadmin_only', 'admin_only'], true) ? 403 : 422));
         /* ── Many members, one declared action ── */
         /* ── Volunteer projects (lib/VolunteerProjects.php) ── */
         case 'vol_projects':
@@ -2104,21 +2205,50 @@ try {
             foreach (['language', 'skills', 'prerequisites', 'pass_mark', 'pace_weeks', 'sequential'] as $k) {
                 if (array_key_exists($k, $body)) $fields[$k] = $body[$k];
             }
-            // Resolve an instructor by email (must already have an Academy account).
+            /* An instructor email (older callers) puts that person on the
+               teaching team as a lead. courses.instructor_id is no longer
+               written here: CourseTeam keeps it in step with the team's lead,
+               and a team is managed with ac_team_* below. */
             $instructorMsg = null;
-            if (array_key_exists('instructor_email', $body)) {
-                $iem = strtolower(trim((string) $body['instructor_email']));
-                if ($iem === '') { $fields['instructor_id'] = null; }
-                else {
-                    $iu = $lms->findUserByEmail($iem);
-                    if ($iu) { $lms->promoteToInstructor((int) $iu['id']); $fields['instructor_id'] = (int) $iu['id']; }
-                    else { $instructorMsg = 'Saved, but no Academy account exists for ' . $iem . ' yet — ask them to create one, then re-save to assign.'; }
-                }
-            }
+            $iem = array_key_exists('instructor_email', $body) ? strtolower(trim((string) $body['instructor_email'])) : '';
             $fields['_editing'] = trim((string) ($body['editing'] ?? ''));
             $slug = $ac->save($fields);
+            if ($iem !== '') {
+                $iu = $lms->findUserByEmail($iem);
+                $saved = $ac->bySlug($slug, true);
+                if (!$iu) $instructorMsg = 'Saved, but no Academy account exists for ' . $iem . ' yet — ask them to create one, then add them to the team.';
+                elseif ($saved) {
+                    $tr = CourseTeam::add((int) $saved['id'], (int) $iu['id'], 'lead', CourseTeam::STUDIO);
+                    if (empty($tr['ok'])) $instructorMsg = 'Saved, but ' . $iem . ' was not added: ' . ($tr['error'] ?? '');
+                }
+            }
             Sitemap::rebuild();
             json_out(['ok' => true, 'slug' => $slug, 'url' => rtrim(SITE_URL, '/') . '/academy/' . $slug . '/', 'notice' => $instructorMsg]);
+        /* ── Teaching teams (lib/CourseTeam). The Studio acts as CourseTeam::STUDIO:
+              require_admin() above has already authorised the session. ── */
+        case 'ac_team': {
+            $tc = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
+            if (!$tc) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            json_out(['ok' => true, 'team' => CourseTeam::members((int) $tc['id']), 'roles' => CourseTeam::ROLES]);
+        }
+        case 'ac_team_add':
+        case 'ac_team_role':
+        case 'ac_team_remove': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $tc = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))), true);
+            if (!$tc) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            if ($action === 'ac_team_add') {
+                $tu = $lms->findUserByEmail((string) ($body['email'] ?? ''));
+                if (!$tu) json_out(['ok' => false, 'error' => 'No Academy account uses that email yet — ask them to sign in once, then add them.'], 404);
+                $tr = CourseTeam::add((int) $tc['id'], (int) $tu['id'], (string) ($body['role'] ?? ''), CourseTeam::STUDIO);
+            } elseif ($action === 'ac_team_role') {
+                $tr = CourseTeam::add((int) $tc['id'], (int) ($body['user_id'] ?? 0), (string) ($body['role'] ?? ''), CourseTeam::STUDIO);
+            } else {
+                $tr = CourseTeam::remove((int) $tc['id'], (int) ($body['user_id'] ?? 0), CourseTeam::STUDIO);
+            }
+            if (empty($tr['ok'])) json_out(['ok' => false, 'error' => (string) ($tr['error'] ?? 'Not changed.')], 422);
+            json_out(['ok' => true, 'team' => CourseTeam::members((int) $tc['id'])]);
+        }
         case 'ac_grants': {
             // List members explicitly granted access to a restricted course.
             $gslug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? $body['slug'] ?? '')));
@@ -2245,6 +2375,21 @@ try {
             $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
             if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
             json_out(['ok' => true, 'items' => (new LmsCourseware(null, $lms))->readiness($cs)]);
+        }
+        /* Accessibility across every course: the Studio's Accessibility screen.
+           Same report as tools/academy-a11y-audit.php, for hosts with no shell. */
+        case 'ac_a11y': {
+            json_out(['ok' => true] + LessonA11y::audit(Database::pdo(), '', !empty($_GET['published'])));
+        }
+        case 'ac_a11y_csv': {
+            $a = LessonA11y::audit(Database::pdo(), '', !empty($_GET['published']));
+            $lms->audit('ac_a11y_csv', 'all courses', $a['fix'] . ' to fix, ' . $a['tip'] . ' tips');
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="academy-accessibility-' . date('Y-m-d') . '.csv"');
+            $out = fopen('php://output', 'w');
+            Csv::put($out, ['Course', 'Status', 'Lesson', 'Level', 'What to do']);
+            foreach ($a['rows'] as $r) Csv::put($out, [$r['course_title'], $r['status'], $r['lesson_title'], $r['level'] === 'fix' ? 'Must fix' : 'Tip', $r['text']]);
+            fclose($out); exit;
         }
         case 'outline_save': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

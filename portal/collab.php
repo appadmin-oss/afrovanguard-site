@@ -42,7 +42,7 @@ $orgGuard = function () use ($isOrg) {
     if (!$isOrg) json_out(['ok' => false, 'error' => 'The task pool is for Afrovanguard members.'], 403);
 };
 /* Who hands out work: organisation members and volunteer coordinators. */
-$allocates = $isOrg || (class_exists('Volunteers') && Volunteers::canRunTeams($u));
+$allocates = Collab::mayAllocate($u);
 
 try {
     switch ($action) {
@@ -58,6 +58,7 @@ try {
                 'pool'     => $isOrg ? Collab::poolTasks(60) : [],
                 'roster'   => Collab::roster(200, $allocates),
                 'allocates'=> $allocates,
+                'org'      => $isOrg,   // may post to the pool (task_add_pool)
                 /* Not taking new tasks until this date (TaskLedger), and the reasons a task can be handed back with. */
                 'away_until' => class_exists('TaskLedger') ? TaskLedger::awayUntil($uid) : '',
                 'handback_reasons' => class_exists('TaskLedger') ? TaskLedger::REASONS : [],
@@ -97,10 +98,13 @@ try {
         case 'task_add':
             $writeGuard();
             if (!av_rate_ok('collab_task_' . $uid, 40, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
-            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), (int) ($body['assignee'] ?? 0), (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'));
-            if (!$id) json_out(['ok' => false, 'error' => 'Enter a task.'], 400);
-            $mine = array_values(array_filter(Collab::myTasks($uid), fn($t) => $t['id'] === $id));
-            json_out(['ok' => true, 'task' => $mine[0] ?? ['id' => $id]]);
+            $to = (int) ($body['assignee'] ?? 0);
+            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), $to, (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'), 0, '', 'person', $allocates);
+            if (!$id) json_out(['ok' => false, 'error' => Collab::$lastError ?: 'Enter a task.'], Collab::$lastError === 'You cannot give a task to somebody else.' ? 403 : (Collab::$lastError === '' || Collab::$lastError === 'Enter a task.' ? 400 : 422));
+            /* The task itself, not a search of the first 50 of mine: with a long
+               list, a new undated task was not among them and came back as an
+               id with no title. */
+            json_out(['ok' => true, 'task' => Collab::oneTask($uid, $id) ?? ['id' => $id]]);
 
         case 'task_add_pool':
             $orgGuard();
@@ -164,7 +168,7 @@ try {
         case 'task_assign':
             $writeGuard();
             $task = Collab::assignTask($uid, (int) ($body['id'] ?? 0), (int) ($body['assignee'] ?? 0), $allocates);
-            if ($task === null) json_out(['ok' => false, 'error' => 'You cannot give this task to them.'], 403);
+            if ($task === null) json_out(['ok' => false, 'error' => Collab::$lastError ?: 'You cannot give this task to them.'], 422);
             json_out(['ok' => true, 'task' => $task]);
 
         case 'task_toggle':
@@ -188,8 +192,27 @@ try {
 
         case 'task_delete':
             $writeGuard();
+            if (($why = Collab::deleteRefused($uid, (int) ($body['id'] ?? 0))) !== '') json_out(['ok' => false, 'error' => $why], 409);
             if (!Collab::deleteTask($uid, (int) ($body['id'] ?? 0))) json_out(['ok' => false, 'error' => 'Task not found.'], 404);
             json_out(['ok' => true, 'id' => (int) $body['id']]);
+
+        /* ── Goalspace at CACENTRE, worked here (lib/CacGoalspace.php) ──
+           CACENTRE acts as this member through Goalspace's own rules; this
+           only passes their request and its answer, in words. */
+        case 'gs':
+            if (!$isOrg && !(class_exists('Volunteers') && Volunteers::canRunTeams($u)) && !(class_exists('Todo') && Todo::mayTake($u)))
+                json_out(['ok' => true, 'enabled' => false, 'workspaces' => []]);
+            if (!CacGoalspace::ready()) json_out(['ok' => true, 'enabled' => false, 'workspaces' => []]);
+            json_out(['enabled' => true] + CacGoalspace::forMember($u));
+        /* Who among a goal's members fits a task its lead is giving (CacGoalspace::fits). */
+        case 'gs_fit':
+            if (!av_rate_ok('collab_gsfit_' . $uid, 30, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            json_out(['ok' => true, 'fits' => CacGoalspace::fits($u, (int) ($body['ws'] ?? $_GET['ws'] ?? 0), (string) ($body['title'] ?? $_GET['title'] ?? ''))]);
+        case 'gs_do':
+            $writeGuard();
+            if (!av_rate_ok('collab_gs_' . $uid, 60, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            $r = CacGoalspace::act($u, (string) ($body['path'] ?? ''), is_array($body['body'] ?? null) ? $body['body'] : []);
+            json_out($r, $r['ok'] ? 200 : 422);
 
         /* ── This week at CACENTRE (lib/CacWeek.php) ─────────────────────
            The member's commitments for the week and the goals they feed; a

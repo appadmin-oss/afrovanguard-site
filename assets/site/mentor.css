@@ -202,6 +202,7 @@
    A real <table>: this is tabular data (rank, points, mentees) and a screen
    reader needs the row and column headers to read a cell back meaningfully. */
 .mt-tablewrap { margin-top: 28px; overflow-x: auto; }
+.mt-tablewrap:focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
 .mt-rank { width: 100%; border-collapse: collapse; font-size: 15px; }
 .mt-rank caption {
   text-align: left; font-size: 13px; color: rgba(255,255,255,.66);

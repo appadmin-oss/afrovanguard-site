@@ -20,8 +20,10 @@
     n = +n || 0;
     if (n > 0) { badge.textContent = n > 99 ? '99+' : n; badge.hidden = false; }
     else { badge.hidden = true; }
+    // The button's label is what a screen reader reads, not the badge: "Notifications, 3 unread".
+    btn.setAttribute('aria-label', n > 0 ? 'Notifications, ' + (n > 99 ? 'over 99' : n) + ' unread' : 'Notifications');
   }
-  var ICON = { reminder: '⏰', session: '◷', task: '✅', mention: '@', info: '•' };
+  var ICON = { reminder: '⏰', session: '◷', task: '✅', mention: '@', info: '•', academy: '🎓' };
   function itemHTML(it) {
     return '<a class="notif-item' + (it.read ? '' : ' is-unread') + '" href="' + esc(it.url || '#') + '" data-id="' + it.id + '">'
       + '<span class="notif-ic notif-ic--' + esc(it.kind) + '">' + (ICON[it.kind] || '•') + '</span>'
@@ -37,16 +39,17 @@
   function openPanel() {
     panel.hidden = false; btn.setAttribute('aria-expanded', 'true');
     list.innerHTML = '<p class="notif-empty">Loading…</p>';
+    readAll.focus();   // into the panel it opened
     get('list').then(function (d) {
       if (!d || !d.ok) { list.innerHTML = '<p class="notif-empty">Could not load.</p>'; return; }
       renderList(d.items); setBadge(d.unread);
     }).catch(function () { list.innerHTML = '<p class="notif-empty">Could not load.</p>'; });
   }
-  function closePanel() { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+  function closePanel(refocus) { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); if (refocus) btn.focus(); }
 
   btn.addEventListener('click', function (e) { e.stopPropagation(); panel.hidden ? openPanel() : closePanel(); });
   document.addEventListener('click', function (e) { if (!panel.hidden && !wrap.contains(e.target)) closePanel(); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !panel.hidden) closePanel(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !panel.hidden) closePanel(true); });
 
   list.addEventListener('click', function (e) {
     var a = e.target.closest('.notif-item'); if (!a) return;

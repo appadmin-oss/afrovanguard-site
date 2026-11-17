@@ -82,6 +82,20 @@ final class Drive
      * Upload a document to the shared folder. Returns ['url','provider','id'].
      * Throws RuntimeException on failure (caller may fall back to local).
      */
+    /** Delete a file this site uploaded. True when it is gone. */
+    public static function delete(string $fileId): bool
+    {
+        if (!self::configured() || $fileId === '') return false;
+        if (class_exists('GoogleWorkspace')) return GoogleWorkspace::driveDelete($fileId);
+        $tok = self::accessToken();
+        if (!$tok) return false;
+        $ch = curl_init('https://www.googleapis.com/drive/v3/files/' . rawurlencode($fileId) . '?supportsAllDrives=true');
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_CUSTOMREQUEST => 'DELETE', CURLOPT_TIMEOUT => 20,
+            CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $tok]]);
+        curl_exec($ch); $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+        return in_array($code, [200, 204, 404], true);
+    }
+
     public static function upload(string $tmpPath, string $originalName, string $mime = 'application/octet-stream'): array
     {
         if (!self::configured()) throw new RuntimeException('Drive is not configured.');

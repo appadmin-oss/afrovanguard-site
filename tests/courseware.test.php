@@ -190,7 +190,9 @@ $sum = $cw->ratingSummary($cid);
 ck('courseware: one review per learner, updated in place', $sum['count'] === 2 && $sum['avg'] === 3.5);
 ck('courseware: the star distribution adds up', $sum['dist'][4] === 1 && $sum['dist'][3] === 1 && array_sum($sum['dist']) === 2);
 ck('courseware: a rating with no text is counted but not listed', count($cw->reviews($cid)) === 1);
-$cw->hideReview((int) $cw->myReview($u2id, $cid)['id']);
+$rv = (int) $cw->myReview($u2id, $cid)['id'];
+ck('courseware: a review cannot be hidden from another course', !$cw->hideReview($rv, true, $cid + 999) && $cw->ratingSummary($cid)['count'] === 2);
+$cw->hideReview($rv, true, $cid);
 ck('courseware: a hidden review leaves the average', $cw->ratingSummary($cid)['count'] === 1);
 
 /* ══ Catalogue figures and filter ════════════════════════════════════════ */

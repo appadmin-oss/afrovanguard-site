@@ -77,6 +77,7 @@ final class LmsCourseware
             $this->db->prepare('INSERT INTO assignment_submissions (user_id, lesson_id, course_id, body, link_url, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)')
                 ->execute([$userId, (int) $lesson['id'], (int) $lesson['course_id'], $body, $url, 'submitted', $now, $now]);
         }
+        if (class_exists('AcademyNudges')) AcademyNudges::submitted($userId, $lesson);   // the instructor's bell
         return ['ok' => true, 'submission' => $this->submission($userId, (int) $lesson['id'])];
     }
 
@@ -104,6 +105,7 @@ final class LmsCourseware
             $this->db->prepare("UPDATE assignment_submissions SET status = 'returned', score = NULL, feedback = ?, graded_by = ?, graded_at = ?, updated_at = ? WHERE id = ?")
                 ->execute([$feedback, $graderId, $now, $now, $subId]);
             $this->lms->unmark((int) $sub['user_id'], (int) $lesson['id']);
+            if (class_exists('AcademyNudges')) AcademyNudges::graded($sub, $lesson, 'returned', null, $feedback, false);
             return ['ok' => true, 'passed' => false, 'returned' => true];
         }
         if ($score === null || $score < 0 || $score > 100) return ['ok' => false, 'error' => 'Give a score from 0 to 100.'];
@@ -117,6 +119,7 @@ final class LmsCourseware
         if ($passed) $this->lms->markComplete((int) $sub['user_id'], $lesson);
         else $this->lms->unmark((int) $sub['user_id'], (int) $lesson['id']);
         $done = $this->lms->completeIfDone((int) $sub['user_id'], (int) $lesson['course_id']);
+        if (class_exists('AcademyNudges')) AcademyNudges::graded($sub, $lesson, $passed ? 'passed' : 'failed', $score, $feedback, (bool) $done['complete']);
         return ['ok' => true, 'passed' => $passed, 'course_complete' => $done['complete'], 'newly' => $done['newly']];
     }
 
@@ -173,33 +176,117 @@ final class LmsCourseware
         $s->execute([$userId, $courseId]);
         foreach ($s->fetchAll() as $r) $subs[(int) $r['lesson_id']] = $r;
 
-        $items = []; $wSum = 0; $wScore = 0; $allPassed = true;
+        return self::score($this->gradedItems($courseId), $best, $subs, $passMark);
+    }
+
+    /**
+     * The graded items of a course, resolved once.
+     *
+     * Pulled out of grades() so the GRADEBOOK can walk a whole roster
+     * against the same list — see gradebook(). Two readers, one definition
+     * of what counts and what it is worth.
+     */
+    private function gradedItems(int $courseId): array
+    {
+        $out = [];
         foreach ($this->lms->orderedLessons($courseId) as $l) {
             $type = LmsRepository::lessonType($l);
-            $lid = (int) $l['id'];
-            $weight = max(1, (int) ($l['weight'] ?? 1));
             if ($type === 'assignment') {
-                $pass = self::assignmentPass($l);
+                $out[] = ['id' => (int) $l['id'], 'title' => (string) $l['title'], 'slug' => (string) $l['slug'],
+                          'type' => 'assignment', 'weight' => max(1, (int) ($l['weight'] ?? 1)),
+                          'pass' => self::assignmentPass($l)];
+                continue;
+            }
+            $q = $this->lms->quiz($l);
+            if (!$q || !$q['graded']) continue;
+            $out[] = ['id' => (int) $l['id'], 'title' => (string) $l['title'], 'slug' => (string) $l['slug'],
+                      'type' => 'quiz', 'weight' => max(1, (int) ($l['weight'] ?? 1)), 'pass' => (int) $q['pass']];
+        }
+        return $out;
+    }
+
+    /**
+     * One learner's standing against those items.
+     *
+     * The ONE place a score becomes a status and a weighted overall. The
+     * learner's own grades page and the instructor's gradebook both come
+     * through here, so the roster and the learner cannot disagree about what
+     * somebody scored — which, with two implementations, they eventually
+     * would.
+     */
+    private static function score(array $items, array $best, array $subs, int $passMark): array
+    {
+        $out = []; $wSum = 0; $wScore = 0; $allPassed = true;
+        foreach ($items as $it) {
+            $lid = (int) $it['id'];
+            if ($it['type'] === 'assignment') {
                 $sub = $subs[$lid] ?? null;
                 $score = ($sub && $sub['status'] === 'graded') ? (int) $sub['score'] : null;
                 $status = !$sub ? 'not_started' : ($sub['status'] === 'returned' ? 'returned'
-                        : ($score === null ? 'pending' : ($score >= $pass ? 'passed' : 'failed')));
+                        : ($score === null ? 'pending' : ($score >= (int) $it['pass'] ? 'passed' : 'failed')));
             } else {
-                $q = $this->lms->quiz($l);
-                if (!$q || !$q['graded']) continue;
-                $pass = (int) $q['pass'];
-                $score = isset($best[$lid]) ? $best[$lid]['best'] : null;
-                $status = $score === null ? 'not_started' : ($score >= $pass ? 'passed' : 'failed');
-                if ($type === 'video') $type = 'quiz';
+                $score = isset($best[$lid]) ? (int) $best[$lid]['best'] : null;
+                $status = $score === null ? 'not_started' : ($score >= (int) $it['pass'] ? 'passed' : 'failed');
             }
-            $items[] = ['id' => $lid, 'title' => (string) $l['title'], 'slug' => (string) $l['slug'], 'type' => $type,
-                        'weight' => $weight, 'pass' => $pass, 'score' => $score, 'status' => $status];
-            $wSum += $weight; $wScore += $weight * (int) ($score ?? 0);
+            $out[] = $it + ['score' => $score, 'status' => $status,
+                            'tries' => (int) ($best[$lid]['n'] ?? 0)];
+            $wSum += (int) $it['weight']; $wScore += (int) $it['weight'] * (int) ($score ?? 0);
             if ($status !== 'passed') $allPassed = false;
         }
         $overall = $wSum ? (int) round($wScore / $wSum) : 0;
-        return ['items' => $items, 'overall' => $overall, 'pass_mark' => $passMark,
-                'passed' => !$items || ($allPassed && $overall >= $passMark), 'graded_count' => count($items)];
+        return ['items' => $out, 'overall' => $overall, 'pass_mark' => $passMark,
+                'passed' => !$out || ($allPassed && $overall >= $passMark), 'graded_count' => count($out)];
+    }
+
+    /**
+     * The whole roster's grades: one row per enrolled learner, one column
+     * per graded item.
+     *
+     * THREE queries whatever the size of the roster — the learners, every
+     * quiz best, every submission — and then the same score() the learner's
+     * own page uses. Calling grades() once per learner would be two queries
+     * and a lesson walk each, which on a roster of two hundred is where a
+     * popular course stops loading.
+     */
+    public function gradebook(int $courseId, array $course, int $limit = 500): array
+    {
+        $items = $this->gradedItems($courseId);
+        $passMark = max(0, min(100, (int) ($course['pass_mark'] ?? 70)));
+        $limit = max(1, min(2000, $limit));
+        $s = $this->db->prepare('SELECT u.id, u.name, u.email FROM course_enrolment e JOIN lms_users u ON u.id = e.user_id
+                                  WHERE e.course_id = ? ORDER BY u.name LIMIT ?');
+        $s->bindValue(1, $courseId, PDO::PARAM_INT);
+        $s->bindValue(2, $limit, PDO::PARAM_INT);
+        $s->execute();
+        $learners = $s->fetchAll();
+        if (!$learners || !$items) return ['items' => $items, 'learners' => [], 'average' => null];
+
+        $uids = array_map(static fn($r) => (int) $r['id'], $learners);
+        $in = implode(',', array_fill(0, count($uids), '?'));
+        $best = [];
+        $q = $this->db->prepare("SELECT q.user_id, q.lesson_id, MAX(q.score) AS best, COUNT(*) AS n
+                                   FROM quiz_attempts q JOIN lessons l ON l.id = q.lesson_id
+                                  WHERE l.course_id = ? AND q.user_id IN ($in)
+                                  GROUP BY q.user_id, q.lesson_id");
+        $q->execute(array_merge([$courseId], $uids));
+        foreach ($q->fetchAll() as $r) $best[(int) $r['user_id']][(int) $r['lesson_id']] = ['best' => (int) $r['best'], 'n' => (int) $r['n']];
+        $subs = [];
+        $a = $this->db->prepare("SELECT * FROM assignment_submissions WHERE course_id = ? AND user_id IN ($in)");
+        $a->execute(array_merge([$courseId], $uids));
+        foreach ($a->fetchAll() as $r) $subs[(int) $r['user_id']][(int) $r['lesson_id']] = $r;
+
+        $sum = 0; $n = 0;
+        foreach ($learners as $i => $u) {
+            $g = self::score($items, $best[(int) $u['id']] ?? [], $subs[(int) $u['id']] ?? [], $passMark);
+            $learners[$i]['grade'] = $g;
+            /* An average over learners who have STARTED. Counting somebody
+               who has not reached the first quiz as a nought tells an
+               instructor their cohort is failing when it has not begun. */
+            $started = (bool) array_filter($g['items'], static fn($it) => $it['score'] !== null);
+            if ($started) { $sum += $g['overall']; $n++; }
+            $learners[$i]['started'] = $started;
+        }
+        return ['items' => $items, 'learners' => $learners, 'average' => $n ? (int) round($sum / $n) : null];
     }
 
     /* ── Discussions ─────────────────────────────────────────────────── */
@@ -274,6 +361,7 @@ final class LmsCourseware
         $this->db->prepare('INSERT INTO forum_posts (thread_id, course_id, user_id, body, created_at) VALUES (?,?,?,?,?)')
             ->execute([$threadId, (int) $t['course_id'], $userId, $body, $now]);
         $this->db->prepare('UPDATE forum_threads SET reply_count = reply_count + 1, last_post_at = ? WHERE id = ?')->execute([$now, $threadId]);
+        if (class_exists('AcademyNudges')) AcademyNudges::replied($userId, $t);
         $completed = false;
         if ((int) $t['user_id'] === 0 && !empty($t['lesson_id'])) {
             $l = $this->lms->lessonById((int) $t['lesson_id']);
@@ -356,10 +444,15 @@ final class LmsCourseware
         return $s->fetchAll();
     }
 
-    public function hideReview(int $id, bool $hidden = true): bool
+    /**
+     * Hide or show a review — of THIS course only. The caller checks the
+     * moderator teaches $courseId; without the course in the WHERE, an
+     * instructor of one course could hide any review on the site by its id.
+     */
+    public function hideReview(int $id, bool $hidden, int $courseId): bool
     {
-        $st = $this->db->prepare('UPDATE course_reviews SET hidden = ? WHERE id = ?');
-        $st->execute([$hidden ? 1 : 0, $id]);
+        $st = $this->db->prepare('UPDATE course_reviews SET hidden = ? WHERE id = ? AND course_id = ?');
+        $st->execute([$hidden ? 1 : 0, $id, $courseId]);
         return $st->rowCount() > 0;
     }
 
@@ -378,10 +471,14 @@ final class LmsCourseware
         if (!self::skills($course)) $add('tip', 'List the skills learners will gain — the course page and search use them.');
         $mods = $this->lms->curriculum((int) $course['id']);
         if (!$mods) { $add('fix', 'Add your first module.'); return $out; }
-        $s = $this->db->prepare('SELECT id, body_html FROM lessons WHERE course_id = ?');
+        $s = $this->db->prepare('SELECT id, body_html, captions_url, transcript FROM lessons WHERE course_id = ?');
         $s->execute([(int) $course['id']]);
-        $bodies = [];
-        foreach ($s->fetchAll() as $r) $bodies[(int) $r['id']] = trim(strip_tags((string) $r['body_html']));
+        $bodies = []; $access = []; $html = [];
+        foreach ($s->fetchAll() as $r) {
+            $html[(int) $r['id']] = (string) $r['body_html'];
+            $bodies[(int) $r['id']] = trim(strip_tags((string) $r['body_html']));
+            $access[(int) $r['id']] = ['captions' => trim((string) ($r['captions_url'] ?? '')) !== '', 'transcript' => trim((string) ($r['transcript'] ?? '')) !== ''];
+        }
         $graded = 0;
         foreach ($mods as $i => $m) {
             $mid = (int) $m['id']; $name = 'Module ' . ($i + 1);
@@ -394,7 +491,15 @@ final class LmsCourseware
                 if ($type === 'reading' && ($body === '' || $starter)) $add('fix', $title . ' has no text yet.', $lid, $mid);
                 if (in_array($type, ['assignment', 'discussion'], true) && $body === '') $add('fix', $title . ' needs ' . ($type === 'assignment' ? 'instructions.' : 'a prompt.'), $lid, $mid);
                 if (in_array($type, ['quiz', 'practice'], true) && str_contains((string) ($l['quiz_json'] ?? ''), 'Replace this with your question')) $add('fix', $title . ' still has the starter question.', $lid, $mid);
-                if ($type === 'video' && str_starts_with((string) $l['video_url'], '/uploads/') && empty($l['captions_url'] ?? null)) $add('tip', $title . ' has no captions.', $lid, $mid);
+                /* A video with neither captions nor a transcript shuts out every
+                   learner who cannot hear it. That is a fix, not a tip. */
+                $acc = $access[$lid] ?? ['captions' => false, 'transcript' => false];
+                if ($type === 'video' && !$acc['captions'] && !$acc['transcript']) $add('fix', $title . ' needs captions or a transcript, so learners who cannot hear it can follow.', $lid, $mid);
+                elseif ($type === 'video' && !$acc['captions'] && str_starts_with((string) $l['video_url'], '/uploads/')) $add('tip', $title . ' has a transcript but no captions — captions let learners follow along as it plays.', $lid, $mid);
+                /* What in the lesson's own text shuts a learner out: pictures
+                   with no description, tables a screen reader cannot read
+                   across, links called "click here" (lib/LessonA11y.php). */
+                foreach (LessonA11y::check($html[$lid] ?? '') as $iss) $add($iss['level'], $title . ': ' . $iss['text'], $lid, $mid);
                 if ($type === 'quiz' || $type === 'assignment') $graded++;
             }
         }

@@ -183,7 +183,7 @@ a{color:var(--red)}
 h1,h2{margin:0;letter-spacing:-.01em}
 :focus-visible{outline:3px solid var(--orange);outline-offset:2px}
 .chk{display:flex;gap:.6rem;align-items:flex-start;margin:.9rem 0;font-size:.95rem;line-height:1.45}
-.chk input{margin-top:.25rem;width:1.1rem;height:1.1rem;flex:none}
+.chk input{margin-top:.1rem;width:1.5rem;height:1.5rem;flex:none}
 .skip{position:absolute;left:-9999px;top:0;background:#fff;color:var(--ink);font-weight:700;padding:10px 16px;border-radius:0 0 10px 0;z-index:10}
 .skip:focus{left:0}
 
@@ -217,7 +217,7 @@ legend{padding:0;font-size:.78rem;font-weight:800;letter-spacing:.09em;text-tran
 .fld .req{color:var(--red)}
 .fld .opt{font-weight:500;color:var(--muted)}
 input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:11px;padding:12px;font:inherit;background:#fff}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
+input:focus,select:focus,textarea:focus{outline:3px solid var(--ink);outline-offset:1px;border-color:var(--orange)}
 textarea{min-height:110px;resize:vertical}
 /* Fluid, so a narrow phone and a wide tablet both get a sensible number of
    columns without a breakpoint having to name every width. */

@@ -581,6 +581,24 @@ final class GoogleWorkspace
         return ['id' => $id, 'url' => (string) ($r['json']['webViewLink'] ?? 'https://drive.google.com/file/d/' . $id . '/view')];
     }
 
+    /**
+     * Delete a file the site put in Drive (retention of recorded meetings).
+     * Same identity as driveUpload. True when it is gone (a file already gone
+     * counts: 404 means there is nothing left to delete).
+     */
+    public static function driveDelete(string $fileId, ?string $asUser = null): bool
+    {
+        if (!self::configured() || !preg_match('/^[A-Za-z0-9_-]{10,200}$/', $fileId)) return false;
+        $who = $asUser !== null && $asUser !== '' ? $asUser : self::subject();
+        $tok = self::accessToken(self::SCOPE_DRIVE_FILE, false, $who !== '' ? $who : null);
+        if (!$tok) return false;
+        $r = self::http('DELETE', self::apiBase() . '/drive/v3/files/' . rawurlencode($fileId) . '?supportsAllDrives=true', $tok);
+        $code = (int) ($r['code'] ?? 0);
+        if ($code === 204 || $code === 200 || $code === 404) { self::noteOk(); return true; }
+        self::$lastError = 'Drive delete — ' . self::errorLine($r);
+        return false;
+    }
+
     /* ── live reads (normalised; [] on any problem) ─────────────── */
 
     /** Upcoming events from a calendar, soonest first. */

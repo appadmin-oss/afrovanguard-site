@@ -87,6 +87,24 @@ final class DbMigrateJob
 
     public static function reset(): void { Database::metaSet(self::META, ''); }
 
+    /**
+     * Before a switch: reopen a finished job so the next step() copies the
+     * rows added to the source since the copy ended (each table's cursor is
+     * kept, so only newer rows move). Edits to rows that were already copied
+     * are not seen this way, which is why the Studio says to switch straight
+     * after copying. Returns false when there is no finished job to reopen.
+     */
+    public static function reopenForNewRows(?string $expect = null): bool
+    {
+        $s = self::state();
+        if ($s === null || ($s['phase'] ?? '') !== 'done') return false;
+        if ($expect !== null && ($s['target'] ?? '') !== $expect) return false;
+        foreach ($s['order'] as $t) $s['tables'][$t]['done'] = false;
+        $s['phase'] = 'copy';
+        self::put($s);
+        return true;
+    }
+
     private static function put(array $s): void { Database::metaSet(self::META, (string) json_encode($s)); }
 
     /**
@@ -152,30 +170,7 @@ final class DbMigrateJob
            db/schema.mysql.sql. Make each one on the target now, shaped like the
            source, or its rows are left behind (they were: 24 of ~150 tables
            moved). One the target refuses is named, not skipped in silence. */
-        $refused = [];
-        if (Migrator::driver($dst) === 'mysql' && Migrator::driver($src) === 'sqlite') {
-            foreach (Migrator::allTables($src) as $t) {
-                if (Migrator::tableExists($dst, $t)) {
-                    /* …and a table the schema file made is older than the source's. */
-                    array_push($refused, ...Migrator::addMissingColumns($src, $dst, $t));
-                    continue;
-                }
-                $why = Migrator::createLike($src, $dst, $t);
-                if ($why !== null) $refused[] = $t . ': ' . $why;
-            }
-        } elseif (Migrator::driver($dst) === 'pgsql' && Migrator::driver($src) === 'sqlite') {
-            /* Postgres had no such step, so every table the schema file does not
-               list — av_settings with the stored secrets, the diary tables — was
-               left out, and the job still said "verified". The source's own DDL,
-               translated, makes each one. */
-            foreach (Migrator::allTables($src) as $t) {
-                if (Migrator::tableExists($dst, $t)) continue;
-                $ddl = (string) ($src->query("SELECT sql FROM sqlite_master WHERE type='table' AND name = " . $src->quote($t))->fetchColumn() ?: '');
-                if ($ddl === '') { $refused[] = $t . ': the source has no definition for it'; continue; }
-                try { $dst->exec(Database::translateDDL($ddl, 'pgsql')); }
-                catch (Throwable $e) { $refused[] = $t . ': ' . $e->getMessage(); }
-            }
-        }
+        $refused = Migrator::prepareTarget($src, $dst);
         if ($refused) {
             throw new RuntimeException('The target would not create ' . count($refused) . ' table(s) — nothing has been copied. ' . implode(' | ', array_slice($refused, 0, 5)));
         }

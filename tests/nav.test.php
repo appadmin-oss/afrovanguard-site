@@ -58,7 +58,7 @@ ck("nav: …and avh.js, deferred", str_contains($sh, '<script src="' . av_asset(
 ck("nav: …not the old nav stylesheet", !str_contains($sh, '/assets/site/nav.css'));
 ck('nav: …body.avh with the page class kept', str_contains($sh, '<body class="avh avpg fr-page" id="top"'));
 ck('nav: …the Home skip link to #main, then the .avh-page wrapper',
-   preg_match('~<a class="avh-skip" href="#main">Skip to content</a>.*<div class="avh-page">~s', $sh) === 1);
+   preg_match('~<a class="avh-skip" href="#main">Skip to main content</a>.*<div class="avh-page">~s', $sh) === 1);
 ck('nav: …forced light, and locked (the Home design has no dark set)',
    str_contains($sh, 'data-theme="light" data-theme-lock') && !str_contains($sh, "localStorage.getItem('av.theme')"));
 $ah = $headOf(['chrome' => 'app', 'body_class' => 'portal-app']);

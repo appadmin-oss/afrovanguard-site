@@ -115,7 +115,14 @@ $state = 'unknown';
 $paid  = 0;
 $result = null;
 
-if ($u && $ref !== '' && Payments::canCollect()) {
+/* Each visit asks the provider (up to twice, through verifyAny), so an
+   unthrottled ?ref= let anyone signed in drive outbound calls in a loop.
+   Per member, generous for a payer refreshing a slow confirmation. The
+   webhook records the payment whether or not this page ever does. */
+if ($u && $ref !== '' && Payments::canCollect() && !av_rate_ok_for('ngv_pay_return', (string) $uid, 20, 600)) {
+    $state = 'busy';
+    http_response_code(429);
+} elseif ($u && $ref !== '' && Payments::canCollect()) {
     /* Verified server-side. The querystring says only WHICH transaction to ask
        about; the provider says whether it was paid and for how much.
 
@@ -138,7 +145,11 @@ if ($u && $ref !== '' && Payments::canCollect()) {
        than no control, because nobody looks at it again. */
     $mine = (int) ($v['metadata']['ngv_member'] ?? 0) === (int) $u['id']
          && (string) ($v['metadata']['ngv'] ?? '') === '1'
-         && in_array((string) ($v['currency'] ?? ''), ['NGN', ''], true);
+         /* NGN, always. A blank currency is accepted only from CACENTRE,
+            whose status read may leave it out; Paystack always states one,
+            so a blank from Paystack is not taken on trust. */
+         && (strtoupper((string) ($v['currency'] ?? '')) === 'NGN'
+             || ((string) ($v['currency'] ?? '') === '' && (string) ($v['provider'] ?? '') === 'cfis'));
     if (!empty($v['paid']) && !$mine) {
         $state = 'notyours';
         error_log('[ngv] pay.php: reference ' . $ref . ' (' . (string) ($v['provider'] ?? '?')
@@ -224,6 +235,12 @@ render_nav('academy');
       to your track lead.</p>
     <p><a class="ed-link" href="/academy/ngv/dashboard.php#account">Check my account on the dashboard</a></p>
 
+  <?php elseif ($state === 'busy'): ?>
+    <span class="ed-kicker ed-kicker--muted">Payment</span>
+    <h1 class="ed-h2">Give it a few minutes</h1>
+    <p class="ed-lede">This page has checked on your payments many times in a short while, so it is pausing for a few minutes.
+      <strong>If you paid, it will still be recorded</strong>: the payment provider tells us directly.</p>
+    <p><a class="ed-link" href="/academy/ngv/dashboard.php#account">See my account</a></p>
   <?php elseif ($state === 'failed'): ?>
     <span class="ed-kicker ed-kicker--muted">Payment</span>
     <h1 class="ed-h2">Your money arrived — we could not file it</h1>

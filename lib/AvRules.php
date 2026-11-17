@@ -341,6 +341,11 @@ final class AvRules
             'label' => 'AI assistance enabled',
             'help'  => 'Master switch. Off, the engine still tracks and reminds deterministically — it just stops calling a model.',
         ],
+        'academy.coach' => [
+            'type' => 'bool', 'default' => false, 'group' => 'AI',
+            'label' => 'Academy study coach',
+            'help'  => 'A learner can ask about the lesson in front of them and get an answer drawn from that lesson. It answers from the lesson text only, says so when the lesson does not cover the question, and points at the discussion where a person is. It never marks work, gives a score, or says anything about a certificate. Off until somebody has read a few of its answers.',
+        ],
         'ai.character_scores' => [
             'type' => 'bool', 'default' => false, 'group' => 'AI',
             'label' => 'Allow a numeric character score',

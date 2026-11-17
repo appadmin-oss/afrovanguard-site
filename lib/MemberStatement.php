@@ -245,7 +245,7 @@ final class MemberStatement
                stopped, and it has still not arrived. 'verified' is already in
                the ledger it paid into, so counting it here would double it;
                'rejected' never happened. */
-            if (!in_array((string) ($r['status'] ?? ''), ['pending', 'held'], true)) continue;
+            if (!in_array((string) ($r['status'] ?? ''), ['pending', 'held', 'checked'], true)) continue;
             $out[] = [
                 'at'          => (string) ($r['created_at'] ?? ''),
                 'source'      => 'offline',

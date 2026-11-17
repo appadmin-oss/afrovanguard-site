@@ -56,7 +56,8 @@ ck('settings: the office words the headline and note, with placeholders filled',
    AcademyDonation::headline() === 'Give from $25 a year' && AcademyDonation::note() === 'That is 40,000 naira at 1,600 to the dollar.');
 ck('settings: an overlong headline is refused', !AcademyDonation::save(['headline' => str_repeat('x', AcademyDonation::MAX_TEXT + 1)], $by)['ok']);
 
-AcademyDonation::save(['mode' => 'fixed', 'fixed_ngn' => '7500', 'headline' => '', 'note' => ''], $by);
+AcademyPricing::save(['membership_ngn' => '7500'], $by); AcademyPricing::forget();
+AcademyDonation::save(['mode' => 'fixed', 'headline' => '', 'note' => ''], $by);
 ck('settings: fixed mode charges the fixed price whatever was typed', AcademyDonation::check('500')['ok'] && AcademyDonation::check('500')['ngn'] === 7500 && AcademyDonation::check('')['usd'] === null);
 ck('settings: fixed mode shows the naira price, no amount field, and the price on the button',
    AcademyDonation::headline() === '₦7,500 / yr' && AcademyDonation::field('x') === '' && str_contains(AcademyDonation::buttonLabel(), '₦7,500'));
@@ -65,4 +66,5 @@ AcademyDonation::save(['mode' => 'donation', 'min_usd' => '20', 'usd_ngn' => (st
 ck('settings: back to a donation from $20', AcademyDonation::isDonation() && AcademyDonation::minUsd() === 20 && AcademyDonation::headline() === 'From $20 / yr');
 $adm = (string) file_get_contents($root . '/admin/api.php');
 ck('settings: only a Super Admin saves them; the office team can read them',
-   str_contains($adm, "'academy_membership_save',") && str_contains($adm, "'dues_owing', 'academy_membership',") && str_contains($adm, "array_flip(['mode', 'min_usd', 'usd_ngn', 'fixed_ngn', 'headline', 'note'])"));
+   str_contains($adm, "'academy_membership_save',") && str_contains($adm, "'dues_owing', 'academy_membership',") && str_contains($adm, "array_flip(['mode', 'min_usd', 'usd_ngn', 'headline', 'note'])") && str_contains($adm, 'AcademyPricing::save([\'membership_ngn\' => $body[\'fixed_ngn\']]'));
+ck('settings: fixed mode reads the one price Studio › Pricing sets', AcademyDonation::fixedNgn() === AcademyPricing::membershipNgn());

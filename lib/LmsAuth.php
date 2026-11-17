@@ -545,15 +545,17 @@ final class LmsAuth
         $db = Database::pdo();
         $ident = self::throttleIdent($email);
         $now = gmdate('Y-m-d H:i:s');
-        $s = $db->prepare('SELECT fails FROM lms_login_throttle WHERE ident = ?'); $s->execute([$ident]);
-        $col = $s->fetchColumn();
-        $fails = ($col === false ? 0 : (int) $col) + 1;
-        $until = '';
-        if ($fails >= $threshold) { $until = gmdate('Y-m-d H:i:s', time() + (int) AuthPolicy::get()['lockout_minutes'] * 60); $fails = 0; }
-        $sql = Database::driver() === 'mysql'
-            ? 'INSERT INTO lms_login_throttle (ident, fails, locked_until, updated_at) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE fails = VALUES(fails), locked_until = VALUES(locked_until), updated_at = VALUES(updated_at)'
-            : 'INSERT INTO lms_login_throttle (ident, fails, locked_until, updated_at) VALUES (?,?,?,?) ON CONFLICT(ident) DO UPDATE SET fails = excluded.fails, locked_until = excluded.locked_until, updated_at = excluded.updated_at';
-        $db->prepare($sql)->execute([$ident, $fails, $until, $now]);
+        /* ATOMIC. This read the count, added one in PHP and wrote it back, so a
+           burst of parallel wrong passwords all read the same count and the
+           lockout came late or never. Now: make sure the row exists, add one
+           in the database (fails = fails + 1 — concurrent updates of one row
+           queue up), and lock it once the count reaches the threshold. */
+        try {
+            $db->prepare("INSERT INTO lms_login_throttle (ident, fails, locked_until, updated_at) VALUES (?, 0, '', ?)")->execute([$ident, $now]);
+        } catch (Throwable $e) { /* the row is there already */ }
+        $db->prepare('UPDATE lms_login_throttle SET fails = fails + 1, updated_at = ? WHERE ident = ?')->execute([$now, $ident]);
+        $until = gmdate('Y-m-d H:i:s', time() + (int) AuthPolicy::get()['lockout_minutes'] * 60);
+        $db->prepare('UPDATE lms_login_throttle SET locked_until = ?, fails = 0 WHERE ident = ? AND fails >= ?')->execute([$until, $ident, $threshold]);
     }
 
     private static function clearFailures(string $email): void

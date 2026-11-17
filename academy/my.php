@@ -38,7 +38,7 @@ avcw_open([
 <?php if (!$d['active']): ?>
   <p class="avcw-empty">Nothing in progress. <a href="/academy/#catalogue">Browse the catalogue →</a></p>
 <?php else: ?>
-  <ul class="avcw-cards">
+  <ul class="avcw-cards" role="list">
 <?php foreach ($d['active'] as $r): $c = $r['course']; $nx = $r['next']; $cs = (string) $c['slug']; ?>
     <li class="avcw-card">
       <div class="avcw-card-top">
@@ -66,7 +66,7 @@ avcw_open([
 <?php if ($d['feedback']): ?>
 <section aria-labelledby="avcw-fb-h">
   <h2 class="avcw-h2" id="avcw-fb-h">Assignments</h2>
-  <ul class="avcw-list">
+  <ul class="avcw-list" role="list">
 <?php foreach ($d['feedback'] as $f):
     $st = $f['status'] === 'graded' ? ((int) $f['score'] >= (int) $f['pass'] ? 'passed' : 'failed') : (string) $f['status']; ?>
     <li><a href="<?= e(academy_url($f['course_slug'] . '/learn/' . $f['item_slug'])) ?>"><b><?= e((string) $f['item_title']) ?></b><span class="avcw-sub"><?= e((string) $f['course_title']) ?><?= $f['status'] === 'graded' ? ' · ' . (int) $f['score'] . '%' : '' ?></span></a><?= avcw_status($st) ?></li>
@@ -78,7 +78,7 @@ avcw_open([
 <?php if ($d['programmes']): ?>
 <section aria-labelledby="avcw-pg-h">
   <h2 class="avcw-h2" id="avcw-pg-h">Programmes</h2>
-  <ul class="avcw-list">
+  <ul class="avcw-list" role="list">
 <?php foreach ($d['programmes'] as $p): ?>
     <li><a href="/academy/programmes/<?= e(rawurlencode((string) $p['programme']['slug'])) ?>/"><b><?= e((string) $p['programme']['title']) ?></b><span class="avcw-sub av-num"><?= (int) $p['done'] ?> of <?= e(avac_plural((int) $p['total'], 'course')) ?> certified</span></a><?= $p['cert'] ? avcw_status('passed') : '<span class="av-num avcw-sub">' . (int) $p['pct'] . '%</span>' ?></li>
 <?php endforeach; ?>
@@ -89,7 +89,7 @@ avcw_open([
 <?php if ($d['done']): ?>
 <section aria-labelledby="avcw-done-h">
   <h2 class="avcw-h2" id="avcw-done-h">Completed</h2>
-  <ul class="avcw-list">
+  <ul class="avcw-list" role="list">
 <?php foreach ($d['done'] as $r): $c = $r['course']; ?>
     <li><a href="<?= e(academy_url($c['slug'] . '/')) ?>"><b><?= e((string) $c['title']) ?></b><span class="avcw-sub">Certificate <?= e((string) $r['cert']['serial']) ?></span></a><a class="avac-more" href="<?= e(academy_url($c['slug'] . '/certificate')) ?>" target="_blank" rel="noopener">Certificate →<span class="av-sr"> (opens in a new tab)</span></a></li>
 <?php endforeach; ?>

@@ -7,7 +7,9 @@
  *   donation  the learner gives what they choose, from a minimum in dollars (default $20 a
  *             year), charged in naira at the office's rate (naira per dollar), rounded UP to
  *             the next ₦100 so it never falls below the minimum at that rate;
- *   fixed     a set naira price a year, as it was before (₦5,000).
+ *   fixed     a set naira price a year: AcademyPricing's price (Academy Studio › Overview ›
+ *             Pricing), which keeps its history and holds payments in flight to the price they
+ *             started at. This class never stores a second copy of it.
  *
  * Either way a paid membership unlocks every members' programme for twelve months. The wording
  * on the price card (headline and note) is the office's too, with placeholders filled in:
@@ -15,7 +17,7 @@
  *   {rate}     naira per dollar               {price_ngn} the fixed price, in naira
  *
  * Saved in the site meta (av_academy_membership). Until the office saves anything the defaults
- * come from the deployment: AV_MEMBERSHIP_MIN_USD, AV_USD_NGN, AV_MEMBERSHIP_NGN.
+ * come from the deployment: AV_MEMBERSHIP_MIN_USD, AV_USD_NGN.
  *
  * Not Afrovanguard member dues (lib/Membership.php): those are an obligation with their own
  * prices and rules.
@@ -41,7 +43,6 @@ final class AcademyDonation
             'mode'          => 'donation',
             'min_usd'       => max(1, defined('AV_MEMBERSHIP_MIN_USD') ? (int) AV_MEMBERSHIP_MIN_USD : 20),
             'usd_ngn'       => max(1, defined('AV_USD_NGN') ? (int) AV_USD_NGN : 1500),
-            'fixed_ngn'     => max(100, defined('AV_MEMBERSHIP_NGN') ? (int) AV_MEMBERSHIP_NGN : 5000),
             'headline'      => '',   // blank = the standard wording for the mode
             'note'          => '',
             'updated_at'    => '', 'updated_by' => '',
@@ -79,8 +80,7 @@ final class AcademyDonation
             else $s['mode'] = $v;
         }
         foreach (['min_usd' => [1, self::MAX_USD, 'The minimum donation is a whole number of dollars, from 1 to ' . self::MAX_USD . '.'],
-                  'usd_ngn' => [1, self::MAX_RATE, 'The rate is the naira to one dollar, a whole number like 1500.'],
-                  'fixed_ngn' => [100, 10000000, 'The fixed price is a whole number of naira, at least 100.']] as $k => [$lo, $hi, $msg]) {
+                  'usd_ngn' => [1, self::MAX_RATE, 'The rate is the naira to one dollar, a whole number like 1500.']] as $k => [$lo, $hi, $msg]) {
             if (!array_key_exists($k, $in)) continue;
             $v = str_replace([',', ' ', '₦', '$'], '', trim((string) $in[$k]));
             if (!ctype_digit($v) || (int) $v < $lo || (int) $v > $hi) $e[$k] = $msg;
@@ -95,7 +95,7 @@ final class AcademyDonation
         if ($e) return ['ok' => false, 'error' => implode(' ', $e), 'fields' => $e];
 
         $changed = [];
-        foreach (['mode', 'min_usd', 'usd_ngn', 'fixed_ngn', 'headline', 'note'] as $k) {
+        foreach (['mode', 'min_usd', 'usd_ngn', 'headline', 'note'] as $k) {
             if ($s[$k] !== $cur[$k]) $changed[] = $k . ': ' . var_export($cur[$k], true) . ' → ' . var_export($s[$k], true);
         }
         if (!$changed) return ['ok' => true, 'unchanged' => true, 'settings' => $cur];
@@ -113,7 +113,11 @@ final class AcademyDonation
     public static function minUsd(): int { return (int) self::settings()['min_usd']; }
     /** Naira per dollar, as the office set it. */
     public static function rate(): int { return (int) self::settings()['usd_ngn']; }
-    public static function fixedNgn(): int { return (int) self::settings()['fixed_ngn']; }
+    /** The fixed yearly price: AcademyPricing's, the one Studio › Pricing sets. */
+    public static function fixedNgn(): int
+    {
+        return AcademyPricing::membershipNgn();
+    }
 
     /** The naira charged for a gift of $usd, rounded up to the next ₦100. */
     public static function ngnFor(float $usd): int

@@ -13,7 +13,7 @@
 .avd-mission-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .avd-mbtn{height:52px;display:grid;place-items:center;border:1px solid var(--av-on-ink-line);border-radius:var(--av-r-8);color:var(--av-white);font:700 16px var(--av-sans);text-decoration:none}
 .avd-mbtn:hover{border-color:var(--av-white)}
-.avd-mbtn--gold{background:var(--av-gold);border-color:var(--av-gold);color:var(--av-ink)}
+.avd-mbtn--gold,.avdl a.avd-mbtn--gold{background:var(--av-gold);border-color:var(--av-gold);color:var(--av-ink)}
 .avd-mbtn--gold:hover{border-color:var(--av-gold-light);background:var(--av-gold-light)}
 
 /* listen */

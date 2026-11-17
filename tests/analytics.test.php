@@ -32,7 +32,9 @@ ck('analytics: a fragment with no head is left alone', Analytics::inject('{"ok":
 $avHtml = array_filter(explode("\n", (string) shell_exec('cd ' . escapeshellarg(AV_ROOT) . ' && git ls-files "*.html" 2>/dev/null')));
 $avMiss = [];
 foreach ($avHtml as $f) {
-    if (preg_match('~^(vendor|assets/vendor|tests)/|offline\.html$~', $f)) continue;
+    /* extensions/: the Meeting Recorder's own pages run inside Chrome, where a remote
+       script is forbidden, and a meeting tool must not report its users anyway. */
+    if (preg_match('~^(vendor|assets/vendor|tests|extensions)/|offline\.html$~', $f)) continue;
     $h = (string) @file_get_contents(AV_ROOT . '/' . $f);
     if (stripos($h, '</head>') !== false && !preg_match('~<script src="/assets/site/ga\.js(\?v=[a-f0-9]+)?" async></script>~', $h)) $avMiss[] = $f;
 }

@@ -15,26 +15,30 @@
   <link href="/assets/site/avc-photo.css" rel="stylesheet" />
 </head>
 <body class="studio">
+  <?php /* First thing Tab reaches. The Studio shows one <main> at a time (the
+           others are hidden), so the link lands on #studio-main just before
+           them and app.js moves focus on into whichever is showing. */ ?>
+  <a href="#studio-main" class="skip-link" data-studio-skip>Skip to main content</a>
   <header class="studio-bar">
     <div class="studio-brand">
-      <button class="studio-burger" id="studioBurger" aria-label="Toggle sections" aria-expanded="false" hidden><span></span><span></span><span></span></button>
+      <button type="button" class="studio-burger" id="studioBurger" aria-label="Studio sections" aria-controls="studioSide" aria-expanded="false" hidden><span></span><span></span><span></span></button>
       <span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span> <span class="studio-tag">Studio</span>
     </div>
     <div class="studio-actions">
       <button class="icon-btn theme-toggle" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
-        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-        <svg class="moon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       </button>
-      <a class="btn btn-outline btn-sm" href="/diary/" target="_blank" rel="noopener">View site ↗</a>
+      <a class="btn btn-outline btn-sm" href="/diary/" target="_blank" rel="noopener">View site <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a>
       <button class="btn btn-outline btn-sm" id="logoutBtn" hidden>Log out</button>
     </div>
   </header>
 
   <!-- Left sidebar — grouped sections (data-tab preserved; driven by app.js) -->
-  <aside class="studio-side" id="studioSide" aria-label="Studio sections">
-    <nav class="studio-nav" id="tabs" hidden>
+  <aside class="studio-side" id="studioSide">
+    <nav class="studio-nav" id="tabs" aria-label="Studio sections" hidden>
       <div class="nav-group">
-        <button class="tab active" data-tab="overview"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Overview</span></button>
+        <button class="tab active" data-tab="overview" aria-current="page"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Overview</span></button>
       </div>
       <div class="nav-group">
         <p class="nav-group-h">Content</p>
@@ -144,6 +148,7 @@
     </div>
   </section>
 
+  <div id="studio-main" tabindex="-1" data-skip-target></div>
   <!-- DIARY LIST -->
   <!-- OVERVIEW (landing dashboard) -->
   <main class="studio-main" id="overviewView" hidden>
@@ -653,7 +658,7 @@
     <section class="mem-pane" data-pane="offline" hidden>
       <p class="muted">Money paid by transfer, cash, POS or deposit. Nothing is credited on anybody’s word: the receipt is read (Gemini vision) and checked — the amount, the date, that it went to Afrovanguard, that it has not been used before — and credited only if every check passes. A payment that fails is held, with the reasons.</p>
       <p class="muted tiny" id="offReader"></p>
-      <div class="mem-filters"><select id="offStatus" aria-label="Which payments"><option value="">All</option><option value="held">Held — not credited</option><option value="verified">Checked and credited</option><option value="rejected">Rejected</option></select></div>
+      <div class="mem-filters"><select id="offStatus" aria-label="Which payments"><option value="">All</option><option value="checked">Checked — confirm the money arrived</option><option value="held">Held — not credited</option><option value="verified">Confirmed and credited</option><option value="rejected">Rejected</option></select></div>
       <div class="entry-list" id="offList" aria-live="polite"></div>
     </section>
 
@@ -1230,7 +1235,7 @@
             <ol><li>Open <b>Mentorship</b>. Approve mentor applications, pair mentors with mentees, or assign people to a cohort/programme.</li><li>Track sessions and flag inactive pairs; export pairings to CSV. Every change is logged under <b>Activity</b> with one-click undo.</li></ol>
           </details>
           <details class="guide-acc"><summary>Move to a MySQL / PostgreSQL database</summary>
-            <ol><li>In cPanel, create an empty MySQL/PostgreSQL database and a user with access to it.</li><li>Open <b>Database</b> (Super Admin). Enter the host, name, user and password, then <b>Test connection</b>.</li><li>Run a <b>Dry run</b> to preview, then <b>Migrate now</b> — every table is copied and its row count verified.</li><li>Paste the shown settings into your <code>.env</code> (set the real password) and reload the site to run on the new database.</li></ol>
+            <ol><li>In cPanel, create an empty MySQL/PostgreSQL database and a user with access to it.</li><li>Open <b>Database</b> (Super Admin). Enter the host, name, user and password, then <b>Test connection</b>.</li><li>Run a <b>Dry run</b> to preview, then <b>Copy the data</b> — every table is copied and its row count checked.</li><li>Press <b>Switch the site now</b>, straight after copying. Anything added since the copy is carried across and every table is checked again; if anything does not match, nothing is switched. <b>Switch back</b> returns the site to its SQLite file.</li></ol>
           </details>
         </div>
       </div>
@@ -1397,6 +1402,7 @@
         <div><h2>Setup</h2><p class="muted">Connect the AI, email (the Google Apps Script mail road), the meeting notetaker and web search. Keys are encrypted before they are stored and are never shown again — you will only ever see the last few characters.</p></div>
         <button class="btn btn-outline btn-sm" id="setupRefresh">Refresh</button>
       </div>
+      <p class="muted">The Chrome Meeting Recorder is published and installed from its own page: <a href="/admin/recorder.php">Meeting Recorder →</a> (superadmins).</p>
       <div class="setup-warn" id="setupCrypto" hidden></div>
       <div class="setup-tests" id="setupTests"></div>
       <div id="setupGroups"><p class="muted">Loading…</p></div>
@@ -1498,7 +1504,7 @@
   <!-- DATABASE (superadmin · SQLite → MySQL/Postgres migration, no SSH) -->
   <main class="studio-main" id="databaseView" hidden>
     <div class="studio-head">
-      <div><h1>Database</h1><p class="muted">Move the site from the bundled SQLite file to MySQL or PostgreSQL — no SSH or terminal needed. Every table is copied and its row count verified.</p></div>
+      <div><h1>Database</h1><p class="muted">Move the site from the bundled SQLite file to MySQL or PostgreSQL, with no SSH or terminal: copy the data, check every table matches, then switch the site over. You can switch back.</p></div>
       <button class="btn btn-outline btn-sm" id="dbRefresh">Refresh</button>
     </div>
 
@@ -1510,8 +1516,8 @@
 
       <div class="side-card">
         <h3>Migrate to a new database</h3>
-        <p class="muted" style="margin-top:-4px">Create an empty MySQL/PostgreSQL database in cPanel first, then enter its details below. Go in order: <b>Test connection</b> → <b>Dry run</b> → <b>Migrate now</b>. The copy runs in slices and remembers where it got to, so a shared host cutting the request off costs a slice, not the migration — if it stops, press <b>Migrate now</b> again and it carries on. Keep the tab open while it runs.</p>
-        <p class="muted tiny">It fills the target and stops there; this site keeps running on its current database until you repoint it by hand. <b>The database is the one setting that cannot live in <code>config.php</code></b> — it is read from the environment only, so the lines below go in <code>.env</code> or <code>.htaccess</code>.</p>
+        <p class="muted" style="margin-top:-4px">Create an empty MySQL/PostgreSQL database in cPanel first, then enter its details below. Go in order: <b>Test connection</b> → <b>Dry run</b> → <b>Copy the data</b> → <b>Switch the site</b>. The copy runs in slices and remembers where it got to: if it stops, press <b>Copy the data</b> again and it carries on. Keep the tab open while it runs.</p>
+        <p class="muted tiny">Copying changes nothing on the live site. Switching does: it is offered once every table matches.</p>
         <form id="dbForm" class="db-form" autocomplete="off">
           <div class="db-row3">
             <label class="fld"><span>Type</span><select id="db_driver"><option value="mysql">MySQL / MariaDB</option><option value="pgsql">PostgreSQL</option></select></label>
@@ -1530,7 +1536,7 @@
           <div class="editor-actions" style="margin-top:6px">
             <button type="button" class="btn btn-outline" id="dbTestBtn">Test connection</button>
             <button type="button" class="btn btn-outline" id="dbDryBtn">Dry run</button>
-            <button type="button" class="btn btn-primary" id="dbMigrateBtn">Migrate now</button>
+            <button type="button" class="btn btn-primary" id="dbMigrateBtn">Copy the data</button>
           </div>
           <p class="db-msg" id="dbMsg" role="status" aria-live="polite"></p>
         </form>
@@ -1540,8 +1546,16 @@
     <div class="side-card db-result" id="dbResult" hidden>
       <h3>Result</h3>
       <div id="dbReport"></div>
+      <!-- Switch: offered once every table matches (lib/DbSwitch.php). -->
+      <div class="db-switch" id="dbSwitchWrap" hidden>
+        <h4>Switch the site to this database</h4>
+        <p class="muted">Every table matches. Switching copies anything added to the site since the copy finished, checks every table again, then runs the site on the new database. Do it now, straight after copying: edits made to existing records between the copy and the switch are not carried across.</p>
+        <p class="muted tiny">Nothing is deleted. The SQLite file stays as it is, and <b>Switch back</b> returns the site to it.</p>
+        <button type="button" class="btn btn-primary" id="dbSwitchBtn">Switch the site now</button>
+        <p class="db-msg" id="dbSwitchMsg" role="status" aria-live="polite"></p>
+      </div>
       <div id="dbEnvWrap" hidden>
-        <p class="muted" style="margin:10px 0 6px">Add these to your <code>.env</code> or <code>.htaccess</code> (set <code>AV_DB_PASS</code> to the real password), then reload the site to run on the new database. Not <code>config.php</code>: the database is not read from there, and the site would stay on SQLite without saying so. <code>AV_DB_STRICT=1</code> makes an unreachable database an error rather than a silent fall back to the old SQLite file that then accepts writes:</p>
+        <p class="muted" style="margin:10px 0 6px">This host does not let the site save its own settings, so it cannot switch itself. Add these lines to your <code>.env</code> (set <code>AV_DB_PASS</code> to the real password), then reload the site. <code>AV_DB_STRICT=1</code> makes an unreachable database an error rather than a silent fall back to the old SQLite file:</p>
         <pre class="db-env" id="dbEnv"></pre>
       </div>
       <details style="margin-top:10px"><summary class="muted">Migration log</summary><pre class="db-log" id="dbLog"></pre></details>

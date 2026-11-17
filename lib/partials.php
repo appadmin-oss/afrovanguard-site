@@ -226,13 +226,13 @@ function render_head(array $o): void {
      .avh-page wrapper (closed by render_footer). The page's own <main id="main"
      tabindex="-1"> sits between render_nav() and render_footer(). */ ?>
 <body class="avh avpg<?= !empty($o['body_class']) ? ' ' . e($o['body_class']) : '' ?>" id="top"<?= $slug ? ' data-slug="' . e($slug) . '"' : '' ?>>
-<a class="avh-skip" href="#main">Skip to content</a>
+<a class="avh-skip" href="#main">Skip to main content</a>
 <noscript><style>[data-reveal],.reveal-stagger>*{opacity:1!important;transform:none!important}</style></noscript>
 <div class="read-progress" id="read-progress"></div>
 <div class="avh-page">
 <?php else: ?>
 <body<?= $slug ? ' data-slug="' . e($slug) . '"' : '' ?><?= !empty($o['body_class']) ? ' class="' . e($o['body_class']) . '"' : '' ?>>
-  <a href="#main-content" class="skip-link">Skip to content</a>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
   <noscript><style>[data-reveal],.reveal-stagger>*{opacity:1!important;transform:none!important}</style></noscript>
   <div class="read-progress" id="read-progress"></div>
 <?php endif; }
@@ -488,14 +488,7 @@ function av_site_nav(string $active, string $path = ''): string {
         $html = str_replace('data-avh-menu="' . $section . '"', 'data-avh-menu="' . $section . '" data-avh-current', $html);
         $html = str_replace('aria-controls="avh-acc-' . $section . '"', 'aria-controls="avh-acc-' . $section . '" data-avh-current', $html);
     }
-    if ($path !== '' && $path !== '/') {
-        $alts = array_unique([$path, rtrim($path, '/'), rtrim($path, '/') . '/']);
-        foreach ($alts as $p) {
-            if ($p === '') continue;
-            $html = str_replace('<a href="' . e($p) . '">', '<a href="' . e($p) . '" aria-current="page">', $html);
-        }
-    }
-    return $html;
+    return avh_mark_current($html, $path);
 }
 
 function render_nav(string $active = 'diary', array $opts = []): void {
@@ -764,7 +757,7 @@ function av_footer_inner(): void {
         </div>
       </div>
       <div class="footer-bottom">
-        <p class="footer-legal">&copy; 2026 Afrovanguard. All rights reserved. <a href="<?= $S ?>/privacy-policy/">Privacy Policy</a> · <a href="<?= $S ?>/terms/">Terms of Use</a></p>
+        <p class="footer-legal">&copy; 2026 Afrovanguard. All rights reserved. <a href="<?= $S ?>/privacy-policy/">Privacy Policy</a> · <a href="<?= $S ?>/terms/">Terms of Use</a> · <a href="<?= $S ?>/accessibility/">Accessibility</a></p>
         <p class="footer-legal">Built with purpose. Powered by passion. For Africa.</p>
       </div>
     </div>

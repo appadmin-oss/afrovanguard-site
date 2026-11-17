@@ -81,12 +81,12 @@ final class Commitments
         Database::execSchema($pdo, $ddl);
         // Unique on the dedupe key so a re-run cannot double-file even if two
         // requests race: the database refuses, rather than the code remembering to.
-        try { $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_commitments_dedupe ON commitments(dedupe_key)'); }
+        try { Database::execSchema($pdo, 'CREATE UNIQUE INDEX IF NOT EXISTS idx_commitments_dedupe ON commitments(dedupe_key)'); }
         catch (Throwable $e) { /* already there */ }
         // The two lookups that run on every portal load and every cron tick.
         foreach (['idx_commitments_member ON commitments(member_id)',
                   'idx_commitments_status ON commitments(status)'] as $ix) {
-            try { $pdo->exec('CREATE INDEX IF NOT EXISTS ' . $ix); } catch (Throwable $e) { /* already there */ }
+            try { Database::execSchema($pdo, 'CREATE INDEX IF NOT EXISTS ' . $ix); } catch (Throwable $e) { /* already there */ }
         }
     }
 

@@ -76,7 +76,7 @@ final class AiOps
                 error      VARCHAR(300) NOT NULL DEFAULT '',
                 created_at VARCHAR(32)  NOT NULL DEFAULT ''
             );");
-            try { $db->exec('CREATE INDEX IF NOT EXISTS idx_job_runs ON av_job_runs(job, id)'); }
+            try { Database::execSchema($db, 'CREATE INDEX IF NOT EXISTS idx_job_runs ON av_job_runs(job, id)'); }
             catch (Throwable $e) {}
         } catch (Throwable $e) { error_log('[aiops] ensure: ' . $e->getMessage()); }
     }

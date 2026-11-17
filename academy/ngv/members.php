@@ -115,7 +115,7 @@ if ($method === 'POST') {
     if ($act === 'payment') {
         /* Typed-in money is no longer credited: an offline payment comes with
            its receipt and is checked first (payment_offline, above). */
-        json_out(['ok' => false, 'code' => 'evidence_required', 'error' => 'Attach the receipt — an offline payment is credited once its evidence is checked.'], 400);
+        json_out(['ok' => false, 'code' => 'evidence_required', 'error' => 'Attach the receipt — an offline payment is credited once its evidence is checked and the money confirmed.'], 400);
     }
     /* Send (or re-send) a receipt for one payment. Needed more often than it
        sounds: a bounced address that has since been fixed, a participant who
@@ -552,7 +552,7 @@ p.sub{margin:5px 0 0}
 .btn.sm{padding:5px 10px;font-size:.82rem}
 .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:9px;padding:9px;font:inherit}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
+input:focus,select:focus,textarea:focus{outline:3px solid var(--ink);outline-offset:1px;border-color:var(--orange)}
 textarea{min-height:60px;resize:vertical}
 .fld{margin-bottom:12px}
 .fld:last-child{margin-bottom:0}

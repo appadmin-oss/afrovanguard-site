@@ -227,3 +227,19 @@ html:has(body.avac){color-scheme:light}
 .avac-give-cur{font:600 18px var(--av-sans);color:var(--av-ink)}
 .avac-give-in{flex:1;min-width:0;height:46px;border:0;background:transparent;color:var(--av-ink);font:600 18px var(--av-sans);outline:none}
 .avac-give-ngn{margin:0;font-size:13.5px;line-height:1.45;color:var(--av-copy-3)}
+/* ── Stretched links (owner, 2026-11-11: accessibility) ──────────────────────
+   A card is a box; its TITLE is the link; the link's ::after covers the box so
+   the whole card still opens it with a click or a tap. Screen readers get one
+   short link and the card's text once; keyboard focus shows on the whole card. */
+.avac-stretch-box{position:relative}
+.avac-stretch{color:inherit;text-decoration:none}
+.avac-stretch::after{content:"";position:absolute;inset:0;z-index:1;border-radius:inherit}
+.avac-stretch:focus-visible{outline:none}
+.avac-stretch-box:has(.avac-stretch:focus-visible){outline:3px solid var(--av-ink,#111827);outline-offset:3px}
+.avac-ngv.avac-stretch-box:has(.avac-stretch:focus-visible){outline-color:var(--av-gold,#f3b416)}
+.avac-stretch-box:hover .avac-stretch{text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:2px}
+
+@media (forced-colors:active){
+  .avac-stretch-box:has(.avac-stretch:focus-visible){outline-color:Highlight}
+  .avac-stretch{color:LinkText}
+}

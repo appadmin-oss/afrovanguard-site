@@ -388,6 +388,15 @@ final class Database
             try { self::$pdo->exec('ALTER TABLE lessons ADD COLUMN quiz_json TEXT'); }
             catch (Throwable $e) { error_log('[db] add lessons.quiz_json: ' . $e->getMessage()); }
         }
+        /* The lesson's generated summary, cached against a hash of the body
+           so editing a lesson regenerates it and reading one costs nothing
+           (lib/LmsCoach.php). */
+        foreach (['ai_summary' => 'TEXT', 'ai_summary_hash' => 'VARCHAR(64)'] as $col => $type) {
+            if (self::tableExists('lessons') && !self::columnExists('lessons', $col)) {
+                try { self::$pdo->exec('ALTER TABLE lessons ADD COLUMN ' . $col . ' ' . $type); }
+                catch (Throwable $e) { error_log('[db] add lessons.' . $col . ': ' . $e->getMessage()); }
+            }
+        }
 
         // Seed the starter catalogue once — best-effort, so a seed hiccup never
         // aborts the schema migration above (which is what actually keeps the site up).
@@ -435,7 +444,7 @@ final class Database
         try { $ddl = @file_get_contents(AV_ROOT . '/db/schema.sql'); if ($ddl) self::syncTablesFromDdl(self::$pdo, (string) $ddl, self::driver(), 'db'); }
         catch (Throwable $e) { self::$syncErrors++; error_log('[db] server schema sync: ' . $e->getMessage()); }
         $failed = self::$syncErrors > 0;
-        foreach (['ensureColumns', 'ensureAcademy', 'ensureLmsVerify', 'ensureDiaryEntries'] as $step) {
+        foreach (['ensureColumns', 'ensureAcademy', 'ensureLmsVerify', 'ensureDiaryEntries', 'ensureIndexes'] as $step) {
             try { self::$step(); } catch (Throwable $e) { $failed = true; error_log('[db] server migration ' . $step . ': ' . $e->getMessage()); }
         }
         if (self::driver() === 'mysql') { try { self::ensureMysqlForeignKeys(); } catch (Throwable $e) { error_log('[db] foreign keys: ' . $e->getMessage()); } }
@@ -473,6 +482,28 @@ final class Database
             }
         }
         self::metaSet('mysql_fk_held', $held ? (string) json_encode($held) : '');
+    }
+
+    /**
+     * Give an existing database the plain indexes db/schema.sql declares.
+     *
+     * The schema sync adds tables and columns, never indexes, so an index added
+     * to schema.sql reached fresh installs only: a database built before
+     * idx_memberships_user (and the session and quiz-attempt lookups beside it)
+     * kept scanning those tables on every signed-in request. Plain indexes only:
+     * a UNIQUE one over rows that already repeat would fail, and making room for
+     * it means deleting data, which is a person's call. "Already exists" is the
+     * goal, not an error; execSchema treats it so on every driver.
+     */
+    private static function ensureIndexes(): void
+    {
+        $ddl = (string) @file_get_contents(AV_ROOT . '/db/schema.sql');
+        $ddl = (string) preg_replace(['~/\*.*?\*/~s', '~--[^\n]*~'], '', $ddl);
+        if (!preg_match_all('/CREATE\s+INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?\w+\s+ON\s+(\w+)\s*\([^;]*\)\s*;/i', $ddl, $mm, PREG_SET_ORDER)) return;
+        foreach ($mm as $m) {
+            if (!self::tableExists($m[1])) continue;
+            self::execSchema(self::$pdo, $m[0]);
+        }
     }
 
     /** Failures in the current schema sync (a create or an add that threw). */
@@ -515,7 +546,7 @@ final class Database
         self::$syncErrors = 0;
         try { self::syncSchemaFromFile(); } catch (Throwable $e) { self::$syncErrors++; error_log('[db] schema sync: ' . $e->getMessage()); }
         $failed = self::$syncErrors > 0;
-        foreach (['ensureColumns', 'ensureAcademy', 'ensureDiaryEntries', 'ensureLmsVerify'] as $step) {
+        foreach (['ensureColumns', 'ensureAcademy', 'ensureDiaryEntries', 'ensureLmsVerify', 'ensureIndexes'] as $step) {
             try { self::$step(); } catch (Throwable $e) { $failed = true; error_log('[db] migration step ' . $step . ': ' . $e->getMessage()); }
         }
         self::maybePurgeDemo();
@@ -944,7 +975,13 @@ final class Database
      */
     public static function mysqlTextDefaults(string $sql): string
     {
-        return (string) preg_replace("/\b((?:TINY|MEDIUM|LONG)?TEXT)(\s+NOT\s+NULL)?\s+DEFAULT\s+('(?:[^']|'')*'|-?[0-9.]+)/i", '$1$2 DEFAULT ($3)', $sql);
+        /* Both sessions fixed this (merge of 2026-11-14); this pattern is the
+           wider of the two: BLOB too, and NULL / COLLATE / CHARACTER SET
+           between the type and DEFAULT. Only a literal is wrapped: NULL is
+           legal bare, and an expression is already in parentheses. */
+        return (string) preg_replace(
+            "/\\b((?:TINY|MEDIUM|LONG)?(?:TEXT|BLOB)(?:\\s+(?:NOT\\s+NULL|NULL|COLLATE\\s+\\w+|CHARACTER\\s+SET\\s+\\w+))*\\s+DEFAULT\\s+)('(?:[^']|'')*'|-?\\d+(?:\\.\\d+)?)/i",
+            '$1($2)', $sql);
     }
 
     public static function migrate(): void

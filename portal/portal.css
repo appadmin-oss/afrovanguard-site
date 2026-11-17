@@ -795,6 +795,7 @@ body.portal-app .read-progress { display:none; }
   background:var(--surface-2); color:var(--ink); font-size:13px; font-weight:500; letter-spacing:0; text-transform:none; }
 .task-af input:focus, .task-af select:focus { outline:none; border-color:var(--gold); }
 .task-add-meta .pbtn { margin-left:auto; align-self:end; }
+.task-add-err { margin:8px 0 0; padding:8px 12px; border-radius:8px; background:var(--danger-bg, #fbe9e6); color:var(--danger-ink, #8f2214); font-size:14px; font-weight:600; }
 .task-filters { margin-bottom:12px; }
 
 /* task rows: priority dot + due chip */
@@ -1984,6 +1985,11 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
   font:inherit; background:var(--surface,#fff); color:inherit; width:100%; }
 .mr-form textarea { resize:vertical; }
 .mr-form .mr-wide, .mr-form details, .mr-form button { grid-column:1 / -1; }
+/* Already paid, or money needed: two plain choices, side by side. */
+.mr-form .mr-kind { border:0; padding:0; margin:0; display:flex; flex-wrap:wrap; gap:6px 16px; }
+.mr-form .mr-kind legend { font-size:12px; font-weight:600; margin-bottom:4px; }
+.mr-form .mr-kind label { flex-direction:row; align-items:center; gap:6px; font-weight:500; }
+.mr-form .mr-kind input { width:auto; }
 .mr-form details { font-size:12.5px; }
 .mr-form details label { margin-top:8px; }
 .mr-form button { justify-self:start; }
@@ -1996,6 +2002,22 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .mr-sub { margin:3px 0 0; font-size:12.5px; color:var(--muted); line-height:1.5; }
 .mr-sub.is-bad { color:var(--red); }
 .mr-row .pbtn { margin-top:8px; }
+/* Where a request stands, in finance's words, and why it was refused. */
+.mr-stage { color:var(--ink); }
+.mr-reason { color:var(--ink); border-left:3px solid var(--red); padding-left:8px; }
+/* Several lines in one request: each line a small row of its own. */
+.mr-form .mr-lines { border:0; padding:0; margin:0; }
+.mr-form .mr-lines > legend { font-size:12px; font-weight:600; margin-bottom:4px; }
+.mr-line { border:1px solid var(--divider,#ddd); border-radius:8px; padding:8px 10px; margin:0 0 8px;
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; align-items:end; }
+.mr-line > legend { font-size:12px; font-weight:600; padding:0 4px; }
+.mr-line .mr-line-what { grid-column:1 / -1; }
+.mr-form .mr-line button { grid-column:auto; justify-self:start; min-height:24px; }
+.mr-total { margin:2px 0 0; font-size:13px; font-weight:600; color:var(--ink); }
+.mr-form .mr-wide > .pbtn { min-height:24px; }
+.mr-acct { margin-top:6px; }
+.mr-earlier { margin-top:16px; }
+.mr-earlier h3 { font-size:14px; margin:0 0 2px; color:var(--ink); }
 .enroll-msg.is-bad { color:var(--red); }
 
 /* Handing a task back: why, in one tap (lib/TaskLedger.php). Away until a date. */
@@ -2068,3 +2090,38 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .meet-who { margin:4px 0 0; font-size:12px; color:var(--muted,#6b7280); }
 .meet-tag { font-weight:700; color:var(--body,#374151); }
 .meet-tag.is-in { color:var(--gold-deep,#b07e08); }
+
+/* Goal workspaces at CACENTRE, worked inline (portal/goalspace.js) */
+.gsp-ws { border:1px solid var(--border-2); border-radius:12px; padding:12px 14px; background:var(--surface); display:grid; gap:8px; }
+.gsp-ws + .gsp-ws { margin-top:12px; }
+.gsp-top { display:flex; justify-content:space-between; gap:10px; align-items:baseline; flex-wrap:wrap; }
+.gsp-top h3 { margin:0; font-size:15px; color:var(--ink); }
+.gsp-pace { font-size:12.5px; color:var(--muted); }
+.gsp-pace.is-bad, .gsp-m .is-bad { color:var(--danger-ink, #8f2214); font-weight:700; }
+.gsp-meter { display:flex; align-items:center; gap:10px; }
+.gsp-meter progress { flex:1; height:10px; accent-color:var(--gold-deeper); }
+.gsp-num { font-size:12.5px; color:var(--body); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.gsp-tasks, .gsp-team { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+.gsp-task { display:grid; gap:6px; padding:8px 0; border-top:1px solid var(--surface-2); }
+.gsp-t { font-weight:600; color:var(--ink); }
+.gsp-m { font-size:12.5px; color:var(--muted); }
+.gsp-act, .gsp-say { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.gsp-act .pbtn { min-height:32px; }
+.gsp-done { display:flex; flex-wrap:wrap; gap:6px; flex:1 1 260px; }
+.gsp-done input { flex:1 1 180px; min-width:0; min-height:32px; padding:4px 8px; border:1px solid var(--border-3); border-radius:8px; background:var(--surface); color:var(--ink); }
+.gsp-open { font-size:13px; color:var(--gold-deep); }
+.gsp-none { margin:0; font-size:13px; color:var(--muted); }
+.gsp-lead summary { cursor:pointer; font-size:13px; font-weight:600; color:var(--body); padding:4px 0; min-height:24px; }
+.gsp-give { display:grid; gap:8px; margin-top:10px; max-width:520px; }
+.gsp-give h4 { margin:0; font-size:13.5px; }
+.gsp-give label { display:grid; gap:4px; font-size:12.5px; color:var(--body); }
+.gsp-give input, .gsp-give select { min-height:32px; padding:4px 8px; border:1px solid var(--border-3); border-radius:8px; background:var(--surface); color:var(--ink); }
+#gspMsg.is-bad { color:var(--danger-ink, #8f2214); }
+.gsp-now { border:1px solid var(--gold-line, var(--border-2)); background:var(--gold-soft, var(--surface-2)); border-radius:12px; padding:10px 14px; margin-bottom:12px; }
+.gsp-now h3 { margin:0 0 4px; font-size:14px; color:var(--ink); }
+.gsp-help { background:var(--surface); }
+.gsp-why { display:block; font-size:12.5px; font-weight:700; color:var(--gold-text, #7a5a05); }
+.gsp-calm { margin:0 0 12px; font-size:13px; color:var(--body); }
+.gsp-fit { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.gsp-pick[aria-pressed="true"] { border-color:var(--ink); }
+.gsp-next summary { cursor:pointer; font-size:13px; font-weight:600; color:var(--body); padding:6px 0; min-height:24px; }

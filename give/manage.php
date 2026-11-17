@@ -11,12 +11,20 @@
  *
  * Admin-gated exactly like the NGV console: av_admin_role() for the page, and
  * same-origin + CSRF + a per-user rate limit on every write.
+ *
+ * Any Studio role may WRITE an appeal (its text, needs, items, updates). What
+ * moves money, touches a donor or speaks to donors needs an admin — the same
+ * line the Studio's own API draws (admin/api.php): a content editor writes
+ * pages, not cheques. $giveMoneyActions below; the page hides donors' names and
+ * emails from an editor rather than only refusing the buttons.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 
 $role    = function_exists('av_admin_role') ? av_admin_role() : '';
 $isAdmin = $role !== '';
+$canMoney = in_array($role, ['admin', 'superadmin'], true);
+$giveMoneyActions = ['fund_item', 'meet_need', 'allocate_ngv', 'stop_recurring', 'mail_update', 'save_tiers', 'delete_appeal'];
 $method  = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $actor   = function_exists('av_admin_actor') ? av_admin_actor() : 'admin';
 
@@ -40,6 +48,9 @@ if ($method === 'POST') {
     $in  = json_decode((string) file_get_contents('php://input'), true);
     if (!is_array($in)) $in = [];
     $act = (string) ($in['action'] ?? '');
+    if (in_array($act, $giveMoneyActions, true) && !$canMoney) {
+        json_out(['ok' => false, 'error' => 'That moves money or contacts donors, so it needs an admin. Your role writes appeals.'], 403);
+    }
 
     switch ($act) {
         case 'save_appeal': {
@@ -133,6 +144,7 @@ if ($isAdmin && $selId > 0) {
         $selSpare   = Appeals::unallocated($sel);
         $selShort   = Appeals::ngvShortfall();
         $selMailTo  = Appeals::updateRecipients($sel);
+        if (!$canMoney) { $selRec['rows'] = []; $selMailTo = []; }   // donors' names and emails: admins only
     }
 }
 $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal' => 0, 'donors' => 0];
@@ -523,8 +535,8 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
                   <div class="gm-need-title"><?= $e((string) $u['title']) ?></div>
                 </div>
                 <div class="gm-need-act">
-                  <button class="gm-btn gm-ghost gm-sm" data-mail="<?= (int) $u['id'] ?>"
-                          title="Email the people who gave to this appeal">Email donors</button>
+                  <?php if ($canMoney): ?><button class="gm-btn gm-ghost gm-sm" data-mail="<?= (int) $u['id'] ?>"
+                          title="Email the people who gave to this appeal">Email donors</button><?php endif; ?>
                   <button class="gm-btn gm-ghost gm-sm" data-delupdate="<?= (int) $u['id'] ?>">Delete</button>
                 </div>
               </div>
@@ -539,7 +551,9 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
             <div><div class="k">Worth per year</div><div class="v"><?= $e(Appeals::naira((int) $selRec['annualised'])) ?></div></div>
             <div><div class="k">Collected so far</div><div class="v"><?= $e(Appeals::naira((int) $selRec['collected'])) ?></div></div>
           </div>
-          <?php if (!$selRec['rows']): ?>
+          <?php if (!$canMoney): ?>
+            <div class="gm-empty"><p>Who gives, and cancelling a gift, are for admins. The totals above are for everyone.</p></div>
+          <?php elseif (!$selRec['rows']): ?>
             <div class="gm-empty">
               <p><strong>No recurring gifts yet.</strong></p>
               <p>The appeal page offers monthly, quarterly and yearly alongside a one-off gift.
@@ -588,7 +602,8 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
                      max="<?= (int) $selSpare ?>" value="<?= (int) min($selSpare, $selShort['outstanding']) ?>"></label>
             <div class="gm-form-foot">
               <button type="submit" class="gm-btn gm-primary"
-                      <?= $selSpare <= 0 || (int) $selShort['outstanding'] <= 0 ? 'disabled' : '' ?>>Allocate to Vanguards</button>
+                      <?= !$canMoney || $selSpare <= 0 || (int) $selShort['outstanding'] <= 0 ? 'disabled' : '' ?>>Allocate to Vanguards</button>
+              <?php if (!$canMoney): ?><span class="gm-hint">Handing money on needs an admin.</span><?php endif; ?>
               <?php if ($selSpare <= 0): ?><span class="gm-hint">Nothing left to allocate.</span>
               <?php elseif ((int) $selShort['outstanding'] <= 0): ?><span class="gm-hint">Nobody is behind on their fees right now.</span><?php endif; ?>
             </div>

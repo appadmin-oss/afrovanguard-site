@@ -4,7 +4,7 @@
   (function () {
     var box=document.getElementById('duesOffline'); if(!box) return;
     var card=document.getElementById('membership'), form=box.querySelector('form'), msg=box.querySelector('.dues-off-msg'), list=box.querySelector('.dues-off-list');
-    var LABEL={verified:'Checked and credited', held:'Held — not credited', rejected:'Rejected', pending:'Being checked'};
+    var LABEL={verified:'Credited', checked:'Receipt checked — the office is confirming it arrived', held:'Held — not credited', rejected:'Rejected', pending:'Being checked'};
     function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
     function say(t){ msg.hidden=false; msg.textContent=t; }
     function load(){ fetch('/portal/offline-payment.php',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
@@ -20,6 +20,7 @@
       fetch('/portal/offline-payment.php',{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':card.getAttribute('data-csrf')||''},body:fd})
         .then(function(r){return r.json();}).then(function(d){ b.disabled=false;
           if(d&&d.ok&&d.status==='verified'){ say('✓ Checked — your dues are credited.'); setTimeout(function(){location.reload();},1200); return; }
+          if(d&&d.ok&&d.status==='checked'){ say('Your receipt checks out. The office confirms the money arrived in the account, then your dues are credited — usually within a working day.'); load(); return; }
           if(d&&d.ok&&d.status==='held'){ say('Not credited yet: '+(d.reasons||[]).join(' ')+' You can send a clearer receipt, or the office will look at it.'); load(); return; }
           say((d&&d.error)||'Could not send that.'); })
         .catch(function(){ b.disabled=false; say('Network error — nothing was sent.'); }); });

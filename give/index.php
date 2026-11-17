@@ -78,16 +78,16 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <script src="<?= e(av_asset('/assets/site/avgv.js')) ?>" defer></script>
 </head>
 <body class="avh" id="top">
-<a class="avh-skip" href="#main">Skip to content</a>
+<a class="avh-skip" href="#main">Skip to main content</a>
 <div class="avh-page">
-<?php avh_nav(); ?>
+<?php avh_nav(avh_here()); ?>
 
 <main id="main" tabindex="-1" class="avgv">
 
 <header class="avgv-mast" aria-labelledby="avgv-h1">
   <div class="avh-topo" data-avh-topo="light" data-seed="7" aria-hidden="true"></div>
   <div class="avgv-wrap">
-    <nav class="avgv-crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">›</span><a href="/donate.html">Get involved</a><span aria-hidden="true">›</span><span aria-current="page">Live appeals</span></nav>
+    <nav class="avgv-crumbs" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="/">Home</a><span aria-hidden="true">›</span></li><li><a href="/donate.html">Get involved</a><span aria-hidden="true">›</span></li><li><span aria-current="page">Live appeals</span></li></ol></nav>
     <div class="avgv-mast-top">
       <h1 id="avgv-h1">What we need, and what it costs</h1>
       <p>Every appeal says exactly what it is for, how far along it is, and what a given amount pays for. Nothing is rounded up and nothing is guessed.</p>

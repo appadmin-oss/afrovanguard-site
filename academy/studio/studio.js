@@ -66,7 +66,19 @@
     var d = document.documentElement, next = d.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     d.setAttribute('data-theme', next); try { localStorage.setItem('av.theme', next); } catch (e) {}
   });
-  $('#hamburger').addEventListener('click', function () { $('#app').classList.toggle('nav-open'); });
+  /* The phone drawer: a disclosure. Opening moves focus to the current section; Esc
+     closes it and hands focus back to the button. Closed, it is visibility:hidden
+     (studio.css), so it is out of the Tab order and the screen reader's view. */
+  function setNav(open, refocus) {
+    var app = $('#app'), btn = $('#hamburger');
+    var was = app.classList.contains('nav-open');
+    app.classList.toggle('nav-open', open); btn.setAttribute('aria-expanded', String(open));
+    if (open) { var cur = $('.nav-item.is-active') || $('.nav-item'); if (cur) setTimeout(function () { cur.focus(); }, 30); }
+    else if (was && refocus) btn.focus();
+  }
+  $('#hamburger').addEventListener('click', function () { setNav(!$('#app').classList.contains('nav-open')); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('#app').classList.contains('nav-open') && $('#lessonModal').hidden) setNav(false, true); });
+  document.addEventListener('click', function (e) { if ($('#app').classList.contains('nav-open') && !e.target.closest('#side, #hamburger')) setNav(false); });
 
   /* ── Routing ── */
   var VIEWS = {
@@ -78,15 +90,20 @@
     curriculum:   { title: 'Curriculum',   sub: 'Modules, lessons, quizzes & assignments', actions: '' },
     learners:     { title: 'Learners',     sub: 'Progress & certificates', actions: '' },
     applications: { title: 'Applications', sub: 'Lead-capture sign-ups', actions: '' },
+    a11y:         { title: 'Accessibility', sub: 'Every lesson, checked for learners with disabilities', actions: '<button class="btn btn-ghost btn-sm" id="a11yCsv" type="button">Download spreadsheet</button><button class="btn btn-outline btn-sm" id="a11yRefresh" type="button">Check again</button>' },
     activity:     { title: 'Activity log', sub: 'Audit trail — who changed what, and from where', actions: '<button class="btn btn-outline btn-sm" id="auditRefresh">Refresh</button>' }
   };
   function route(name, arg) {
     var v = VIEWS[name] || VIEWS.overview;
     $$('.view').forEach(function (el) { el.hidden = el.id !== 'view-' + name; });
-    $$('.nav-item').forEach(function (b) { b.classList.toggle('is-active', b.getAttribute('data-view') === (name === 'course' ? 'courses' : (name === 'programme' ? 'programmes' : name))); });
+    $$('.nav-item').forEach(function (b) {
+      var on = b.getAttribute('data-view') === (name === 'course' ? 'courses' : (name === 'programme' ? 'programmes' : name));
+      b.classList.toggle('is-active', on);
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
     $('#viewTitle').textContent = v.title; $('#viewSub').textContent = v.sub;
     $('#topActions').innerHTML = v.actions;
-    $('#app').classList.remove('nav-open');
+    $('#app').classList.remove('nav-open'); $('#hamburger').setAttribute('aria-expanded', 'false');
     if (name === 'overview') loadOverview();
     if (name === 'courses') { loadCourses(); var nb = $('#newCourse'); if (nb) nb.onclick = function () { openCourse(null); }; }
     if (name === 'course') { $('#courseBack').onclick = function () { route('courses'); }; $('#courseSave').onclick = saveCourse; }
@@ -95,13 +112,57 @@
     if (name === 'curriculum') loadCurriculum(arg);
     if (name === 'learners') loadLearners(arg);
     if (name === 'applications') loadApplications();
+    if (name === 'a11y') { loadA11y(); $('#a11yRefresh').onclick = loadA11y; $('#a11yCsv').onclick = function () { window.open(API + '?action=ac_a11y_csv', '_blank'); }; }
     if (name === 'activity') { loadActivity(); var rb = $('#auditRefresh'); if (rb) rb.onclick = loadActivity; }
   }
   $$('.nav-item').forEach(function (b) { b.addEventListener('click', function () { route(b.getAttribute('data-view')); }); });
   $$('.qbtn').forEach(function (b) { b.addEventListener('click', function () { var go = b.getAttribute('data-go'); if (b.getAttribute('data-new')) openCourse(null); else route(go); }); });
 
+  /* ── Pricing (lib/AcademyPricing via ac_pricing*) ── */
+  function naira(n) { return '₦' + Number(n || 0).toLocaleString('en-NG'); }
+  function renderPricing(d) {
+    var s = d.settings || {}, inp = $('#pr_membership'), msg = $('#pricingMsg');
+    if (!inp) return;
+    inp.value = s.membership_ngn || '';
+    inp.disabled = !d.can_edit; $('#pricingSave').hidden = !d.can_edit;
+    $('#pricingReset').hidden = !d.can_edit || s.source !== 'studio';
+    msg.textContent = s.source === 'studio'
+      ? 'Set in the Studio' + (s.updated_by ? ' by ' + s.updated_by : '') + (s.updated_at ? ' on ' + s.updated_at.slice(0, 10) : '') + '.'
+      : 'The starting price from the site’s configuration (' + naira(d.shipped_ngn) + ').' + (d.can_edit ? '' : ' An administrator can change it.');
+    if (d.mode === 'donation') msg.textContent += ' Membership is a donation just now (from $' + (d.min_usd || 20) + ' a year), so this price applies only when the Studio switches membership to a fixed price (Members › Dues › Academy membership).';
+    var h = s.history || [], box = $('#pricingHist');
+    box.hidden = !h.length;
+    $('#pricingHistList').innerHTML = h.map(function (x) {
+      return '<li>' + esc(naira(x.from)) + ' → ' + esc(naira(x.to)) + (x.reset ? ' (back to the starting price)' : '') + ' · ' + esc(String(x.at || '').slice(0, 16)) + ' UTC · ' + esc(x.by || '') + '</li>';
+    }).join('');
+  }
+  function loadPricing() {
+    var f = $('#pricingForm'); if (!f) return;
+    get('ac_pricing').then(function (d) { if (d && d.ok) renderPricing(d); });
+    f.onsubmit = function (e) {
+      e.preventDefault();
+      var inp = $('#pr_membership'), msg = $('#pricingMsg');
+      var v = String(inp.value || '').replace(/[₦,\s]/g, '');
+      if (!/^\d+$/.test(v)) { inp.setAttribute('aria-invalid', 'true'); msg.textContent = 'Enter the price as a whole number of naira, like 5000.'; inp.focus(); return; }
+      inp.removeAttribute('aria-invalid');
+      if (!confirm('Charge ' + naira(v) + ' a year for Academy membership from now on?')) return;
+      post('ac_pricing_save', { membership_ngn: v }).then(function (d) {
+        if (d && d.ok) { toast(d.unchanged ? 'That is already the price' : 'Membership price saved', 'ok'); get('ac_pricing').then(function (r) { if (r && r.ok) renderPricing(r); }); }
+        else { inp.setAttribute('aria-invalid', 'true'); msg.textContent = (d && d.error) || 'Not saved.'; inp.focus(); }
+      });
+    };
+    $('#pricingReset').onclick = function () {
+      if (!confirm('Go back to the starting price from the site’s configuration?')) return;
+      post('ac_pricing_reset', {}).then(function (d) {
+        if (d && d.ok) { toast('Back to the starting price', 'ok'); get('ac_pricing').then(function (r) { if (r && r.ok) renderPricing(r); }); }
+        else toast((d && d.error) || 'Not changed', 'err');
+      });
+    };
+  }
+
   /* ── Overview ── */
   function loadOverview() {
+    loadPricing();
     get('ac_overview').then(function (d) {
       if (!d || !d.ok) return;
       var s = d.stats, cards = [
@@ -217,7 +278,7 @@
 
   var CF = { title: 'c_title', slug: 'c_slug', summary: 'c_summary', body_html: 'c_body', outcomes: 'c_outcomes',
     category: 'c_category', level: 'c_level', format: 'c_format', duration: 'c_duration', price: 'c_pricelabel',
-    cover_url: 'c_cover', cta_url: 'c_cta', sort: 'c_sort', price_ngn: 'c_price_ngn', instructor_email: 'c_instructor',
+    cover_url: 'c_cover', cta_url: 'c_cta', sort: 'c_sort', price_ngn: 'c_price_ngn',
     language: 'c_language', skills: 'c_skills', prerequisites: 'c_prereqs', pass_mark: 'c_pass_mark', pace_weeks: 'c_pace_weeks' };
   function toggledPrice() { $('#priceWrap').hidden = $('#c_access').value !== 'paid'; }
   $('#c_access').addEventListener('change', toggledPrice);
@@ -240,18 +301,46 @@
       $('#c_gradient').value = c.gradient || 'g-gold';
       $('#c_featured').checked = !!(c.featured && c.featured != '0');
       $('#c_sequential').checked = !!(c.sequential && c.sequential != '0');
-      $('#c_instructor').value = c.instructor_email || '';
       if (c.level && !$$('#c_level option').some(function (o) { return o.value === c.level; })) { var o = document.createElement('option'); o.textContent = c.level; $('#c_level').appendChild(o); }
       $('#c_level').value = c.level || 'All levels';
       showCover();
       richInit('c_body', c.body_html || '');
       get('ac_categories').then(function (r) { $('#c_categories').innerHTML = ((r && r.categories) || []).map(function (x) { return '<option value="' + esc(x) + '">'; }).join(''); });
       toggledPrice();
+      loadTeam(slug);
       VIEWS.course.title = slug ? 'Edit course' : 'New course';
       route('course');
     }
     if (!slug) { fill(blank); return; }
     get('ac_get', 'slug=' + encodeURIComponent(slug)).then(function (d) { fill((d && d.course) || blank); });
+  }
+  /* ── Teaching team (lib/CourseTeam via ac_team_*) ── */
+  var ROLE_LABEL = { lead: 'Lead instructor', instructor: 'Instructor', assistant: 'Teaching assistant' };
+  function renderTeam(slug, team) {
+    var list = $('#teamList');
+    list.innerHTML = (team || []).map(function (m) {
+      var opts = ['lead', 'instructor', 'assistant'].map(function (r) { return '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>'; }).join('');
+      return '<li><span><strong>' + esc(m.name) + '</strong><br><small>' + esc(m.email) + '</small></span>'
+        + '<select data-team-role="' + esc(m.user_id) + '" aria-label="Role for ' + esc(m.name) + '">' + opts + '</select>'
+        + '<button type="button" class="btn btn-ghost btn-sm" data-team-remove="' + esc(m.user_id) + '" aria-label="Remove ' + esc(m.name) + '">Remove</button></li>';
+    }).join('') || '<li class="muted">Nobody yet. The first person added is the lead.</li>';
+    function done(d) { if (d && d.ok) renderTeam(slug, d.team); else toast((d && d.error) || 'Not changed', 'err'); }
+    $$('[data-team-role]', list).forEach(function (sel) { sel.onchange = function () { post('ac_team_role', { slug: slug, user_id: +sel.getAttribute('data-team-role'), role: sel.value }).then(function (d) { if (!(d && d.ok)) loadTeam(slug); done(d); }); }; });
+    $$('[data-team-remove]', list).forEach(function (b) { b.onclick = function () { post('ac_team_remove', { slug: slug, user_id: +b.getAttribute('data-team-remove') }).then(done); }; });
+  }
+  function loadTeam(slug) {
+    var form = $('#teamForm'); if (!form) return;
+    $('#teamList').innerHTML = '';
+    form.hidden = !slug; $('#teamHint').hidden = !!slug;
+    if (!slug) return;
+    get('ac_team', 'slug=' + encodeURIComponent(slug)).then(function (d) { renderTeam(slug, d && d.team); });
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      post('ac_team_add', { slug: slug, email: $('#teamEmail').value, role: $('#teamRole').value }).then(function (d) {
+        if (d && d.ok) { $('#teamEmail').value = ''; renderTeam(slug, d.team); toast('Team updated', 'ok'); }
+        else toast((d && d.error) || 'Not added', 'err');
+      });
+    };
   }
   function saveCourse() {
     var payload = {};
@@ -613,11 +702,34 @@
         link_default_target: '_blank', convert_urls: false,
         setup: function (ed) {
           ed.ui.registry.addButton('avimage', { icon: 'image', tooltip: 'Insert an image', onAction: function () {
-            uploadFile('image/*').then(function (url) { ed.insertContent('<p><img src="' + esc(url) + '" alt=""></p>'); }).catch(function () {});
+            /* Ask what the picture shows before it goes in. It used to go in
+               with alt="" — "decoration" — so a blind learner was told nothing
+               about a diagram the lesson depended on. */
+            uploadFile('image/*').then(function (url) { describeImage(ed, url); }).catch(function () {});
           } });
           ed.on('input change', function () { dirty = true; scheduleDraft(); });
         }
       });
+    });
+  }
+  /* WCAG 1.1.1: every picture gets a description, or is marked as decoration
+     on purpose. lib/LessonA11y.php flags whichever slips through. */
+  function describeImage(ed, url) {
+    ed.windowManager.open({
+      title: 'Describe this picture',
+      body: { type: 'panel', items: [
+        { type: 'htmlpanel', html: '<p>Learners who cannot see it hear this instead. Say what it shows and why it is here, in a sentence — as you would to someone on the phone.</p>' },
+        { type: 'textarea', name: 'alt', label: 'What the picture shows', placeholder: 'e.g. A bar chart: enrolment rose from 120 in 2023 to 410 in 2025.' },
+        { type: 'checkbox', name: 'deco', label: 'It is only decoration — it teaches nothing' }
+      ] },
+      initialData: { alt: '', deco: false },
+      buttons: [ { type: 'cancel', text: 'Cancel' }, { type: 'submit', text: 'Insert picture', primary: true } ],
+      onSubmit: function (api) {
+        var d = api.getData(), alt = String(d.alt || '').replace(/\s+/g, ' ').trim();
+        if (!alt && !d.deco) { ed.notificationManager.open({ text: 'Describe the picture, or tick “only decoration”.', type: 'warning', timeout: 5000 }); return; }
+        ed.insertContent('<p><img src="' + esc(url) + '" alt="' + esc(d.deco ? '' : alt) + '"></p>');
+        api.close();
+      }
     });
   }
   function richGet(id) { return (window.tinymce && tinymce.get(id)) ? tinymce.get(id).getContent() : $('#' + id).value; }
@@ -1096,7 +1208,7 @@
   /* ── Activity / audit log ── */
   var ALABEL = {
     admin_login: 'Admin signed in', admin_login_failed: 'Failed admin sign-in', admin_logout: 'Admin signed out',
-    ac_save: 'Course saved', ac_delete: 'Course deleted', mod_save: 'Module saved', mod_delete: 'Module deleted',
+    ac_a11y_csv: 'Accessibility report downloaded', ac_save: 'Course saved', ac_delete: 'Course deleted', mod_save: 'Module saved', mod_delete: 'Module deleted',
     lesson_save: 'Lesson saved', lesson_delete: 'Lesson deleted', save: 'Diary entry saved', delete: 'Diary entry deleted',
     mem_save: 'Member updated', mem_create: 'Member created', role_change: 'Role changed', suspend: 'Member suspended',
     reactivate: 'Member reactivated', create_member: 'Member created', comm_save: 'Community saved', comm_delete: 'Community deleted',
@@ -1118,6 +1230,32 @@
           + '<td>' + esc(r.actor || 'admin') + '</td>'
           + '<td class="muted" style="font-variant-numeric:tabular-nums">' + esc(r.ip || '—') + '</td></tr>';
       }).join('');
+    });
+  }
+
+  /* ── Accessibility: the whole Academy at once (lib/LessonA11y.php::audit).
+     The same report as tools/academy-a11y-audit.php, for a host with no shell. */
+  function loadA11y() {
+    var body = $('#a11yBody'), sum = $('#a11ySum');
+    body.innerHTML = '<tr><td colspan="4" class="empty">Checking every lesson…</td></tr>'; sum.textContent = 'Checking…';
+    get('ac_a11y').then(function (d) {
+      if (!d || !d.ok) {
+        sum.textContent = 'The check could not run.';
+        body.innerHTML = '<tr><td colspan="4" class="empty">' + esc((d && d.error) || 'Could not load the report.') + ' <button type="button" class="link-btn" id="a11yRetry">Try again</button></td></tr>';
+        $('#a11yRetry').onclick = loadA11y; return;
+      }
+      var n = function (k, one, many) { return k + ' ' + (k === 1 ? one : many); };
+      sum.innerHTML = '<strong>' + esc(n(d.fix, 'must fix', 'must fix')) + '</strong> · ' + esc(n(d.tip, 'tip', 'tips')) + ' · ' + esc(n(d.lessons, 'lesson', 'lessons')) + ' in ' + esc(n(d.courses, 'course', 'courses')) + ' checked';
+      if (!d.rows.length) { body.innerHTML = '<tr><td colspan="4" class="empty">No problems found in the lesson text. Still test the pages: with a keyboard alone, a screen reader, and zoomed to 400%.</td></tr>'; return; }
+      body.innerHTML = d.rows.map(function (r, i) {
+        return '<tr><td><span class="badge ' + (r.level === 'fix' ? 'a11y-fix' : 'a11y-tip') + '">' + (r.level === 'fix' ? 'Must fix' : 'Tip') + '</span></td>'
+          + '<td>' + esc(r.course_title) + (r.status !== 'published' ? ' <span class="muted">(draft)</span>' : '') + '</td>'
+          + '<td><button type="button" class="link-btn" data-a11y-open="' + i + '">' + esc(r.lesson_title) + '</button></td>'
+          + '<td>' + esc(r.text) + '</td></tr>';
+      }).join('');
+      $$('[data-a11y-open]', body).forEach(function (b) {
+        b.onclick = function () { var r = d.rows[+b.getAttribute('data-a11y-open')]; route('curriculum', r.course); setTimeout(function () { openLesson(r.lesson_id, null); }, 350); };
+      });
     });
   }
 

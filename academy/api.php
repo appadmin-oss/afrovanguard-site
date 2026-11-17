@@ -9,6 +9,7 @@
  *  Courseware: POST quiz_submit · assignment_submit · assignment_grade (teacher)
  *              POST forum_thread · forum_reply · forum_moderate (teacher)
  *              POST review_save · GET grades&course=slug
+ *  Coach:      POST coach_ask {course,lesson,q,mode,history}
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
@@ -298,7 +299,40 @@ try {
             $u = LmsAuth::require();
             $c = $slug ? $ac->bySlug($slug) : null;
             if (!$c || !$lms->teaches($u, $c)) json_out(['ok' => false, 'error' => 'Only this course’s instructor can moderate.'], 403);
-            json_out(['ok' => $cw->hideReview((int) ($body['id'] ?? 0), empty($body['show']))]);
+            json_out(['ok' => $cw->hideReview((int) ($body['id'] ?? 0), empty($body['show']), (int) $c['id'])]);
+        }
+
+        /* ── The study coach ──────────────────────────────────────────────
+           Grounded in the lesson the learner is reading, gated on the same
+           access as the lesson, and rate-limited because each question is a
+           model call somebody pays for. It never marks work — see
+           lib/LmsCoach.php, which has no path to a grade. */
+        case 'coach_ask': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            /* PUBLISHED only, like every other learner action: a draft is
+               not a lesson anybody is taking, and the coach must not read
+               one out. */
+            $c = $slug ? $ac->bySlug($slug) : null;
+            $lesson = $c ? $lms->lesson((int) $c['id'], preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['lesson'] ?? '')))) : null;
+            if (!$lesson) json_out(['ok' => false, 'error' => 'Lesson not found.'], 404);
+            if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access to this lesson.'], 403);
+            if (!LmsCoach::available()) json_out(['ok' => false, 'error' => 'The study coach is not switched on.'], 503);
+            // Per learner (the allowance is theirs wherever they are) and per address (one person, many accounts).
+            if (!av_rate_ok_for('lms_coach', 'u' . (int) $u['id'], LmsCoach::RATE_ASKS, LmsCoach::RATE_WINDOW)
+                || !av_rate_ok('lms_coach', LmsCoach::RATE_ASKS * 5, LmsCoach::RATE_WINDOW)) {
+                json_out(['ok' => false, 'error' => 'That is a lot of questions in a short time. Take a few minutes, or ask in the discussion.'], 429);
+            }
+            $r = LmsCoach::ask($lesson, $c, (string) ($body['q'] ?? ''), [
+                'actor'   => 'u' . (int) $u['id'],
+                /* The mode is matched against a server-side list inside
+                   LmsCoach — a free string reaching the model's instructions
+                   would be somebody else's prompt running on our bill. */
+                'mode'    => (string) ($body['mode'] ?? 'ask'),
+                'history' => is_array($body['history'] ?? null) ? $body['history'] : [],
+            ]);
+            json_out($r, empty($r['ok']) ? 400 : 200);
         }
 
         case 'progress':

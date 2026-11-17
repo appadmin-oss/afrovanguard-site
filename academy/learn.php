@@ -53,6 +53,12 @@ $lesson = $lms->lesson((int) $course['id'], $lessonSlug);
 if (!$lesson) { require_once AV_ROOT . '/lib/errors.php'; av_error_render(404); exit; }
 
 $canAccess = $lms->canAccess($user, $course, $lesson);
+/* The study coach and the lesson's key points. Both are drawn only when
+   there is something behind them: a control that cannot act has no business
+   on the screen, and a summary nobody has generated is not a heading with
+   nothing under it. */
+$coachOn = $canAccess && $user && LmsCoach::available();
+$summary = $canAccess ? LmsCoach::points(LmsCoach::summary($lesson)['text'] ?? '') : [];
 $access = (string) ($course['access_type'] ?? 'open');
 $curriculum = $lms->curriculum((int) $course['id']);
 
@@ -82,6 +88,8 @@ $replies = $prompt ? $cw->posts((int) $prompt['id']) : [];
 $selfComplete = !$quiz && !in_array($lType, ['assignment', 'discussion'], true);
 $gradesUrl = academy_url($courseSlug . '/grades');
 $forumUrl = academy_url($courseSlug . '/discussions');
+// A course with team-graded items (lib/Grading) earns its certificate on those grades, not lessons alone.
+$graded = Grading::hasGradedItems((int) $course['id']);
 
 avac_head([
     'title' => $lesson['title'] . ' — ' . $course['title'] . ' · Afrovanguard Academy',
@@ -101,13 +109,16 @@ avac_head([
     <a class="avle-course" href="<?= e($courseUrl) ?>"><?= e((string) $course['title']) ?></a>
   </div>
   <div class="avle-top-r">
-    <span class="avle-ring" style="--p:<?= $pct ?>" aria-hidden="true"></span><span class="avle-ring-n av-num" data-avle-count><?= (int) $progress['completed'] ?>/<?= (int) $progress['total'] ?></span><span class="av-sr" data-avle-count-sr><?= (int) $progress['completed'] ?> of <?= (int) $progress['total'] ?> lessons complete</span>
+    <span class="avle-ring" style="--p:<?= $pct ?>" aria-hidden="true"></span><span class="avle-ring-n av-num" data-avle-count aria-hidden="true"><?= (int) $progress['completed'] ?>/<?= (int) $progress['total'] ?></span><span class="av-sr" data-avle-count-sr><?= (int) $progress['completed'] ?> of <?= (int) $progress['total'] ?> lessons complete</span>
+<?php if ($coachOn): ?>    <button type="button" class="avle-btn avle-btn--line avle-coach-btn" data-avle-coach-toggle aria-controls="avle-coach" aria-expanded="false">Ask Coach</button>
+<?php endif; ?>
 <?php if ($user && $canAccess): ?>    <a class="avle-btn avle-btn--line avle-hide-sm" href="<?= e($gradesUrl) ?>">Grades</a>
     <a class="avle-btn avle-btn--line avle-hide-sm" href="<?= e($forumUrl) ?>">Discussions</a>
 <?php endif; ?>
 <?php if ($canAccess): ?>    <button type="button" class="avle-btn avle-btn--line avle-notes-btn" data-avle-notes-toggle aria-controls="avle-notes" aria-expanded="false">Notes</button>
 <?php endif; ?>
-    <a class="avle-btn" href="<?= e($courseUrl) ?>">Exit</a>
+<?php if ($graded && !($user && $canAccess)): ?>    <a class="avle-btn avle-btn--line" href="<?= e($gradesUrl) ?>">Grades</a>
+<?php endif; ?>    <a class="avle-btn" href="<?= e($courseUrl) ?>">Exit</a>
   </div>
   <div class="avle-read" aria-hidden="true"><span data-avle-readbar></span></div>
 </header>
@@ -131,7 +142,7 @@ avac_head([
         <span><span class="avle-mod-t"><?= e((string) $m['title']) ?></span><span class="avle-mod-n av-num" data-avle-modcount><?= $mDone ?>/<?= count($m['lessons']) ?> complete</span></span>
         <span class="avle-chev" aria-hidden="true">▼</span>
       </button>
-      <ul class="avle-items" id="avle-mod-<?= (int) $m['id'] ?>"<?= $open ? '' : ' hidden' ?>>
+      <ul class="avle-items" role="list" id="avle-mod-<?= (int) $m['id'] ?>"<?= $open ? '' : ' hidden' ?>>
 <?php foreach ($m['lessons'] as $l):
         $done = in_array((int) $l['id'], $doneIds, true); $cur = $l['slug'] === $lessonSlug;
         [$tl, $tg] = avle_type((string) ($l['type'] ?? 'reading')); ?>
@@ -231,28 +242,44 @@ avac_head([
     <div class="avle-byline">
       <div class="avle-by"><span class="avle-by-mark" aria-hidden="true"><span></span></span><div><div class="avle-by-n">Afrovanguard Academy</div><div class="avle-by-s av-num"><?= $modTitle !== '' ? e($modTitle) . ' · ' : '' ?>Lesson <?= $lessonNum ?> of <?= $lessonTotal ?></div></div></div>
       <div class="avle-pills">
-        <button type="button" class="avle-pill" data-avle-notes-toggle aria-controls="avle-notes" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>Take notes</button>
+<?php if ($coachOn): ?>        <button type="button" class="avle-pill" data-avle-coach-toggle aria-controls="avle-coach" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4L3 21l1.1-4.6A8.4 8.4 0 1 1 21 11.5z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>Ask Coach</button>
+<?php endif; ?>        <button type="button" class="avle-pill" data-avle-notes-toggle aria-controls="avle-notes" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>Take notes</button>
         <button type="button" class="avle-pill" data-avle-share><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M18 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-avle-share-label>Share</span></button>
       </div>
     </div>
     <div class="avle-about">
       <div class="avle-about-k av-num"><?= $mins ? $mins . ' min · ' : '' ?>Video lesson</div>
-      <div class="avle-body avle-prose-sm"><?= $lesson['body_html'] ?></div>
+      <article class="avle-body avle-prose-sm" aria-label="<?= e((string) $lesson['title']) ?>"><?= $lesson['body_html'] ?></article>
     </div>
 <?php else: ?>
     <div class="avle-meta"><?php if ($modTitle !== ''): ?><span><?= e($modTitle) ?></span><span aria-hidden="true">·</span><?php endif; ?><span class="av-num">Lesson <?= $lessonNum ?> of <?= $lessonTotal ?></span><span class="avle-type"><span aria-hidden="true"><?= $typeGlyph ?></span><?= e($typeLabel) ?><?= $mins ? ' · ' . $mins . ' min' : '' ?></span></div>
     <h1 class="avle-h1"><?= e((string) $lesson['title']) ?></h1>
-    <div class="avle-body"><?= $lesson['body_html'] ?></div>
+<?php if ($summary): ?>
+    <?php /* What the reader will be able to do, written from the lesson and
+             cached against a hash of it. It is a way in, never a
+             replacement, and the label says which it is. */ ?>
+    <aside class="avle-brief" aria-labelledby="avle-brief-h">
+      <h2 class="avle-brief-h" id="avle-brief-h">In short<span>written by AI from this lesson</span></h2>
+      <ul>
+<?php foreach ($summary as $pt): ?>        <li><?= e($pt) ?></li>
+<?php endforeach; ?>
+      </ul>
+    </aside>
+<?php endif; ?>
+    <article class="avle-body" aria-label="<?= e((string) $lesson['title']) ?>"><?= $lesson['body_html'] ?></article>
 <?php endif; ?>
 
 <?php $transcript = trim((string) ($lesson['transcript'] ?? '')); $hasCues = $lType === 'video' && !empty($caps) && ($vid['kind'] ?? '') === 'file'; ?>
 <?php if ($transcript !== '' || $hasCues): ?>
     <details class="avle-trans" data-avle-trans<?= $hasCues ? ' data-cues="1"' : '' ?>>
       <summary>Transcript</summary>
-      <ol class="avle-cues" data-avle-cues hidden></ol>
+      <ol class="avle-cues" data-avle-cues hidden role="list"></ol>
 <?php if ($transcript !== ''): ?>      <div class="avle-trans-text" data-avle-trans-text><?= nl2br(e($transcript)) ?></div>
 <?php endif; ?>
     </details>
+<?php endif; ?>
+<?php if ($lType === 'video' && $transcript === '' && empty($caps)): /* No way to follow this video without sound: say so, and offer the way to get one. */ ?>
+    <p class="avle-noaccess" role="note">This video has no captions or transcript yet. If you need one to follow it, <a href="/contact.html?purpose=general&amp;subject=<?= rawurlencode('Captions for: ' . (string) $lesson['title']) ?>&amp;message=<?= rawurlencode('Please add captions or a transcript to the lesson “' . (string) $lesson['title'] . '” (' . (string) $courseSlug . ').') ?>#contact-form">ask the team</a> and we will add it.</p>
 <?php endif; ?>
 <?php if ($resources = LmsRepository::resources($lesson)): ?>
     <section class="avle-res" aria-labelledby="avle-res-h">
@@ -355,7 +382,12 @@ if ($curMod && (trim((string) ($curMod['summary'] ?? '')) !== '' || LmsCoursewar
     </section>
 <?php endif; ?>
 
-<?php if ($user): ?>
+<?php if ($user && $graded): ?>
+    <div class="avle-done" data-avle-done<?= !empty($progress['complete']) ? '' : ' hidden' ?>>
+      <span>You’ve finished the lessons of <strong><?= e((string) $course['title']) ?></strong>. This course is graded: your certificate comes with passing its graded work.</span>
+      <a class="avle-btn avle-btn--gold" href="<?= e($gradesUrl) ?>">See your grades →</a>
+    </div>
+<?php elseif ($user): ?>
     <div class="avle-done" data-avle-done<?= $lms->getCertificate((int) $user['id'], (int) $course['id']) ? '' : ' hidden' ?>>
       <span>You’ve completed <strong><?= e((string) $course['title']) ?></strong> — your certificate is ready.</span>
       <a class="avle-btn avle-btn--gold" href="<?= e(academy_url($courseSlug . '/certificate')) ?>" target="_blank" rel="noopener">Get your certificate →<span class="av-sr"> (opens in a new tab)</span></a>
@@ -376,16 +408,16 @@ if ($curMod && (trim((string) ($curMod['summary'] ?? '')) !== '' || LmsCoursewar
 
   <div class="avle-bar-wrap">
     <div class="avle-barline<?= $lType === 'video' ? ' avle-barline--video' : '' ?>">
-<?php if ($prev): ?>      <a class="avle-btn avle-btn--line avle-btn--lg" href="<?= e($learnUrl((string) $prev['slug'])) ?>" data-avle-prev>← Previous</a>
+<?php if ($prev): ?>      <a class="avle-btn avle-btn--line avle-btn--lg" href="<?= e($learnUrl((string) $prev['slug'])) ?>" data-avle-prev><span aria-hidden="true">← </span>Previous<span class="av-sr"> lesson: <?= e((string) $prev['title']) ?></span></a>
 <?php endif; ?>
       <div class="avle-bar-r">
         <span class="avle-keys" aria-hidden="true">N next · P prev<?= $selfComplete ? ' · K complete' : '' ?> · S contents</span>
 <?php if ($selfComplete): ?>
-        <button type="button" class="avle-btn avle-btn--lg" data-avle-complete data-done="<?= $isDone ? '1' : '0' ?>"<?= $next ? ' data-next="' . e($nextUrl) . '"' : '' ?>><?= $isDone ? 'Completed ✓' : 'Mark complete' . ($next ? ' & continue' : '') ?></button>
+        <button type="button" class="avle-btn avle-btn--lg" data-avle-complete data-done="<?= $isDone ? '1' : '0' ?>"<?= $next ? ' data-next="' . e($nextUrl) . '"' : '' ?>><?= $isDone ? 'Completed' : 'Mark complete' . ($next ? ' & continue' : '') ?></button>
 <?php else: ?>
-        <span class="avle-qstatus<?= $isDone ? ' is-done' : '' ?>" data-avle-qstatus><?= $isDone ? 'Completed ✓' : ($quiz ? 'Quiz required' : ($lType === 'assignment' ? 'Submission required' : 'Response required')) ?></span>
+        <span class="avle-qstatus<?= $isDone ? ' is-done' : '' ?>" data-avle-qstatus><?= $isDone ? 'Completed' : ($quiz ? 'Quiz required' : ($lType === 'assignment' ? 'Submission required' : 'Response required')) ?></span>
 <?php endif; ?>
-<?php if ($next): ?>        <a class="avle-btn avle-btn--line avle-btn--lg" href="<?= e($nextUrl) ?>" data-avle-next>Next →</a>
+<?php if ($next): ?>        <a class="avle-btn avle-btn--line avle-btn--lg" href="<?= e($nextUrl) ?>" data-avle-next>Next<span class="av-sr"> lesson: <?= e((string) $next['title']) ?></span><span aria-hidden="true"> →</span></a>
 <?php endif; ?>
       </div>
     </div>
@@ -393,6 +425,44 @@ if ($curMod && (trim((string) ($curMod['summary'] ?? '')) !== '' || LmsCoursewar
 <?php endif; ?>
 </main>
 
+<?php if ($coachOn): ?>
+<?php /* THE COACH. A drawer beside the lesson, not a box at the bottom of
+         it: a learner who is stuck is stuck HERE, with the paragraph still
+         in front of them, and a panel they have to scroll past the whole
+         lesson to reach is one they will not use.
+
+         It is a conversation — earlier turns travel with each question, so
+         "say that again, simpler" means something. The four quick actions
+         are the four things people actually ask for.
+
+         PRACTICE IS NOT ASSESSMENT: "Quiz me" asks and responds and records
+         nothing. Graded quizzes are the lesson's own, and a person wrote
+         them. lib/LmsCoach.php cannot reach a grade. */ ?>
+<aside class="avle-coach" id="avle-coach" aria-labelledby="avle-coach-h" data-avle-coach hidden
+       data-course="<?= e($courseSlug) ?>" data-lesson="<?= e($lessonSlug) ?>" data-forum="<?= e($forumUrl) ?>">
+  <div class="avle-coach-hd">
+    <div>
+      <h2 id="avle-coach-h">Study coach</h2>
+      <p class="avle-coach-tag">AI · reads this lesson only · never marks your work</p>
+    </div>
+    <button type="button" class="avle-icon" data-avle-coach-close aria-label="Close the coach"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+  </div>
+  <div class="avle-coach-log" data-avle-coach-log role="log" aria-live="polite">
+    <p class="avle-coach-hello">Ask me anything about <strong><?= e((string) $lesson['title']) ?></strong>. I read this lesson and nothing else — if you need something it does not cover, or you want a person, the <a href="<?= e($forumUrl) ?>">course discussions</a> are where a person will see it.</p>
+  </div>
+  <div class="avle-coach-acts" data-avle-coach-acts>
+    <button type="button" class="avle-chip" data-coach-mode="summarise">Summarise it</button>
+    <button type="button" class="avle-chip" data-coach-mode="simpler">Explain it simply</button>
+    <button type="button" class="avle-chip" data-coach-mode="example">Give an example</button>
+    <button type="button" class="avle-chip" data-coach-mode="quiz">Quiz me</button>
+  </div>
+  <form class="avle-coach-form" data-avle-coach-form>
+    <label class="av-sr" for="avle-coach-q">Your message to the coach</label>
+    <textarea id="avle-coach-q" rows="2" maxlength="<?= (int) LmsCoach::MAX_QUESTION ?>" placeholder="Ask about this lesson…"></textarea>
+    <button type="submit" class="avle-btn" data-avle-coach-send>Send</button>
+  </form>
+</aside>
+<?php endif; ?>
 <?php if ($canAccess): ?>
 <aside class="avle-notes" id="avle-notes" aria-labelledby="avle-notes-h" data-avle-notes hidden
        data-key="av.notes.<?= e($courseSlug) ?>.<?= e($lessonSlug) ?>" data-remote="<?= $user ? '1' : '0' ?>" data-lesson-title="<?= e((string) $lesson['title']) ?>">

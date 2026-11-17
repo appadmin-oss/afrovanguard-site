@@ -55,7 +55,7 @@ ck('ngv console: …and so is a host contained in ours', str_contains($probe('ww
 $off = (string) file_get_contents("$root/lib/OfflinePayments.php");
 ck('ngv console: a receipt\'s account number matches on six digits, not a masked last four', str_contains($off, 'str_ends_with($a, $pa) && strlen($pa) >= 6'));
 ck('ngv console: a receipt with no readable reference is checked against same-member, same-amount, same-day credits',
-   str_contains($off, "WHERE status = 'verified' AND user_id = ? AND amount_ngn = ? AND paid_on = ? AND id <> ?"));
+   str_contains($off, "\") AND user_id = ? AND amount_ngn = ? AND paid_on = ? AND id <> ?\"") && str_contains($off, "'verified','checked'"));
 
 /* ── Every control says what it does, and every problem has a way to act ──
  * A button reading "Open", "Review" or "Save" on its own makes a coordinator

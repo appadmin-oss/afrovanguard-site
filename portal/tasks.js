@@ -6,7 +6,7 @@
     var CAC_OPEN = parseInt(root.getAttribute('data-cac-open') || '0', 10) || 0;
     var csrf = root.getAttribute('data-csrf') || '';
     function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-    function post(action, body){ return fetch('/portal/collab.php?action='+action,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body||{})}).then(function(r){return r.json();}); }
+    function post(action, body){ return fetch('/portal/collab.php?action='+action,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body||{})}).then(function(r){ return r.json().catch(function(){ return {ok:false, error: r.status===419||r.status===403 ? 'Your session has expired. Reload the page and try again.' : 'Something went wrong on our side (error '+r.status+'). Try again.'}; }); }); }
     var listEl=document.getElementById('taskList'), actEl=document.getElementById('activityList'),
         onlineEl=document.getElementById('onlineList'), onlineCountEl=document.getElementById('onlineCount'),
         topOnline=document.getElementById('topOnline'), tbCount=document.getElementById('tbCount'),
@@ -16,7 +16,7 @@
     var poolEl=document.getElementById('poolList'), poolCountEl=document.getElementById('poolCount'),
         aiCard=document.getElementById('taskAi'), aiGoalSel=document.getElementById('aiGoal'),
         aiMaxSel=document.getElementById('aiMax'), aiBtn=document.getElementById('aiGenerate'), aiMsgEl=document.getElementById('aiMsg'),
-        poolChk=document.getElementById('taskPool'),
+        poolChk=document.getElementById('taskToPool'),
         focusWrap=document.getElementById('taskFocus'), ringEl=document.getElementById('taskRing'),
         ringNEl=document.getElementById('taskRingN'), focusTxt=document.getElementById('taskFocusTxt');
     var CG=null, TASKS=[], POOL=[], GOALS=[], FILTER='all', SHOW_DONE=false, ALLOCATES=false, SUGGESTED={}, REASONS={}, AWAY='';
@@ -148,8 +148,9 @@
       if(focusTxt) focusTxt.textContent = left===0 ? ('Today’s done — '+doneN+' cleared. 🎉') : (left+' of '+total+' left today · '+pct+'% done');
     }
     function renderOnline(users,count){ if(onlineCountEl)onlineCountEl.textContent=count||0; if(tbCount)tbCount.textContent=count||0; if(kpiOnline)kpiOnline.textContent=count||0; if(topOnline)topOnline.hidden=!(count>0);
+      if(!onlineEl) return;   /* not on every page that loads this file */
       users=users||[]; onlineEl.innerHTML = users.length ? users.map(function(u){ return '<div class="online-row"><span class="online-ava is-'+esc(u.status)+'">'+esc(u.initials)+'</span><span class="online-name">'+esc(u.name)+'</span></div>'; }).join('') : '<p class="pc-empty">Just you so far.</p>'; }
-    function renderActivity(items){ items=items||[]; actEl.innerHTML = items.length ? items.map(function(a){ var obj=a.object?' <b>'+esc(a.object)+'</b>':''; var inner='<span class="act-ava" aria-hidden="true">'+esc(a.initials)+'</span><span class="act-body"><span class="act-line"><b>'+esc(a.actor)+'</b> '+esc(a.verb)+obj+'</span><span class="act-ago">'+esc(a.ago)+'</span></span>'; return '<li class="act">'+(a.url?'<a href="'+esc(a.url)+'">'+inner+'</a>':inner)+'</li>'; }).join('') : '<li class="pc-empty">No activity yet.</li>'; }
+    function renderActivity(items){ if(!actEl) return; items=items||[]; actEl.innerHTML = items.length ? items.map(function(a){ var obj=a.object?' <b>'+esc(a.object)+'</b>':''; var inner='<span class="act-ava" aria-hidden="true">'+esc(a.initials)+'</span><span class="act-body"><span class="act-line"><b>'+esc(a.actor)+'</b> '+esc(a.verb)+obj+'</span><span class="act-ago">'+esc(a.ago)+'</span></span>'; return '<li class="act">'+(a.url?'<a href="'+esc(a.url)+'">'+inner+'</a>':inner)+'</li>'; }).join('') : '<li class="pc-empty">No activity yet.</li>'; }
 
     /* Today's report: done, undone, unclaimed — for whoever hands out work. */
     var TR = null, TR_TAB = 'done', trEl = document.getElementById('taskReport');
@@ -171,13 +172,28 @@
 
     /* A task taken or ticked elsewhere on the page (the to-do pop-up) shows here at once. */
     document.addEventListener('av:tasks-changed', function(){ setTimeout(load, 200); });
-    function load(){ fetch('/portal/collab.php?action=bootstrap',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok) return;
+    function load(){ fetch('/portal/collab.php?action=bootstrap',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok){ loadErr((d&&d.error)||'Your tasks could not be loaded.'); return; }
         TASKS=d.tasks||[]; GOALS=d.goals||[]; ALLOCATES=!!d.allocates; CG=d.cac_goals||null; REASONS=d.handback_reasons||{}; AWAY=d.away_until||''; drawAway();
         POOL=(d.pool||[]).map(function(t){ return SUGGESTED[t.id]?Object.assign({},t,{suggest:SUGGESTED[t.id]}):t; });
         var aw=document.getElementById('aiAssignWrap'); if(aw) aw.hidden=!ALLOCATES;
-        render(); renderPool(); renderActivity(d.activity); renderOnline(d.online,d.count); fillRoster(d.roster); fillGoals(); trLoad();
-        if(aiCard) aiCard.hidden = !d.ai;   // only show the AI planner when Claude is wired up
-      }).catch(function(){}); }
+        /* Posting to the pool is for organisation members (task_add_pool); don't offer what will be refused. */
+        var pw=document.getElementById('taskToPoolWrap'); if(pw) pw.hidden=!d.org;
+        /* Each part on its own: one that fails no longer stops the rest. The
+           activity panel left this page in the redesign, and drawing it threw;
+           everything after it then never ran — the Assign list stayed empty
+           (only "Me"), the planner had no goals and stayed hidden, and the
+           day's report never loaded. The error was swallowed, so nobody saw why. */
+        [function(){ render(); }, function(){ renderPool(); }, function(){ renderActivity(d.activity); }, function(){ renderOnline(d.online,d.count); },
+         function(){ fillRoster(d.roster); }, function(){ fillGoals(); }, function(){ trLoad(); },
+         function(){ if(aiCard) aiCard.hidden = !d.ai; }   // only show the AI planner when Claude is wired up
+        ].forEach(function(step){ try{ step(); }catch(e){ if(window.console) console.error('[tasks]', e); } });
+        loadErr('');
+      }).catch(function(){ loadErr('Your tasks could not be loaded. Check your connection.'); }); }
+    /* Loading, loaded, or an honest error with a way to try again. */
+    function loadErr(msg){ var el=document.getElementById('taskLoadErr');
+      if(!el && msg && listEl){ el=document.createElement('p'); el.id='taskLoadErr'; el.className='task-add-err'; el.setAttribute('role','alert'); listEl.parentNode.insertBefore(el, listEl); }
+      if(!el) return; el.hidden=!msg; el.innerHTML = msg ? esc(msg)+' <button type="button" class="pbtn pbtn-ghost" id="taskRetry">Try again</button>' : '';
+      var r=document.getElementById('taskRetry'); if(r) r.onclick=function(){ loadErr(''); load(); }; }
 
     // filter chips
     document.querySelectorAll('#taskFilters .pseg-btn').forEach(function(b){ b.addEventListener('click', function(){ document.querySelectorAll('#taskFilters .pseg-btn').forEach(function(x){x.classList.remove('is-on'); x.setAttribute('aria-pressed','false');}); b.classList.add('is-on'); b.setAttribute('aria-pressed','true'); FILTER=b.getAttribute('data-filter'); render(); }); });
@@ -187,13 +203,28 @@
       var asel=document.getElementById('taskAssignee'); var assignee=asel?(+asel.value||0):0;
       var dsel=document.getElementById('taskDue'); var due=dsel?dsel.value:'';
       var psel=document.getElementById('taskPriority'); var priority=psel?psel.value:'normal';
-      var toPool = poolChk && poolChk.checked;
-      input.value=''; input.disabled=true;
-      if(toPool){
-        post('task_add_pool',{title:title, due:due, priority:priority}).then(function(d){ input.disabled=false; input.focus(); if(dsel)dsel.value=''; if(psel)psel.value='normal'; poolChk.checked=false; if(d&&d.ok&&d.task){ POOL.unshift(d.task); renderPool(); } }).catch(function(){ input.disabled=false; });
-      } else {
-        post('task_add',{title:title, assignee:assignee, due:due, priority:priority}).then(function(d){ input.disabled=false; input.focus(); if(asel)asel.value='0'; if(dsel)dsel.value=''; if(psel)psel.value='normal'; if(d&&d.ok&&d.task){ TASKS.unshift(d.task); render(); } }).catch(function(){ input.disabled=false; });
-      } });
+      var toPool = !!(poolChk && poolChk.checked);
+      /* The title stays in the box until the task exists. A refusal (a rule,
+         the rate limit, a dropped connection) used to clear it and say nothing:
+         the task simply vanished. */
+      addErr(''); input.disabled=true;
+      var done=function(d, ok){
+        input.disabled=false;
+        if(!ok){ addErr((d&&d.error)||'The task was not added. Check your connection and try again.'); input.focus(); return; }
+        input.value=''; input.focus(); if(asel)asel.value='0'; if(dsel)dsel.value=''; if(psel)psel.value='normal'; if(poolChk)poolChk.checked=false;
+        addErr(''); say(toPool?'Posted to the pool.':(assignee?'Task given to '+((d.task&&d.task.assignee_name)||'them')+'.':'Task added.'));
+      };
+      post(toPool?'task_add_pool':'task_add', toPool?{title:title, due:due, priority:priority}:{title:title, assignee:assignee, due:due, priority:priority})
+        .then(function(d){ var ok=!!(d&&d.ok&&d.task); if(ok){ if(toPool){ POOL.unshift(d.task); renderPool(); } else { TASKS.unshift(d.task); render(); } } done(d, ok); })
+        .catch(function(){ done(null, false); });
+    });
+    /* Given to a person, or posted to the pool: one or the other, never both
+       (the pool used to win silently). */
+    var aselEl=document.getElementById('taskAssignee');
+    if(aselEl&&poolChk){ aselEl.addEventListener('change', function(){ if(+aselEl.value) poolChk.checked=false; });
+      poolChk.addEventListener('change', function(){ if(poolChk.checked) aselEl.value='0'; }); }
+    function addErr(msg){ var el=document.getElementById('taskAddErr'); if(!el) return; el.textContent=msg; el.hidden=!msg; input.setAttribute('aria-invalid', msg?'true':'false'); }
+    var liveEl=null; function say(msg){ if(!liveEl){ liveEl=document.createElement('p'); liveEl.className='av-sr'; liveEl.setAttribute('role','status'); liveEl.setAttribute('aria-live','polite'); form.appendChild(liveEl); } liveEl.textContent=''; setTimeout(function(){ liveEl.textContent=msg; }, 30); }
     // Who it fits, while the title is typed (people who hand out work only)
     var sugEl=document.getElementById('taskSuggest'), sugT=null, sugFor='';
     function showSuggest(list, via){

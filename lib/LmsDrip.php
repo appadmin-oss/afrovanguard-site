@@ -139,6 +139,7 @@ final class LmsDrip
                     'lesson_duration' => ((int) $r['duration_min'] ?: 10) . ' min',
                     'lesson_url'      => self::url('/academy/' . $r['course_slug'] . '/learn/' . $r['slug']),
                 ]);
+                if (class_exists('AcademyNudges')) AcademyNudges::lessonOpened((int) $r['user_id'], $r);
                 $sent++;
             }
         } catch (Throwable $e) { error_log('[lmsdrip] lessons: ' . $e->getMessage()); }
@@ -188,6 +189,7 @@ final class LmsDrip
                     'next_lesson_title' => (string) $n['title'],
                     'lesson_url'        => self::url('/academy/' . $r['course_slug'] . '/learn/' . $n['slug']),
                 ]);
+                if (class_exists('AcademyNudges')) AcademyNudges::idle((int) $r['user_id'], $r, (string) $n['title'], (string) $n['slug'], (int) round($done / $total * 100));
                 $sent++;
                 if ($sent >= $max) break;
             }
@@ -227,6 +229,8 @@ final class LmsDrip
                     'join_url'     => (string) $r['join_url'],
                     'calendar_url' => self::url(self::classPath((int) $r['id'], (int) $r['user_id'])),
                 ]);
+                if (class_exists('AcademyNudges')) AcademyNudges::classSoon((int) $r['user_id'], $r,
+                    (new DateTimeImmutable('@' . $ts))->setTimezone(new DateTimeZone(AV_TZ))->format('D j M, g:ia') . ' WAT');
                 $sent++;
             }
         } catch (Throwable $e) { error_log('[lmsdrip] live classes: ' . $e->getMessage()); }
@@ -240,6 +244,8 @@ final class LmsDrip
             'lessons'      => self::sweepLessons(),
             'continue'     => self::sweepContinue(),
             'live_classes' => self::sweepLiveClasses(),
+            /* Where each learner stands against the course's pace: once a day. */
+            'pace'         => class_exists('AcademyNudges') ? AcademyNudges::sweepPace() : [],
         ];
     }
 

@@ -91,6 +91,28 @@ final class PaymentWebhook
         return ['kind' => self::DONATION, 'why' => 'no other owner claims it'];
     }
 
+    /**
+     * Who owns a charge a donor's browser asks us to record as a gift
+     * (process-donation.php record_donation)? The same rules as the webhook.
+     * $via: 'paystack' ($tx is Paystack's verified transaction) or 'cfis'
+     * (CACENTRE's hosted checkout; $hostedMeta is our own metadata handed back,
+     * and a donation started on our donate form always carries a campaign).
+     * Returns a kind: only self::DONATION may be recorded as a gift.
+     */
+    public static function donationOwner(string $via, array $tx, array $hostedMeta, string $ref): string
+    {
+        if ($via === 'paystack') {
+            $ev = ['event' => 'charge.success', 'data' => $tx];
+            return self::classify($ev, self::facts($ev))['kind'];
+        }
+        if ($via === 'cfis') {
+            if (!array_key_exists('campaign', $hostedMeta)) return 'not-a-donation';
+            $ev = ['event' => 'charge.success', 'data' => ['reference' => $ref, 'metadata' => $hostedMeta]];
+            return self::classify($ev, self::facts($ev))['kind'];
+        }
+        return 'unknown';
+    }
+
     /** The three facts, read from the database. */
     public static function facts(array $event): array
     {

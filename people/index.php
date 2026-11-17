@@ -48,7 +48,7 @@ if ($id) {
     ?>
   <main id="main" tabindex="-1" class="ppl-profile">
     <div class="container">
-      <nav class="crumb" aria-label="Breadcrumb"><a href="<?= $S ?>/about/">About</a> · <a href="/people/">Our People</a> · <span><?= e($m['name']) ?></span></nav>
+      <nav class="crumb" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="<?= $S ?>/about/">About</a><span aria-hidden="true"> · </span></li><li><a href="/people/">Our People</a><span aria-hidden="true"> · </span></li><li><span aria-current="page"><?= e($m['name']) ?></span></li></ol></nav>
       <div class="pp-grid" data-reveal>
         <aside class="pp-aside">
           <div class="pp-photo<?= $m['photo'] ? ' has' : '' ?>">

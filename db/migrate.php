@@ -71,12 +71,18 @@ if (isset($opt['apply-schema'])) {
     // Strip ALL `-- …` comments (incl. inline ones — some contain ';', which would
     // otherwise break the naive split below) before splitting on statement ';'.
     $sql = preg_replace('/--[^\n]*/', '', (string) file_get_contents($file));
-    $applied = 0;
+    /* Re-runnable. A target that already has some of the schema answers
+       "table/index exists" for those statements; that is the state we want,
+       not a failure. Every other error still stops the run. */
+    $applied = 0; $existing = 0;
     foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
         try { $target->exec($stmt); $applied++; }
-        catch (Throwable $e) { mig_fail("schema statement failed: " . $e->getMessage() . "\n  …in: " . substr($stmt, 0, 80)); }
+        catch (Throwable $e) {
+            if (Database::isBenignSchemaError($e)) { $existing++; continue; }
+            mig_fail("schema statement failed: " . $e->getMessage() . "\n  …in: " . substr($stmt, 0, 80));
+        }
     }
-    fwrite(STDOUT, "Applied db/schema.$to.sql ($applied statements).\n\n");
+    fwrite(STDOUT, "Applied db/schema.$to.sql ($applied statements" . ($existing ? ", $existing already present" : '') . ").\n\n");
 }
 
 /* ── Ensure the auxiliary/admin tables that aren't in the base schema file
@@ -91,6 +97,16 @@ try {
     av_celebrations_ensure($target);
     av_team_ensure($target);
 } catch (Throwable $e) { mig_fail('could not ensure auxiliary tables on target: ' . $e->getMessage()); }
+
+/* ── Every other source table: a feature's own table is not in the schema
+      file, so make it on the target (shaped from the source) rather than
+      stop at it — or, worse, leave its rows behind. Same step as the
+      browser migration. ── */
+if (!isset($opt['dry-run'])) {
+    try { $refused = Migrator::prepareTarget($source, $target); }
+    catch (Throwable $e) { mig_fail('could not prepare target tables: ' . $e->getMessage()); }
+    if ($refused) mig_fail('the target would not create ' . count($refused) . " table(s), nothing copied:\n  " . implode("\n  ", array_slice($refused, 0, 10)));
+}
 
 /* ── Migrate ── */
 try {

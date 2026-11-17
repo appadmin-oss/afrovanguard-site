@@ -16,6 +16,12 @@ $path = __DIR__ . $uri;
 // db/private writes its own deny), but this router served any file it found,
 // so the private store (receipts, donor and contact records) was readable here.
 if (preg_match('~^/db(/|$)~i', $uri)) { http_response_code(403); echo 'Forbidden'; return true; }
+// Mirror the root .htaccess's dotfile rule (.env beside index.php, .htaccess,
+// .git …) except .well-known, and its refusal of the settings file and template.
+if (preg_match('~(^|/)\.(?!well-known/|\.|/|$)~', $uri)
+    || preg_match('~^/config(\.example)?(\.[a-z0-9]+)*\.php$|^/config(\.example)?\.php\.~i', $uri)) {
+    http_response_code(403); echo 'Forbidden'; return true;
+}
 // Mirror the root .htaccess: command-line tools, the test suite, vendor code and
 // the STS form backups are never web endpoints. Without this the dev server ran
 // scripts/seed-mentor-200.php and tests/run.php for anybody who asked.
@@ -151,6 +157,7 @@ if (preg_match('~^/academy/([a-z0-9-]+)/discussions/?$~', $uri, $m)) { $_GET['co
 if (preg_match('~^/academy/([a-z0-9-]+)/discussions/([0-9]+)/?$~', $uri, $m)) { $_GET['course'] = $m[1]; $_GET['thread'] = $m[2]; require __DIR__ . '/academy/forum.php'; return true; }
 if (preg_match('~^/academy/teach/?$~', $uri)) { require __DIR__ . '/academy/teach.php'; return true; }
 if (preg_match('~^/academy/teach/([a-z0-9-]+)/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/teach.php'; return true; }
+if (preg_match('~^/academy/([a-z0-9-]+)/grades/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/grades.php'; return true; }
 if (preg_match('~^/academy/([a-z0-9-]+)/certificate/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/certificate.php'; return true; }
 if (preg_match('~^/academy/([a-z0-9-]+)/learn/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/learn.php'; return true; }
 if (preg_match('~^/academy/([a-z0-9-]+)/learn/([a-z0-9-]+)/?$~', $uri, $m)) { $_GET['course'] = $m[1]; $_GET['lesson'] = $m[2]; require __DIR__ . '/academy/learn.php'; return true; }

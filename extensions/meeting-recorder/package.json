@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Marks the extension scripts as ES modules for node --check in CI. Not shipped: tools/build-recorder.php leaves it out."
+}

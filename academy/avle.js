@@ -235,7 +235,7 @@
           if (!d || !d.ok) { toast((d && d.error) || 'Please sign in.'); if (d && /sign in/i.test(d.error || '')) goLogin(); return; }
           const now = !done;
           btn.dataset.done = now ? '1' : '0';
-          btn.textContent = now ? 'Completed ✓' : 'Mark complete' + (next ? ' & continue' : '');
+          btn.textContent = now ? 'Completed' : 'Mark complete' + (next ? ' & continue' : '');
           paint(d.progress, now);
           if (now && next && !(d.progress && d.progress.complete)) { if (!showUp()) setTimeout(() => { location.href = next; }, 500); }
           else cancelUp();
@@ -257,8 +257,16 @@
         const picked = $$('input:checked', fs).map(i => parseInt(i.value, 10));
         return fs.dataset.type === 'multi' ? picked : (picked.length ? picked[0] : -1);
       });
-      const missing = answers.findIndex(a => (Array.isArray(a) ? a.length === 0 : a === -1));
-      if (missing > -1) { say('Please answer every question.', false); const f = $('input', qs[missing]); if (f) f.focus(); return; }
+      const gaps = answers.map((a, i) => (Array.isArray(a) ? a.length === 0 : a === -1) ? i : -1).filter(i => i > -1);
+      qs.forEach((fs, i) => { const off = gaps.includes(i); fs.classList.toggle('is-missing', off); if (off) fs.setAttribute('aria-invalid', 'true'); else fs.removeAttribute('aria-invalid'); });
+      if (gaps.length) {
+        /* Say WHICH: "please answer every question" left a screen-reader user
+           to find the gap by reading the quiz again. */
+        const names = gaps.map(i => 'question ' + (i + 1));
+        const list = names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+        say(list.charAt(0).toUpperCase() + list.slice(1) + (gaps.length === 1 ? ' still needs an answer.' : ' still need answers.'), false);
+        const f = $('input', qs[gaps[0]]); if (f) f.focus(); return;
+      }
       const b = $('button[type=submit]', form); if (b) b.disabled = true;
       post('quiz_submit', { course, lesson, answers })
         .then(d => {
@@ -278,7 +286,7 @@
           else say('You scored ' + d.score + '%. ' + (d.passed ? 'Passed.' : 'You need ' + d.pass + '% to pass.') + left, d.passed);
           const st = $('[data-avle-qstatus]');
           const doneNow = d.passed || !graded;
-          if (st && doneNow) { st.textContent = 'Completed ✓'; st.classList.add('is-done'); }
+          if (st && doneNow) { st.textContent = 'Completed'; st.classList.add('is-done'); }
           if (b) { b.textContent = 'Try again'; if (d.attempts_left === 0) b.hidden = true; }
           paint(d.progress, doneNow ? true : undefined);
           if (doneNow && d.progress && !d.progress.complete) showUp();
@@ -334,7 +342,7 @@
           }
           ta.value = '';
           tell('Posted.', true);
-          const st = $('[data-avle-qstatus]'); if (st) { st.textContent = 'Completed ✓'; st.classList.add('is-done'); }
+          const st = $('[data-avle-qstatus]'); if (st) { st.textContent = 'Completed'; st.classList.add('is-done'); }
           if (d.progress) { paint(d.progress, true); if (!d.progress.complete) showUp(); }
         })
         .catch(() => tell('Network error — please try again.', false))
@@ -373,7 +381,7 @@
         post('lesson_complete', { course, lesson }).then(d => {
           if (!d || !d.ok) { sent = false; return; }
           const b = $('[data-avle-complete]');
-          if (b) { b.dataset.done = '1'; b.textContent = 'Completed ✓'; }
+          if (b) { b.dataset.done = '1'; b.textContent = 'Completed'; }
           paint(d.progress, true);
         }).catch(() => { sent = false; });
       }
@@ -428,6 +436,120 @@
     addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
     addEventListener('resize', update, { passive: true });
     update();
+  });
+
+  /* -- Study coach ----------------------------------------------------
+     A drawer beside the lesson, opened by a control that is always on
+     screen: a learner who is stuck is stuck HERE, and a panel they must
+     scroll past the whole lesson to find is one they do not use.
+
+     It is a CONVERSATION. The turns so far travel with each message, so
+     "say that again, simpler" means something. The four quick actions are
+     the four things people actually ask for.
+
+     "Quiz me" is PRACTICE. It records nothing -- no attempt, no score, no
+     progress -- and the panel says so where it cannot be missed. */
+  run('coach', () => {
+    const el = $('[data-avle-coach]');
+    if (!el) return;
+    const log = $('[data-avle-coach-log]', el);
+    const form = $('[data-avle-coach-form]', el);
+    const area = $('#avle-coach-q', el);
+    const sendBtn = $('[data-avle-coach-send]', el);
+    const acts = $('[data-avle-coach-acts]', el);
+    const p = panel(el, $$('[data-avle-coach-toggle]'), { apply: on => { el.hidden = !on; }, focus: () => area, escOnDesk: true });
+    const closeBtn = $('[data-avle-coach-close]', el);
+    if (closeBtn) closeBtn.addEventListener('click', () => p.set(false, true));
+    onMq(desk, () => { if (p.isOpen()) p.set(false, false); });
+
+    /* Where a person is: the course's own forum (academy/forum.php). The
+       coach always offers it, and must offer the REAL one rather than a
+       second discussion of its own. */
+    const FORUM = el.dataset.forum || '';
+    const esc = x => String(x == null ? '' : x).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const para = t => esc(t).split(/\n{2,}/).map(x => '<p>' + x.replace(/\n/g, '<br>') + '</p>').join('');
+    let turns = [];      /* what the model is told about earlier turns */
+    let answering = false;  /* a practice question is open, awaiting an answer */
+    let busy = false;
+
+    const bubble = (who, html, extra) => {
+      const d = document.createElement('div');
+      d.className = 'avle-cm is-' + who + (extra ? ' ' + extra : '');
+      d.innerHTML = html;
+      log.appendChild(d);
+      log.scrollTop = log.scrollHeight;
+      return d;
+    };
+    const setBusy = on => {
+      busy = on;
+      sendBtn.disabled = on;
+      acts.querySelectorAll('button').forEach(b => { b.disabled = on; });
+    };
+    const ask = (mode, typed) => {
+      if (busy) return;
+      const label = { summarise: 'Summarise this lesson', simpler: 'Explain it more simply',
+                      example: 'Give me an example', quiz: 'Ask me a practice question' }[mode];
+      const shown = typed || label || '';
+      if (shown) bubble('me', para(shown));
+      setBusy(true);
+      const wait = bubble('coach', '<p class="avle-cm-wait">Reading the lesson...</p>');
+      post('coach_ask', { course: el.dataset.course, lesson: el.dataset.lesson,
+                          q: typed || '', mode: mode, history: turns })
+        .then(j => {
+          if (wait.parentNode) wait.parentNode.removeChild(wait);
+          if (!j.ok) {
+            bubble('coach', '<p class="avle-cm-err">' + esc(j.error || 'No answer just now.')
+              + ' <a href="' + esc(FORUM) + '" data-avle-coach-disc>Ask in the discussions</a></p>', 'is-err');
+            return;
+          }
+          const foot = j.mode === 'quiz'
+            ? '<p class="avle-cm-foot">Practice only -- nothing here is marked or recorded.</p>'
+            : (j.grounded
+                ? '<p class="avle-cm-foot">From this lesson. If it reads wrong, trust the lesson and <a href="' + esc(FORUM) + '" data-avle-coach-disc>ask a person</a>.</p>'
+                : '<p class="avle-cm-foot">The lesson does not cover that -- <a href="' + esc(FORUM) + '" data-avle-coach-disc>ask in the discussions</a>, your instructor sees it.</p>');
+          bubble('coach', para(j.text) + foot);
+          if (shown) turns.push({ role: 'learner', text: shown });
+          turns.push({ role: 'coach', text: j.text });
+          if (turns.length > 8) turns = turns.slice(-8);
+          /* After a practice question the next thing typed is an ANSWER, so
+             it is sent as one and comes back as feedback rather than as a
+             fresh question. */
+          answering = j.mode === 'quiz';
+          area.placeholder = answering ? 'Your answer...' : 'Ask about this lesson...';
+        })
+        .catch(() => {
+          if (wait.parentNode) wait.parentNode.removeChild(wait);
+          bubble('coach', '<p class="avle-cm-err">No connection.</p>', 'is-err');
+        })
+        .finally(() => { setBusy(false); area.focus(); });
+    };
+
+    acts.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-coach-mode]');
+      if (b) { ev.preventDefault(); ask(b.getAttribute('data-coach-mode'), ''); }
+    });
+    form.addEventListener('submit', ev => {
+      ev.preventDefault();
+      const t = (area.value || '').trim();
+      if (!t) { area.focus(); return; }
+      area.value = '';
+      ask(answering ? 'quiz_mark' : 'ask', t);
+    });
+    /* Enter sends, Shift+Enter is a new line: the shape of every other
+       message box a learner has used. */
+    area.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter' && !ev.shiftKey) {
+        ev.preventDefault();
+        if (form.requestSubmit) form.requestSubmit();
+        else form.dispatchEvent(new Event('submit', { cancelable: true }));
+      }
+    });
+    /* A link to the discussion closes the drawer on a phone, where the two
+       would otherwise sit on top of each other. */
+    el.addEventListener('click', ev => {
+      if (ev.target.closest('[data-avle-coach-disc]') && !desk.matches) p.set(false, false);
+    });
   });
 
   run('keys', () => {

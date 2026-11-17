@@ -1,0 +1,10 @@
+{
+  "name": "afrovanguard-a11y-ci",
+  "private": true,
+  "description": "The CI accessibility gate (tests/a11y/axe-ci.js). Not part of the site; nothing here is deployed.",
+  "scripts": { "test": "node axe-ci.js" },
+  "dependencies": {
+    "axe-core": "4.10.2",
+    "playwright": "1.49.1"
+  }
+}

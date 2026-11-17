@@ -322,6 +322,7 @@ html[data-theme="dark"] .legal-callout { background: rgba(243,180,22,.06); }
 
 /* ---- Tables (privacy policy: cookies) -------------------- */
 .legal-table-wrap { overflow-x: auto; margin: 0 0 22px; }
+.legal-table-wrap:focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
 .legal-table { width: 100%; border-collapse: collapse; font-size: .96rem; }
 .legal-table th, .legal-table td {
   text-align: left; vertical-align: top; padding: 10px 12px;

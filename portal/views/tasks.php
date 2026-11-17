@@ -26,6 +26,24 @@
           </section>
           <?php endif; ?>
 
+<?php if (class_exists('CacGoalspace') && CacGoalspace::ready()): ?>
+          <!-- Goalspace at CACENTRE, worked here: report, finish with a
+               link, accept or decline a request, and (a lead) give a task.
+               CACENTRE acts as this member through Goalspace's own rules
+               (lib/CacGoalspace.php, portal/goalspace.js). Shown once it answers. -->
+          <section class="pcard gsp" id="goalspace" aria-labelledby="gspH" data-csrf="<?= e($collabCsrf) ?>" hidden>
+            <div class="pcard-head">
+              <h2 id="gspH">Goalspace</h2>
+              <a class="pbtn pbtn-ghost pbtn-sm" href="<?= e(CacGoalspace::openUrl()) ?>" target="_blank" rel="noopener">Open Goalspace<span class="sr-only"> on CACENTRE (opens in a new tab)</span></a>
+            </div>
+            <div class="pcard-body">
+              <p class="pcard-note">Your goals at CACENTRE and your part in them. Say how each task is going, or finish it with its link, here. Files and sign-offs are done in Goalspace.</p>
+              <div id="gspList" aria-live="polite" aria-busy="true"><p class="pc-empty">Loading your goals…</p></div>
+              <p class="task-ai-msg" id="gspMsg" role="status" hidden></p>
+            </div>
+          </section>
+<?php endif; ?>
+
           <!-- AI: turn a goal into a plan of tasks (dropped into the pool) -->
           <section class="pcard task-ai" id="taskAi" data-csrf="<?= e($collabCsrf) ?>" hidden>
             <div class="pcard-head">
@@ -138,13 +156,14 @@
                       <option value="low">Low</option>
                     </select>
                   </label>
-                  <label class="task-af"><span>Assign</span>
+                  <label class="task-af" id="taskAssigneeWrap"><span>Assign</span>
                     <select id="taskAssignee" class="task-assignee" aria-label="Assign to"><option value="0">Me</option></select>
                   </label>
-                  <label class="task-af task-af--check"><input type="checkbox" id="taskPool"> <span>Open to anyone (pool)</span></label>
+                  <label class="task-af task-af--check" id="taskToPoolWrap" hidden><input type="checkbox" id="taskToPool"> <span>Open to anyone (pool)</span></label>
                   <button type="submit" class="pbtn pbtn-gold">Add task</button>
                 </div>
               </form>
+              <p class="task-add-err" id="taskAddErr" role="alert" hidden></p>
               <div class="task-suggest" id="taskSuggest" aria-live="polite" hidden></div>
               <div class="pseg task-filters" id="taskFilters" role="group" aria-label="Show tasks">
                 <button type="button" class="pseg-btn is-on" data-filter="all" aria-pressed="true">All <span class="pseg-n" id="fcAll">0</span></button>

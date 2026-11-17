@@ -17,8 +17,17 @@
  *            (amount, date, reference, payee, payer, bank, signs of editing)
  *          → CHECK it here, in code, against the claim — the model reads,
  *            it does not decide
- *          → credit it (dues: Membership::grant · NGV: NgvLedger::payOnline,
- *            idempotent on the reference) only when every check passes
+ *          → every check passes: the payment is CHECKED, not credited. A
+ *            member of staff (an admin) confirms the money arrived — the bank
+ *            statement or alert on the account — and only then is it credited
+ *            (dues: Membership::grant · NGV: NgvLedger::payOnline, idempotent
+ *            on the reference). An image is evidence about money, not money:
+ *            a convincing forged alert passes every check a reader can make.
+ *            AV_OFFLINE_AUTO_CREDIT=1 restores crediting on the checks alone,
+ *            knowingly, for an organisation that accepts that risk.
+ *          → one receipt credits once: its reference is claimed in a table
+ *            with a unique key at the moment of crediting, so two photos of
+ *            one receipt, or two staff confirming at once, cannot both pay
  *
  * THE CHECKS, each named in the result when it fails:
  *   evidence      it is a payment receipt at all
@@ -41,7 +50,9 @@
  *
  * Config: AV_OFFLINE_PAYEE_NAMES (comma list, default "Afrovanguard"),
  *         AV_OFFLINE_ACCOUNTS (comma list of account numbers),
- *         AV_OFFLINE_MAX_AGE_DAYS.
+ *         AV_OFFLINE_MAX_AGE_DAYS,
+ *         AV_OFFLINE_AUTO_CREDIT (default 0: an admin confirms the money arrived;
+ *         1 credits on the receipt checks alone — a forged alert would pass).
  */
 declare(strict_types=1);
 
@@ -88,8 +99,16 @@ final class OfflinePayments
         );
         CREATE INDEX IF NOT EXISTS idx_offpay_user ON offline_payments (user_id, id);
         CREATE INDEX IF NOT EXISTS idx_offpay_status ON offline_payments (status);
-        CREATE INDEX IF NOT EXISTS idx_offpay_hash ON offline_payments (evidence_hash)");
+        CREATE INDEX IF NOT EXISTS idx_offpay_hash ON offline_payments (evidence_hash);
+        CREATE TABLE IF NOT EXISTS offline_receipt_claims (
+            receipt_ref  VARCHAR(80) NOT NULL PRIMARY KEY,
+            payment_id   INTEGER NOT NULL,
+            created_at   VARCHAR(32) NOT NULL DEFAULT ''
+        )");
     }
+
+    /** Credit on the checks alone, with no person confirming the money arrived? Off unless chosen. */
+    public static function autoCredit(): bool { return self::cfg('AV_OFFLINE_AUTO_CREDIT', '0') === '1'; }
 
     private static function now(): string { return gmdate('Y-m-d H:i:s'); }
     private static function cfg(string $k, string $def = ''): string
@@ -111,7 +130,7 @@ final class OfflinePayments
 
     /**
      * A claim and its evidence. Validated, stored, read and checked at once;
-     * credited only if it passes.
+     * checked if it passes, and credited once staff confirm the money arrived.
      *
      * $claim: purpose (dues|ngv), months (dues), amount_ngn, method, reference, paid_on
      * $via:   'member' (the payer) or 'staff' (the office, on their behalf)
@@ -222,7 +241,7 @@ final class OfflinePayments
      * and the claim in, every check's verdict out. $usedRefs is the set of
      * receipt references that have already credited money.
      */
-    public static function check(array $claim, array $reading, array $usedRefs = []): array
+    public static function check(array $claim, array $reading, array $usedRefs = [], bool $alsoChecked = true): array
     {
         $c = [];
         $norm = static fn($s) => strtolower(preg_replace('/[^a-z0-9]/i', '', (string) $s) ?? '');
@@ -252,14 +271,14 @@ final class OfflinePayments
         $rr = $norm($reading['reference'] ?? '');
         $c['reference'] = ($claim['reference'] ?? '') !== '' && $rr !== '' && !str_contains($rr, $norm($claim['reference'])) && !str_contains($norm($claim['reference']), $rr)
             ? 'Its reference is ' . $reading['reference'] . ', not ' . $claim['reference'] . '.' : null;
-        $c['reused'] = $rr !== '' && in_array($rr, $usedRefs, true) ? 'A payment with this receipt\'s reference (' . $reading['reference'] . ') has already been credited.' : null;
+        $c['reused'] = $rr !== '' && in_array($rr, $usedRefs, true) ? 'A payment with this receipt\'s reference (' . $reading['reference'] . ') has already been sent in or credited.' : null;
         /* No reference could be read: the file hash catches the same file,
            but a re-photographed or re-saved copy of one receipt is a different
            file. The same member, the same amount, the same day, already
            credited, is that copy until a person says otherwise. */
         if ($c['reused'] === null && $rr === '' && (int) ($claim['user_id'] ?? 0) > 0) {
             try {
-                $st = Database::pdo()->prepare("SELECT COUNT(*) FROM offline_payments WHERE status = 'verified' AND user_id = ? AND amount_ngn = ? AND paid_on = ? AND id <> ?");
+                $st = Database::pdo()->prepare("SELECT COUNT(*) FROM offline_payments WHERE status IN (" . ($alsoChecked ? "'verified','checked'" : "'verified'") . ") AND user_id = ? AND amount_ngn = ? AND paid_on = ? AND id <> ?");
                 $st->execute([(int) $claim['user_id'], (int) $claim['amount_ngn'], (string) ($claim['paid_on'] ?? ''), (int) ($claim['id'] ?? 0)]);
                 if ((int) $st->fetchColumn() > 0) $c['reused'] = 'A payment of ₦' . number_format((int) $claim['amount_ngn']) . ' on ' . (string) ($claim['paid_on'] ?? '') . ' has already been credited to this member, and this receipt shows no reference to tell it apart.';
             } catch (Throwable $e) { error_log('[offline] same-day check: ' . $e->getMessage()); }
@@ -271,9 +290,16 @@ final class OfflinePayments
         return ['passed' => !$failed, 'failed' => $failed, 'checks' => array_map(static fn($v) => $v === null ? 'ok' : $v, $c)];
     }
 
-    private static function usedRefs(int $exceptId): array
+    /**
+     * References already used. When a receipt is CHECKED: credited ones and
+     * ones checked and waiting (a second photo sent alongside is the same
+     * money). When it is CONFIRMED ($alsoChecked false): credited ones only —
+     * two waiting twins must not each block the other for ever; the claim
+     * table in credit() lets exactly one of them pay.
+     */
+    private static function usedRefs(int $exceptId, bool $alsoChecked = true): array
     {
-        $st = Database::pdo()->prepare("SELECT receipt_ref FROM offline_payments WHERE status = 'verified' AND receipt_ref <> '' AND id <> ?");
+        $st = Database::pdo()->prepare("SELECT receipt_ref FROM offline_payments WHERE status IN (" . ($alsoChecked ? "'verified','checked'" : "'verified'") . ") AND receipt_ref <> '' AND id <> ?");
         $st->execute([$exceptId]);
         return array_map('strval', $st->fetchAll(PDO::FETCH_COLUMN));
     }
@@ -304,7 +330,32 @@ final class OfflinePayments
             self::audit('offline.held', (int) $p['user_id'], '#' . $id . ' · ' . implode(' ', $res['failed']), $by);
             return ['ok' => true, 'status' => 'held', 'reasons' => array_values($res['failed']), 'payment' => self::get($id)];
         }
-        return self::credit($id, $by, 'verified by receipt');
+        if (self::autoCredit()) return self::credit($id, $by, 'verified by receipt');
+        $pdo->prepare("UPDATE offline_payments SET status = 'checked' WHERE id = ? AND status <> 'verified'")->execute([$id]);
+        self::audit('offline.checked', (int) $p['user_id'], '#' . $id . ' · receipt checks passed; waiting for staff to confirm the money arrived', $by);
+        return ['ok' => true, 'status' => 'checked', 'payment' => self::get($id)];
+    }
+
+    /**
+     * An admin confirms a CHECKED payment: they have seen the money arrive (the
+     * account's statement or alert), which is the one thing a receipt image
+     * cannot show. Not their own payment; not a receipt that has credited
+     * money since; with a note of what they looked at, kept on the payment.
+     */
+    public static function confirm(int $id, string $note, string $by, string $studioRole): array
+    {
+        self::ensure();
+        if (!in_array($studioRole, ['admin', 'superadmin'], true)) return ['ok' => false, 'code' => 'admin_only', 'error' => 'Only an admin can confirm a payment arrived.'];
+        $p = self::get($id);
+        if (!$p) return ['ok' => false, 'error' => 'No such payment.'];
+        if ($p['status'] !== 'checked') return ['ok' => false, 'error' => 'Only a payment whose receipt has been checked is confirmed this way.'];
+        $note = mb_substr(trim($note), 0, 500);
+        if (mb_strlen($note) < 3) return ['ok' => false, 'code' => 'reason_required', 'error' => 'Say what you checked — e.g. "In the GTB statement, 9 Nov".'];
+        if ($who = self::ownPayment($p, $by)) return ['ok' => false, 'code' => 'own_account', 'error' => 'You ' . $who . ' this payment. Another admin confirms it.'];
+        if ($why = self::reuseNow($p)) return ['ok' => false, 'code' => 'reused', 'error' => $why];
+        Database::pdo()->prepare('UPDATE offline_payments SET decision_note = ? WHERE id = ?')->execute(['CONFIRMED: ' . $note, $id]);
+        self::audit('offline.confirmed', (int) $p['user_id'], '#' . $id . ' · ' . $note, $by);
+        return self::credit($id, $by, 'receipt checked, money confirmed by staff: ' . $note);
     }
 
     /**
@@ -315,6 +366,26 @@ final class OfflinePayments
     private static function credit(int $id, string $by, string $how): array
     {
         $pdo = Database::pdo();
+        /* One receipt, one credit — decided by the database, not by a read
+           that a parallel request makes at the same moment. */
+        $claimed = '';
+        $pre = self::get($id);
+        $rref = (string) ($pre['receipt_ref'] ?? '');
+        if ($pre && $pre['status'] !== 'verified' && $rref !== '') {
+            try {
+                $pdo->prepare('INSERT INTO offline_receipt_claims (receipt_ref, payment_id, created_at) VALUES (?,?,?)')->execute([$rref, $id, self::now()]);
+                $claimed = $rref;
+            } catch (Throwable $e) {
+                $o = $pdo->prepare('SELECT payment_id FROM offline_receipt_claims WHERE receipt_ref = ?'); $o->execute([$rref]);
+                $other = (int) $o->fetchColumn();
+                if ($other !== $id) {
+                    $pdo->prepare("UPDATE offline_payments SET status = 'held', checks = ? WHERE id = ? AND status <> 'verified'")
+                        ->execute([json_encode(['reused' => 'This receipt has already credited payment #' . $other . '.']), $id]);
+                    self::audit('offline.held', (int) $pre['user_id'], '#' . $id . ' · receipt already credited #' . $other, $by);
+                    return ['ok' => false, 'code' => 'reused', 'status' => 'held', 'error' => 'This receipt has already credited payment #' . $other . '. One receipt pays once.', 'payment' => self::get($id)];
+                }
+            }
+        }
         $st = $pdo->prepare("UPDATE offline_payments SET status = 'verified', decided_by = ?, decided_at = ? WHERE id = ? AND status <> 'verified'");
         $st->execute([mb_substr($by, 0, 191), self::now(), $id]);
         if ($st->rowCount() === 0) return ['ok' => true, 'status' => 'verified', 'unchanged' => true, 'payment' => self::get($id)];
@@ -334,6 +405,7 @@ final class OfflinePayments
         if (empty($r['ok'])) {
             /* Not credited: say so, and leave it to be looked at — never "verified" with no money moved. */
             $pdo->prepare("UPDATE offline_payments SET status = 'held', checks = ? WHERE id = ?")->execute([json_encode(['credit' => $r['error'] ?? 'not credited']), $id]);
+            if ($claimed !== '') $pdo->prepare('DELETE FROM offline_receipt_claims WHERE receipt_ref = ? AND payment_id = ?')->execute([$claimed, $id]);
             return ['ok' => false, 'status' => 'held', 'error' => 'Verified, but it could not be credited: ' . ($r['error'] ?? 'unknown') . '.', 'payment' => self::get($id)];
         }
         $pdo->prepare('UPDATE offline_payments SET credited_ref = ? WHERE id = ?')->execute([$p['purpose'] === 'dues' ? (string) ($r['reference'] ?? '') : $ref, $id]);
@@ -438,7 +510,7 @@ final class OfflinePayments
     private static function reuseNow(array $p): string
     {
         $reading = is_array($p['reading'] ?? null) ? $p['reading'] : [];
-        $res = self::check($p, $reading, self::usedRefs((int) $p['id']));
+        $res = self::check($p, $reading, self::usedRefs((int) $p['id'], false), false);
         return (string) ($res['failed']['reused'] ?? '');
     }
 
@@ -462,7 +534,7 @@ final class OfflinePayments
         $w = $status !== '' ? 'WHERE o.status = ?' : '';
         $st = Database::pdo()->prepare("SELECT o.id, o.user_id, o.purpose, o.months, o.amount_ngn, o.method, o.reference, o.paid_on, o.status, o.checks, o.via, o.submitted_by, o.decided_by, o.decision_note, o.created_at, u.name, u.email
               FROM offline_payments o LEFT JOIN lms_users u ON u.id = o.user_id $w
-             ORDER BY CASE o.status WHEN 'held' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, o.id DESC LIMIT " . max(1, min(500, $limit)));
+             ORDER BY CASE o.status WHEN 'checked' THEN 0 WHEN 'held' THEN 1 WHEN 'pending' THEN 2 ELSE 3 END, o.id DESC LIMIT " . max(1, min(500, $limit)));
         $st->execute($status !== '' ? [$status] : []);
         return array_map(static fn($r) => ['checks' => json_decode((string) ($r['checks'] ?? ''), true)] + $r, $st->fetchAll(PDO::FETCH_ASSOC));
     }
@@ -477,7 +549,7 @@ final class OfflinePayments
             $c = json_decode((string) ($r['checks'] ?? ''), true) ?: [];
             $r['reasons'] = array_values(array_filter($c, static fn($v) => $v !== 'ok'));
             unset($r['checks']);
-            if (str_starts_with((string) $r['decision_note'], 'OVERRIDE:')) $r['decision_note'] = '';   // staff's note, not the payer's
+            if (str_starts_with((string) $r['decision_note'], 'OVERRIDE:') || str_starts_with((string) $r['decision_note'], 'CONFIRMED:')) $r['decision_note'] = '';   // staff's note, not the payer's
             return $r;
         }, $st->fetchAll(PDO::FETCH_ASSOC));
     }

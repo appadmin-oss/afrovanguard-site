@@ -135,13 +135,18 @@ function avac_card(array $row, bool $hidden = false): void
     $search = strtolower(($c['title'] ?? '') . ' ' . ($c['summary'] ?? '') . ' ' . ($c['category'] ?? '') . ' ' . ($c['level'] ?? '') . ' ' . str_replace("\n", ' ', (string) ($c['skills'] ?? '')));
     $enrolled = (int) ($row['enrolled'] ?? 0);
     $stars = avac_stars((float) ($row['rating'] ?? 0), (int) ($row['ratings'] ?? 0));
+    /* The course's TITLE is the link; the card is made clickable by the link
+       stretching over it (.avac-stretch::after). A whole card wrapped in <a>
+       was read twice in a screen reader's reading mode (the link, then every
+       line inside it) and named by a paragraph at every Tab. Now: "Techome,
+       link", and the card's details read once, in order, as text. */
     ?>
       <li class="avac-card"<?= $hidden ? ' hidden' : '' ?> data-cat="<?= e(slugify((string) $c['category'])) ?>" data-search="<?= e($search) ?>"
           data-title="<?= e(strtolower((string) $c['title'])) ?>" data-featured="<?= (int) ($c['featured'] ?? 0) ?>" data-lessons="<?= $lessons ?>"
           data-level="<?= e(slugify((string) ($c['level'] ?? ''))) ?>" data-price="<?= e(LmsCourseware::priceTone((string) ($c['access_type'] ?? 'open'))) ?>"
           data-enrolled="<?= $enrolled ?>" data-rating="<?= e((string) ($row['rating'] ?? 0)) ?>" data-ratings="<?= (int) ($row['ratings'] ?? 0) ?>"
           data-minutes="<?= (int) ($row['minutes'] ?? 0) ?>" data-created="<?= e((string) ($c['created_at'] ?? '')) ?>">
-        <a class="avac-card-a" href="<?= e($url) ?>">
+        <div class="avac-card-a avac-stretch-box">
           <span class="avac-card-media"><?= avac_cover($c, 'avac-card-img') ?>
             <span class="avac-chip avac-chip--<?= e($tone) ?>"><?= e(avac_price($c)) ?></span>
 <?php if ($state === 'done'): ?>            <span class="avac-state">Completed</span>
@@ -150,7 +155,7 @@ function avac_card(array $row, bool $hidden = false): void
           </span>
           <span class="avac-card-body">
             <span class="avac-card-kick"><?= e((string) $c['category']) ?></span>
-            <span class="avac-card-t"><?= e((string) $c['title']) ?></span>
+            <span class="avac-card-t"><a class="avac-stretch" href="<?= e($url) ?>"><?= e((string) $c['title']) ?></a></span>
             <span class="avac-card-d"><?= e((string) $c['summary']) ?></span>
 <?php if ($meta): ?>            <span class="avac-card-meta"><?= e(implode(' · ', $meta)) ?></span>
 <?php endif; ?>
@@ -159,9 +164,9 @@ function avac_card(array $row, bool $hidden = false): void
 <?php if ($state !== '' && $lessons): ?>
             <span class="avac-prog"><span class="avac-bar"><span style="width:<?= $pct ?>%"></span></span><span class="av-num"><?= $pct ?>%</span><span class="av-sr"> complete</span></span>
 <?php endif; ?>
-            <span class="avac-card-foot"><span class="av-num"><?= $enrolled > 0 ? e(number_format($enrolled)) . ' enrolled' : 'New' ?></span><span class="avac-card-go"><?= e(avac_cta($state)) ?> →</span></span>
+            <span class="avac-card-foot"><span class="av-num"><?= $enrolled > 0 ? e(number_format($enrolled)) . ' enrolled' : 'New' ?></span><span class="avac-card-go" aria-hidden="true"><?= e(avac_cta($state)) ?> →</span></span>
           </span>
-        </a>
+        </div>
       </li>
 <?php }
 
@@ -186,7 +191,7 @@ function avac_footer(): void
     </nav>
     <div class="avac-foot-legal">
       <span><?= e((string) ($set['copyright'] ?? ('© ' . date('Y') . ' Afrovanguard'))) ?></span>
-      <a href="/privacy-policy/">Privacy</a><a href="/terms/">Terms</a><a href="/privacy-policy/#cookies" data-av-consent-open>Cookie settings</a>
+      <a href="/privacy-policy/">Privacy</a><a href="/terms/">Terms</a><a href="/accessibility/">Accessibility</a><a href="/privacy-policy/#cookies" data-av-consent-open>Cookie settings</a>
     </div>
   </div>
 </footer>

@@ -36,6 +36,15 @@
  * driver is live and where its settings came from.
  */
 
+/* Required by lib/bootstrap.php (as config.php), never requested: answered
+   directly over HTTP it would run and log every missing secret. The root
+   .htaccess refuses it too; this holds where that file is not read. */
+if (PHP_SAPI !== 'cli' && isset($_SERVER['SCRIPT_FILENAME'])
+    && realpath((string) $_SERVER['SCRIPT_FILENAME']) === realpath(__FILE__)) {
+    http_response_code(404);
+    exit;
+}
+
 /**
  * Read a secret from the environment.
  *
@@ -244,6 +253,13 @@ define('ENABLE_EMAIL_NOTIFICATIONS',  true);
 define('ENABLE_ADMIN_NOTIFICATIONS',  true);
 define('ENABLE_MONTHLY_RECURRING',    true);
 define('ENABLE_BANK_TRANSFER_EMAIL',  true);
+
+// ── Academy certificates ────────────────────────────────────────────────────
+// Who signs every Academy certificate (course and programme alike). Changing
+// the signatory is a config change, not a code change. A signature image is
+// drawn only if assets/site/cert-signature.png exists (none is shipped).
+define('ACADEMY_CERT_SIGNATORY',       'Van. Ujagbe Onofua');
+define('ACADEMY_CERT_SIGNATORY_TITLE', 'COO, Afrovanguard');
 
 // ── CACENTRE bridge ─────────────────────────────────────────────────────────
 // Where /cacentre hands a signed-in member across, and where the portal's task

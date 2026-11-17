@@ -61,7 +61,8 @@
     check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
     moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
-    arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>'
+    arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    learn: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5M22 9v6"/>'
   };
   function icon(name, cls) { return '<svg class="' + (cls || 'tdp-ico') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + (ICON[name] || ICON.task) + '</svg>'; }
 

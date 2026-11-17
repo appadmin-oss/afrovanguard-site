@@ -167,7 +167,7 @@ final class DiaryJournal
     /** Idempotent: ensure the share_token column exists. */
     private function ensureShare(): void
     {
-        try { if (!Database::columnExists('diary_entries', 'share_token')) $this->db->exec("ALTER TABLE diary_entries ADD COLUMN share_token TEXT NOT NULL DEFAULT ''"); }
+        try { if (!Database::columnExists('diary_entries', 'share_token')) Database::execSchema($this->db, "ALTER TABLE diary_entries ADD COLUMN share_token TEXT NOT NULL DEFAULT ''"); }   /* translated: a bare TEXT default is 1101 on MySQL 8 */
         catch (Throwable $e) { /* already there / driver quirk */ }
     }
 

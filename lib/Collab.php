@@ -195,17 +195,84 @@ final class Collab
     /** Valid task priorities (low → normal → high). */
     private static function normPriority(string $p): string { $p = strtolower(trim($p)); return in_array($p, ['low','normal','high'], true) ? $p : 'normal'; }
 
-    /** Create a task. Assignee defaults to the creator. Returns the new id or 0. */
-    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal', int $goalId = 0, string $size = '', string $via = 'person'): int
+    /**
+     * May this person hand out work — give a task to somebody else?
+     * Organisation members and volunteer coordinators. One rule for every
+     * door that gives or creates a task for another person.
+     */
+    public static function mayAllocate(array $u): bool
     {
+        return LmsAuth::isOrgMember($u) || (class_exists('Volunteers') && Volunteers::canRunTeams($u));
+    }
+
+    /** Why the last addTask()/assignTask() refused, in words for the person (empty when it did not). */
+    public static string $lastError = '';
+
+    /**
+     * May $uid give a task to $assigneeId? '' when yes, else the reason, in
+     * words for the person. ONE check, for a task given when it is made and
+     * one given later: the somebody must be a real, active account, and
+     * nobody is given new work while they are away (TaskLedger).
+     *
+     * WHO may give is mayAllocate(): addTask() refuses a task made for
+     * somebody else by a person who may not hand out work, before this check
+     * runs; a POOL task is handed out only by whoever hands out work
+     * (assignTask). $mayAllocate is accepted for that reason and not used here.
+     *
+     * Made for somebody, a task used to skip even this: it could be given to
+     * an account that did not exist or was suspended — a task nobody could
+     * see but its creator — or to someone who had said they were away.
+     */
+    public static function canGiveTo(int $uid, int $assigneeId, bool $mayAllocate): string
+    {
+        if ($assigneeId <= 0 || $assigneeId === $uid) return '';
+        $st = Database::pdo()->prepare("SELECT name FROM lms_users WHERE id = ? AND status = 'active'");
+        $st->execute([$assigneeId]);
+        $name = $st->fetchColumn();
+        if ($name === false) return 'That person is not an active member any more. Choose someone else.';
+        if (class_exists('TaskLedger')) {
+            $away = TaskLedger::awayUntil($assigneeId);
+            if ($away !== '' && $away >= gmdate('Y-m-d')) return trim((string) $name) . ' is away until ' . date('j M', strtotime($away)) . ' and is not taking new tasks. Choose someone else, or post it to the pool.';
+        }
+        return '';
+    }
+
+    /**
+     * Create a task. Assignee defaults to the creator. Returns the new id or 0.
+     *
+     * Creating one for somebody else is handing out work, and asks what
+     * assignTask() asks: the right to ($mayAllocate) and an active account at
+     * the other end. Without it any signed-in learner could put a notification
+     * and an email of their own wording in front of any user id they typed.
+     */
+    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal', int $goalId = 0, string $size = '', string $via = 'person', ?bool $mayAllocate = false): int
+    {
+        self::$lastError = '';
         $title = trim(mb_substr(trim($title), 0, 300));
-        if ($creatorId <= 0 || $title === '') return 0;
+        if ($creatorId <= 0 || $title === '') { self::$lastError = 'Enter a task.'; return 0; }
         self::ensureTasks();
         $assignee = $assigneeId > 0 ? $assigneeId : $creatorId;
+        /* The person-facing routes pass a bool (and get the away check); the
+           callers with rules of their own pass null explicitly. The default
+           is false: a new caller that forgets to say gets no right to hand
+           out work.
+           Making a task for somebody else is handing out work: without the
+           right to (mayAllocate) any signed-in learner could put a
+           notification and an email of their own wording in front of any
+           user id they typed. */
+        if ($mayAllocate !== null && ($why = self::canGiveTo($creatorId, $assignee, $mayAllocate)) !== '') { self::$lastError = $why; return 0; }
+        if ($mayAllocate === false && $assignee !== $creatorId) { self::$lastError = 'You cannot give a task to somebody else.'; return 0; }
+        /* The planner and the goal mirror (no $mayAllocate) still never give work to an account that is gone. */
+        if ($mayAllocate === null && $assignee !== $creatorId && str_contains(self::canGiveTo($creatorId, $assignee, true), 'not an active member')) { self::$lastError = 'That person is not an active member any more. Choose someone else.'; return 0; }
         $due = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($due)) ? trim($due) : '';
-        Database::pdo()->prepare("INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, size, state, created_at) VALUES (?,?,?,0,?,?,?,?,'todo',?)")
-            ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), max(0, $goalId), self::normSize($size), gmdate('Y-m-d H:i:s')]);
+        $now = gmdate('Y-m-d H:i:s');
+        /* Given to somebody else: say who gave it and when, as a later assignment does. */
+        $delegated = $assignee !== $creatorId;
+        if (class_exists('TaskMatch')) TaskMatch::ensure();
+        Database::pdo()->prepare("INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, size, state, created_at, assigned_at, assigned_by) VALUES (?,?,?,0,?,?,?,?,'todo',?,?,?)")
+            ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), max(0, $goalId), self::normSize($size), $now, $delegated ? $now : '', $delegated ? (string) $creatorId : '']);
         $newId = (int) Database::pdo()->lastInsertId();
+        if ($delegated) self::log($creatorId, self::nameOf($creatorId), 'gave a task to ' . self::nameOf($assignee), $title, '/portal/#tasks');
         // Notify + email the assignee when a task is delegated to them (not self-assigned).
         if ($assignee !== $creatorId && class_exists('Notifications')) {
             try {
@@ -285,21 +352,35 @@ final class Collab
      */
     public static function assignTask(int $uid, int $taskId, int $assigneeId, bool $mayAllocate, string $why = '', string $via = 'person'): ?array
     {
+        self::$lastError = '';
         self::ensureTasks();
-        if ($uid <= 0 || $taskId <= 0 || $assigneeId <= 0) return null;
+        if ($uid <= 0 || $taskId <= 0 || $assigneeId <= 0) { self::$lastError = 'Choose who to give it to.'; return null; }
         $st = Database::pdo()->prepare('SELECT * FROM collab_tasks WHERE id = ? AND done = 0');
         $st->execute([$taskId]);
         $t = $st->fetch(PDO::FETCH_ASSOC);
-        if (!$t) return null;
-        if ((int) $t['creator_id'] !== $uid && !((int) $t['assignee_id'] === 0 && $mayAllocate)) return null;
+        if (!$t) { self::$lastError = 'That task is finished or no longer exists.'; return null; }
+        if ((int) $t['creator_id'] !== $uid && !((int) $t['assignee_id'] === 0 && $mayAllocate)) { self::$lastError = 'Only whoever made this task can give it to someone.'; return null; }
         $u = Database::pdo()->prepare("SELECT 1 FROM lms_users WHERE id = ? AND status = 'active'");
         $u->execute([$assigneeId]);
-        if (!$u->fetchColumn()) return null;
+        if (!$u->fetchColumn()) { self::$lastError = 'That person is not an active member any more. Choose someone else.'; return null; }
+        if (($no = self::canGiveTo($uid, $assigneeId, $mayAllocate)) !== '') { self::$lastError = $no; return null; }
         if (class_exists('TaskMatch')) TaskMatch::ensure();
-        Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ?, assigned_at = ?, assigned_by = ? WHERE id = ?')->execute([$assigneeId, gmdate('Y-m-d H:i:s'), (string) $uid, $taskId]);
+        /* The sweep (TaskMatch::autoAssign) assigns as the task's creator, and
+           the creator may take a task back from whoever holds it — but the
+           sweep only ever means a task nobody took. A member who claimed it
+           while the sweep was scoring keeps it: the UPDATE says so, and when
+           it changes nothing there is no notice and no ledger row. */
+        $auto = $via === 'auto';
+        $up = Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ?, assigned_at = ?, assigned_by = ? WHERE id = ?' . ($auto ? ' AND assignee_id = 0 AND done = 0' : ''));
+        $up->execute([$assigneeId, gmdate('Y-m-d H:i:s'), (string) $uid, $taskId]);
+        if ($auto && $up->rowCount() === 0) return null;
         if ($assigneeId !== $uid && class_exists('Notifications')) {
-            try { Notifications::push($assigneeId, 'task', 'New task: ' . $t['title'], ($why !== '' ? $why : 'Assigned to you by ' . self::nameOf($uid) . '.'), '/portal/#tasks', 'task:' . $taskId . ':' . $assigneeId); }
-            catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
+            try {
+                Notifications::push($assigneeId, 'task', 'New task: ' . $t['title'], ($why !== '' ? $why : 'Assigned to you by ' . self::nameOf($uid) . '.'), '/portal/#tasks', 'task:' . $taskId . ':' . $assigneeId);
+                /* The same email a task given at creation sends: given later, it used to arrive as an app notice only. */
+                if ($via === 'person') Notifications::email($assigneeId, 'You’ve been assigned a task: ' . $t['title'],
+                    self::nameOf($uid) . ' assigned you a task' . ((string) $t['due'] !== '' ? ' (due ' . $t['due'] . ')' : '') . '. Open the portal to pick it up.', '/portal/#tasks');
+            } catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
         }
         self::log($uid, self::nameOf($uid), 'assigned a task to ' . self::nameOf($assigneeId), (string) $t['title'], '/portal/#tasks');
         if (class_exists('TaskLedger')) TaskLedger::record($taskId, $assigneeId, 'assigned', (string) $t['title'], '', $via);
@@ -400,7 +481,7 @@ final class Collab
         foreach ($plan as $k => $pl) {
             $due = $pl['due']; $pri = $pl['priority']; $size = $pl['size'];
             $fit = $fits[$k] ?? null;
-            if ($autoAssign && $fit) { $id = self::addTask($uid, $pl['title'], (int) $fit['id'], $due, $pri, $goalId, $size, 'ai'); $assigned++; }
+            if ($autoAssign && $fit) { $id = self::addTask($uid, $pl['title'], (int) $fit['id'], $due, $pri, $goalId, $size, 'ai', true);   /* $autoAssign: the caller may allocate */ $assigned++; }
             else $id = self::addPoolTask($uid, $pl['title'], $due, $pri, $goalId, $size);
             if ($id > 0 && ($t = self::oneTask($uid, $id))) {
                 if ($fit) $t['suggest'] = ['id' => (int) $fit['id'], 'name' => (string) $fit['name'], 'why' => (string) ($fit['why'][0] ?? $fit['summary'])];
@@ -437,23 +518,60 @@ final class Collab
     /** Toggle done — only the assignee or creator may. Returns the new state (or null). */
     public static function toggleTask(int $uid, int $taskId): ?bool
     {
+        return self::setDone($uid, $taskId, null);
+    }
+
+    /**
+     * Mark done, idempotently — what CACENTRE means by its tick. Already done
+     * answers true and does nothing again: no second activity line, no second
+     * ledger row, no call back to CACENTRE. A toggle cannot be retried safely
+     * (the retry un-does the work it confirms); this can.
+     */
+    public static function completeTask(int $uid, int $taskId): ?bool
+    {
+        return self::setDone($uid, $taskId, true);
+    }
+
+    /** $to null flips; true marks done only if it is not, by compare-and-set,
+     *  so two "done"s racing each other cannot flip it back. */
+    private static function setDone(int $uid, int $taskId, ?bool $to): ?bool
+    {
         self::ensureTasks();
         $t = self::ownedTask($uid, $taskId);
         if (!$t) return null;
+        if ($to !== null && (bool) $t['done'] === $to) return $to;
         $new = $t['done'] ? 0 : 1;
         $now = gmdate('Y-m-d H:i:s');
         /* Ticked: done, and when — the finish times are what a goal's
            forecast is drawn from (GoalTrack::forecast). Put back: where it was
            before, or to do. */
-        Database::pdo()->prepare('UPDATE collab_tasks SET done = ?, state = ?, state_at = ?, done_at = ?, blocked_reason = ? WHERE id = ?')
-            ->execute([$new, $new ? 'done' : ((string) ($t['started_at'] ?? '') !== '' ? 'doing' : 'todo'), $now, $new ? $now : '', '', $taskId]);
+        $up = Database::pdo()->prepare('UPDATE collab_tasks SET done = ?, state = ?, state_at = ?, done_at = ?, blocked_reason = ? WHERE id = ?' . ($to !== null ? ' AND done = ?' : ''));
+        $up->execute(array_merge([$new, $new ? 'done' : ((string) ($t['started_at'] ?? '') !== '' ? 'doing' : 'todo'), $now, $new ? $now : '', '', $taskId], $to !== null ? [(int) $t['done']] : []));
+        if ($to !== null && $up->rowCount() === 0) return $to;   /* another request finished it first */
         if ($new === 1) self::log($uid, self::nameOf($uid), 'completed a task', (string) $t['title'], '/portal/#tasks');
         if ($new === 1 && class_exists('TaskLedger')) TaskLedger::record($taskId, (int) (($t['assignee_id'] ?? 0) ?: $uid), 'done', (string) $t['title']);
         /* A step towards a goal: the goal's progress follows. */
         if ((int) ($t['goal_id'] ?? 0) > 0 && class_exists('GoalPlanner')) GoalPlanner::syncProgress((int) $t['goal_id']);
         /* Counted toward a CACENTRE commitment: the tick counts there too. */
-        if ((int) ($t['cac_commitment_id'] ?? 0) > 0 && class_exists('CacWeek')) CacWeek::changed($taskId);
+        if ((int) ($t['cac_commitment_id'] ?? 0) > 0) self::cacChanged($taskId);
         return (bool) $new;
+    }
+
+    /* CACENTRE's tick arrives over integrations/cacentre-tasks.php with a
+       3-second timeout, and telling CACENTRE's commitment about it is a
+       second round trip to the same site. Held, the door answers first and
+       sends it after (holdCac/releaseCac); not held, it is sent at once. */
+    private static ?array $cacHeld = null;
+    public static function holdCac(): void { self::$cacHeld = []; }
+    public static function releaseCac(): void
+    {
+        $q = self::$cacHeld ?? []; self::$cacHeld = null;
+        foreach ($q as $id => $deleted) if (class_exists('CacWeek')) CacWeek::changed((int) $id, $deleted);
+    }
+    private static function cacChanged(int $taskId, bool $deleted = false): void
+    {
+        if (self::$cacHeld !== null) { self::$cacHeld[$taskId] = $deleted; return; }
+        if (class_exists('CacWeek')) CacWeek::changed($taskId, $deleted);
     }
 
     /**
@@ -559,13 +677,34 @@ final class Collab
         return self::oneTask($uid, $taskId);
     }
 
+    /**
+     * Why $uid may not delete this task, or '' when they may (or it is not
+     * theirs at all — deleteTask answers that). What somebody finished is
+     * read from this table (TaskLedger::history, TaskReport): a creator
+     * deleting a task its assignee had already done erased that person's
+     * work from their record and from what the matcher weighs next time.
+     * Their own finished task stays theirs to delete.
+     */
+    public static function deleteRefused(int $uid, int $taskId): string
+    {
+        self::ensureTasks();
+        $t = self::ownedTask($uid, $taskId);
+        if ($t && (int) $t['done'] === 1 && (int) $t['assignee_id'] > 0 && (int) $t['assignee_id'] !== $uid) {
+            return self::nameOf((int) $t['assignee_id']) . ' has finished this task, so it stays on their record.';
+        }
+        return '';
+    }
+
     public static function deleteTask(int $uid, int $taskId): bool
     {
         self::ensureTasks();
         $t = self::ownedTask($uid, $taskId);
         if (!$t) return false;
+        if (self::deleteRefused($uid, $taskId) !== '') return false;
         if ((int) ($t['cac_commitment_id'] ?? 0) > 0 && class_exists('CacWeek')) CacWeek::changed($taskId, true);
         Database::pdo()->prepare('DELETE FROM collab_tasks WHERE id = ?')->execute([$taskId]);
+        /* A step gone from a goal moves it, as a tick or a resize does. */
+        if ((int) ($t['goal_id'] ?? 0) > 0 && class_exists('GoalPlanner')) GoalPlanner::syncProgress((int) $t['goal_id']);
         return true;
     }
 
@@ -619,7 +758,7 @@ final class Collab
         $creator  = (int) $r['creator_id'];
         $due = (string) $r['due'];
         $goalId = (int) ($r['goal_id'] ?? 0);
-        $overdue = $due !== '' && !$r['done'] && $due < gmdate('Y-m-d');
+        $overdue = $due !== '' && !$r['done'] && $due < TaskReport::today();   /* Lagos's day, as the daily report and the reminders count it */
         return [
             'id'       => (int) $r['id'],
             'title'    => (string) $r['title'],

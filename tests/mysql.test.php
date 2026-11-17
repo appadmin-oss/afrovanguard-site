@@ -35,12 +35,20 @@ ck('mysql: connected to a real server', true);
 
 /** Column metadata for the connected schema. */
 $meta = function (string $table) use ($my): array {
-    $st = $my->prepare('SELECT column_name, column_type, is_nullable, column_default
+    /* Aliased, and keys lowered: MySQL 8 returns information_schema's columns
+       as COLUMN_NAME, COLUMN_TYPE… whatever case the query asks in, so
+       $r['column_name'] was always unset. Every column then landed under the
+       key '' and this file failed ten checks on every CI run for weeks — the
+       helper was wrong, not the code it tests. */
+    $st = $my->prepare('SELECT column_name AS column_name, column_type AS column_type,
+                               is_nullable AS is_nullable, column_default AS column_default
                         FROM information_schema.columns
                         WHERE table_schema = DATABASE() AND table_name = ?');
     $st->execute([$table]);
     $out = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $out[strtolower((string) $r['column_name'])] = $r;
+    /* MySQL 8 names information_schema's columns in capitals (COLUMN_NAME);
+       MariaDB in lower case. Read them case-blind or every lookup is empty. */
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) { $r = array_change_key_case($r, CASE_LOWER); $out[strtolower((string) $r['column_name'])] = $r; }
     return $out;
 };
 
@@ -86,9 +94,16 @@ ck('mysql: repaired and created agree on the type',
    strcasecmp((string) ($rep['created_at']['column_type'] ?? 'a'),
               (string) ($createdTs['column_type'] ?? 'b')) === 0);
 
-// A defaulted TEXT becomes VARCHAR: several MySQL builds reject a default on TEXT.
-ck('mysql: a defaulted TEXT column is repaired as VARCHAR',
-   stripos((string) ($rep['note']['column_type'] ?? ''), 'varchar') !== false);
+// A defaulted TEXT: strict MySQL 8 refuses a literal default on TEXT (error
+// 1101), so both CREATE (Database::mysqlTextDefaults) and the repair write it
+// as an expression default, DEFAULT (''). What matters is that the repaired
+// column is the created one, default included. (This used to demand VARCHAR,
+// an earlier approach; the helper's key-case bug hid that it had gone stale.)
+ck('mysql: a defaulted TEXT column is repaired as the same type it is created with',
+   strcasecmp((string) ($rep['note']['column_type'] ?? 'a'), (string) ($created['note']['column_type'] ?? 'b')) === 0);
+ck('mysql: …and the same default (not lost, not NULL)',
+   ($rep['note']['column_default'] ?? null) !== null
+   && (string) $rep['note']['column_default'] === (string) ($created['note']['column_default'] ?? '#none'));
 ck('mysql: an INTEGER column keeps its constant default',
    (string) ($rep['amount']['column_default'] ?? '') === '0');
 
@@ -107,3 +122,83 @@ ck('mysql: and the repaired timestamp populates itself',
 
 ck('mysql: the sync is idempotent', Database::syncTablesFromDdl($my, $ddl, 'mysql', 'test') === 0);
 $my->exec('DROP TABLE IF EXISTS t_my_sync');
+
+/* A literal default on TEXT is error 1101 on MySQL 8 (MariaDB takes it, which
+   is how it passed every earlier run here). execSchema logs and carries on, so
+   the only symptom was a table that never existed — collab_tasks among them. */
+$my->exec('DROP TABLE IF EXISTS t_my_textdef');
+Database::execSchema($my, "CREATE TABLE IF NOT EXISTS t_my_textdef (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  due TEXT NOT NULL DEFAULT '',\n  kind TEXT NOT NULL DEFAULT 'normal'\n)");
+$tdm = $meta('t_my_textdef');
+ck('mysql: a table whose TEXT columns carry literal defaults is created', isset($tdm['due'], $tdm['kind']));
+if ($tdm) {
+    $my->exec('INSERT INTO t_my_textdef () VALUES ()');
+    $tdr = $my->query('SELECT due, kind FROM t_my_textdef')->fetch(PDO::FETCH_ASSOC);
+    ck('mysql: and the defaults are the ones the DDL named', ($tdr['due'] ?? null) === '' && ($tdr['kind'] ?? null) === 'normal');
+}
+$my->exec('DROP TABLE IF EXISTS t_my_textdef');
+
+/* TaskLedger's index went through a bare ->exec('CREATE INDEX IF NOT EXISTS …'),
+   a syntax error on MySQL swallowed by its catch: the table existed, the index
+   history() reads by never did. Twice, because the second run must be quiet. */
+$my->exec('DROP TABLE IF EXISTS task_assign_log');
+TaskLedger::ensure($my);
+TaskLedger::ensure($my);
+$tlIx = $my->query("SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'task_assign_log' AND index_name = 'ix_task_assign_log_user'")->fetchColumn();
+ck('mysql: the task ledger\'s index exists, and ensuring it again is harmless', (int) $tlIx === 1);
+$my->exec('DROP TABLE IF EXISTS task_assign_log');
+
+/* Teaching teams and grading (lib/CourseTeam.php, lib/Grading.php). Every table
+   is created from the runtime DDL through execSchema — twice, because an ensure
+   runs on every request and the second run must be a no-op — and every index
+   must exist afterwards: a 1064 swallowed here would leave live_bookings
+   without the UNIQUE key that holds "one booking per learner per item". */
+$gradeTables = array_merge(['course_instructors'], Grading::TABLES);
+foreach ($gradeTables as $t) $my->exec('DROP TABLE IF EXISTS ' . $t);
+Database::execSchema($my, CourseTeam::ddl());
+Database::execSchema($my, Grading::ddl());
+Database::execSchema($my, CourseTeam::ddl());
+Database::execSchema($my, Grading::ddl());
+$have = $my->query("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()")->fetchAll(PDO::FETCH_COLUMN);
+$have = array_map('strtolower', $have);
+ck('mysql: every teaching and grading table is created', array_diff($gradeTables, $have) === []);
+$ix = array_map('strtolower', $my->query("SELECT DISTINCT index_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name IN ('" . implode("','", $gradeTables) . "')")->fetchAll(PDO::FETCH_COLUMN));
+foreach (['idx_course_instructors_user', 'idx_graded_items_course', 'idx_grade_sub_course', 'idx_grade_sub_user', 'idx_peer_reviews_reviewer', 'idx_live_sessions_item', 'idx_live_bookings_session'] as $want) {
+    ck("mysql: index $want exists", in_array($want, $ix, true));
+}
+$my->exec("INSERT INTO live_bookings (session_id, item_id, user_id, live_key, status) VALUES (1, 7, 9, 'live', 'booked')");
+$dupRefused = false;
+try { $my->exec("INSERT INTO live_bookings (session_id, item_id, user_id, live_key, status) VALUES (2, 7, 9, 'live', 'booked')"); } catch (Throwable $e) { $dupRefused = true; }
+ck('mysql: a second active live booking for the same learner and item is refused by the database', $dupRefused);
+$my->exec("UPDATE live_bookings SET live_key = CONCAT('b', id) WHERE item_id = 7");
+$my->exec("INSERT INTO live_bookings (session_id, item_id, user_id, live_key, status) VALUES (2, 7, 9, 'live', 'booked')");
+ck('mysql: a released booking frees the key for the next one', (int) $my->query('SELECT COUNT(*) FROM live_bookings WHERE item_id = 7')->fetchColumn() === 2);
+$my->exec("INSERT INTO grade_marks (submission_id, marker_id, points, max_points) VALUES (1, 2, 17.5, 20)");
+ck('mysql: fractional rubric points survive (REAL, not INTEGER)', (float) $my->query('SELECT points FROM grade_marks WHERE submission_id = 1')->fetchColumn() === 17.5);
+foreach ($gradeTables as $t) $my->exec('DROP TABLE IF EXISTS ' . $t);
+
+/* Instructors being assessed (lib/LearnerFeedback.php, lib/Observations.php).
+   Created twice through execSchema, as an ensure on every request would; every
+   index must then exist, and "one feedback per learner per course" must be the
+   DATABASE's refusal, not only the code's. */
+$assessTables = array_merge(LearnerFeedback::TABLES, Observations::TABLES);
+foreach (array_merge($assessTables, ['course_ratings', 'instructor_ratings', 'rating_prompts']) as $t) $my->exec('DROP TABLE IF EXISTS ' . $t);
+foreach ([1, 2] as $_) { Database::execSchema($my, LearnerFeedback::ddl()); Database::execSchema($my, Observations::ddl()); }
+$have = array_map('strtolower', $my->query("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()")->fetchAll(PDO::FETCH_COLUMN));
+ck('mysql: every feedback and observation table is created', array_diff($assessTables, $have) === []);
+$ix = array_map('strtolower', $my->query("SELECT DISTINCT index_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name IN ('" . implode("','", $assessTables) . "')")->fetchAll(PDO::FETCH_COLUMN));
+foreach (['idx_course_feedback_state', 'idx_observations_instructor', 'idx_observations_followup'] as $want) {
+    ck("mysql: index $want exists", in_array($want, $ix, true));
+}
+$my->exec("INSERT INTO course_feedback (course_id, user_id, helped, created_at) VALUES (5, 9, 'The examples', '2026-11-14 10:00:00')");
+$dupRefused = false;
+try { $my->exec("INSERT INTO course_feedback (course_id, user_id, helped) VALUES (5, 9, 'Again')"); } catch (Throwable $e) { $dupRefused = true; }
+ck('mysql: a second feedback by the same learner on the same course is refused by the database', $dupRefused);
+$my->exec("INSERT INTO feedback_prompts (course_id, user_id, sent_at) VALUES (5, 9, 'x')");
+$ig = $my->prepare("INSERT IGNORE INTO feedback_prompts (course_id, user_id, sent_at) VALUES (5, 9, 'y')");
+$ig->execute();
+ck('mysql: the reminder claim on feedback_prompts takes once', $ig->rowCount() === 0);
+$my->exec("UPDATE course_feedback SET clearer = '" . str_repeat('x', 2000) . "', anything_else = 'ok' WHERE course_id = 5");
+ck('mysql: long feedback fits (TEXT)', (int) $my->query('SELECT LENGTH(clearer) FROM course_feedback')->fetchColumn() === 2000);
+$my->exec("INSERT INTO teaching_observations (course_id, instructor_id, observer_id, scores_json, strengths) VALUES (5, 3, 4, '[]', '" . str_repeat('x', 3000) . "')");
+ck('mysql: long observation notes fit (TEXT)', (int) $my->query('SELECT LENGTH(strengths) FROM teaching_observations')->fetchColumn() === 3000);
+foreach ($assessTables as $t) $my->exec('DROP TABLE IF EXISTS ' . $t);

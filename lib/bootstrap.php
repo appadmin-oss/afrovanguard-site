@@ -131,6 +131,11 @@ if (is_file(AV_ROOT . '/vendor/autoload.php')) require_once AV_ROOT . '/vendor/a
     }
 })();
 
+// The database the Studio switched the site to (Database → Switch), unless
+// the host's own settings already choose one. lib/DbSwitch.php.
+require_once __DIR__ . '/DbSwitch.php';
+DbSwitch::apply();
+
 // Reuse the site's config.php if deployed; otherwise fall back to safe
 // public defaults so the Diary runs standalone (and in local dev).
 //
@@ -330,6 +335,7 @@ require_once __DIR__ . '/Approvals.php';
 require_once __DIR__ . '/MemberRequests.php';   /* a member asks from their own portal; an admin decides */        /* an admin's sensitive member acts wait for a second person (as NGG's do) */          /* the centres members belong to, one list with codes (as NGG keeps them) */
 require_once __DIR__ . '/MemberRoles.php';      /* the work roles members hold, kept as one list with descriptions */
 require_once __DIR__ . '/Membership.php';
+require_once __DIR__ . '/AcademyPricing.php';  /* the Academy membership price, set in the Studio */       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/AcademyDonation.php';  /* Academy membership by donation, from $20 a year */       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/MemberVerification.php'; /* being a member is an act with a record, not an email domain */
 require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited once the receipt is verified */
@@ -338,6 +344,7 @@ require_once __DIR__ . '/NgvIntake.php';        /* NGG promotions to NGV become 
 require_once __DIR__ . '/Backups.php';          /* daily encrypted copies of both databases (tasks/cron.php) */
 require_once __DIR__ . '/NgvFines.php';         /* NGV fines: catalogue, issue, list, import with smart assignment */
 require_once __DIR__ . '/CacTasks.php';   /* the console's tasks, read for the portal */
+require_once __DIR__ . '/CacGoalspace.php';   /* CACENTRE's Goal workspaces, worked inline on the Tasks page */
 require_once __DIR__ . '/CacWeek.php';    /* this week at CACENTRE; portal tasks that count toward it */
 require_once __DIR__ . '/CacGoals.php';   /* CACENTRE's goals, mirrored here and planned into tasks */
 require_once __DIR__ . '/CacInventory.php'; /* and its register, for the same reason */
@@ -346,11 +353,21 @@ require_once __DIR__ . '/CacWifi.php';     /* and their Wi-Fi: CACENTRE runs it,
 require_once __DIR__ . '/Greeting.php';        /* the line at the top of Today: picked, not stored */
 require_once __DIR__ . '/GrowthSignature.php'; /* Today's growth signature, each bar from the record */
 require_once __DIR__ . '/LmsRepository.php';
+require_once __DIR__ . '/LessonA11y.php';
 require_once __DIR__ . '/LmsCourseware.php';
 require_once __DIR__ . '/Thumbs.php';
 require_once __DIR__ . '/Analytics.php';
 Analytics::start();   // the Google Analytics tag on every HTML page (lib/Analytics.php)
+require_once __DIR__ . '/LmsCoach.php';
 require_once __DIR__ . '/LmsDrip.php';
+require_once __DIR__ . '/CourseTeam.php';     /* who teaches a course, and what each role may do — the one rule */
+require_once __DIR__ . '/Grading.php';        /* graded items, weights, the pass mark, a learner's standing */
+require_once __DIR__ . '/GradingWork.php';    /* submissions, marking, moderation, release, the daily digest */
+require_once __DIR__ . '/PeerReview.php';     /* learners reviewing each other's work */
+require_once __DIR__ . '/LiveAssess.php';     /* live assessment sessions: booking, the panel, absences, reminders */
+require_once __DIR__ . '/LearnerFeedback.php'; /* learners' written feedback on a course, read by its whole team */
+require_once __DIR__ . '/Observations.php';   /* Academy staff observe teaching */
+require_once __DIR__ . '/Scorecard.php';      /* an instructor's scorecard: every figure derived, each with its count */
 require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/CfisCheckout.php';  /* CACENTRE collects where this site has no merchant account */
 require_once __DIR__ . '/CfisRequests.php';  /* a member asks CACENTRE finance for money */
@@ -395,6 +412,7 @@ require_once __DIR__ . '/SiteSettings.php';      // the details every page share
 require_once __DIR__ . '/Cms.php';               // the content store: drafts, revisions, review, scheduling
 require_once __DIR__ . '/Prefs.php';
 require_once __DIR__ . '/Notifications.php';
+require_once __DIR__ . '/AcademyNudges.php';
 require_once __DIR__ . '/AdminAudit.php';
 require_once __DIR__ . '/AdminRoles.php';
 require_once __DIR__ . '/AdminMfa.php';   /* a second factor on the Studio, ported from NGG */
@@ -414,6 +432,7 @@ require_once __DIR__ . '/Collab.php';
 require_once __DIR__ . '/AttendeeBot.php';
 require_once __DIR__ . '/Recurrence.php';  /* how a meeting repeats: one rule for Google, the list, the clock and the minutes */
 require_once __DIR__ . '/Meetings.php';
+require_once __DIR__ . '/Recorder.php';    /* the Meeting Recorder extension's uploads → Meetings */
 require_once __DIR__ . '/CacInbound.php';     /* one check for every door CACENTRE calls */
 require_once __DIR__ . '/CacMeetings.php';
 require_once __DIR__ . '/CacSend.php';        /* CACENTRE's email, sent by this site's mail */    /* CACENTRE staff schedule and read meetings here */

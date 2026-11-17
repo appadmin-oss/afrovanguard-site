@@ -166,7 +166,7 @@ avm_nav('profile', 'Profile', 'person', 0, $v);
     </div>
   </aside>
 
-  <main class="avm-main" id="main-content">
+  <main class="avm-main" id="main-content" tabindex="-1">
     <header class="avm-head">
       <div class="avm-head-txt">
         <h1><?= e($title) ?></h1>

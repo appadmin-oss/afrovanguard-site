@@ -90,16 +90,16 @@ $ladder = [
   <script src="<?= e(av_asset('/assets/site/avh.js')) ?>" defer></script>
 </head>
 <body class="avh" id="top">
-<a class="avh-skip" href="#main">Skip to content</a>
+<a class="avh-skip" href="#main">Skip to main content</a>
 <div class="avh-page">
-<?php avh_nav(); ?>
+<?php avh_nav(avh_here()); ?>
 
 <main id="main" tabindex="-1" class="avhw">
 
 <header class="avhw-hero">
   <div class="avh-topo" data-avh-topo="light" data-seed="7" aria-hidden="true"></div>
   <div class="avhw-wrap">
-    <nav class="avhw-crumbs" aria-label="Breadcrumb"><a href="/" data-cms="how-it-works-a-1">Home</a><span aria-hidden="true">›</span><a href="/about.html" data-cms="how-it-works-a-2">About</a><span aria-hidden="true">›</span><span aria-current="page">How it works</span></nav>
+    <nav class="avhw-crumbs" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="/" data-cms="how-it-works-a-1">Home</a><span aria-hidden="true">›</span></li><li><a href="/about.html" data-cms="how-it-works-a-2">About</a><span aria-hidden="true">›</span></li><li><span aria-current="page">How it works</span></li></ol></nav>
     <div class="avhw-hero-grid">
       <h1 data-cms="how-it-works-h1-1">Progressive growth &amp; member alignment</h1>
       <div class="avhw-hero-side">

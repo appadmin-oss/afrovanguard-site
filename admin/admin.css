@@ -29,7 +29,8 @@ body.studio-authed .studio-side { display: block; }
 .studio-nav .tab.active { background: rgba(243,180,22,0.14); color: var(--ink); font-weight: 700; }
 .studio-nav .tab.active .t-ico { opacity: 1; color: var(--gold-deep, #9c6906); }
 .studio-nav .tab.active::before { content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 3px; border-radius: 0 3px 3px 0; background: var(--gold); }
-.studio-nav .tab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* The design system's focus colour (--afg-focus, ≥3:1 on the light and dark side), not gold: gold on white is 1.9:1. */
+.studio-nav .tab:focus-visible { outline: 2px solid var(--afg-focus, #1d4ed8); outline-offset: 2px; }
 .studio-scrim { position: fixed; inset: 0; background: rgba(8,12,20,.5); z-index: 44; }
 .studio-scrim[hidden] { display: none; }
 .inbox-list { display: flex; flex-direction: column; gap: 10px; }
@@ -42,6 +43,8 @@ body.studio-authed .studio-side { display: block; }
   .studio-burger { display: inline-flex; }
   body.studio-authed .studio-side { transform: translateX(-100%); width: min(82vw, 300px); transition: transform .3s cubic-bezier(.22,1,.36,1); box-shadow: 0 30px 70px -20px rgba(0,0,0,.5); }
   body.studio-authed .studio-side.open { transform: translateX(0); }
+  /* Closed, the drawer is off-screen AND out of reach: not in the Tab order, not read out. */
+  body.studio-authed .studio-side:not(.open) { visibility: hidden; transition: transform .3s cubic-bezier(.22,1,.36,1), visibility 0s linear .3s; }
   body.studio-authed .studio-main { margin-left: 0; }
 }
 
@@ -375,6 +378,9 @@ body.studio-authed .studio-side { display: block; }
 .db-note-bad { color: var(--st-err); font-weight: 600; margin: 0 0 8px; }
 .db-env, .db-log { background: var(--surface-2); border: 1px solid var(--divider); border-radius: var(--radius-sm); padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; white-space: pre-wrap; word-break: break-word; overflow-x: auto; }
 .db-env { color: var(--ink); }
+.db-switch { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--divider); border-radius: var(--radius-sm); background: var(--surface-2); }
+.db-switch h4 { margin: 0 0 6px; font-size: 15px; }
+.db-switch .btn { margin-top: 6px; }
 .db-log { color: var(--muted); max-height: 280px; overflow-y: auto; }
 
 /* ── Celebration live preview (mirrors the member banner) ── */

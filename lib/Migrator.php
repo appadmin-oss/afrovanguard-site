@@ -106,6 +106,49 @@ final class Migrator
     }
 
     /**
+     * Give every source table a home on the target before anything is copied.
+     *
+     * A table the site made for itself as a feature first ran is not in the
+     * per-driver schema file; without this its rows are left behind. MySQL
+     * targets get a table shaped from the source's columns (createLike) and
+     * any column the schema file's older copy lacks; Postgres targets get the
+     * source's own DDL, translated. Shared by the browser job and
+     * db/migrate.php, which had drifted: the CLI did neither, so a Postgres
+     * cutover from the command line always stopped at av_settings.
+     *
+     * Returns "table: reason" for each table the target refused; empty when
+     * every table now exists.
+     */
+    public static function prepareTarget(PDO $src, PDO $dst): array
+    {
+        $refused = [];
+        if (self::driver($dst) === 'mysql' && self::driver($src) === 'sqlite') {
+            foreach (self::allTables($src) as $t) {
+                if (self::tableExists($dst, $t)) {
+                    /* …and a table the schema file made is older than the source's. */
+                    array_push($refused, ...self::addMissingColumns($src, $dst, $t));
+                    continue;
+                }
+                $why = self::createLike($src, $dst, $t);
+                if ($why !== null) $refused[] = $t . ': ' . $why;
+            }
+        } elseif (self::driver($dst) === 'pgsql' && self::driver($src) === 'sqlite') {
+            /* Postgres had no such step, so every table the schema file does not
+               list — av_settings with the stored secrets, the diary tables — was
+               left out, and the job still said "verified". The source's own DDL,
+               translated, makes each one. */
+            foreach (self::allTables($src) as $t) {
+                if (self::tableExists($dst, $t)) continue;
+                $ddl = (string) ($src->query("SELECT sql FROM sqlite_master WHERE type='table' AND name = " . $src->quote($t))->fetchColumn() ?: '');
+                if ($ddl === '') { $refused[] = $t . ': the source has no definition for it'; continue; }
+                try { $dst->exec(Database::translateDDL($ddl, 'pgsql')); }
+                catch (Throwable $e) { $refused[] = $t . ': ' . $e->getMessage(); }
+            }
+        }
+        return $refused;
+    }
+
+    /**
      * Create table $t on the MySQL target, shaped like the SQLite source.
      *
      * Only the tables in db/schema.mysql.sql existed on a fresh target — the
@@ -275,7 +318,7 @@ final class Migrator
         $dstDrv   = self::driver($dst);
 
         $wanted = array_values(array_filter(self::allTables($src), static fn($t) => !$only || in_array($t, $only, true)));
-        $tables = array_values(array_filter($wanted, static fn($t) => Migrator::tableExists($dst, $t)));
+        $tables = array_values(array_filter($wanted, static fn($t) => self::tableExists($dst, $t)));
         /* A source table the target lacks is reported as a failure, never left
            out: it used to be filtered away here, so its rows stayed behind and
            the run still ended "all row counts verified". */

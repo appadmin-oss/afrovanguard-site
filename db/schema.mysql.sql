@@ -1,6 +1,5 @@
 -- GENERATED from db/schema.sql by Database::translateDDL().
 -- Validated against a live MariaDB 10.11 instance (see docs/db-portability.md).
-
 -- ============================================================
 --  The Afrovanguard Diary — database schema (SQLite / PDO)
 --  Single source of truth for diary content + engagement.
@@ -18,28 +17,29 @@ CREATE TABLE IF NOT EXISTS categories (
 CREATE TABLE IF NOT EXISTS articles (
   id            INTEGER PRIMARY KEY AUTO_INCREMENT,
   slug          VARCHAR(191) UNIQUE NOT NULL,
-  ref_code      VARCHAR(32) DEFAULT NULL,          -- stable quotable id, e.g. AVD-2608-0003 (survives a slug rename); NULL until assigned, so the unique index tolerates un-backfilled rows
+  ref_code      VARCHAR(32) DEFAULT NULL,          
   title         TEXT NOT NULL,
   dek           TEXT NOT NULL,
-  category_id   INTEGER NOT NULL REFERENCES categories(id),
+  category_id   INTEGER NOT NULL,
   authors_html  TEXT NOT NULL,
-  published     TEXT NOT NULL,          -- human display date, e.g. "Jun 18, 2026"
-  published_at  VARCHAR(32) NOT NULL,   -- ISO date for ordering, e.g. "2026-06-18" (VARCHAR so MySQL can index it)
+  published     TEXT NOT NULL,          
+  published_at  VARCHAR(32) NOT NULL,   
   read_minutes  INTEGER NOT NULL DEFAULT 5,
   gradient      TEXT NOT NULL DEFAULT ('g-gold'),
   mc_session    TEXT,
   mc_title      TEXT,
   mc_tag        TEXT,
-  cover_url     TEXT,                   -- hero / cover image (e.g. Cloudinary)
-  og_image      TEXT,                   -- optional custom social card
-  audio_url     TEXT,                   -- author-provided narration / podcast audio (e.g. Cloudinary mp3)
+  cover_url     TEXT,                   
+  og_image      TEXT,                   
+  audio_url     TEXT,                   
   body_html     TEXT NOT NULL,
   base_claps    INTEGER NOT NULL DEFAULT 0,
   featured      INTEGER NOT NULL DEFAULT 0,
-  status        VARCHAR(32) NOT NULL DEFAULT 'published',  -- draft | published (VARCHAR so MySQL can index it)
-  format        TEXT NOT NULL DEFAULT ('standard'),   -- standard | qa | feature
+  status        VARCHAR(32) NOT NULL DEFAULT 'published',  
+  format        TEXT NOT NULL DEFAULT ('standard'),   
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX idx_articles_published ON articles(published_at DESC);
 CREATE INDEX idx_articles_category  ON articles(category_id);
@@ -49,24 +49,27 @@ CREATE UNIQUE INDEX idx_articles_refcode ON articles(ref_code);
 -- Table-of-contents entries (one row per section heading)
 CREATE TABLE IF NOT EXISTS sections (
   id          INTEGER PRIMARY KEY AUTO_INCREMENT,
-  article_id  INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  article_id  INTEGER NOT NULL,
   anchor      TEXT NOT NULL,
   label       TEXT NOT NULL,
-  position    INTEGER NOT NULL DEFAULT 0
+  position    INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (`article_id`) REFERENCES `articles`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- "More from the Diary" relationships
 CREATE TABLE IF NOT EXISTS related (
-  article_id    INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  article_id    INTEGER NOT NULL,
   related_slug  TEXT NOT NULL,
-  position      INTEGER NOT NULL DEFAULT 0
+  position      INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (`article_id`) REFERENCES `articles`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Live, server-side applause counts (shared across all readers)
 CREATE TABLE IF NOT EXISTS reactions (
-  article_id  INTEGER PRIMARY KEY REFERENCES articles(id) ON DELETE CASCADE,
+  article_id  INTEGER PRIMARY KEY,
   claps       INTEGER NOT NULL DEFAULT 0,
-  updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`article_id`) REFERENCES `articles`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Newsletter subscribers (captured from the Diary footer form)
@@ -103,20 +106,27 @@ CREATE TABLE IF NOT EXISTS courses (
   access_type   TEXT NOT NULL DEFAULT ('open'),   -- open | tracked | membership | paid | restricted (also added by ensureAcademy)
   price_ngn     INTEGER NOT NULL DEFAULT 0,
   instructor_id INTEGER,
-  pass_code     VARCHAR(191) NOT NULL DEFAULT '', -- access_type=restricted: any member holding this pass gets in
-  cover_is_dark INTEGER NOT NULL DEFAULT -1       -- -1 unknown, 0 light, 1 dark (colour-aware overlay text)
+  pass_code     TEXT NOT NULL DEFAULT (''),        -- access_type=restricted: any member holding this pass gets in
+  cover_is_dark INTEGER NOT NULL DEFAULT -1,     -- -1 unknown, 0 light, 1 dark (colour-aware overlay text)
+  language      VARCHAR(64) NOT NULL DEFAULT 'English',
+  skills        TEXT NOT NULL DEFAULT (''),        -- newline-separated: "Skills you'll gain"
+  prerequisites TEXT NOT NULL DEFAULT (''),        -- newline-separated; empty = none
+  pass_mark     INTEGER NOT NULL DEFAULT 70,     -- overall weighted grade needed to pass (0-100)
+  pace_weeks    INTEGER NOT NULL DEFAULT 0,      -- suggested weeks to finish; 0 = one week per module
+  sequential    INTEGER NOT NULL DEFAULT 0       -- 1 = items open in order, each once the one before is done
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX idx_courses_status ON courses(status);
 
 CREATE TABLE IF NOT EXISTS enrollments (
   id          INTEGER PRIMARY KEY AUTO_INCREMENT,
-  course_id   INTEGER REFERENCES courses(id) ON DELETE SET NULL,
+  course_id   INTEGER,
   course_slug VARCHAR(191),
   name        TEXT NOT NULL,
   email       TEXT NOT NULL,
   phone       TEXT,
   note        TEXT,
-  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX idx_enroll_course ON enrollments(course_slug);
 
@@ -132,25 +142,31 @@ CREATE TABLE IF NOT EXISTS lms_users (
   last_login    TEXT,
   email_verified INTEGER NOT NULL DEFAULT 0,   -- email-verification (also added by ensureLmsVerify on old DBs)
   verify_hash    TEXT,                          -- sha256 of the pending verification token
-  verify_expires TEXT                           -- ISO expiry for the token
+  verify_expires TEXT,                          -- ISO expiry for the token
+  has_password   INTEGER NOT NULL DEFAULT 0     -- 1 once a member sets a real password (OTP/OAuth accounts stay 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS lms_sessions (
   token_hash  VARCHAR(191) PRIMARY KEY,
-  user_id     INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  user_id     INTEGER NOT NULL,
   ip          TEXT, ua TEXT,
   expires_at  TEXT NOT NULL,
-  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_lms_sessions_user ON lms_sessions(user_id);
 CREATE TABLE IF NOT EXISTS modules (
   id          INTEGER PRIMARY KEY AUTO_INCREMENT,
-  course_id   INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  course_id   INTEGER NOT NULL,
   title       TEXT NOT NULL,
-  position    INTEGER NOT NULL DEFAULT 0
+  position    INTEGER NOT NULL DEFAULT 0,
+  summary     TEXT NOT NULL DEFAULT (''),          
+  objectives  TEXT NOT NULL DEFAULT ('')           ,
+  FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS lessons (
   id           INTEGER PRIMARY KEY AUTO_INCREMENT,
-  module_id    INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
-  course_id    INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  module_id    INTEGER NOT NULL,
+  course_id    INTEGER NOT NULL,
   slug         TEXT NOT NULL,
   title        TEXT NOT NULL,
   body_html    TEXT NOT NULL DEFAULT (''),
@@ -160,38 +176,58 @@ CREATE TABLE IF NOT EXISTS lessons (
   position     INTEGER NOT NULL DEFAULT 0,
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  quiz_json    TEXT                            -- optional quiz spec (also added by ensureAcademy)
+  quiz_json    TEXT,                           
+  kind         VARCHAR(32) NOT NULL DEFAULT '',  
+  weight       INTEGER NOT NULL DEFAULT 1,       
+  assignment_json TEXT,                          
+  transcript   TEXT NOT NULL DEFAULT (''),         
+  captions_url TEXT,                             
+  resources_json TEXT,                           
+  available_at VARCHAR(32) NOT NULL DEFAULT '',  
+  ai_summary      TEXT,                          
+  ai_summary_hash VARCHAR(64)                    ,
+  FOREIGN KEY (`module_id`) REFERENCES `modules`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX idx_lessons_course ON lessons(course_id);
 CREATE TABLE IF NOT EXISTS lesson_progress (
-  user_id      INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
-  lesson_id    INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  user_id      INTEGER NOT NULL,
+  lesson_id    INTEGER NOT NULL,
   course_id    INTEGER NOT NULL,
   completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (user_id, lesson_id)
+  PRIMARY KEY (user_id, lesson_id),
+  FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`lesson_id`) REFERENCES `lessons`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS course_enrolment (
-  user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
-  course_id  INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (user_id, course_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-CREATE TABLE IF NOT EXISTS lesson_notes (
-  user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
-  lesson_id  INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL,
   course_id  INTEGER NOT NULL,
-  body       MEDIUMTEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, course_id),
+  FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Per-learner lesson notes (cross-device for signed-in members).
+CREATE TABLE IF NOT EXISTS lesson_notes (
+  user_id    INTEGER NOT NULL,
+  lesson_id  INTEGER NOT NULL,
+  course_id  INTEGER NOT NULL,
+  body       TEXT NOT NULL DEFAULT (''),
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (user_id, lesson_id)
+  PRIMARY KEY (user_id, lesson_id),
+  FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`lesson_id`) REFERENCES `lessons`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS memberships (
   id         INTEGER PRIMARY KEY AUTO_INCREMENT,
-  user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL,
   tier       TEXT NOT NULL DEFAULT ('member'),
-  status     TEXT NOT NULL DEFAULT ('active'),     -- active | expired | cancelled
+  status     TEXT NOT NULL DEFAULT ('active'),     
   started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  expires_at TEXT
+  expires_at TEXT,
+  FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_memberships_user ON memberships(user_id);
 -- Restricted-course access: an explicit per-member allowlist, and named "passes"
 -- an admin grants that unlock any course requiring that pass (also ensured at runtime).
 CREATE TABLE IF NOT EXISTS course_access (
@@ -205,8 +241,8 @@ CREATE TABLE IF NOT EXISTS course_access (
 CREATE TABLE IF NOT EXISTS member_passes (
   id         INTEGER PRIMARY KEY AUTO_INCREMENT,
   user_id    INTEGER NOT NULL,
-  code       VARCHAR(191) NOT NULL DEFAULT '',
-  label      VARCHAR(191) NOT NULL DEFAULT '',
+  code       TEXT NOT NULL DEFAULT (''),
+  label      TEXT NOT NULL DEFAULT (''),
   granted_by INTEGER NOT NULL DEFAULT 0,
   expires_at TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -214,32 +250,134 @@ CREATE TABLE IF NOT EXISTS member_passes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS certificates (
   id         INTEGER PRIMARY KEY AUTO_INCREMENT,
-  user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
-  course_id  INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL,
+  course_id  INTEGER NOT NULL,
   serial     VARCHAR(191) UNIQUE NOT NULL,
   issued_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (user_id, course_id)
+  grade_pct  REAL,                     -- the course grade it was issued on (graded courses; lib/Grading.php)
+  UNIQUE (user_id, course_id),
+  FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS quiz_attempts (
   id         INTEGER PRIMARY KEY AUTO_INCREMENT,
-  user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
-  lesson_id  INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL,
+  lesson_id  INTEGER NOT NULL,
   score      INTEGER NOT NULL DEFAULT 0,
   passed     INTEGER NOT NULL DEFAULT 0,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`lesson_id`) REFERENCES `lessons`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_quiz_attempts_user_lesson ON quiz_attempts(user_id, lesson_id);
+-- ── Academy courseware: assignments, discussions, reviews, programmes ──
+-- One current submission per learner per assignment; a resubmission replaces it.
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+  id          INTEGER PRIMARY KEY AUTO_INCREMENT,
+  user_id     INTEGER NOT NULL,
+  lesson_id   INTEGER NOT NULL,
+  course_id   INTEGER NOT NULL,
+  body        TEXT NOT NULL DEFAULT (''),
+  link_url    TEXT NOT NULL DEFAULT (''),
+  status      VARCHAR(32) NOT NULL DEFAULT 'submitted',   
+  score       INTEGER,                                    
+  feedback    TEXT NOT NULL DEFAULT (''),
+  graded_by   INTEGER,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  graded_at   TEXT,
+  UNIQUE (user_id, lesson_id),
+  FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`lesson_id`) REFERENCES `lessons`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS forum_threads (
+  id           INTEGER PRIMARY KEY AUTO_INCREMENT,
+  course_id    INTEGER NOT NULL,
+  lesson_id    INTEGER,                                   
+  user_id      INTEGER NOT NULL DEFAULT 0,                
+  title        TEXT NOT NULL,
+  body         TEXT NOT NULL DEFAULT (''),
+  pinned       INTEGER NOT NULL DEFAULT 0,
+  locked       INTEGER NOT NULL DEFAULT 0,
+  hidden       INTEGER NOT NULL DEFAULT 0,
+  reply_count  INTEGER NOT NULL DEFAULT 0,
+  last_post_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS forum_posts (
+  id          INTEGER PRIMARY KEY AUTO_INCREMENT,
+  thread_id   INTEGER NOT NULL,
+  course_id   INTEGER NOT NULL,
+  user_id     INTEGER NOT NULL,
+  body        TEXT NOT NULL,
+  hidden      INTEGER NOT NULL DEFAULT 0,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`thread_id`) REFERENCES `forum_threads`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS course_reviews (
+  id          INTEGER PRIMARY KEY AUTO_INCREMENT,
+  user_id     INTEGER NOT NULL,
+  course_id   INTEGER NOT NULL,
+  rating      INTEGER NOT NULL DEFAULT 5,                 
+  body        TEXT NOT NULL DEFAULT (''),
+  hidden      INTEGER NOT NULL DEFAULT 0,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, course_id),
+  FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- A programme is a series of courses with its own certificate.
+CREATE TABLE IF NOT EXISTS programmes (
+  id          INTEGER PRIMARY KEY AUTO_INCREMENT,
+  slug        VARCHAR(191) UNIQUE NOT NULL,
+  title       TEXT NOT NULL,
+  summary     TEXT NOT NULL DEFAULT (''),
+  body_html   TEXT NOT NULL DEFAULT (''),
+  cover_url   TEXT,
+  status      VARCHAR(32) NOT NULL DEFAULT 'draft',       -- draft | published
+  sort        INTEGER NOT NULL DEFAULT 0,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS programme_courses (
+  programme_id INTEGER NOT NULL,
+  course_id    INTEGER NOT NULL,
+  position     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (programme_id, course_id),
+  FOREIGN KEY (`programme_id`) REFERENCES `programmes`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`course_id`) REFERENCES `courses`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS programme_certificates (
+  id           INTEGER PRIMARY KEY AUTO_INCREMENT,
+  user_id      INTEGER NOT NULL,
+  programme_id INTEGER NOT NULL,
+  serial       VARCHAR(191) UNIQUE NOT NULL,
+  issued_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, programme_id),
+  FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`programme_id`) REFERENCES `programmes`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_asub_course ON assignment_submissions(course_id, status);
+CREATE INDEX idx_fthread_course ON forum_threads(course_id, last_post_at);
+CREATE INDEX idx_fpost_thread ON forum_posts(thread_id, id);
+CREATE INDEX idx_review_course ON course_reviews(course_id);
 CREATE TABLE IF NOT EXISTS payments (
   id          INTEGER PRIMARY KEY AUTO_INCREMENT,
   reference   VARCHAR(191) UNIQUE NOT NULL,
-  user_id     INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
-  provider    TEXT NOT NULL DEFAULT ('paystack'),   -- paystack | flutterwave
-  kind        TEXT NOT NULL,                       -- course | membership
+  user_id     INTEGER NOT NULL,
+  provider    TEXT NOT NULL DEFAULT ('paystack'),   
+  kind        TEXT NOT NULL,                       
   course_id   INTEGER,
   amount_kobo INTEGER NOT NULL DEFAULT 0,
   currency    TEXT NOT NULL DEFAULT ('NGN'),
-  status      TEXT NOT NULL DEFAULT ('pending'),     -- pending | paid | failed
+  status      TEXT NOT NULL DEFAULT ('pending'),     
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  paid_at     TEXT
+  paid_at     TEXT,
+  FOREIGN KEY (`user_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX idx_payments_user ON payments(user_id);
 
@@ -249,16 +387,17 @@ CREATE INDEX idx_payments_user ON payments(user_id);
 -- is PROMOTED into `articles` (the public feed) — see lib/DiaryJournal::approve().
 CREATE TABLE IF NOT EXISTS diary_entries (
   id             INTEGER PRIMARY KEY AUTO_INCREMENT,
-  author_id      INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
-  kind           VARCHAR(32) NOT NULL DEFAULT 'private',  -- event | private | public (VARCHAR so MySQL can index it)
+  author_id      INTEGER NOT NULL,
+  kind           VARCHAR(32) NOT NULL DEFAULT 'private',  
   title          TEXT NOT NULL DEFAULT (''),
-  body           TEXT NOT NULL,                       -- plain text; escaped on render
-  entry_date     VARCHAR(32) NOT NULL,                -- ISO date, backdatable (VARCHAR so MySQL can index it)
-  status         VARCHAR(32) NOT NULL DEFAULT 'logged',   -- logged | pending | approved | rejected (VARCHAR so MySQL can index it)
-  published_slug TEXT,                                -- article slug once promoted to the feed
-  review_note    TEXT,                                -- admin note (e.g. on reject)
+  body           TEXT NOT NULL,                       
+  entry_date     VARCHAR(32) NOT NULL,                
+  status         VARCHAR(32) NOT NULL DEFAULT 'logged',   
+  published_slug TEXT,                                
+  review_note    TEXT,                                
   created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`author_id`) REFERENCES `lms_users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX idx_diary_entries_author ON diary_entries(author_id, entry_date DESC);
 CREATE INDEX idx_diary_entries_mod    ON diary_entries(kind, status);
@@ -289,5 +428,252 @@ CREATE TABLE IF NOT EXISTS lms_audit (
   action     TEXT NOT NULL,
   target     TEXT NOT NULL DEFAULT (''),
   detail     TEXT NOT NULL DEFAULT (''),
+  ip         TEXT NOT NULL DEFAULT (''),
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_lms_audit_created ON lms_audit(id DESC);
+
+-- ── Diary engagement: how many read it, what they said, what they kept ──
+-- Views are stored per article per day, never per visitor: the counter on the
+-- card is the only thing anyone needs, and a per-visitor row would be a log of
+-- who read what. Which entries a reader has already been counted for lives in
+-- a signed cookie (lib/DiaryVisitor.php), not here.
+CREATE TABLE IF NOT EXISTS diary_views (
+  article_id INTEGER NOT NULL,
+  day        VARCHAR(10) NOT NULL,              -- YYYY-MM-DD (VARCHAR so MySQL can index it)
+  count      INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (article_id, day)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_diary_views_article ON diary_views(article_id);
+
+-- One level of replies only: parent_id always names a top-level comment, so a
+-- thread can be read top to bottom without recursion and cannot be nested into
+-- a column one character wide.
+CREATE TABLE IF NOT EXISTS diary_comments (
+  id         INTEGER PRIMARY KEY AUTO_INCREMENT,
+  article_id INTEGER NOT NULL DEFAULT 0,
+  parent_id  INTEGER,                           -- NULL for a top-level comment
+  user_id    INTEGER NOT NULL DEFAULT 0,
+  name       VARCHAR(120) NOT NULL DEFAULT '',
+  email      TEXT NOT NULL DEFAULT (''),          -- collected, never rendered
+  body       TEXT NOT NULL DEFAULT (''),
+  status     VARCHAR(16) NOT NULL DEFAULT 'pending',   -- pending | published | removed
+  likes      INTEGER NOT NULL DEFAULT 0,
+  reports    INTEGER NOT NULL DEFAULT 0,
+  ip_hash    VARCHAR(64) NOT NULL DEFAULT '',   -- for abuse only; never joined to a person
+  owner_hash VARCHAR(64) NOT NULL DEFAULT '',   -- lets the author see their own pending comment
+  created_at TEXT NOT NULL DEFAULT ('')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_diary_comments_article ON diary_comments(article_id, status);
+CREATE INDEX idx_diary_comments_parent  ON diary_comments(parent_id);
+
+CREATE TABLE IF NOT EXISTS diary_comment_likes (
+  comment_id INTEGER NOT NULL,
+  voter_hash VARCHAR(64) NOT NULL,
+  PRIMARY KEY (comment_id, voter_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- A save belongs to an account when there is one, and to the reader's cookie
+-- when there is not — so Save works before sign-in instead of looking broken.
+CREATE TABLE IF NOT EXISTS diary_saves (
+  user_id      INTEGER NOT NULL DEFAULT 0,
+  article_id   INTEGER NOT NULL,
+  visitor_hash VARCHAR(64) NOT NULL DEFAULT '',
+  created_at   TEXT NOT NULL DEFAULT (''),
+  PRIMARY KEY (user_id, article_id, visitor_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_diary_saves_article ON diary_saves(article_id);
+
+-- ── Academy: teaching teams and graded assessments ──
+-- A course's team (lead | instructor | assistant) and its graded items, submissions,
+-- marks, peer reviews and the daily marking digest. Also ensured at runtime by
+-- lib/CourseTeam.php and lib/Grading.php (the same DDL; tests/grading.test.php
+-- holds the two in step). See docs/academy-grading.md.
+CREATE TABLE IF NOT EXISTS course_instructors (
+  id         INTEGER PRIMARY KEY AUTO_INCREMENT,
+  course_id  INTEGER NOT NULL,
+  user_id    INTEGER NOT NULL,
+  role       VARCHAR(16) NOT NULL DEFAULT 'instructor',
+  added_by   INTEGER NOT NULL DEFAULT 0,
+  added_at   VARCHAR(32) NOT NULL DEFAULT '',
+  UNIQUE (course_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_course_instructors_user ON course_instructors (user_id);
+CREATE TABLE IF NOT EXISTS course_grading (
+  course_id  INTEGER PRIMARY KEY,
+  pass_mark  INTEGER NOT NULL DEFAULT 70,
+  updated_by INTEGER NOT NULL DEFAULT 0,
+  updated_at VARCHAR(32) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS graded_items (
+  id               INTEGER PRIMARY KEY AUTO_INCREMENT,
+  course_id        INTEGER NOT NULL,
+  kind             VARCHAR(16) NOT NULL DEFAULT 'assignment',
+  title            VARCHAR(191) NOT NULL DEFAULT '',
+  instructions     TEXT,
+  lesson_id        INTEGER NOT NULL DEFAULT 0,
+  weight           INTEGER NOT NULL DEFAULT 0,
+  pass_score       INTEGER NOT NULL DEFAULT 50,
+  due_at           VARCHAR(32) NOT NULL DEFAULT '',
+  late_hours       INTEGER NOT NULL DEFAULT 0,
+  late_penalty     INTEGER NOT NULL DEFAULT 0,
+  max_attempts     INTEGER NOT NULL DEFAULT 1,
+  accepts          VARCHAR(32) NOT NULL DEFAULT 'text,link,file',
+  rubric_json      TEXT,
+  peer_count       INTEGER NOT NULL DEFAULT 3,
+  peer_grace_hours INTEGER NOT NULL DEFAULT 72,
+  moderation_pct   INTEGER NOT NULL DEFAULT 15,
+  status           VARCHAR(16) NOT NULL DEFAULT 'draft',
+  position         INTEGER NOT NULL DEFAULT 0,
+  created_by       INTEGER NOT NULL DEFAULT 0,
+  created_at       VARCHAR(32) NOT NULL DEFAULT '',
+  updated_at       VARCHAR(32) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_graded_items_course ON graded_items (course_id, status);
+CREATE TABLE IF NOT EXISTS grade_submissions (
+  id                INTEGER PRIMARY KEY AUTO_INCREMENT,
+  item_id           INTEGER NOT NULL,
+  course_id         INTEGER NOT NULL,
+  user_id           INTEGER NOT NULL,
+  attempt           INTEGER NOT NULL DEFAULT 1,
+  body              TEXT,
+  link              VARCHAR(500) NOT NULL DEFAULT '',
+  file_name         VARCHAR(191) NOT NULL DEFAULT '',
+  file_store        VARCHAR(120) NOT NULL DEFAULT '',
+  file_mime         VARCHAR(100) NOT NULL DEFAULT '',
+  file_size         INTEGER NOT NULL DEFAULT 0,
+  submitted_at      VARCHAR(32) NOT NULL DEFAULT '',
+  is_late           INTEGER NOT NULL DEFAULT 0,
+  final_pct         REAL,
+  final_source      VARCHAR(16) NOT NULL DEFAULT '',
+  final_reason      TEXT,
+  final_by          INTEGER NOT NULL DEFAULT 0,
+  final_at          VARCHAR(32) NOT NULL DEFAULT '',
+  flagged           INTEGER NOT NULL DEFAULT 0,
+  released_raw      REAL,
+  released_pct      REAL,
+  released_penalty  INTEGER NOT NULL DEFAULT 0,
+  released_feedback TEXT,
+  released_at       VARCHAR(32) NOT NULL DEFAULT '',
+  released_by       INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (item_id, user_id, attempt)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_grade_sub_course ON grade_submissions (course_id, submitted_at);
+CREATE INDEX idx_grade_sub_user ON grade_submissions (user_id, item_id);
+CREATE TABLE IF NOT EXISTS grade_marks (
+  id            INTEGER PRIMARY KEY AUTO_INCREMENT,
+  submission_id INTEGER NOT NULL,
+  marker_id     INTEGER NOT NULL,
+  scores_json   TEXT,
+  points        REAL NOT NULL DEFAULT 0,
+  max_points    REAL NOT NULL DEFAULT 0,
+  feedback      TEXT,
+  created_at    VARCHAR(32) NOT NULL DEFAULT '',
+  updated_at    VARCHAR(32) NOT NULL DEFAULT '',
+  UNIQUE (submission_id, marker_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS peer_reviews (
+  id            INTEGER PRIMARY KEY AUTO_INCREMENT,
+  item_id       INTEGER NOT NULL,
+  submission_id INTEGER NOT NULL,
+  reviewer_id   INTEGER NOT NULL,
+  assigned_at   VARCHAR(32) NOT NULL DEFAULT '',
+  scores_json   TEXT,
+  points        REAL,
+  max_points    REAL,
+  feedback      TEXT,
+  done_at       VARCHAR(32) NOT NULL DEFAULT '',
+  UNIQUE (submission_id, reviewer_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_peer_reviews_reviewer ON peer_reviews (reviewer_id, item_id);
+CREATE TABLE IF NOT EXISTS live_sessions (
+  id          INTEGER PRIMARY KEY AUTO_INCREMENT,
+  item_id     INTEGER NOT NULL,
+  course_id   INTEGER NOT NULL,
+  starts_at   VARCHAR(32) NOT NULL DEFAULT '',
+  ends_at     VARCHAR(32) NOT NULL DEFAULT '',
+  place       VARCHAR(300) NOT NULL DEFAULT '',
+  link        VARCHAR(500) NOT NULL DEFAULT '',
+  capacity    INTEGER NOT NULL DEFAULT 10,
+  status      VARCHAR(16) NOT NULL DEFAULT 'open',
+  created_by  INTEGER NOT NULL DEFAULT 0,
+  created_at  VARCHAR(32) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_live_sessions_item ON live_sessions (item_id, starts_at);
+CREATE TABLE IF NOT EXISTS live_bookings (
+  id            INTEGER PRIMARY KEY AUTO_INCREMENT,
+  session_id    INTEGER NOT NULL,
+  item_id       INTEGER NOT NULL,
+  user_id       INTEGER NOT NULL,
+  live_key      VARCHAR(32) NOT NULL DEFAULT 'live',
+  status        VARCHAR(16) NOT NULL DEFAULT 'booked',
+  attempt       INTEGER NOT NULL DEFAULT 1,
+  submission_id INTEGER NOT NULL DEFAULT 0,
+  booked_by     INTEGER NOT NULL DEFAULT 0,
+  booked_at     VARCHAR(32) NOT NULL DEFAULT '',
+  excuse_reason VARCHAR(500) NOT NULL DEFAULT '',
+  excused_by    INTEGER NOT NULL DEFAULT 0,
+  reminded_at   VARCHAR(32) NOT NULL DEFAULT '',
+  UNIQUE (item_id, user_id, live_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_live_bookings_session ON live_bookings (session_id, status);
+CREATE TABLE IF NOT EXISTS grading_digests (
+  course_id   INTEGER NOT NULL,
+  digest_day  VARCHAR(10) NOT NULL,
+  sent_at     VARCHAR(32) NOT NULL DEFAULT '',
+  recipients  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (course_id, digest_day)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Academy: instructors being assessed ──
+-- Learners' written feedback on a course (no ratings or scores), the once-only
+-- feedback reminder, and coordinators' teaching observations. Also ensured at
+-- runtime by lib/LearnerFeedback.php and lib/Observations.php (the same DDL;
+-- tests/instructorpages.test.php holds the two in step). See docs/academy-instructors.md.
+CREATE TABLE IF NOT EXISTS course_feedback (
+  id            INTEGER PRIMARY KEY AUTO_INCREMENT,
+  course_id     INTEGER NOT NULL,
+  user_id       INTEGER NOT NULL,
+  helped        TEXT,
+  clearer       TEXT,
+  anything_else TEXT,
+  share_public  INTEGER NOT NULL DEFAULT 0,
+  state         VARCHAR(16) NOT NULL DEFAULT '',
+  hide_reason   VARCHAR(32) NOT NULL DEFAULT '',
+  moderated_by  INTEGER NOT NULL DEFAULT 0,
+  moderated_at  VARCHAR(32) NOT NULL DEFAULT '',
+  created_at    VARCHAR(32) NOT NULL DEFAULT '',
+  updated_at    VARCHAR(32) NOT NULL DEFAULT '',
+  UNIQUE (course_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_course_feedback_state ON course_feedback (state, course_id);
+CREATE TABLE IF NOT EXISTS feedback_prompts (
+  course_id  INTEGER NOT NULL,
+  user_id    INTEGER NOT NULL,
+  sent_at    VARCHAR(32) NOT NULL DEFAULT '',
+  PRIMARY KEY (course_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS teaching_observations (
+  id                   INTEGER PRIMARY KEY AUTO_INCREMENT,
+  course_id            INTEGER NOT NULL,
+  instructor_id        INTEGER NOT NULL,
+  observer_id          INTEGER NOT NULL,
+  observed_on          VARCHAR(10) NOT NULL DEFAULT '',
+  target_kind          VARCHAR(16) NOT NULL DEFAULT 'other',
+  target_id            INTEGER NOT NULL DEFAULT 0,
+  target_note          VARCHAR(300) NOT NULL DEFAULT '',
+  scores_json          TEXT,
+  strengths            TEXT,
+  develop              TEXT,
+  action_text          TEXT,
+  follow_up_on         VARCHAR(10) NOT NULL DEFAULT '',
+  status               VARCHAR(16) NOT NULL DEFAULT 'draft',
+  finalised_at         VARCHAR(32) NOT NULL DEFAULT '',
+  reflection           TEXT,
+  reflection_at        VARCHAR(32) NOT NULL DEFAULT '',
+  followup_reminded_at VARCHAR(32) NOT NULL DEFAULT '',
+  created_at           VARCHAR(32) NOT NULL DEFAULT '',
+  updated_at           VARCHAR(32) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_observations_instructor ON teaching_observations (instructor_id, status);
+CREATE INDEX idx_observations_followup ON teaching_observations (status, follow_up_on);

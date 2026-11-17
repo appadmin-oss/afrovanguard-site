@@ -31,7 +31,7 @@ final class MemberDesk
             author VARCHAR(160) NOT NULL DEFAULT '',
             created_at VARCHAR(32) NOT NULL DEFAULT ''
         )");
-        try { Database::pdo()->exec('CREATE INDEX IF NOT EXISTS ix_member_notes_user ON member_notes(user_id, id)'); } catch (Throwable $e) {}
+        try { Database::execSchema(Database::pdo(), 'CREATE INDEX IF NOT EXISTS ix_member_notes_user ON member_notes(user_id, id)'); } catch (Throwable $e) {}
     }
 
     /* ── Notes ─────────────────────────────────────────────────────────── */

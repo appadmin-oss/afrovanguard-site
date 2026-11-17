@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS lms_sessions (
   expires_at  TEXT NOT NULL,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS idx_lms_sessions_user ON lms_sessions(user_id);
 CREATE TABLE IF NOT EXISTS modules (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   course_id   INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
@@ -174,7 +175,9 @@ CREATE TABLE IF NOT EXISTS lessons (
   transcript   TEXT NOT NULL DEFAULT '',         -- a video's transcript, shown beside it
   captions_url TEXT,                             -- WebVTT captions for an uploaded video
   resources_json TEXT,                           -- downloads: [{"title": …, "url": …}]
-  available_at VARCHAR(32) NOT NULL DEFAULT ''   -- release date (LmsDrip); '' = open
+  available_at VARCHAR(32) NOT NULL DEFAULT '',  -- release date (LmsDrip); '' = open
+  ai_summary      TEXT,                          -- lib/LmsCoach.php: the lesson's generated key points
+  ai_summary_hash VARCHAR(64)                    -- of the body they were written from, so an edit regenerates them
 );
 CREATE INDEX IF NOT EXISTS idx_lessons_course ON lessons(course_id);
 CREATE TABLE IF NOT EXISTS lesson_progress (
@@ -207,6 +210,7 @@ CREATE TABLE IF NOT EXISTS memberships (
   started_at TEXT NOT NULL DEFAULT (datetime('now')),
   expires_at TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_memberships_user ON memberships(user_id);
 -- Restricted-course access: an explicit per-member allowlist, and named "passes"
 -- an admin grants that unlock any course requiring that pass (also ensured at runtime).
 CREATE TABLE IF NOT EXISTS course_access (
@@ -233,6 +237,7 @@ CREATE TABLE IF NOT EXISTS certificates (
   course_id  INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
   serial     TEXT UNIQUE NOT NULL,
   issued_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  grade_pct  REAL,                     -- the course grade it was issued on (graded courses; lib/Grading.php)
   UNIQUE (user_id, course_id)
 );
 CREATE TABLE IF NOT EXISTS quiz_attempts (
@@ -243,6 +248,7 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
   passed     INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user_lesson ON quiz_attempts(user_id, lesson_id);
 -- ── Academy courseware: assignments, discussions, reviews, programmes ──
 -- One current submission per learner per assignment; a resubmission replaces it.
 CREATE TABLE IF NOT EXISTS assignment_submissions (
@@ -442,3 +448,197 @@ CREATE TABLE IF NOT EXISTS diary_saves (
   PRIMARY KEY (user_id, article_id, visitor_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_diary_saves_article ON diary_saves(article_id);
+
+-- ── Academy: teaching teams and graded assessments ──
+-- A course's team (lead | instructor | assistant) and its graded items, submissions,
+-- marks, peer reviews and the daily marking digest. Also ensured at runtime by
+-- lib/CourseTeam.php and lib/Grading.php (the same DDL; tests/grading.test.php
+-- holds the two in step). See docs/academy-grading.md.
+CREATE TABLE IF NOT EXISTS course_instructors (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id  INTEGER NOT NULL,
+  user_id    INTEGER NOT NULL,
+  role       VARCHAR(16) NOT NULL DEFAULT 'instructor',
+  added_by   INTEGER NOT NULL DEFAULT 0,
+  added_at   VARCHAR(32) NOT NULL DEFAULT '',
+  UNIQUE (course_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_course_instructors_user ON course_instructors (user_id);
+CREATE TABLE IF NOT EXISTS course_grading (
+  course_id  INTEGER PRIMARY KEY,
+  pass_mark  INTEGER NOT NULL DEFAULT 70,
+  updated_by INTEGER NOT NULL DEFAULT 0,
+  updated_at VARCHAR(32) NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS graded_items (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id        INTEGER NOT NULL,
+  kind             VARCHAR(16) NOT NULL DEFAULT 'assignment',
+  title            VARCHAR(191) NOT NULL DEFAULT '',
+  instructions     TEXT,
+  lesson_id        INTEGER NOT NULL DEFAULT 0,
+  weight           INTEGER NOT NULL DEFAULT 0,
+  pass_score       INTEGER NOT NULL DEFAULT 50,
+  due_at           VARCHAR(32) NOT NULL DEFAULT '',
+  late_hours       INTEGER NOT NULL DEFAULT 0,
+  late_penalty     INTEGER NOT NULL DEFAULT 0,
+  max_attempts     INTEGER NOT NULL DEFAULT 1,
+  accepts          VARCHAR(32) NOT NULL DEFAULT 'text,link,file',
+  rubric_json      TEXT,
+  peer_count       INTEGER NOT NULL DEFAULT 3,
+  peer_grace_hours INTEGER NOT NULL DEFAULT 72,
+  moderation_pct   INTEGER NOT NULL DEFAULT 15,
+  status           VARCHAR(16) NOT NULL DEFAULT 'draft',
+  position         INTEGER NOT NULL DEFAULT 0,
+  created_by       INTEGER NOT NULL DEFAULT 0,
+  created_at       VARCHAR(32) NOT NULL DEFAULT '',
+  updated_at       VARCHAR(32) NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_graded_items_course ON graded_items (course_id, status);
+CREATE TABLE IF NOT EXISTS grade_submissions (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id           INTEGER NOT NULL,
+  course_id         INTEGER NOT NULL,
+  user_id           INTEGER NOT NULL,
+  attempt           INTEGER NOT NULL DEFAULT 1,
+  body              TEXT,
+  link              VARCHAR(500) NOT NULL DEFAULT '',
+  file_name         VARCHAR(191) NOT NULL DEFAULT '',
+  file_store        VARCHAR(120) NOT NULL DEFAULT '',
+  file_mime         VARCHAR(100) NOT NULL DEFAULT '',
+  file_size         INTEGER NOT NULL DEFAULT 0,
+  submitted_at      VARCHAR(32) NOT NULL DEFAULT '',
+  is_late           INTEGER NOT NULL DEFAULT 0,
+  final_pct         REAL,
+  final_source      VARCHAR(16) NOT NULL DEFAULT '',
+  final_reason      TEXT,
+  final_by          INTEGER NOT NULL DEFAULT 0,
+  final_at          VARCHAR(32) NOT NULL DEFAULT '',
+  flagged           INTEGER NOT NULL DEFAULT 0,
+  released_raw      REAL,
+  released_pct      REAL,
+  released_penalty  INTEGER NOT NULL DEFAULT 0,
+  released_feedback TEXT,
+  released_at       VARCHAR(32) NOT NULL DEFAULT '',
+  released_by       INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (item_id, user_id, attempt)
+);
+CREATE INDEX IF NOT EXISTS idx_grade_sub_course ON grade_submissions (course_id, submitted_at);
+CREATE INDEX IF NOT EXISTS idx_grade_sub_user ON grade_submissions (user_id, item_id);
+CREATE TABLE IF NOT EXISTS grade_marks (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  submission_id INTEGER NOT NULL,
+  marker_id     INTEGER NOT NULL,
+  scores_json   TEXT,
+  points        REAL NOT NULL DEFAULT 0,
+  max_points    REAL NOT NULL DEFAULT 0,
+  feedback      TEXT,
+  created_at    VARCHAR(32) NOT NULL DEFAULT '',
+  updated_at    VARCHAR(32) NOT NULL DEFAULT '',
+  UNIQUE (submission_id, marker_id)
+);
+CREATE TABLE IF NOT EXISTS peer_reviews (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id       INTEGER NOT NULL,
+  submission_id INTEGER NOT NULL,
+  reviewer_id   INTEGER NOT NULL,
+  assigned_at   VARCHAR(32) NOT NULL DEFAULT '',
+  scores_json   TEXT,
+  points        REAL,
+  max_points    REAL,
+  feedback      TEXT,
+  done_at       VARCHAR(32) NOT NULL DEFAULT '',
+  UNIQUE (submission_id, reviewer_id)
+);
+CREATE INDEX IF NOT EXISTS idx_peer_reviews_reviewer ON peer_reviews (reviewer_id, item_id);
+CREATE TABLE IF NOT EXISTS live_sessions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id     INTEGER NOT NULL,
+  course_id   INTEGER NOT NULL,
+  starts_at   VARCHAR(32) NOT NULL DEFAULT '',
+  ends_at     VARCHAR(32) NOT NULL DEFAULT '',
+  place       VARCHAR(300) NOT NULL DEFAULT '',
+  link        VARCHAR(500) NOT NULL DEFAULT '',
+  capacity    INTEGER NOT NULL DEFAULT 10,
+  status      VARCHAR(16) NOT NULL DEFAULT 'open',
+  created_by  INTEGER NOT NULL DEFAULT 0,
+  created_at  VARCHAR(32) NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_live_sessions_item ON live_sessions (item_id, starts_at);
+CREATE TABLE IF NOT EXISTS live_bookings (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id    INTEGER NOT NULL,
+  item_id       INTEGER NOT NULL,
+  user_id       INTEGER NOT NULL,
+  live_key      VARCHAR(32) NOT NULL DEFAULT 'live',
+  status        VARCHAR(16) NOT NULL DEFAULT 'booked',
+  attempt       INTEGER NOT NULL DEFAULT 1,
+  submission_id INTEGER NOT NULL DEFAULT 0,
+  booked_by     INTEGER NOT NULL DEFAULT 0,
+  booked_at     VARCHAR(32) NOT NULL DEFAULT '',
+  excuse_reason VARCHAR(500) NOT NULL DEFAULT '',
+  excused_by    INTEGER NOT NULL DEFAULT 0,
+  reminded_at   VARCHAR(32) NOT NULL DEFAULT '',
+  UNIQUE (item_id, user_id, live_key)
+);
+CREATE INDEX IF NOT EXISTS idx_live_bookings_session ON live_bookings (session_id, status);
+CREATE TABLE IF NOT EXISTS grading_digests (
+  course_id   INTEGER NOT NULL,
+  digest_day  VARCHAR(10) NOT NULL,
+  sent_at     VARCHAR(32) NOT NULL DEFAULT '',
+  recipients  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (course_id, digest_day)
+);
+
+-- ── Academy: instructors being assessed ──
+-- Learners' written feedback on a course (no ratings or scores), the once-only
+-- feedback reminder, and coordinators' teaching observations. Also ensured at
+-- runtime by lib/LearnerFeedback.php and lib/Observations.php (the same DDL;
+-- tests/instructorpages.test.php holds the two in step). See docs/academy-instructors.md.
+CREATE TABLE IF NOT EXISTS course_feedback (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id     INTEGER NOT NULL,
+  user_id       INTEGER NOT NULL,
+  helped        TEXT,
+  clearer       TEXT,
+  anything_else TEXT,
+  share_public  INTEGER NOT NULL DEFAULT 0,
+  state         VARCHAR(16) NOT NULL DEFAULT '',
+  hide_reason   VARCHAR(32) NOT NULL DEFAULT '',
+  moderated_by  INTEGER NOT NULL DEFAULT 0,
+  moderated_at  VARCHAR(32) NOT NULL DEFAULT '',
+  created_at    VARCHAR(32) NOT NULL DEFAULT '',
+  updated_at    VARCHAR(32) NOT NULL DEFAULT '',
+  UNIQUE (course_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_course_feedback_state ON course_feedback (state, course_id);
+CREATE TABLE IF NOT EXISTS feedback_prompts (
+  course_id  INTEGER NOT NULL,
+  user_id    INTEGER NOT NULL,
+  sent_at    VARCHAR(32) NOT NULL DEFAULT '',
+  PRIMARY KEY (course_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS teaching_observations (
+  id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id            INTEGER NOT NULL,
+  instructor_id        INTEGER NOT NULL,
+  observer_id          INTEGER NOT NULL,
+  observed_on          VARCHAR(10) NOT NULL DEFAULT '',
+  target_kind          VARCHAR(16) NOT NULL DEFAULT 'other',
+  target_id            INTEGER NOT NULL DEFAULT 0,
+  target_note          VARCHAR(300) NOT NULL DEFAULT '',
+  scores_json          TEXT,
+  strengths            TEXT,
+  develop              TEXT,
+  action_text          TEXT,
+  follow_up_on         VARCHAR(10) NOT NULL DEFAULT '',
+  status               VARCHAR(16) NOT NULL DEFAULT 'draft',
+  finalised_at         VARCHAR(32) NOT NULL DEFAULT '',
+  reflection           TEXT,
+  reflection_at        VARCHAR(32) NOT NULL DEFAULT '',
+  followup_reminded_at VARCHAR(32) NOT NULL DEFAULT '',
+  created_at           VARCHAR(32) NOT NULL DEFAULT '',
+  updated_at           VARCHAR(32) NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_observations_instructor ON teaching_observations (instructor_id, status);
+CREATE INDEX IF NOT EXISTS idx_observations_followup ON teaching_observations (status, follow_up_on);

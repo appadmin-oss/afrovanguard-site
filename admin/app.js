@@ -49,7 +49,13 @@
     celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), sessions: $('#sessionsView'), psEdit: $('#psEditView'), events: $('#eventsView'), evEdit: $('#evEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
     site: $('#siteView'), media: $('#mediaView')
   };
-  function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
+  function show(v) {
+    /* The sign-in field is autofocused in the markup; when a live session hides that
+       screen at once, the browser's Tab starting point stayed where it was and the
+       first Tab skipped the skip link and the header. Leaving sign-in, start from the top. */
+    var ae = document.activeElement, fromLogin = v !== 'login' && v !== 'mfa' && ae && ((views.login && views.login.contains(ae)) || (views.mfa && views.mfa.contains(ae)));
+    Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
+    if (fromLogin) { document.body.setAttribute('tabindex', '-1'); document.body.focus({ preventScroll: true }); document.body.removeAttribute('tabindex'); }
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
     document.body.classList.toggle('studio-authed', v !== 'login');
     var burger = $('#studioBurger'); if (burger) burger.hidden = (v === 'login');
@@ -114,7 +120,12 @@
     // Homepage and Pages were their own screens; their names open the Site workspace.
     var siteRef = which === 'homepage' ? 'hero' : '';
     if (which === 'homepage' || which === 'pages') which = 'site';
-    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.getAttribute('data-tab') === which); });
+    // The section you are in is said in words too (aria-current), not only by the highlight.
+    document.querySelectorAll('.tab').forEach(function (t) {
+      var on = t.getAttribute('data-tab') === which;
+      t.classList.toggle('active', on);
+      if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
+    });
     try { localStorage.setItem('av.studio.tab', which); } catch (e) {}
     if (which === 'overview') { show('overview'); loadOverview(); }
     else if (which === 'entries') { show('entries'); loadList(); }
@@ -142,16 +153,53 @@
     else if (which === 'media') { show('media'); if (window.AvSite) window.AvSite.open('media'); }
     else { show('inbox'); loadInbox(); }
     var on = document.querySelector('.tab.active');
-    if (on && on.scrollIntoView) { try { on.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
+    /* Keep the active section in view by scrolling its container, not with
+       scrollIntoView(): that moves Chrome's Tab starting point to the button, so on
+       load the first Tab skipped the skip link and the header and landed on Diary. */
+    var box = on && (on.closest('.studio-nav') || on.closest('.studio-side'));
+    [box, box && box.parentElement].forEach(function (c) {
+      if (!c || !on) return;
+      var r = on.getBoundingClientRect(), b = c.getBoundingClientRect();
+      if (c.scrollHeight > c.clientHeight && (r.top < b.top || r.bottom > b.bottom)) c.scrollTop += r.top - b.top - (b.height - r.height) / 2;
+      if (c.scrollWidth > c.clientWidth && (r.left < b.left || r.right > b.right)) c.scrollLeft += r.left - b.left - (b.width - r.width) / 2;
+    });
   }
   document.querySelectorAll('.tab').forEach(function (tab) {
     tab.addEventListener('click', function () { activateTab(tab.getAttribute('data-tab')); });
   });
 
   /* ---- Sidebar drawer (mobile) ---- */
-  function closeSide() { var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger'); if (s) s.classList.remove('open'); if (sc) sc.hidden = true; if (b) b.setAttribute('aria-expanded', 'false'); }
-  function toggleSide() { var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger'); if (!s) return; var open = !s.classList.contains('open'); s.classList.toggle('open', open); if (sc) sc.hidden = !open; if (b) b.setAttribute('aria-expanded', String(open)); }
-  (function () { var b = $('#studioBurger'), sc = $('#studioScrim'); if (b) b.addEventListener('click', toggleSide); if (sc) sc.addEventListener('click', closeSide); document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSide(); }); })();
+  /* Opening moves focus into the sections (the current one); Esc or the scrim closes
+     and gives focus back to the button. On a phone the closed drawer is visibility:hidden
+     (admin.css), so its buttons are out of the Tab order and the screen reader's view. */
+  function closeSide(refocus) {
+    var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger');
+    var was = s && s.classList.contains('open');
+    if (s) s.classList.remove('open'); if (sc) sc.hidden = true; if (b) b.setAttribute('aria-expanded', 'false');
+    if (was && refocus && b && !b.hidden) b.focus();
+  }
+  function toggleSide() {
+    var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger'); if (!s) return;
+    var open = !s.classList.contains('open'); s.classList.toggle('open', open); if (sc) sc.hidden = !open; if (b) b.setAttribute('aria-expanded', String(open));
+    if (open) { var f = s.querySelector('.tab.active') || s.querySelector('.tab'); if (f) setTimeout(function () { f.focus(); }, 30); }
+  }
+  (function () {
+    var b = $('#studioBurger'), sc = $('#studioScrim');
+    if (b) b.addEventListener('click', toggleSide);
+    if (sc) sc.addEventListener('click', function () { closeSide(true); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSide(true); });
+    // A section picked from the phone drawer closes it, so the view it opened is not under it.
+    document.querySelectorAll('.tab').forEach(function (t) { t.addEventListener('click', function () { if (b && !b.hidden && getComputedStyle(b).display !== 'none') closeSide(false); }); });
+    // Skip link: land on the <main> that is showing (only one is ever not hidden).
+    var skip = document.querySelector('[data-studio-skip]');
+    if (skip) skip.addEventListener('click', function (e) {
+      var m = document.querySelector('main.studio-main:not([hidden])') || document.querySelector('section:not([hidden]) .login-card');
+      if (!m) return;
+      e.preventDefault();
+      if (!m.hasAttribute('tabindex')) m.setAttribute('tabindex', '-1');
+      m.focus();
+    });
+  })();
 
   /* ---- Auth ---- */
   $('#loginForm').addEventListener('submit', function (e) {
@@ -2910,12 +2958,34 @@
       box.innerHTML =
         '<p class="db-cur"><span class="db-badge ' + (d.is_sqlite ? 'is-sqlite' : 'is-server') + '">' + escapeHtml(driverLabel) + '</span>'
         + (d.db ? ' <span class="muted">· ' + escapeHtml(d.db) + '</span>' : '') + '</p>'
-        + (d.is_sqlite ? '<p class="muted tiny">You’re on the portable SQLite file. Migrate below to run on a managed server database.</p>'
-                       : '<p class="muted tiny">Already running on a server database. You can still re-copy from SQLite if needed.</p>')
+        + dbSwitchNote(d)
         + '<table class="db-table"><thead><tr><th>Table</th><th class="db-n">Rows</th></tr></thead><tbody>' + rows
         + '</tbody><tfoot><tr><td>Total</td><td class="db-n">' + (d.total_rows | 0) + '</td></tr></tfoot></table>';
     }).catch(function () { box.innerHTML = '<p class="muted">Could not load.</p>'; });
   }
+  /* How the site chose its database, and the way back when it was switched from here. */
+  var DB_SW = null;
+  function dbSwitchNote(d) {
+    var sw = d.switch || {}; DB_SW = sw;
+    if (d.fell_back) return '<p class="db-note-bad">' + escapeHtml(String(d.fell_back).toUpperCase()) + ' could not be reached, so the site is running on its old SQLite file. Fix the connection: anything written now goes to the old file.</p>';
+    if (sw.active) return '<p class="muted tiny">Switched here on ' + escapeHtml(sw.switched_at || '') + (sw.switched_by ? ' by ' + escapeHtml(sw.switched_by) : '') + '. The old SQLite file is untouched.</p>'
+      + '<p><button type="button" class="btn btn-outline btn-sm" id="dbSwitchBackBtn">Switch back to SQLite</button></p><p class="db-msg" id="dbBackMsg" role="status" aria-live="polite"></p>';
+    if (sw.host_chose && !d.is_sqlite) return '<p class="muted tiny">Chosen by your hosting settings (.env or the server). Change it there.</p>';
+    if (sw.saved && sw.host_chose) return '<p class="db-note-bad">A switch to ' + escapeHtml(sw.target) + ' was saved here, but your hosting settings choose the database and win over it.</p>';
+    return d.is_sqlite ? '<p class="muted tiny">You’re on the portable SQLite file. Copy it to a server database below, then switch.</p>'
+                       : '<p class="muted tiny">Running on a server database.</p>';
+  }
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest || !e.target.closest('#dbSwitchBackBtn')) return;
+    var b = e.target.closest('#dbSwitchBackBtn'), m = $('#dbBackMsg');
+    if (!confirm('Run the site on its SQLite file again?\n\nAnything written to ' + ((DB_SW && DB_SW.target) || 'the server database') + ' since the switch stays there and will not be on the site until you copy it back.')) return;
+    b.disabled = true; if (m) m.textContent = 'Switching back…';
+    post('db_switch_back', {}).then(function (r) { var d = r.data || {};
+      if (d.ok) { if (m) m.textContent = 'Done. The site is on its SQLite file again.'; setTimeout(loadDatabase, 600); }
+      else { b.disabled = false; if (m) m.textContent = d.error || 'Could not switch back.'; }
+    }).catch(function () { b.disabled = false; if (m) m.textContent = 'Network error — nothing changed. Try again.'; });
+  });
+
   (function wireDatabase() {
     var view = $('#databaseView'); if (!view) return;
     var msg = $('#dbMsg');
@@ -3007,6 +3077,35 @@
         + rows + '</tbody></table>';
     }
 
+    /* Every table matches: offer the switch, or (where the host forbids the
+       site saving its own settings) the lines to add by hand. */
+    function offerSwitch(ok, pp) {
+      var envWrap = $('#dbEnvWrap'), swWrap = $('#dbSwitchWrap');
+      envWrap.hidden = true; swWrap.hidden = true;
+      if (!ok) return;
+      if (DB_SW && DB_SW.can_write && !DB_SW.host_chose) { swWrap.hidden = false; $('#dbSwitchMsg').textContent = ''; return; }
+      envWrap.hidden = false;
+      $('#dbEnv').textContent = 'AV_DB_DRIVER=' + pp.driver + '\nAV_DB_HOST=' + (pp.host || 'localhost')
+        + '\nAV_DB_PORT=' + (pp.port || (pp.driver === 'pgsql' ? '5432' : '3306'))
+        + '\nAV_DB_NAME=' + pp.name + '\nAV_DB_USER=' + pp.user
+        + '\nAV_DB_PASS=your-password\nAV_DB_STRICT=1';
+    }
+    $('#dbSwitchBtn').addEventListener('click', function () {
+      var pp = params(), btn = this, m = $('#dbSwitchMsg');
+      if (!pp.name) { m.textContent = 'Enter the database details above.'; return; }
+      if (!confirm('Switch the site to ' + pp.driver.toUpperCase() + ' database “' + pp.name + '” now?\n\n'
+        + 'New rows since the copy are carried across and every table is checked first. If anything does not match, nothing is switched.')) return;
+      btn.disabled = true; busy(true); m.textContent = 'Copying the newest rows and checking every table…';
+      post('db_switch', pp).then(function (r) { var d = r.data || {};
+        if (d.ok) {
+          m.textContent = 'Switched. The site now runs on ' + d.target + (d.added ? ' (' + d.added + ' newest rows carried across)' : '') + '. Reload any open pages.';
+          $('#db_pass').value = '';
+          setTimeout(loadDatabase, 600);
+        } else { btn.disabled = false; m.textContent = d.error || 'Nothing was switched.'; if (d.verify) renderVerify(d.verify); }
+      }).catch(function () { btn.disabled = false; m.textContent = 'Network error — nothing was switched. Try again.'; })
+        .finally(function () { busy(false); });
+    });
+
     function renderVerify(v) {
       var bad = (v.tables || []).filter(function (r) { return !r.ok; });
       $('#dbLog').textContent = (v.tables || []).map(function (r) {
@@ -3019,7 +3118,7 @@
       var pp = params();
       if (!pp.name) { setMsg('Enter the target database name.', 'err'); return; }
       if (!confirm('Copy all data into ' + pp.driver.toUpperCase() + ' database “' + pp.name + '” on ' + (pp.host || 'localhost') + '?\n\n'
-        + 'This writes to the target. It does NOT switch this site over — you do that by hand once the counts match.')) return;
+        + 'This writes to the target only. The site keeps running as it is; you switch it once every table matches.')) return;
       pp.replace = pp.truncate;
       busy(true); setMsg('Preparing…', '');
 
@@ -3056,16 +3155,17 @@
             return post('db_job_verify', pp).then(function (r3) {
               var v = (r3.data || {}).verify || {};
               var bad = renderVerify(v);
-              setMsg(v.ok ? 'Migration verified ✓ every table matches.'
-                : (bad.length + ' table(s) do not match — see the log below.'), v.ok ? 'ok' : 'err');
-              var envWrap = $('#dbEnvWrap');
-              if (v.ok) {
-                envWrap.hidden = false;
-                $('#dbEnv').textContent = 'AV_DB_DRIVER=' + pp.driver + '\nAV_DB_HOST=' + (pp.host || 'localhost')
-                  + '\nAV_DB_PORT=' + (pp.port || (pp.driver === 'pgsql' ? '5432' : '3306'))
-                  + '\nAV_DB_NAME=' + pp.name + '\nAV_DB_USER=' + pp.user
-                  + '\nAV_DB_PASS=your-password\nAV_DB_STRICT=1';
-              } else envWrap.hidden = true;
+              /* Behind is not wrong: on a live site the copy itself is logged
+                 (and people keep using it), so the source gains rows while it
+                 is copied. Those the switch carries across. Only a table the
+                 target lacks, or holds MORE rows of, is a real mismatch. */
+              var wrong = bad.filter(function (r) { return r.target === null || (r.target | 0) > (r.source | 0); });
+              var behind = bad.length - wrong.length, newRows = bad.reduce(function (n, r) { return n + (wrong.indexOf(r) < 0 ? (r.source | 0) - (r.target | 0) : 0); }, 0);
+              setMsg(v.ok ? 'Copied and checked ✓ every table matches.'
+                : (wrong.length ? (wrong.length + ' table(s) do not match — see the log below. Copy again with “Replace target tables” ticked.')
+                  : ('Copied ✓ ' + newRows + ' row' + (newRows === 1 ? '' : 's') + ' added to the site since the copy began (in ' + behind + ' table' + (behind === 1 ? '' : 's') + ') will be carried across when you switch.')),
+                v.ok || !wrong.length ? 'ok' : 'err');
+              offerSwitch(v.ok || !wrong.length, pp);
               loadDatabase();
               return null;
             });
@@ -4015,7 +4115,7 @@
   }
 
   /* ── Offline payments: credited only once the receipt is checked ── */
-  var OFF_LABEL = { verified: 'Checked and credited', held: 'Held — not credited', rejected: 'Rejected', pending: 'Being checked' };
+  var OFF_LABEL = { verified: 'Confirmed and credited', checked: 'Receipt checked — confirm the money arrived', held: 'Held — not credited', rejected: 'Rejected', pending: 'Being checked' };
   var OFF_CHECK = { evidence: 'Is a payment receipt', amount: 'Amount', payee: 'Paid to Afrovanguard', date: 'Date', reference: 'Reference', reused: 'Not used before', tampering: 'No sign of editing', confidence: 'Legible', reader: 'Reader', credit: 'Credit' };
   var offCanOverride = false, offMe = '';
   function loadOffline() {
@@ -4026,14 +4126,18 @@
       offCanOverride = !!d.can_override;
       offMe = String(d.me || '').trim().toLowerCase();
       $('#offReader').textContent = d.reader ? 'Receipts are read by Gemini.' : 'Receipt reading is not configured (AV_GEMINI_API_KEY), so every offline payment is held. A Super Admin can approve one with a written reason.';
-      var held = (d.counts || {}).held || 0; $('#offHeldBadge').hidden = !held; $('#offHeldBadge').textContent = held;
+      var held = ((d.counts || {}).held || 0) + ((d.counts || {}).checked || 0); $('#offHeldBadge').hidden = !held; $('#offHeldBadge').textContent = held;
       box.innerHTML = (d.payments || []).length ? d.payments.map(function (p) {
         var checks = p.checks || {};
         var lines = Object.keys(checks).map(function (k) { var ok = checks[k] === 'ok'; return '<div class="tiny ' + (ok ? 'muted' : '') + '">' + (ok ? '✓ ' : '✗ ') + escapeHtml(OFF_CHECK[k] || k) + (ok ? '' : ' — ' + escapeHtml(checks[k])) + '</div>'; }).join('');
         /* Nobody signs off their own money: the same refusal the server makes,
            said here before the press rather than after it. */
         var mine = offMe && (offMe === String(p.submitted_by || '').trim().toLowerCase() || offMe === String(p.email || '').trim().toLowerCase());
-        var acts = p.status === 'held' ? '<button class="btn btn-outline btn-sm" data-off="verify" data-id="' + p.id + '">Check again</button>'
+        /* Checked: the receipt passed, the money has not been seen. An admin looks at the
+           account and confirms — an image is evidence about money, not money. */
+        var acts = p.status === 'checked' ? '<button class="btn btn-primary btn-sm" data-off="confirm" data-id="' + p.id + '"' + (mine ? ' disabled title="This is your own payment. Another admin confirms it."' : '') + '>Confirm the money arrived…</button>'
+            + '<button class="btn btn-outline btn-sm" data-off="reject" data-id="' + p.id + '">Reject</button>'
+          : p.status === 'held' ? '<button class="btn btn-outline btn-sm" data-off="verify" data-id="' + p.id + '">Check again</button>'
             + '<button class="btn btn-outline btn-sm" data-off="reject" data-id="' + p.id + '">Reject</button>'
             + (offCanOverride ? '<button class="btn btn-outline btn-sm" data-off="override" data-id="' + p.id + '"' + (mine ? ' disabled title="This is your own payment. Another Super Admin approves it against the check."' : '') + '>Approve against the check…</button>' : '') : '';
         return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(p.name || ('#' + p.user_id)) + ' — ₦' + Number(p.amount_ngn).toLocaleString('en-NG')
@@ -4399,7 +4503,7 @@
       if (amount === 0) { msChange({ do: 'grant', months: +$('#ms_months').value, amount_ngn: 0, method: $('#ms_method').value, reference: $('#ms_ref').value.trim(), note: $('#ms_note').value.trim() }, done); return; }
       /* Money: with its receipt, checked before anything is credited. */
       var file = $('#ms_evidence').files[0];
-      if (!file) { toast('Attach the receipt — money is credited once it is checked.'); return; }
+      if (!file) { toast('Attach the receipt — money is credited once it is checked and confirmed.'); return; }
       if (!$('#ms_method').value || $('#ms_method').value === 'waiver') { toast('Say how it was paid.'); return; }
       var fd = new FormData();
       [['id', memOpen], ['purpose', 'dues'], ['months', $('#ms_months').value], ['amount_ngn', amount], ['method', $('#ms_method').value],
@@ -4409,6 +4513,7 @@
       api('offline_submit', { method: 'POST', body: fd }).then(function (r) {
         var d = r.data || {};
         if (d.ok && d.status === 'verified') { toast('Receipt checked — dues credited.'); done(); loadMemMembership(); loadMemRoster(); return; }
+        if (d.ok && d.status === 'checked') { toast('Receipt checked. Another admin confirms the money arrived (Offline payments), then it is credited.'); done(); return; }
         if (d.ok && d.status === 'held') { toast('Held, not credited: ' + (d.reasons || []).join(' ')); done(); return; }
         toast(d.error || 'Could not record that.');
       }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
@@ -4420,10 +4525,11 @@
       var d = b.getAttribute('data-off'), id = +b.getAttribute('data-id'), note = '';
       if (d === 'reject') { note = prompt('Why is it rejected? The payer is shown this.'); if (!note) return; }
       if (d === 'override') { note = prompt('Approve against the check — why? This is recorded on the payment for good. (at least a sentence)'); if (!note) return; }
+      if (d === 'confirm') { note = prompt('Where did you see the money arrive? e.g. "GTB statement, 9 Nov, ₦12,000 from A. Okafor". Kept on the payment.'); if (!note) return; }
       b.disabled = true;
       post('offline_decide', { id: id, do: d, note: note }).then(function (r) {
         var x = r.data || {};
-        toast(x.ok ? (x.status === 'verified' ? 'Credited.' : x.status === 'held' ? 'Still held: ' + (x.reasons || []).join(' ') : 'Done.') : (x.error || 'Refused.'));
+        toast(x.ok ? (x.status === 'verified' ? 'Credited.' : x.status === 'checked' ? 'Receipt checked — confirm the money arrived to credit it.' : x.status === 'held' ? 'Still held: ' + (x.reasons || []).join(' ') : 'Done.') : (x.error || 'Refused.'));
         loadOffline();
       }).finally(function () { b.disabled = false; });
     });

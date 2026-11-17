@@ -32,8 +32,9 @@
  * Notes
  *  • --cpanel must be your DIRECT cPanel login (usually https://host:2083, or
  *    https://cpanel.yourdomain.com). A hosting-provider SSO dashboard won't work.
- *  • The key value must match what the server expects: AV_CRON_KEY (or, if that
- *    isn't set, AV_ADMIN_TOKEN). See tasks/cron.php.
+ *  • The key value must match what the server expects: AV_CRON_KEY, or the key
+ *    the site derives when that is not set (a superadmin sees it in the Studio →
+ *    Meeting Recorder page). The admin token is not accepted. See tasks/cron.php.
  *  • Nothing is stored: the password/key live only in memory for this run and
  *    are never written to disk or logged.
  */
@@ -111,10 +112,11 @@ async function main() {
   if (!pass) die('No password provided.');
 
   // The command cPanel will run. Redirect output so cron doesn't email every run.
-  const url = `${site}/tasks/cron.php?key=${encodeURIComponent(key)}`;
+  // The key goes in a header, not the URL, so it stays out of the web server's access log.
+  const url = `${site}/tasks/cron.php`;
   const command = runner === 'wget'
-    ? `wget -q -O /dev/null --timeout=60 "${url}"`
-    : `curl -fsS --max-time 60 "${url}" >/dev/null 2>&1`;
+    ? `wget -q -O /dev/null --timeout=60 --header="X-AV-Cron-Key: ${key}" "${url}"`
+    : `curl -fsS --max-time 60 -H "X-AV-Cron-Key: ${key}" "${url}" >/dev/null 2>&1`;
 
   const [minute, hour, day, month, weekday] = schedule.split(/\s+/);
 
