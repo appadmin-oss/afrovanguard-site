@@ -72,8 +72,13 @@ separate staff consoles).
    or a section hidden from editors whose actions are open to them. Fixed the
    drift it found: celebrations, communities and sign-in art were open to
    editors on the server while their screens were hidden (2026-11-18).
-3. A "Today" queue as the Overview: approvals, payments and gifts to verify,
-   intake, moderation, failed mail — each linking to the screen that resolves it.
+3. ✅ "Waiting on you" at the top of the Overview (`lib/StudioToday.php`):
+   bank transfers to verify, offline payments to check, requests waiting for a
+   second admin, member requests, members to verify, site changes to publish,
+   posts and comments to moderate, AI suggestions to decide — each opening the
+   screen (and member-desk pane) that resolves it, shown only to roles that
+   may open that screen. A queue that cannot be counted is said, never shown
+   as zero (2026-11-18).
 4. A money desk (ledger view, donor record, reconciliation) and a `money`
    capability granted per person.
 5. The screen in the address, and one search across the consoles.

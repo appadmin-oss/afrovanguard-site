@@ -1443,8 +1443,35 @@
     });
   });
 
+  /* ── Waiting on you: every queue that needs a person (lib/StudioToday.php) ──
+     Loading, nothing waiting, a queue that could not be counted, and an error
+     with a retry are four different screens — never one silent empty list. */
+  function loadToday() {
+    var list = $('#ovTodayList'), count = $('#ovTodayCount'); if (!list) return;
+    list.innerHTML = '<li class="muted">Loading…</li>';
+    api('today').then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { list.innerHTML = '<li class="muted">Could not see what is waiting. <button class="btn btn-outline btn-sm" id="ovTodayRetry">Retry</button></li>'; count.textContent = ''; return; }
+      var items = d.items || [], errs = d.errors || [];
+      var rows = items.map(function (it) {
+        return '<li><button type="button" class="ov-today-item' + (it.tone === 'money' ? ' is-money' : it.tone === 'warn' ? ' is-warn' : '') + '" data-today-go="' + escapeHtml(it.go) + '" data-today-tab="' + escapeHtml(it.tab || '') + '">'
+          + '<span class="ov-today-n">' + (it.tone === 'warn' ? '!' : Number(it.n).toLocaleString('en-NG')) + '</span>'
+          + '<span class="ov-today-txt"><strong>' + escapeHtml(it.label) + '</strong><span>' + escapeHtml(it.sub) + '</span></span>'
+          + '<span class="ov-today-go" aria-hidden="true">Open →</span></button></li>';
+      });
+      errs.forEach(function (e) {
+        rows.push('<li><button type="button" class="ov-today-item is-warn" data-today-go="' + escapeHtml(e.go) + '" data-today-tab="' + escapeHtml(e.tab || '') + '"><span class="ov-today-n">?</span>'
+          + '<span class="ov-today-txt"><strong>' + escapeHtml(e.label) + '</strong><span>Could not be counted just now — open it to check.</span></span><span class="ov-today-go" aria-hidden="true">Open →</span></button></li>');
+      });
+      list.innerHTML = rows.length ? rows.join('') : '<li class="ov-today-clear">Nothing is waiting on you. Everything that needs a person has been dealt with.</li>';
+      var n = items.length;
+      count.textContent = n ? n + ' thing' + (n === 1 ? '' : 's') + ' waiting on you' : 'Nothing is waiting on you';
+    }).catch(function () { list.innerHTML = '<li class="muted">Could not see what is waiting. <button class="btn btn-outline btn-sm" id="ovTodayRetry">Retry</button></li>'; });
+  }
+
   function loadOverview() {
     loadBrief();
+    loadToday();
     var grid = $('#ovGrid'), health = $('#ovHealth'), alert = $('#ovMailAlert');
     if (grid) grid.innerHTML = '<p class="muted" style="grid-column:1/-1">Loading…</p>';
     return api('dashboard').then(function (r) {
@@ -4517,6 +4544,15 @@
       }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
     });
     $('#offStatus').addEventListener('change', loadOffline);
+    $('#ovTodayList').addEventListener('click', function (e) {
+      if (e.target.closest('#ovTodayRetry')) { loadToday(); return; }
+      var b = e.target.closest('[data-today-go]'); if (!b) return;
+      var go = b.getAttribute('data-today-go'), tab = b.getAttribute('data-today-tab');
+      if (!roleAllows(go)) return;
+      if (go === 'gifts') $('#giftsStatus').value = 'pending';
+      activateTab(go);
+      if (go === 'members' && tab) memTab(tab);
+    });
     $('#giftsRefresh').addEventListener('click', loadGifts);
     $('#giftsStatus').addEventListener('change', loadGifts);
     $('#giftForm').addEventListener('submit', function (e) {

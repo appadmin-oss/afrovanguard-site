@@ -210,7 +210,8 @@ try {
        Super Admin (and logged), and tests/studioregistry.test.php fails the
        build when an action is in none of them. */
     $editorAllowed = [
-        'ping', 'dashboard', 'guide_ask',
+        // `today` lists only what the viewer's own role may act on (lib/StudioToday.php).
+        'ping', 'dashboard', 'today', 'guide_ask',
         // The Diary: entries, categories, series, comments to publish or remove.
         'list', 'get', 'save', 'delete', 'upload', 'articles', 'categories', 'diary_series', 'diary_import_wp', 'dc_queue', 'dc_publish', 'dc_remove',
         // Site content: editors draft and submit; publishing is an admin's.
@@ -405,6 +406,9 @@ try {
         // ---- System / configuration health ----
         case 'sys_health':
             json_out(['ok' => true, 'groups' => Config::diagnostics()]);
+        /* What is waiting on somebody — only what this viewer may act on. */
+        case 'today':
+            json_out(['ok' => true] + StudioToday::for($role));
         case 'dashboard': {
             // At-a-glance overview for the Studio landing view. Every count is
             // best-effort (try/catch → 0) so a missing table never 500s the page.

@@ -1313,3 +1313,16 @@ their screens were hidden from them; they are management now.
 `tests/studioregistry.test.php` holds all of it (mutation-tested: an unlisted
 action and an editor-open hidden section both fail it). Add a section to the
 registry and nowhere else in the nav; add an action to exactly one list.
+
+## The Overview opens on "Waiting on you" (2026-11-18)
+
+`lib/StudioToday.php` + `?action=today`: every queue in the Studio that needs a
+person, counted, each opening the screen (and member-desk pane) that resolves
+it. Shown only where the viewer's role may open that screen (read from
+`StudioSections`), so an editor never sees money or the member desk. A queue
+whose count throws is listed as "could not be counted", never as nothing
+waiting — which is why `BankGifts::pendingCount()` no longer swallows errors.
+Four states on screen: loading, nothing waiting, could-not-count, could-not-load
+with Retry. Tests: `tests/studiotoday.test.php`; driven in Chromium across an
+admin, a second admin and an editor. To add a queue, add one row to
+`StudioToday::sources()`.

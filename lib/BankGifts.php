@@ -190,10 +190,11 @@ final class BankGifts
         return array_map([self::class, 'shape'], $st->fetchAll(PDO::FETCH_ASSOC));
     }
 
+    /** Throws when it cannot count: "0 waiting" must never stand in for "could not tell". */
     public static function pendingCount(): int
     {
-        try { self::ensure(); return (int) Database::pdo()->query("SELECT COUNT(*) FROM bank_gifts WHERE status = 'pending'")->fetchColumn(); }
-        catch (Throwable $e) { return 0; }
+        self::ensure();
+        return (int) Database::pdo()->query("SELECT COUNT(*) FROM bank_gifts WHERE status = 'pending'")->fetchColumn();
     }
 
     /** The whole payload checked before anything is written. */

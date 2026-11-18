@@ -919,3 +919,20 @@ body.studio { --gold-deep: var(--av-gold-text); }
 .ac-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 14px}
 .ac-tools input{flex:1 1 260px;min-height:40px;padding:0 12px;border:1px solid var(--divider);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
 .ac-tools select{min-height:40px;padding:0 10px;border:1px solid var(--divider);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+
+/* ── Overview: waiting on you (lib/StudioToday.php) ── */
+.ov-today { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); padding: 18px 20px; margin: 0 0 22px; }
+.ov-today h2 { font-size: 17px; margin: 0 0 12px; }
+.ov-today-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ov-today-item { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; background: var(--bg); color: var(--ink);
+  border: 1px solid var(--divider); border-radius: var(--radius-sm); padding: 10px 14px; font: inherit; cursor: pointer; }
+.ov-today-item:hover, .ov-today-item:focus-visible { border-color: var(--gold-deep); }
+/* Body face, lining figures: the heading face's old-style 1 reads as an I. */
+.ov-today-n { min-width: 2.4em; font-family: var(--font-body); font-weight: 700; font-variant-numeric: lining-nums tabular-nums; font-size: 22px; line-height: 1; color: var(--ink); text-align: center; }
+.ov-today-item.is-money .ov-today-n { color: var(--gold-deep); }
+.ov-today-item.is-warn { border-color: var(--st-warn); }
+.ov-today-txt { display: grid; gap: 2px; }
+.ov-today-txt strong { font-size: 14px; }
+.ov-today-txt span { font-size: 12.5px; color: var(--muted); }
+.ov-today-go { margin-left: auto; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.ov-today-clear { color: var(--muted); font-size: 13.5px; }

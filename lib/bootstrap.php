@@ -442,6 +442,7 @@ require_once __DIR__ . '/AvPrompts.php';
 require_once __DIR__ . '/Commitments.php';
 require_once __DIR__ . '/AvWeb.php';
 require_once __DIR__ . '/AvTools.php';
+require_once __DIR__ . '/StudioToday.php';     /* the Overview's "waiting on you": every queue that needs a person */
 require_once __DIR__ . '/AvAgent.php';
 require_once __DIR__ . '/AvLab.php';
 // The engine that acts on the rules: meeting cadence, the escalation ladder and

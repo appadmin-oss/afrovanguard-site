@@ -109,11 +109,18 @@
   <!-- OVERVIEW (landing dashboard) -->
   <main class="studio-main" id="overviewView" hidden>
     <div class="studio-head">
-      <div><h1>Overview</h1><p class="muted">A snapshot of the site — content, people and delivery health at a glance.</p></div>
+      <div><h1>Overview</h1><p class="muted">What is waiting on you first, then the site at a glance — content, people and delivery health.</p></div>
       <button class="btn btn-outline btn-sm" id="ovRefreshBtn">Refresh</button>
     </div>
 
     <div class="ov-alert" id="ovMailAlert" hidden></div>
+
+    <!-- Waiting on you (lib/StudioToday.php): every queue that needs a person, first. -->
+    <section class="ov-today" id="ovToday" aria-labelledby="ovTodayH">
+      <h2 id="ovTodayH">Waiting on you</h2>
+      <p class="sr-only" id="ovTodayCount" role="status" aria-live="polite"></p>
+      <ul class="ov-today-list" id="ovTodayList"><li class="muted">Loading…</li></ul>
+    </section>
 
     <!-- Report §21: what needs a decision, above what merely happened. -->
     <section class="brief" id="ovBrief" aria-labelledby="ovBriefH" hidden>
