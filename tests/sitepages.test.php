@@ -9,6 +9,7 @@
  *   • A publish changes only the elements edited, and can be put back.
  */
 declare(strict_types=1);
+require_once AV_ROOT . '/lib/StudioSections.php';   // the Studio's one list of sections
 $root = dirname(__DIR__);
 
 foreach (array_keys(SitePages::PAGES) as $f) Cms::forget('page:' . $f);
@@ -120,7 +121,7 @@ $ui = (string) file_get_contents("$root/admin/index.php");
 $js = (string) file_get_contents("$root/admin/site.js");
 ck('pages: the Studio edits pages through the content store', str_contains($api, "case 'cms_get'") && str_contains($api, 'SitePages::fields($pf)') && !str_contains($api, "case 'page_publish'"));
 ck('pages: every content write must be a POST (CSRF always checked)', (bool) preg_match('~\\$method !== \'POST\' && in_array\\(\\$action, \\[[^\\]]*\'cms_save\'[^\\]]*\'cms_publish\'~s', $api));
-ck('pages: pages are edited in the Site workspace', str_contains($ui, 'data-tab="site"') && str_contains($ui, 'id="siteView"') && str_contains($ui, 'id="edPage"'));
+ck('pages: pages are edited in the Site workspace', in_array('site', array_column(StudioSections::all(), 'id'), true) && str_contains($ui, 'id="siteView"') && str_contains($ui, 'id="edPage"'));
 ck('pages: no inline style on the Site workspace', !preg_match('~id="siteView".*?</main>~s', $ui, $m) || !str_contains($m[0], 'style='));
 ck('pages: the editor sets no inline style', !preg_match('/style\s*=|\.style\./', $js));
 ck('pages: the preview takes a page', str_contains((string) file_get_contents("$root/admin/preview.php"), 'SitePages::known($page)'));

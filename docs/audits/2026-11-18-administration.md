@@ -64,8 +64,14 @@ separate staff consoles).
 ## Plan, in order
 
 1. ✅ Bank transfers: named, two-person (2026-11-18).
-2. One registry of Studio sections, derived everywhere, with a parity test; the
-   server gate becomes an allow-list by section.
+2. ✅ One registry of Studio sections (`lib/StudioSections.php`): the sidebar
+   is drawn from it and app.js reads each screen's role from it. The server's
+   gate names what editors may do (`$editorAllowed`); an action in none of the
+   three lists is refused below Super Admin. `tests/studioregistry.test.php`
+   fails the build on an unassigned action, a section with no screen or loader,
+   or a section hidden from editors whose actions are open to them. Fixed the
+   drift it found: celebrations, communities and sign-in art were open to
+   editors on the server while their screens were hidden (2026-11-18).
 3. A "Today" queue as the Overview: approvals, payments and gifts to verify,
    intake, moderation, failed mail — each linking to the screen that resolves it.
 4. A money desk (ledger view, donor record, reconciliation) and a `money`

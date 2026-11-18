@@ -9,27 +9,13 @@
   var csrf = '';            // CSRF token kept in memory only
   var currentRole = 'superadmin';   // editor | admin | superadmin (from session)
   var ROLE_RANK = { editor: 1, admin: 2, superadmin: 3 };
-  var TAB_MIN = { overview: 'editor', entries: 'editor', moderation: 'editor', academy: 'editor', guide: 'editor',
-    // Content: editors draft the site and manage media; publishing checks admin at the API.
-    site: 'editor', homepage: 'editor', pages: 'editor', media: 'editor',
-    inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
-    // Session notes are the office's; the dates and themes are public anyway.
-    sessions: 'admin',
-    // Events go public; the API keeps them with management, like the homepage's publishing.
-    events: 'admin',
-    // Seat claims carry names, emails and phone numbers — admin, like the rest of the PII.
-    summit: 'admin',
-    mentorship: 'admin',
-    // Donors' names and money: management, like offline payments.
-    gifts: 'admin',
-    webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin',
-    // Ops reports which providers this deployment pays for and what they cost.
-    // Infrastructure state — admin, matching the API's own gate.
-    aiops: 'admin',
-    // The rules decide promotions and escalations movement-wide, and the prompts
-    // steer every AI reply — Super Admin only, matching the API's own gate.
-    rules: 'superadmin' };
-  function roleAllows(tab) { var need = TAB_MIN[tab] || 'admin'; return (ROLE_RANK[currentRole] || 0) >= (ROLE_RANK[need] || 99); }
+  /* Which role each screen needs comes from the ONE list of sections
+     (lib/StudioSections.php), which the page carries as JSON. It was a second
+     table here, and a third list drifted against it on the server. Missing or
+     unreadable, every screen needs a Super Admin — closed, not open. */
+  var SECTIONS = (function () { try { return JSON.parse(document.getElementById('studioSections').textContent) || {}; } catch (e) { return {}; } })();
+  var TAB_MIN = SECTIONS.min || {};
+  function roleAllows(tab) { var need = TAB_MIN[tab] || 'superadmin'; return (ROLE_RANK[currentRole] || 0) >= (ROLE_RANK[need] || 99); }
   function applyRoleVisibility() {
     document.querySelectorAll('.tab[data-tab]').forEach(function (t) {
       var tab = t.getAttribute('data-tab'); t.hidden = !roleAllows(tab);
@@ -155,7 +141,10 @@
     else if (which === 'aiops') { show('aiops'); loadAiOps(); }
     else if (which === 'site') { show('site'); if (window.AvSite) window.AvSite.open('site', siteRef); }
     else if (which === 'media') { show('media'); if (window.AvSite) window.AvSite.open('media'); }
-    else { show('inbox'); loadInbox(); }
+    else if (which === 'inbox') { show('inbox'); loadInbox(); }
+    /* A name that is not a section (a stale bookmark, a retired screen) lands on
+       the Overview — it used to fall through to the Inbox. */
+    else { show('overview'); loadOverview(); }
     var on = document.querySelector('.tab.active');
     /* Keep the active section in view by scrolling its container, not with
        scrollIntoView(): that moves Chrome's Tab starting point to the button, so on

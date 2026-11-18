@@ -197,11 +197,45 @@ try {
         // Running the bench and talking to the assistant are management-level:
         // both can FILE a proposal, which is harmless until someone approves it.
         'ai_status', 'ai_run', 'ai_chat', 'ai_proposals',
+        /* These three were open to editors only because nobody listed them: the
+           Studio hides Celebrations and Communities from editors, and the
+           sign-in art sits on the Super Admin's Sign-in screen, but the server
+           let an editor save and delete all three. Management, matching the screens. */
+        'cel_list', 'cel_save', 'cel_delete', 'comm_list', 'comm_save', 'comm_delete', 'art_list', 'art_save', 'art_delete',
     ];
-    if (in_array($action, $superadminOnly, true) && $role !== 'superadmin') {
+    /* What an editor may do, said out loud. This used to be "whatever is not in
+       the two lists above", so every new action was open to editors until
+       somebody remembered to list it — which is how the three above stayed open.
+       Now an action in none of the three lists is refused to everybody but a
+       Super Admin (and logged), and tests/studioregistry.test.php fails the
+       build when an action is in none of them. */
+    $editorAllowed = [
+        'ping', 'dashboard', 'guide_ask',
+        // The Diary: entries, categories, series, comments to publish or remove.
+        'list', 'get', 'save', 'delete', 'upload', 'articles', 'categories', 'diary_series', 'diary_import_wp', 'dc_queue', 'dc_publish', 'dc_remove',
+        // Site content: editors draft and submit; publishing is an admin's.
+        'cms_overview', 'cms_get', 'cms_save', 'cms_discard', 'cms_submit', 'cms_restore', 'cms_compare',
+        // Media.
+        'media_list', 'media_start', 'media_chunk', 'media_finish', 'media_describe', 'media_edit', 'media_revert',
+        // Moderation of what members wrote.
+        'mod_queue', 'mod_approve', 'mod_reject', 'mod_save', 'mod_delete', 'mod_reorder',
+        // The Academy: courses, curriculum, lessons, programmes — content, not people.
+        'ac_list', 'ac_get', 'ac_save', 'ac_delete', 'ac_duplicate', 'ac_status', 'ac_categories', 'ac_curriculum', 'ac_overview', 'ac_search', 'ac_readiness', 'ac_a11y', 'ac_a11y_csv', 'ac_pricing',
+        'outline_save', 'lesson_get', 'lesson_save', 'lesson_delete', 'lesson_duplicate', 'lesson_reorder',
+        'prog_list', 'prog_get', 'prog_save', 'prog_delete',
+        'ngv_get',
+    ];
+    $needs = in_array($action, $superadminOnly, true) ? 'superadmin'
+           : (in_array($action, $editorAllowed, true) ? 'editor'
+           : (in_array($action, $managementOnly, true) ? 'admin' : ''));
+    if ($needs === '') {
+        error_log('[studio] unlisted action "' . $action . '" — refused below Super Admin until it is listed');
+        $needs = 'superadmin';
+    }
+    if ($needs === 'superadmin' && $role !== 'superadmin') {
         json_out(['ok' => false, 'error' => 'That action needs a Super Admin.'], 403);
     }
-    if ($role === 'editor' && in_array($action, $managementOnly, true)) {
+    if ($role === 'editor' && $needs !== 'editor') {
         json_out(['ok' => false, 'error' => 'Editors can manage content only.'], 403);
     }
     /* An editor moderates what people wrote, not who they are: their addresses stay out of the queues. */

@@ -1295,3 +1295,21 @@ and real second factors.
 
 Found alongside, not yet fixed: the Studio API's role gate is a deny-list
 (an action not in `$managementOnly` is open to editors). Next in the plan.
+
+## One list of Studio sections; the server gate is closed by default (2026-11-18)
+
+`lib/StudioSections.php` is the only list of the Studio's sections: the
+sidebar is drawn from it (`StudioSections::navHtml()`, byte-identical to the
+old hand-written markup), and admin/app.js reads each screen's least role from
+the JSON the page carries — its own `TAB_MIN` table is gone. A section missing
+from it needs a Super Admin. An unknown screen name now lands on the Overview
+(it fell through to the Inbox).
+
+The API's gate was a deny-list: an action not in `$managementOnly` was an
+editor's. `$editorAllowed` now names what editors may do; an action in none
+of the three lists is refused below Super Admin and logged. That found real
+drift — `cel_*`, `comm_*` and `art_*` were open to editors on the server while
+their screens were hidden from them; they are management now.
+`tests/studioregistry.test.php` holds all of it (mutation-tested: an unlisted
+action and an editor-open hidden section both fail it). Add a section to the
+registry and nowhere else in the nav; add an action to exactly one list.

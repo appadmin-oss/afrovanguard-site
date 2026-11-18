@@ -11,6 +11,7 @@
  * Run via tests/run.php (provides ck()).
  */
 declare(strict_types=1);
+require_once AV_ROOT . '/lib/StudioSections.php';   // the Studio's one list of sections
 
 $db = Database::pdo();
 Summit::ensure();
@@ -154,7 +155,7 @@ ck('summit: the resend endpoints require a CSRF token', (static function (string
 })($api));
 
 $studio = (string) @file_get_contents(AV_ROOT . '/admin/index.php');
-ck('summit: the Studio has a Summit tab', str_contains($studio, 'data-tab="summit"'));
+ck('summit: the Studio has a Summit tab', in_array('summit', array_column(StudioSections::all(), 'id'), true));
 ck('summit: the Summit tab has a view to show', str_contains($studio, 'id="summitView"'));
 $app = (string) @file_get_contents(AV_ROOT . '/admin/app.js');
 ck('summit: the Summit tab is wired to a loader', str_contains($app, "which === 'summit'")
