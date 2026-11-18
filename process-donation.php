@@ -9,7 +9,7 @@ require_once __DIR__ . '/lib/security.php';
  * GET  action=verify_payment&ref=X   — poll Paystack VA status
  * POST action=record_donation        — server-verify Paystack + store + receipt
  * POST action=generate_virtual_account — Paystack DVA for bank transfer
- * POST action=record_bank_transfer   — admin: confirm manual Zenith transfer
+ * POST action=record_bank_transfer   — retired (410): recorded in the Studio, two people (lib/BankGifts.php)
  * POST action=submit_contribute      — non-monetary contribution
  * POST action=bank_transfer_copy     — email static bank details to donor
  * POST action=webhook                — Paystack charge.success webhook
@@ -254,21 +254,7 @@ function mail_send(string $to, string $sub, string $html): bool {
 
 /* modules/EMAILS.md: donation_receipt. Display-ready strings only — the
    template escapes, so nothing here is pre-escaped. */
-function receiptHtml(array $d): array {
-    $sym = (string) ($d['currency'] ?? 'NGN');
-    return [
-        'donation_receipt',
-        [
-            'first_name'  => trim((string) ($d['firstName'] ?? '')) ?: 'friend',
-            'amount'      => ($sym === 'NGN' ? '₦' : $sym . ' ') . number_format((float) ($d['amount'] ?? 0), 2),
-            'receipt_no'  => (string) ($d['reference'] ?? '—'),
-            'paid_on'     => date('j M Y'),
-            'method'      => (string) ($d['method'] ?? 'Card · Paystack'),
-            'designation' => (string) ($d['campaign'] ?? 'Where most needed'),
-            'receipt_url' => 'https://afrovanguard.org.ng/give/receipt/' . rawurlencode((string) ($d['reference'] ?? '')),
-        ],
-    ];
-}
+function receiptHtml(array $d): array { return Donations::receiptSpec($d); }
 
 function bankHtml(array $d): string {
     return Mailer::shell(
@@ -739,45 +725,15 @@ if ($action==='generate_virtual_account') {
     exit;
 }
 
-/* ── record_bank_transfer (admin confirms Zenith manual transfer) */
+/* ── record_bank_transfer — retired.
+   It took the master ADMIN_TOKEN in a form and wrote the gift straight in, with
+   nobody named and nobody else looking. A bank transfer is now recorded by a
+   named admin in the Studio (Money → Bank transfers) and counted only when a
+   second admin verifies it (lib/BankGifts.php). Refused here, loudly, so an old
+   copy of the dashboard cannot keep using the token. */
 if ($action==='record_bank_transfer') {
-    $token=trim($input['admin_token']??'');
-    if (!av_admin_token_matches($token)){
-        http_response_code(403);echo json_encode(['success'=>false,'message'=>'Unauthorized']);exit;
-    }
-    foreach(['name','email','amount','campaign'] as $f){
-        if (empty($input[$f])){echo json_encode(['success'=>false,'message'=>"Missing: $f"]);exit;}
-    }
-    if (!filter_var($input['email'],FILTER_VALIDATE_EMAIL)){echo json_encode(['success'=>false,'message'=>'Invalid email']);exit;}
-    $amount=(float)$input['amount'];
-    if ($amount < 100)     { echo json_encode(['success'=>false,'message'=>'Minimum amount is ₦100']); exit; }
-    if ($amount > 10000000){ echo json_encode(['success'=>false,'message'=>'Maximum ₦10,000,000 per transaction. For larger gifts email donations@afrovanguard.org.ng']); exit; }
-    $email=trim($input['email']);
-    $name=mb_substr(trim($input['name']),0,100);
-    $camp=preg_replace('/[^a-z0-9_-]/','',strtolower($input['campaign']));
-    $ref='ZB_'.date('Ymd_His').'_'.strtoupper(substr(bin2hex(random_bytes(3)),0,6));
-    $parts=explode(' ',$name,2);
-    $initials=strtoupper(($parts[0][0]??'?').($parts[1][0]??''));
-    $wall=!empty($input['wall']);
-    $anon=!$wall;
-    $bt_entry = [
-        'id'=>$ref,'type'=>'bank_static','reference'=>$ref,
-        'name'=>$anon?'Anonymous':$name,'initials'=>$anon?'AN':$initials,
-        'email'=>$email,'anonymous'=>$anon,'listed'=>$wall,'amount'=>$amount,
-        'currency'=>'NGN','campaign'=>$camp,
-        'frequency'=>in_array($input['frequency']??'',['One-time','Monthly','Annual'],true)?$input['frequency']:'One-time',
-        'status'=>'confirmed','created_at'=>date('c'),'confirmed_by'=>'admin',
-    ];
-    storeDonationIfNew($ref,$bt_entry,$amount,$camp,'NGN');
-    $p=explode(' ',$name,2);
-    mail_send_tpl($email,receiptHtml([
-        'firstName'=>$p[0],'lastName'=>$p[1]??'','email'=>$email,
-        'amount'=>$amount,'currency'=>'NGN',
-        'campaign'=>ucwords(str_replace(['-','_'],' ',$camp)),
-        'frequency'=>$input['frequency']??'One-time','reference'=>$ref,
-    ]));
-    $fresh=readData();
-    echo json_encode(['success'=>true,'reference'=>$ref,'campaigns'=>$fresh['campaigns'],'totals'=>$fresh['totals']]);
+    http_response_code(410);
+    echo json_encode(['success'=>false,'code'=>'moved','message'=>'Bank transfers are recorded in the Studio now (Money → Bank transfers), by a named admin, and counted when a second admin verifies them.','url'=>'/admin/#gifts']);
     exit;
 }
 
@@ -833,15 +789,11 @@ if ($action==='bank_transfer_copy') {
     exit;
 }
 
-/* ── FIX C-02: verify_admin_token (dashboard auth probe) ─────────── */
+/* ── verify_admin_token — retired with record_bank_transfer; the token is
+   never typed into a page again. */
 if ($action === 'verify_admin_token') {
-    $token = trim($input['admin_token'] ?? '');
-    if (!av_admin_token_matches($token)) {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-    } else {
-        echo json_encode(['success' => true]);
-    }
+    http_response_code(410);
+    echo json_encode(['success' => false, 'code' => 'moved', 'message' => 'Staff work moved to the Studio.', 'url' => '/admin/#gifts']);
     exit;
 }
 

@@ -159,6 +159,8 @@ try {
         'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
         'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
+        // Bank-transfer gifts: donors' names and money, recorded by one admin, verified by another.
+        'gifts_list', 'gifts_submit', 'gifts_decide',
         'card_formats', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_get', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake', 'ngv_intake_email', 'ngv_intake_consent',
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
@@ -1745,6 +1747,24 @@ try {
                 default    => ['ok' => false, 'error' => 'Unknown decision.'],
             };
             json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['superadmin_only', 'admin_only'], true) ? 403 : 422));
+        /* ── Bank-transfer gifts (lib/BankGifts.php): recorded by one admin, counted when another verifies ── */
+        case 'gifts_list':
+            json_out(['ok' => true, 'gifts' => BankGifts::list((string) ($_GET['status'] ?? 'pending')), 'pending' => BankGifts::pendingCount(),
+                      'me' => strtolower(av_admin_actor()), 'campaigns' => array_keys((array) (Donations::read()['campaigns'] ?? []))]);
+        case 'gifts_submit':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = BankGifts::submit($body, av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : (($r['code'] ?? '') === 'no_actor' ? 403 : 422));
+        case 'gifts_decide':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $gid = (int) ($body['id'] ?? 0);
+            $r = match ((string) ($body['do'] ?? '')) {
+                'verify'   => BankGifts::verify($gid, av_admin_actor()),
+                'reject'   => BankGifts::reject($gid, (string) ($body['note'] ?? ''), av_admin_actor()),
+                'withdraw' => BankGifts::withdraw($gid, av_admin_actor()),
+                default    => ['ok' => false, 'error' => 'Unknown decision.'],
+            };
+            json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['no_actor', 'own_submission', 'not_yours'], true) ? 403 : 422));
         /* ── Many members, one declared action ── */
         /* ── Volunteer projects (lib/VolunteerProjects.php) ── */
         case 'vol_projects':

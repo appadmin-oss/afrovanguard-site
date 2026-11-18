@@ -332,6 +332,7 @@ require_once __DIR__ . '/MemberRoles.php';      /* the work roles members hold, 
 require_once __DIR__ . '/Membership.php';
 require_once __DIR__ . '/AcademyPricing.php';  /* the Academy membership price, set in the Studio */       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/MemberVerification.php'; /* being a member is an act with a record, not an email domain */
+require_once __DIR__ . '/BankGifts.php';        /* bank-transfer gifts: one admin records, another verifies */
 require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited once the receipt is verified */
 require_once __DIR__ . '/MemberStatement.php';  /* the wallet: every ledger's money on one statement, read only */
 require_once __DIR__ . '/NgvIntake.php';        /* NGG promotions to NGV become NGV accounts here */

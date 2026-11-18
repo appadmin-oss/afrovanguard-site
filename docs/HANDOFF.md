@@ -1275,3 +1275,23 @@ would have vanished on every phone.
 attempt, the average's denominator, the promotion rule, removal-keeps-the-row,
 and the history relabelling. Driven in a browser throughout, including the
 coach end to end against a stub speaking the real provider wire format.
+
+---
+
+## Bank transfers are two-person, in the Studio (2026-11-18)
+
+From the administration audit (`docs/audits/2026-11-18-administration.md`).
+A bank-transfer donation was recorded from a form on the donor dashboard that
+took the master `ADMIN_TOKEN`: nobody named, no second factor, nobody else
+looking. It is now `lib/BankGifts.php` and Studio → Money → Bank transfers:
+one admin records what the statement shows (held: nothing counted, no
+receipt), a different admin verifies it (then stored through
+`Donations::storeIfNew()` and receipted through `Donations::sendReceipt()`, the
+one receipt helper). The recorder cannot verify; the token cannot do either
+(`no_actor`). `record_bank_transfer` and `verify_admin_token` answer 410.
+Tests: `tests/bankgifts.test.php`; `security.test.php` now asserts nothing in
+process-donation.php takes the token. Driven in Chromium with two real admins
+and real second factors.
+
+Found alongside, not yet fixed: the Studio API's role gate is a deny-list
+(an action not in `$managementOnly` is open to editors). Next in the plan.

@@ -291,4 +291,35 @@ final class Donations
             return (string) ($st->fetchColumn() ?: '');
         } catch (Throwable $e) { error_log('[donations] plan→appeal: ' . $e->getMessage()); return ''; }
     }
+
+    /**
+     * The donation receipt: one template and one set of fields for every road a
+     * gift arrives by (card, the webhook, a verified bank transfer), sent from the
+     * donations@ mailbox. Display-ready strings; the template escapes.
+     */
+    public static function receiptSpec(array $d): array
+    {
+        $sym = (string) ($d['currency'] ?? 'NGN');
+        return ['donation_receipt', [
+            'first_name'  => trim((string) ($d['firstName'] ?? '')) ?: 'friend',
+            'amount'      => ($sym === 'NGN' ? '₦' : $sym . ' ') . number_format((float) ($d['amount'] ?? 0), 2),
+            'receipt_no'  => (string) ($d['reference'] ?? '—'),
+            'paid_on'     => date('j M Y'),
+            'method'      => (string) ($d['method'] ?? 'Card · Paystack'),
+            'designation' => (string) ($d['campaign'] ?? 'Where most needed'),
+            'receipt_url' => 'https://afrovanguard.org.ng/give/receipt/' . rawurlencode((string) ($d['reference'] ?? '')),
+        ]];
+    }
+
+    public static function sendReceipt(string $to, array $d): bool
+    {
+        if (defined('ENABLE_EMAIL_NOTIFICATIONS') && !ENABLE_EMAIL_NOTIFICATIONS) return true;
+        if (!class_exists('Mailer') || !method_exists('Mailer', 'sendTemplate')) return false;
+        $from = defined('DONATIONS_FROM_EMAIL') && DONATIONS_FROM_EMAIL !== '' ? DONATIONS_FROM_EMAIL : 'donations@afrovanguard.org.ng';
+        $fromName = defined('DONATIONS_FROM_NAME') && DONATIONS_FROM_NAME !== '' ? DONATIONS_FROM_NAME : (defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard');
+        [$tpl, $vars] = self::receiptSpec($d);
+        $ok = Mailer::sendTemplate($to, $tpl, $vars, ['from' => $from, 'fromName' => $fromName, 'replyTo' => $from]);
+        if (!$ok) error_log('[donations] receipt to ' . $to . ': ' . (method_exists('Mailer', 'lastError') ? Mailer::lastError() : 'send failed'));
+        return $ok;
+    }
 }

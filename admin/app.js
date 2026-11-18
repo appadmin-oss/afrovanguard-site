@@ -19,7 +19,10 @@
     events: 'admin',
     // Seat claims carry names, emails and phone numbers — admin, like the rest of the PII.
     summit: 'admin',
-    mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin',
+    mentorship: 'admin',
+    // Donors' names and money: management, like offline payments.
+    gifts: 'admin',
+    webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin',
     // Ops reports which providers this deployment pays for and what they cost.
     // Infrastructure state — admin, matching the API's own gate.
     aiops: 'admin',
@@ -47,7 +50,7 @@
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
     celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), sessions: $('#sessionsView'), psEdit: $('#psEditView'), events: $('#eventsView'), evEdit: $('#evEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
-    site: $('#siteView'), media: $('#mediaView')
+    site: $('#siteView'), media: $('#mediaView'), gifts: $('#giftsView')
   };
   function show(v) {
     /* The sign-in field is autofocused in the markup; when a live session hides that
@@ -141,6 +144,7 @@
     else if (which === 'moderation') { show('moderation'); loadModeration(); }
     else if (which === 'signin') { show('signin'); loadAuthPolicy(); loadArt(); }
     else if (which === 'members') { show('members'); loadMembers(); }
+    else if (which === 'gifts') { show('gifts'); loadGifts(); }
     else if (which === 'guide') { show('guide'); }
     else if (which === 'mentorship') { show('mentorship'); loadMentorship(); }
     else if (which === 'activity') { show('activity'); loadActivity(); }
@@ -4088,6 +4092,43 @@
   var OFF_LABEL = { verified: 'Confirmed and credited', checked: 'Receipt checked — confirm the money arrived', held: 'Held — not credited', rejected: 'Rejected', pending: 'Being checked' };
   var OFF_CHECK = { evidence: 'Is a payment receipt', amount: 'Amount', payee: 'Paid to Afrovanguard', date: 'Date', reference: 'Reference', reused: 'Not used before', tampering: 'No sign of editing', confidence: 'Legible', reader: 'Reader', credit: 'Credit' };
   var offCanOverride = false, offMe = '';
+  /* ── Money → Bank transfers (lib/BankGifts.php) ──
+     One admin records what the statement shows; another verifies it. The
+     server refuses a verify by the recorder; the button says so first. */
+  var GIFT_LABEL = { pending: 'Waiting to be verified', verified: 'Verified', rejected: 'Rejected' };
+  var giftsMe = '', giftsCampaigns = false;
+  function giftsError(box) { box.innerHTML = '<p class="muted">Could not load the transfers. <button class="btn btn-outline btn-sm" id="giftsRetry">Retry</button></p>'; }
+  function loadGifts() {
+    var box = $('#giftsList'); box.innerHTML = '<p class="muted">Loading…</p>';
+    if (!$('#gf_paid').value) $('#gf_paid').value = new Date().toISOString().slice(0, 10);
+    api('gifts_list&status=' + encodeURIComponent($('#giftsStatus').value)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { giftsError(box); return; }
+      giftsMe = String(d.me || '').trim().toLowerCase();
+      $('#giftsBadge').hidden = !d.pending; $('#giftsBadge').textContent = d.pending || '';
+      if (!giftsCampaigns) {
+        var sel = $('#gf_campaign'), names = d.campaigns || [];
+        if (names.indexOf('general') < 0) names.unshift('general');
+        sel.innerHTML = names.map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c.replace(/[-_]/g, ' ')) + '</option>'; }).join('');
+        giftsCampaigns = true;
+      }
+      var rows = d.gifts || [];
+      $('#giftsCount').textContent = rows.length + ' transfer' + (rows.length === 1 ? '' : 's') + ' shown';
+      box.innerHTML = rows.length ? rows.map(function (g) {
+        var mine = giftsMe && giftsMe === String(g.submitted_by || '').toLowerCase();
+        var acts = g.status !== 'pending' ? '' : (mine
+          ? '<button class="btn btn-outline btn-sm" data-gift="withdraw" data-id="' + g.id + '">Withdraw</button><span class="tiny muted">Another admin verifies this.</span>'
+          : '<button class="btn btn-primary btn-sm" data-gift="verify" data-id="' + g.id + '">Verify against the statement…</button><button class="btn btn-outline btn-sm" data-gift="reject" data-id="' + g.id + '">Reject</button>');
+        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(g.name) + ' — ₦' + Number(g.amount).toLocaleString('en-NG', { minimumFractionDigits: 2 })
+          + ' <span class="badge ' + (g.status === 'verified' ? 'published' : 'draft') + '">' + escapeHtml(GIFT_LABEL[g.status] || g.status) + '</span></div>'
+          + '<div class="entry-meta">' + escapeHtml([g.campaign.replace(/[-_]/g, ' '), 'ref ' + g.bank_ref, 'arrived ' + g.paid_on, g.frequency, g.listed ? 'on the donor wall' : 'not on the wall'].join(' · ')) + '</div>'
+          + '<div class="tiny muted">' + escapeHtml('Recorded by ' + g.submitted_by + ' on ' + String(g.created_at).slice(0, 10) + (g.decided_by ? ' · ' + (GIFT_LABEL[g.status] || g.status).toLowerCase() + ' by ' + g.decided_by : '')) + '</div>'
+          + (g.note ? '<div class="tiny">' + escapeHtml('Note: ' + g.note) + '</div>' : '') + (g.decision_note ? '<div class="tiny">' + escapeHtml('Why: ' + g.decision_note) + '</div>' : '')
+          + '</div><div class="entry-ops">' + acts + '</div></div>';
+      }).join('') : '<p class="muted">' + ($('#giftsStatus').value === 'pending' ? 'Nothing is waiting to be verified.' : 'No transfers in this state yet.') + '</p>';
+    }).catch(function () { giftsError(box); });
+  }
+
   function loadOffline() {
     var box = $('#offList'); box.innerHTML = '<p class="muted">Loading…</p>';
     api('offline_list&status=' + $('#offStatus').value).then(function (r) {
@@ -4487,6 +4528,38 @@
       }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
     });
     $('#offStatus').addEventListener('change', loadOffline);
+    $('#giftsRefresh').addEventListener('click', loadGifts);
+    $('#giftsStatus').addEventListener('change', loadGifts);
+    $('#giftForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var err = $('#gf_errors'), btn = $('#gf_save');
+      var body = { name: $('#gf_name').value, email: $('#gf_email').value, amount: $('#gf_amount').value.replace(/[,\s₦]/g, ''), campaign: $('#gf_campaign').value,
+        bank_ref: $('#gf_ref').value, paid_on: $('#gf_paid').value, frequency: $('#gf_freq').value, listed: $('#gf_listed').checked, note: $('#gf_note').value };
+      err.hidden = true; btn.disabled = true;
+      post('gifts_submit', body).then(function (r) {
+        var x = r.data || {};
+        if (!x.ok) { err.textContent = x.error || 'Not recorded.'; err.hidden = false; return; }
+        ['#gf_name', '#gf_email', '#gf_amount', '#gf_ref', '#gf_note'].forEach(function (k) { $(k).value = ''; }); $('#gf_listed').checked = false;
+        toast('Recorded. Another admin verifies it against the statement.');
+        $('#giftsStatus').value = 'pending'; loadGifts();
+      }).catch(function () { err.textContent = 'The Studio could not be reached. Nothing was recorded; try again.'; err.hidden = false; })
+        .finally(function () { btn.disabled = false; });
+    });
+    $('#giftsList').addEventListener('click', function (e) {
+      if (e.target.closest('#giftsRetry')) { loadGifts(); return; }
+      var b = e.target.closest('[data-gift]'); if (!b) return;
+      var d = b.getAttribute('data-gift'), id = +b.getAttribute('data-id'), note = '';
+      if (d === 'verify' && !confirm('Have you seen this money on the bank statement? Verifying counts it and emails the donor a receipt.')) return;
+      if (d === 'reject') { note = prompt('Why is it rejected? (kept on the record)'); if (!note) return; }
+      if (d === 'withdraw' && !confirm('Withdraw your entry? Nothing was counted.')) return;
+      b.disabled = true;
+      post('gifts_decide', { id: id, do: d, note: note }).then(function (r) {
+        var x = r.data || {};
+        toast(x.ok ? (d === 'verify' ? (x.already ? 'Verified — it was already counted, so no second receipt.' : 'Verified and counted' + (x.receipted ? '; the receipt is on its way.' : '; the receipt could not be sent — check the mail settings.')) : d === 'reject' ? 'Rejected.' : 'Withdrawn.') : (x.error || 'Refused.'));
+        loadGifts();
+      }).catch(function () { toast('The Studio could not be reached. Nothing changed.'); })
+        .finally(function () { b.disabled = false; });
+    });
     $('#offList').addEventListener('click', function (e) {
       if (e.target.closest('#offRetry')) { loadOffline(); return; }
       var b = e.target.closest('[data-off]'); if (!b) return;

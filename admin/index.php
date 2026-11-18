@@ -63,6 +63,10 @@
         <button class="tab" data-tab="events"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M12 12.5l1.1 2.2 2.4.3-1.8 1.7.5 2.4-2.2-1.2-2.2 1.2.5-2.4-1.8-1.7 2.4-.3z"/></svg><span>Events</span></button>
       </div>
       <div class="nav-group">
+        <p class="nav-group-h">Money</p>
+        <button class="tab" data-tab="gifts"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10h18"/><path d="M5 10V20M9 10v10M15 10v10M19 10v10"/><path d="M2 20h20"/><path d="M12 3l9 5H3l9-5z"/></svg><span>Bank transfers</span><span class="tab-badge" id="giftsBadge" hidden></span></button>
+      </div>
+      <div class="nav-group">
         <p class="nav-group-h">Community</p>
         <button class="tab" data-tab="communities"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 12h5"/></svg><span>Communities</span></button>
       </div>
@@ -1298,6 +1302,39 @@
   </main>
 
   <!-- ACTIVITY (per-area admin audit trail + undo) -->
+  <!-- ═══ Money → Bank transfers (lib/BankGifts.php): one admin records, another verifies ═══ -->
+  <main class="studio-main" id="giftsView" hidden>
+    <div class="studio-head">
+      <div><h1>Bank transfers</h1><p class="muted">A gift paid into the bank account. Record what the statement shows; a different admin checks it against the statement, and only then is it counted and the donor receipted.</p></div>
+      <button class="btn btn-outline btn-sm" id="giftsRefresh">Refresh</button>
+    </div>
+    <div class="mem-dash">
+      <div class="side-card">
+        <h3>Record a transfer</h3>
+        <form id="giftForm" autocomplete="off" novalidate>
+          <label class="fld"><span>Donor's name (as on the statement)</span><input id="gf_name" maxlength="100" required></label>
+          <label class="fld"><span>Email for the receipt</span><input id="gf_email" type="email" maxlength="191" required></label>
+          <label class="fld"><span>Amount (₦)</span><input id="gf_amount" inputmode="decimal" maxlength="12" required></label>
+          <label class="fld"><span>Appeal</span><select id="gf_campaign"></select></label>
+          <label class="fld"><span>Bank reference</span><input id="gf_ref" maxlength="80" required></label>
+          <label class="fld"><span>Date it arrived</span><input id="gf_paid" type="date" required></label>
+          <label class="fld"><span>How often</span><select id="gf_freq"><option>One-time</option><option>Monthly</option><option>Annual</option></select></label>
+          <label class="mem-check"><input type="checkbox" id="gf_listed"> <span>The donor asked to be named on the donor wall</span></label>
+          <label class="fld"><span>Note for the checker (not sent to the donor)</span><input id="gf_note" maxlength="500"></label>
+          <div class="mem-errors" id="gf_errors" role="alert" hidden></div>
+          <div class="editor-actions"><button type="submit" class="btn btn-primary btn-sm" id="gf_save">Record — for another admin to verify</button></div>
+        </form>
+      </div>
+      <div class="side-card">
+        <h3>Transfers</h3>
+        <p class="muted tiny">You cannot verify a transfer you recorded. Check each against the bank statement before you press Verify: that is the moment it is counted and the donor is emailed a receipt.</p>
+        <div class="mem-filters"><select id="giftsStatus" aria-label="Which transfers"><option value="pending">Waiting to be verified</option><option value="verified">Verified</option><option value="rejected">Rejected</option><option value="all">All</option></select></div>
+        <p class="sr-only" id="giftsCount" role="status" aria-live="polite"></p>
+        <div class="entry-list" id="giftsList" aria-live="polite"></div>
+      </div>
+    </div>
+  </main>
+
   <main class="studio-main" id="activityView" hidden>
     <div class="studio-head">
       <div><h1>Activity</h1><p class="muted">Every admin action, by area — with one-click undo on reversible ones.</p></div>
