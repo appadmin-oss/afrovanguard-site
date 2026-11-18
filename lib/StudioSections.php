@@ -27,6 +27,22 @@ final class StudioSections
     /** Old screen names that open another one — kept so a bookmark still lands. */
     public const ALIASES = ['homepage' => 'site', 'pages' => 'site'];
 
+    /**
+     * The staff consoles that are not Studio screens. They stay where they are
+     * (each is its own page); this list is what lets the Studio's one search
+     * (Ctrl+K) find them, so nobody has to know which console holds a task.
+     */
+    public const CONSOLES = [
+        ['label' => 'Appeals — post an appeal, today\'s needs, updates', 'url' => '/give/manage.php', 'min' => 'admin', 'words' => 'give donations appeal campaign need fundraising'],
+        ['label' => 'NextGen Vanguard — members', 'url' => '/academy/ngv/members.php', 'min' => 'admin', 'words' => 'ngv vanguard roster participants'],
+        ['label' => 'NextGen Vanguard — registration desk', 'url' => '/academy/ngv/desk.php', 'min' => 'admin', 'words' => 'ngv desk mou guarantor enrol register'],
+        ['label' => 'NextGen Vanguard — attendance', 'url' => '/academy/ngv/attendance.php', 'min' => 'admin', 'words' => 'ngv attendance register present'],
+        ['label' => 'NextGen Vanguard — fines', 'url' => '/academy/ngv/fines.php', 'min' => 'admin', 'words' => 'ngv fines conduct'],
+        ['label' => 'NextGen Vanguard — courses and books', 'url' => '/academy/ngv/courses.php', 'min' => 'admin', 'words' => 'ngv courses books reading'],
+        ['label' => 'NextGen Vanguard — the programme page', 'url' => '/academy/ngv/edit.php', 'min' => 'admin', 'words' => 'ngv edit programme page plans fees'],
+        ['label' => 'Vanguard Quest desk', 'url' => '/mentorship/compliance/', 'min' => 'admin', 'words' => 'quest compliance awards deductions promotions demotions'],
+    ];
+
     public static function all(): array
     {
         return [
@@ -92,6 +108,14 @@ final class StudioSections
         foreach (self::all() as $s) $out[$s['id']] = $s['min'];
         foreach (self::ALIASES as $from => $to) $out[$from] = $out[$to] ?? 'admin';
         return $out;
+    }
+
+    /** What the page carries for app.js: the roles, the aliases, and what the one search can find. */
+    public static function forPage(): array
+    {
+        return ['min' => self::minRoles(), 'aliases' => self::ALIASES,
+            'sections' => array_map(static fn($s) => ['id' => $s['id'], 'label' => $s['label'], 'group' => $s['group']], self::all()),
+            'consoles' => self::CONSOLES];
     }
 
     /** The sections in sidebar order, grouped under their headings. */

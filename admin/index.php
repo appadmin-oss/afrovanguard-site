@@ -30,6 +30,7 @@
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
         <svg class="moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       </button>
+      <button class="btn btn-outline btn-sm find-open" id="findOpen" type="button" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K" hidden>Find <kbd>Ctrl K</kbd></button>
       <a class="btn btn-outline btn-sm" href="/diary/" target="_blank" rel="noopener">View site <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a>
       <button class="btn btn-outline btn-sm" id="logoutBtn" hidden>Log out</button>
     </div>
@@ -1849,7 +1850,20 @@
        including the sign-in screen. admin/app.js loads it the first time an
        editor opens (initTiny); until then, and if it is missing, the field is a
        plain textarea. -->
-  <script type="application/json" id="studioSections"><?= json_encode(['min' => StudioSections::minRoles(), 'aliases' => StudioSections::ALIASES], JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES) ?></script>
+  <!-- The one search (Ctrl+K): every Studio screen, the member desk's panes, and the other staff consoles. -->
+  <div class="find-backdrop" id="findBox" hidden>
+    <div class="find-box" role="dialog" aria-modal="true" aria-labelledby="findTitle">
+      <h2 id="findTitle" class="sr-only">Find a screen</h2>
+      <div role="search">
+        <label class="sr-only" for="findInput">Find a screen or console</label>
+        <input id="findInput" type="search" autocomplete="off" spellcheck="false" placeholder="Find a screen… try bank, dues, appeals, roles" role="combobox" aria-expanded="true" aria-controls="findList" aria-autocomplete="list" />
+      </div>
+      <p class="sr-only" id="findCount" role="status" aria-live="polite"></p>
+      <ul class="find-list" id="findList" role="listbox" aria-label="Matches"></ul>
+      <p class="find-keys"><kbd>↑</kbd> <kbd>↓</kbd> to move · <kbd>Enter</kbd> to open · <kbd>Esc</kbd> to close</p>
+    </div>
+  </div>
+  <script type="application/json" id="studioSections"><?= json_encode(StudioSections::forPage(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
   <script src="/admin/app.js?v=<?= (int) @filemtime(__DIR__ . '/app.js') ?>" defer></script>
   <script src="/assets/site/avc-photo.js?v=<?= (int) @filemtime(dirname(__DIR__) . '/assets/site/avc-photo.js') ?>" defer></script>
   <script src="/admin/card-photo.js?v=<?= (int) @filemtime(__DIR__ . '/card-photo.js') ?>" defer></script>

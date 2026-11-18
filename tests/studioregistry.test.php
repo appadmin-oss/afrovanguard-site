@@ -81,3 +81,17 @@ foreach ($srBehind as $sec => $acts) {
     foreach ($acts as $a) if (in_array($a, $srEd, true) || !in_array($a, array_merge($srMgmt, $srSuper), true)) $srLeak[] = $a;
 }
 ck('studio api: a section hidden from editors is closed to them on the server too' . ($srLeak ? ' — ' . implode(', ', $srLeak) : ''), !$srLeak);
+
+/* The screen is in the address, and one search reaches everything. */
+ck('studio links: opening a screen writes it to the address, and Back/Forward reopen it',
+    str_contains($srJs, 'history.pushState(null') && str_contains($srJs, "window.addEventListener('popstate'") && str_contains($srJs, 'function openFromHash()'));
+ck('studio links: a member-desk pane is in the address too (#members/offline)', str_contains($srJs, "setHash('members', which, true)"));
+ck('studio links: a screen the role may not open is dropped from the address, not shown under its name',
+    (bool) preg_match('/if \(location\.hash\) \{ try \{ history\.replaceState\(null, \'\', location\.pathname/', $srJs));
+$srPage = StudioSections::forPage();
+ck('studio search: the page carries every section and the other staff consoles for Ctrl+K',
+    count($srPage['sections']) === count($srIds) && count($srPage['consoles']) > 0
+    && !array_filter($srPage['consoles'], static fn($c) => !isset(AdminRoles::RANK[$c['min']]) || !str_starts_with($c['url'], '/')));
+ck('studio search: it is a labelled dialog that Escape closes, giving focus back',
+    str_contains($srIdx, 'role="dialog" aria-modal="true" aria-labelledby="findTitle"') && str_contains($srJs, "if (e.key === 'Escape') { e.preventDefault(); findClose(true); }")
+    && str_contains($srJs, 'findTrigger.focus()'));

@@ -45,7 +45,7 @@
     var ae = document.activeElement, fromLogin = v !== 'login' && v !== 'mfa' && ae && ((views.login && views.login.contains(ae)) || (views.mfa && views.mfa.contains(ae)));
     Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     if (fromLogin) { document.body.setAttribute('tabindex', '-1'); document.body.focus({ preventScroll: true }); document.body.removeAttribute('tabindex'); }
-    $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
+    $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login'); var fo = $('#findOpen'); if (fo) fo.hidden = (v === 'login' || v === 'mfa');
     document.body.classList.toggle('studio-authed', v !== 'login');
     var burger = $('#studioBurger'); if (burger) burger.hidden = (v === 'login');
     if (typeof closeSide === 'function') closeSide(); }
@@ -116,6 +116,10 @@
       if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
     });
     try { localStorage.setItem('av.studio.tab', which); } catch (e) {}
+    /* The screen is in the address, so Back moves between screens and a link
+       to one can be sent. (It lived only in localStorage.) A return to a
+       screen via Back must not push it again. */
+    if (!routing && (which !== 'overview' || location.hash)) setHash(which);
     if (which === 'overview') { show('overview'); loadOverview(); }
     else if (which === 'entries') { show('entries'); loadList(); }
     else if (which === 'academy') { show('academy'); loadCourses(); }
@@ -3621,6 +3625,7 @@
   }
   function memChip(n, label) { return '<span class="mem-chip"><b>' + (n || 0) + '</b> ' + escapeHtml(label) + '</span>'; }
   function memTab(which) {
+    if (!routing && views.members && !views.members.hidden) setHash('members', which, true);
     document.querySelectorAll('.subtab[data-mv]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-mv') === which); });
     document.querySelectorAll('.mem-pane').forEach(function (p) { p.hidden = p.getAttribute('data-pane') !== which; });
     if (which === 'dash') loadMemDash();
@@ -4544,6 +4549,19 @@
       }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
     });
     $('#offStatus').addEventListener('change', loadOffline);
+    $('#findOpen').addEventListener('click', findOpen);
+    document.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); if ($('#findBox').hidden) findOpen(); else findClose(true); return; }
+      if ($('#findBox').hidden) return;
+      if (e.key === 'Escape') { e.preventDefault(); findClose(true); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); if (findHits.length) { findSel = (findSel + 1) % findHits.length; findRender(); } }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); if (findHits.length) { findSel = (findSel - 1 + findHits.length) % findHits.length; findRender(); } }
+      else if (e.key === 'Enter') { e.preventDefault(); findGo(findSel); }
+      else if (e.key === 'Tab') { e.preventDefault(); $('#findInput').focus(); }   // the dialog keeps focus
+    });
+    $('#findInput').addEventListener('input', function () { findSel = 0; findRender(); });
+    $('#findList').addEventListener('click', function (e) { var li = e.target.closest('[data-find]'); if (li) findGo(+li.getAttribute('data-find')); });
+    $('#findBox').addEventListener('click', function (e) { if (e.target === this) findClose(true); });
     $('#ovTodayList').addEventListener('click', function (e) {
       if (e.target.closest('#ovTodayRetry')) { loadToday(); return; }
       var b = e.target.closest('[data-today-go]'); if (!b) return;
@@ -4932,13 +4950,78 @@
     });
   }
 
+  /* ── The screen in the address: #gifts, #members/offline ── */
+  var routing = false;
+  var MEM_PANES = ['dash', 'roster', 'roles', 'verify', 'centres', 'approvals', 'import', 'volunteers', 'dups', 'dues', 'offline'];
+  function setHash(id, sub, replace) {
+    var want = '#' + id + (sub ? '/' + sub : '');
+    if (location.hash === want) return;
+    try { if (replace || !location.hash) history.replaceState(null, '', want); else history.pushState(null, '', want); } catch (e) { /* a sandboxed frame: the screen still opens */ }
+  }
+  function readHash() {
+    var m = /^#([a-z]+)(?:\/([a-z]+))?$/.exec(location.hash || '');
+    if (!m) return null;
+    var id = (SECTIONS.aliases || {})[m[1]] || m[1];
+    if (!document.querySelector('.tab[data-tab="' + id + '"]')) return null;
+    return { id: id, sub: id === 'members' && MEM_PANES.indexOf(m[2]) >= 0 ? m[2] : '' };
+  }
+  function openFromHash() {
+    var h = readHash(); if (!h || !roleAllows(h.id)) return false;
+    routing = true;
+    try { activateTab(h.id); if (h.sub) memTab(h.sub); } finally { routing = false; }
+    return true;
+  }
+  window.addEventListener('popstate', function () { if (!views.login.hidden || !views.mfa.hidden) return; openFromHash(); });
+
+  /* ── The one search (Ctrl+K): screens, member-desk panes, other consoles ── */
+  var MEM_LABEL = { roster: 'Roster', roles: 'Roles', verify: 'To verify', centres: 'Centres', approvals: 'Approvals and member requests', import: 'Import',
+    volunteers: 'Volunteers', dups: 'Duplicates', dues: 'Dues', offline: 'Offline payments' };
+  var findSel = 0, findHits = [], findTrigger = null;
+  function findItems() {
+    var out = [];
+    (SECTIONS.sections || []).forEach(function (s) { if (roleAllows(s.id)) out.push({ kind: 'screen', id: s.id, label: s.label, where: s.group || 'Studio', words: s.group }); });
+    if (roleAllows('members')) Object.keys(MEM_LABEL).forEach(function (k) { out.push({ kind: 'pane', id: 'members', sub: k, label: MEM_LABEL[k], where: 'Members', words: 'member desk' }); });
+    var rank = ROLE_RANK[currentRole] || 0;
+    (SECTIONS.consoles || []).forEach(function (c) { if (rank >= (ROLE_RANK[c.min] || 99)) out.push({ kind: 'console', url: c.url, label: c.label, where: 'Opens its own page', words: c.words || '' }); });
+    return out;
+  }
+  function findRender() {
+    var q = $('#findInput').value.trim().toLowerCase(), terms = q.split(/\s+/).filter(Boolean);
+    findHits = findItems().filter(function (it) { var hay = (it.label + ' ' + it.where + ' ' + it.words).toLowerCase(); return terms.every(function (t) { return hay.indexOf(t) >= 0; }); });
+    findSel = Math.min(findSel, Math.max(0, findHits.length - 1));
+    var list = $('#findList');
+    list.innerHTML = findHits.length ? findHits.map(function (it, i) {
+      return '<li role="option" id="findOpt' + i + '" data-find="' + i + '" aria-selected="' + (i === findSel) + '"><span>' + escapeHtml(it.label) + '</span><span class="find-where">' + escapeHtml(it.where) + '</span></li>';
+    }).join('') : '<li class="find-none" role="option" aria-disabled="true">Nothing matches “' + escapeHtml(q) + '”.</li>';
+    $('#findInput').setAttribute('aria-activedescendant', findHits.length ? 'findOpt' + findSel : '');
+    $('#findCount').textContent = findHits.length + ' match' + (findHits.length === 1 ? '' : 'es');
+    var on = list.querySelector('[aria-selected="true"]'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest' });
+  }
+  function findOpen() {
+    if (!views.login.hidden || !views.mfa.hidden) return;
+    findTrigger = document.activeElement;
+    $('#findBox').hidden = false; $('#findInput').value = ''; findSel = 0; findRender(); $('#findInput').focus();
+  }
+  function findClose(restore) {
+    $('#findBox').hidden = true;
+    if (restore && findTrigger && findTrigger.focus) findTrigger.focus();
+  }
+  function findGo(i) {
+    var it = findHits[i]; if (!it) return;
+    findClose(false);
+    if (it.kind === 'console') { location.href = it.url; return; }
+    activateTab(it.id); if (it.sub) memTab(it.sub);
+    var t = document.querySelector('.tab[data-tab="' + it.id + '"]'); if (t) t.focus();
+  }
+
   function boot() {
     applyRoleVisibility();
     var saved = 'overview';
     try { saved = localStorage.getItem('av.studio.tab') || 'overview'; } catch (e) {}
     // A link into the Studio (the preview's "Back to the Studio") names its screen in the hash.
-    var asked = (location.hash || '').slice(1);
-    if (/^[a-z]+$/.test(asked) && (document.querySelector('.tab[data-tab="' + asked + '"]') || asked === 'homepage' || asked === 'pages')) saved = asked;
+    if (openFromHash()) { refreshModBadge(); return; }
+    /* A screen this role may not open (or a stale name): drop it from the address rather than show one screen under another's name. */
+    if (location.hash) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
     if (saved !== 'homepage' && saved !== 'pages' && !document.querySelector('.tab[data-tab="' + saved + '"]')) saved = 'overview';
     if (!roleAllows(saved)) saved = 'overview';
     activateTab(saved);

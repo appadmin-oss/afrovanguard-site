@@ -81,7 +81,8 @@ separate staff consoles).
    as zero (2026-11-18).
 4. A money desk (ledger view, donor record, reconciliation) and a `money`
    capability granted per person.
-5. The screen in the address, and one search across the consoles.
+5. ✅ The screen in the address (`#members/offline`, Back/Forward work), and one
+   search (Ctrl+K) across every screen, member-desk pane and staff console (2026-11-18).
 
 ## 1. Bank transfers — what changed
 

@@ -936,3 +936,16 @@ body.studio { --gold-deep: var(--av-gold-text); }
 .ov-today-txt span { font-size: 12.5px; color: var(--muted); }
 .ov-today-go { margin-left: auto; color: var(--muted); font-size: 13px; white-space: nowrap; }
 .ov-today-clear { color: var(--muted); font-size: 13.5px; }
+
+/* ── The one search (Ctrl+K) ── */
+.find-open kbd, .find-keys kbd { font: inherit; font-size: 11px; border: 1px solid var(--divider); border-radius: var(--radius-sm); padding: 0 5px; margin-left: 6px; color: var(--muted); }
+.find-backdrop { position: fixed; inset: 0; background: rgba(10, 14, 24, .45); display: flex; align-items: flex-start; justify-content: center; padding: 12vh 16px 16px; z-index: 60; }
+.find-backdrop[hidden] { display: none; }
+.find-box { width: 100%; max-width: 560px; background: var(--surface); color: var(--ink); border: 1px solid var(--divider); border-radius: var(--radius-md); box-shadow: var(--card-shadow); padding: 12px; }
+.find-box input { width: 100%; font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid var(--divider); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink); }
+.find-list { list-style: none; margin: 10px 0 0; padding: 0; max-height: 50vh; overflow: auto; }
+.find-list li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: var(--radius-sm); cursor: pointer; }
+.find-list li[aria-selected="true"] { background: var(--surface-2); outline: 1px solid var(--gold-deep); }
+.find-list .find-where { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+.find-list .find-none { color: var(--muted); cursor: default; }
+.find-keys { margin: 10px 2px 2px; font-size: 12px; color: var(--muted); }

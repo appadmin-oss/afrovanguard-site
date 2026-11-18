@@ -1326,3 +1326,13 @@ Four states on screen: loading, nothing waiting, could-not-count, could-not-load
 with Retry. Tests: `tests/studiotoday.test.php`; driven in Chromium across an
 admin, a second admin and an editor. To add a queue, add one row to
 `StudioToday::sources()`.
+
+## The Studio's screen is in the address; one search (Ctrl+K) (2026-11-18)
+
+`#gifts`, `#members/offline`: opening a screen writes it to the address
+(pushState), Back and Forward reopen it (popstate), a refresh stays on it, and
+a link can be sent. A screen the viewer's role may not open is dropped from the
+address. Ctrl+K (or Find in the header) searches every Studio screen the viewer
+may open, the member desk's panes, and the other staff consoles listed in
+`StudioSections::CONSOLES` — a labelled dialog, arrow keys, Enter, Escape
+returns focus. Driven in Chromium (16 checks, admin and editor).
