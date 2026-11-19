@@ -362,10 +362,29 @@
 
               function wire(sel, field) {
                 card.querySelectorAll(sel).forEach(function (el) {
+                  /* The value the console last agreed to, so a refused change
+                     can be put back rather than left showing a date that is not
+                     the console's. */
+                  var last = el.value;
                   el.addEventListener('change', async function () {
                     var body = { id: Number(el.getAttribute(sel.slice(1, -1))) };
                     body[field] = el.value;
                     var r = await post('cac_update', body);
+                    /* Given work: moving its date needs a reason (CACENTRE
+                       answers reason-required). Ask once, send the same change
+                       again with it; no reason, no move. */
+                    if (!r.ok && r.code === 'reason-required') {
+                      var why = window.prompt('Somebody gave you this task. Why does the date need to move? They will be told.', '');
+                      if (why && why.trim()) {
+                        body.reason = why.trim();
+                        r = await post('cac_update', body);
+                      } else {
+                        el.value = last;
+                        say('The date was not moved: it needs a reason.', true);
+                        return;
+                      }
+                    }
+                    if (r.ok) last = el.value; else el.value = last;
                     say(r.ok ? 'Saved in the console.' : (r.error || 'That did not work.'), !r.ok);
                   });
                 });

@@ -286,10 +286,20 @@ try {
             $fields = [];
             if (array_key_exists('due', $body))      $fields['due'] = (string) $body['due'];
             if (array_key_exists('priority', $body)) $fields['priority'] = (string) $body['priority'];
+            /* Moving the date of work somebody else gave you needs a reason, on
+               both sites (19 Nov 2026): CACENTRE answers 422 reason-required
+               without one, and the giver is told why. The reason travels as
+               typed; CACENTRE trims and bounds it. */
+            if (array_key_exists('reason', $body))   $fields['reason'] = mb_substr(trim((string) $body['reason']), 0, 500);
 
             $r = CacTasks::write($uid, $action === 'cac_toggle' ? 'toggle' : 'update',
                                  (int) ($body['id'] ?? 0), $fields);
             if ($r['ok']) json_out(['ok' => true] + $r['data']);
+            /* Not a failure of the link: the screen asks for the reason and
+               sends the same change again, so it needs the code, not a sentence
+               about the console refusing. */
+            if ($r['error'] === 'reason-required') json_out(['ok' => false, 'code' => 'reason-required',
+                'error' => 'Somebody gave you this task, so moving its date needs a reason. They will be told.'], 422);
             json_out(['ok' => false, 'error' => match ($r['error']) {
                 'not-yours'      => 'That task is not yours.',
                 'bad-due'        => 'The console will not take that date.',
