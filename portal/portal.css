@@ -2125,3 +2125,23 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .gsp-fit { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .gsp-pick[aria-pressed="true"] { border-color:var(--ink); }
 .gsp-next summary { cursor:pointer; font-size:13px; font-weight:600; color:var(--body); padding:6px 0; min-height:24px; }
+
+/* ── Tasks people finish (portal/tasks.js flowHtml, renderOwe): the answer a
+   task asks for sits on its row; "Everything you owe" is one list by when. ── */
+.task-ask { flex-basis:100%; display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:6px 0 2px; padding:8px 10px; border-radius:var(--afg-radius-md, 10px); background:var(--afg-surface-2, var(--surface-2, rgba(0,0,0,.04))); font-size:12.5px; }
+.task-ask-q { font-weight:600; margin-right:4px; color:var(--afg-ink, inherit); }
+.task-ask--late { border-left:3px solid var(--afg-danger, var(--red)); }
+.task.is-waiting { box-shadow:inset 3px 0 0 var(--afg-gold, #f3b416); }
+.task-outcome-line { font-size:12px; color:var(--afg-body, inherit); }
+.task-moved { font-size:11.5px; color:var(--afg-accent-ink, var(--gold-deeper)); font-weight:700; }
+.task-move { border:1px solid var(--afg-border, rgba(0,0,0,.15)); background:transparent; color:inherit; border-radius:99px; padding:3px 10px; font:inherit; font-size:12px; cursor:pointer; min-height:24px; }
+.task-outcome { display:flex; flex-direction:column; margin-top:8px; }
+.task-outcome-hint { margin:4px 0 0; font-size:12.5px; color:var(--afg-accent-ink, var(--gold-deeper)); font-weight:600; }
+.owe-h { display:flex; gap:8px; align-items:baseline; margin:12px 0 4px; font-size:13px; font-weight:700; color:var(--afg-ink, inherit); }
+.owe-h:first-child { margin-top:0; }
+.owe-h.is-over { color:var(--afg-danger, var(--red)); }
+.owe-n { font-weight:600; color:var(--afg-muted, inherit); }
+.owe-list { list-style:none; margin:0; padding:0; }
+.owe-list li { display:flex; justify-content:space-between; gap:12px; padding:6px 0; border-bottom:1px solid var(--afg-border, rgba(0,0,0,.08)); font-size:13.5px; }
+.owe-m { color:var(--afg-muted, inherit); font-size:12px; white-space:nowrap; }
+.cmt-late h3 { font-size:13px; margin:14px 0 4px; }

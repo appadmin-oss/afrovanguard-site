@@ -9,6 +9,83 @@
             <div><h1>Tasks</h1><p class="view-sub">Plan the work, share it with the team, and let AI turn goals into a plan. Anyone can claim an open task.</p></div>
           </div>
 
+          <!-- Everything you owe: one list across what this page already loads — your
+               tasks, what waits for your answer, your commitments, Goalspace and the
+               CACENTRE week — grouped by when (portal/tasks.js renderOwe). No new
+               request: each card hands its items over as it loads ('av:owe'). -->
+          <section class="pcard owe" id="owe" aria-labelledby="oweH">
+            <div class="pcard-head">
+              <h2 id="oweH">Everything you owe</h2>
+              <span class="pchip" id="oweCount">…</span>
+            </div>
+            <div class="pcard-body">
+              <div id="oweList" aria-live="polite"><p class="pc-empty">Gathering your tasks, commitments and goals…</p></div>
+            </div>
+          </section>
+
+          <?php /* data-cac-open: the console's open tasks, so the live refresh
+                   below can keep counting them. Without it the KPI is right on
+                   first paint and then drops to the portal-only number a second
+                   later, which is worse than never having counted them. */ ?>
+          <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>" data-cac-open="<?= (int) $cacOpen ?>">
+            <div class="pcard-head task-head">
+              <div class="task-head-l">
+                <h2>My tasks</h2>
+                <span class="task-head-sub" id="taskFocusTxt">Loading…</span>
+                <div class="task-away" id="taskAway" aria-live="polite"></div>
+              </div>
+              <div class="task-focus" id="taskFocus" title="Today’s progress" hidden>
+                <span class="task-ring" id="taskRing" style="--pct:0"><span class="task-ring-n" id="taskRingN">0</span></span>
+                <span class="task-focus-cap">left<br>today</span>
+              </div>
+            </div>
+            <div class="pcard-body">
+              <form class="task-add task-add--full" id="taskAdd" autocomplete="off">
+                <input type="text" id="taskInput" name="title" maxlength="300" placeholder="What needs doing?" aria-label="Task">
+                <div class="task-add-meta">
+                  <label class="task-af"><span>Due</span><input type="date" id="taskDue" aria-label="Due date"></label>
+                  <label class="task-af"><span>Priority</span>
+                    <select id="taskPriority" aria-label="Priority">
+                      <option value="normal" selected>Normal</option>
+                      <option value="high">High</option>
+                      <option value="low">Low</option>
+                    </select>
+                  </label>
+                  <label class="task-af"><span>Size</span>
+                    <select id="taskSize" aria-label="Size">
+                      <option value="" selected>—</option>
+                      <option value="S">S · an hour or two</option>
+                      <option value="M">M · a day</option>
+                      <option value="L">L · several days</option>
+                    </select>
+                  </label>
+                  <label class="task-af" id="taskAssigneeWrap"><span>Assign</span>
+                    <select id="taskAssignee" class="task-assignee" aria-label="Assign to"><option value="0">Me</option></select>
+                  </label>
+                  <label class="task-af task-af--check" id="taskToPoolWrap" hidden><input type="checkbox" id="taskToPool"> <span>Open to anyone (pool)</span></label>
+                  <button type="submit" class="pbtn pbtn-gold">Add task</button>
+                </div>
+                <?php /* "Done when": optional, and asked for (never forced) when the task goes to
+                         somebody else or is sized L — the two cases where "finished" is most
+                         often read two ways (tasks.js askOutcome). */ ?>
+                <label class="task-af task-af--grow task-outcome"><span>Done when</span>
+                  <input type="text" id="taskOutcome" maxlength="300" placeholder="Optional — e.g. 200 flyers at the hall door" aria-describedby="taskOutcomeHint">
+                </label>
+                <p class="task-outcome-hint" id="taskOutcomeHint" hidden></p>
+              </form>
+              <p class="task-add-err" id="taskAddErr" role="alert" hidden></p>
+              <div class="task-suggest" id="taskSuggest" aria-live="polite" hidden></div>
+              <div class="pseg task-filters" id="taskFilters" role="group" aria-label="Show tasks">
+                <button type="button" class="pseg-btn is-on" data-filter="all" aria-pressed="true">All <span class="pseg-n" id="fcAll">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="open" aria-pressed="false">Open <span class="pseg-n" id="fcOpen">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="overdue" aria-pressed="false">Overdue <span class="pseg-n" id="fcOver">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="mine" aria-pressed="false">Mine <span class="pseg-n" id="fcMine">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="done" aria-pressed="false">Done <span class="pseg-n" id="fcDone">0</span></button>
+              </div>
+              <ul class="task-list" id="taskList"><li class="pc-empty task-empty">Loading your tasks…</li></ul>
+            </div>
+          </section>
+
           <?php if (class_exists('CacWeek') && CacWeek::ready()): ?>
           <!-- This week at CACENTRE: the member's commitments for the week and
                the goals they feed; a task here can count toward one (lib/CacWeek.php). -->
@@ -113,7 +190,7 @@
                 <button type="button" role="tab" class="pseg-btn" aria-selected="false" data-tr="people">By person</button>
               </div>
               <ul class="tr-list" id="trList" aria-live="polite" tabindex="0" aria-label="Tasks in the chosen list"></ul>
-              <p class="pcard-note">Sent to coordinators and admins each evening too, in the portal and by email.</p>
+              <p class="pcard-note">Each evening, whoever gave out work that is now late is sent the report of their own, in the portal and by email.</p>
             </div>
           </section>
 
@@ -128,53 +205,6 @@
             </div>
           </section>
 
-          <?php /* data-cac-open: the console's open tasks, so the live refresh
-                   below can keep counting them. Without it the KPI is right on
-                   first paint and then drops to the portal-only number a second
-                   later, which is worse than never having counted them. */ ?>
-          <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>" data-cac-open="<?= (int) $cacOpen ?>">
-            <div class="pcard-head task-head">
-              <div class="task-head-l">
-                <h2>My tasks</h2>
-                <span class="task-head-sub" id="taskFocusTxt">Loading…</span>
-                <div class="task-away" id="taskAway" aria-live="polite"></div>
-              </div>
-              <div class="task-focus" id="taskFocus" title="Today’s progress" hidden>
-                <span class="task-ring" id="taskRing" style="--pct:0"><span class="task-ring-n" id="taskRingN">0</span></span>
-                <span class="task-focus-cap">left<br>today</span>
-              </div>
-            </div>
-            <div class="pcard-body">
-              <form class="task-add task-add--full" id="taskAdd" autocomplete="off">
-                <input type="text" id="taskInput" name="title" maxlength="300" placeholder="What needs doing?" aria-label="Task">
-                <div class="task-add-meta">
-                  <label class="task-af"><span>Due</span><input type="date" id="taskDue" aria-label="Due date"></label>
-                  <label class="task-af"><span>Priority</span>
-                    <select id="taskPriority" aria-label="Priority">
-                      <option value="normal" selected>Normal</option>
-                      <option value="high">High</option>
-                      <option value="low">Low</option>
-                    </select>
-                  </label>
-                  <label class="task-af" id="taskAssigneeWrap"><span>Assign</span>
-                    <select id="taskAssignee" class="task-assignee" aria-label="Assign to"><option value="0">Me</option></select>
-                  </label>
-                  <label class="task-af task-af--check" id="taskToPoolWrap" hidden><input type="checkbox" id="taskToPool"> <span>Open to anyone (pool)</span></label>
-                  <button type="submit" class="pbtn pbtn-gold">Add task</button>
-                </div>
-              </form>
-              <p class="task-add-err" id="taskAddErr" role="alert" hidden></p>
-              <div class="task-suggest" id="taskSuggest" aria-live="polite" hidden></div>
-              <div class="pseg task-filters" id="taskFilters" role="group" aria-label="Show tasks">
-                <button type="button" class="pseg-btn is-on" data-filter="all" aria-pressed="true">All <span class="pseg-n" id="fcAll">0</span></button>
-                <button type="button" class="pseg-btn" data-filter="open" aria-pressed="false">Open <span class="pseg-n" id="fcOpen">0</span></button>
-                <button type="button" class="pseg-btn" data-filter="overdue" aria-pressed="false">Overdue <span class="pseg-n" id="fcOver">0</span></button>
-                <button type="button" class="pseg-btn" data-filter="mine" aria-pressed="false">Mine <span class="pseg-n" id="fcMine">0</span></button>
-                <button type="button" class="pseg-btn" data-filter="done" aria-pressed="false">Done <span class="pseg-n" id="fcDone">0</span></button>
-              </div>
-              <ul class="task-list" id="taskList"><li class="pc-empty task-empty">Loading your tasks…</li></ul>
-            </div>
-          </section>
 
           <?php if ($cacTasks): ?>
             <?php /* Its own card rather than rows in the list above. Both kinds
