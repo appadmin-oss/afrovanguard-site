@@ -41,7 +41,163 @@ final class Donations
                 campaign    VARCHAR(64) NOT NULL DEFAULT '',
                 recorded_at VARCHAR(32) NOT NULL DEFAULT ''
             )");
+            /* The ledger: every gift, kept for good, with the donor as they are —
+               the display file keeps the newest 500 and says "Anonymous" for
+               anyone off the wall, which is right for the wall and useless for
+               the office. Read by the Studio's Money → Donations, never by a
+               public page. */
+            Database::execSchema(Database::pdo(), "CREATE TABLE IF NOT EXISTS donations_ledger (
+                reference    VARCHAR(191) PRIMARY KEY,
+                type         VARCHAR(16) NOT NULL DEFAULT '',
+                donor_name   VARCHAR(120) NOT NULL DEFAULT '',
+                email        VARCHAR(191) NOT NULL DEFAULT '',
+                amount       DECIMAL(14,2) NOT NULL DEFAULT 0,
+                currency     VARCHAR(8) NOT NULL DEFAULT 'NGN',
+                campaign     VARCHAR(64) NOT NULL DEFAULT '',
+                frequency    VARCHAR(24) NOT NULL DEFAULT '',
+                listed       INTEGER NOT NULL DEFAULT 0,
+                recorded_by  VARCHAR(191) NOT NULL DEFAULT '',
+                confirmed_by VARCHAR(191) NOT NULL DEFAULT '',
+                given_at     VARCHAR(32) NOT NULL DEFAULT ''
+            );
+            CREATE INDEX IF NOT EXISTS ix_donations_ledger_email ON donations_ledger (email);
+            CREATE INDEX IF NOT EXISTS ix_donations_ledger_given ON donations_ledger (given_at)");
         } catch (Throwable $e) { error_log('[donations] ensure: ' . $e->getMessage()); }
+    }
+
+    /** One gift into the ledger. Never throws: the ledger is the office's view, not the gate on counting. */
+    public static function ledgerAdd(array $entry, array $private = []): void
+    {
+        self::ensure();
+        $ref = mb_substr((string) ($entry['reference'] ?? ($entry['id'] ?? '')), 0, 191);
+        if ($ref === '') return;
+        $name = trim((string) ($private['name'] ?? ''));
+        if ($name === '') $name = (string) ($entry['name'] ?? '');
+        try {
+            Database::pdo()->prepare(Database::insertIgnore('donations_ledger', ['reference', 'type', 'donor_name', 'email', 'amount', 'currency', 'campaign', 'frequency', 'listed', 'recorded_by', 'confirmed_by', 'given_at']))
+                ->execute([$ref, mb_substr((string) ($entry['type'] ?? ''), 0, 16), mb_substr($name, 0, 120), strtolower(trim((string) ($entry['email'] ?? ''))),
+                    (float) ($entry['amount'] ?? 0), mb_substr((string) ($entry['currency'] ?? 'NGN'), 0, 8), mb_substr((string) ($entry['campaign'] ?? ''), 0, 64),
+                    mb_substr((string) ($entry['frequency'] ?? ''), 0, 24), !empty($entry['listed']) ? 1 : 0, mb_substr((string) ($entry['recorded_by'] ?? ''), 0, 191),
+                    mb_substr((string) ($entry['confirmed_by'] ?? ''), 0, 191), (string) ($entry['created_at'] ?? date('c'))]);
+        } catch (Throwable $e) { error_log('[donations] ledger ' . $ref . ': ' . $e->getMessage()); }
+    }
+
+    /** The gifts that were here before the ledger: carried over from the display file, once. */
+    public static function ledgerBackfill(): int
+    {
+        self::ensure();
+        try { if (Database::metaGet('donations_ledger_backfilled') === '1') return 0; } catch (Throwable $e) { return 0; }
+        $n = 0;
+        foreach (array_reverse((array) (self::read()['donations'] ?? [])) as $d) { if (is_array($d)) { self::ledgerAdd($d); $n++; } }
+        try { Database::metaSet('donations_ledger_backfilled', '1'); } catch (Throwable $e) {}
+        return $n;
+    }
+
+    /**
+     * The office's list: search, filter by appeal, kind and dates, newest first,
+     * paged, with the true total and sum for the filter (never the page's).
+     */
+    public static function ledger(array $f = []): array
+    {
+        self::ledgerBackfill();
+        [$where, $args] = self::ledgerWhere($f);
+        $pdo = Database::pdo();
+        $size = max(10, min(200, (int) ($f['page_size'] ?? 50)));
+        $page = max(0, (int) ($f['page'] ?? 0));
+        $st = $pdo->prepare('SELECT COUNT(*) n, COALESCE(SUM(CASE WHEN currency = \'NGN\' THEN amount ELSE 0 END), 0) s FROM donations_ledger' . $where);
+        $st->execute($args); $tot = $st->fetch(PDO::FETCH_ASSOC) ?: ['n' => 0, 's' => 0];
+        $st = $pdo->prepare('SELECT * FROM donations_ledger' . $where . ' ORDER BY given_at DESC, reference DESC LIMIT ' . $size . ' OFFSET ' . ($page * $size));
+        $st->execute($args);
+        return ['rows' => array_map([self::class, 'ledgerShape'], $st->fetchAll(PDO::FETCH_ASSOC)), 'total' => (int) $tot['n'], 'sum_ngn' => (float) $tot['s'],
+                'page' => $page, 'page_size' => $size];
+    }
+
+    /** The header's figures: this month and this year, in naira, and how many gave this year. */
+    public static function summary(): array
+    {
+        self::ledgerBackfill();
+        $m = date('Y-m'); $y = date('Y');
+        $st = Database::pdo()->prepare("SELECT
+                COALESCE(SUM(CASE WHEN substr(given_at, 1, 7) = ? AND currency = 'NGN' THEN amount ELSE 0 END), 0) month_ngn,
+                COALESCE(SUM(CASE WHEN substr(given_at, 1, 4) = ? AND currency = 'NGN' THEN amount ELSE 0 END), 0) year_ngn,
+                COUNT(DISTINCT CASE WHEN substr(given_at, 1, 4) = ? AND email <> '' AND type <> 'inkind' THEN email END) donors_year
+            FROM donations_ledger");
+        $st->execute([$m, $y, $y]);
+        $r = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+        return ['month_ngn' => (float) ($r['month_ngn'] ?? 0), 'year_ngn' => (float) ($r['year_ngn'] ?? 0), 'donors_year' => (int) ($r['donors_year'] ?? 0)];
+    }
+
+    /** Every row matching the filter, for an export (capped). */
+    public static function ledgerAll(array $f = [], int $cap = 20000): array
+    {
+        self::ledgerBackfill();
+        [$where, $args] = self::ledgerWhere($f);
+        $st = Database::pdo()->prepare('SELECT * FROM donations_ledger' . $where . ' ORDER BY given_at DESC LIMIT ' . max(1, $cap));
+        $st->execute($args);
+        return array_map([self::class, 'ledgerShape'], $st->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /** Filters by name, never SQL from the caller; an unknown value is ignored rather than refused. */
+    private static function ledgerWhere(array $f): array
+    {
+        $w = []; $a = [];
+        $q = trim((string) ($f['q'] ?? ''));
+        if ($q !== '') { $w[] = '(donor_name LIKE ? OR email LIKE ? OR reference LIKE ?)'; $like = '%' . str_replace(['%', '_'], '', $q) . '%'; array_push($a, $like, $like, $like); }
+        $camp = preg_replace('/[^a-z0-9_-]/', '', strtolower((string) ($f['campaign'] ?? '')));
+        if ($camp !== '') { $w[] = 'campaign = ?'; $a[] = $camp; }
+        $type = (string) ($f['type'] ?? '');
+        if (in_array($type, ['card', 'bank_static', 'bank_va', 'inkind'], true)) { $w[] = 'type = ?'; $a[] = $type; }
+        foreach (['from' => '>=', 'to' => '<='] as $k => $op) {
+            $d = (string) ($f[$k] ?? '');
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) { $w[] = 'substr(given_at, 1, 10) ' . $op . ' ?'; $a[] = $d; }
+        }
+        $email = strtolower(trim((string) ($f['email'] ?? '')));
+        if ($email !== '') { $w[] = 'email = ?'; $a[] = $email; }
+        return [$w ? ' WHERE ' . implode(' AND ', $w) : '', $a];
+    }
+
+    private static function ledgerShape(array $r): array
+    {
+        return ['reference' => (string) $r['reference'], 'type' => (string) $r['type'], 'name' => (string) $r['donor_name'], 'email' => (string) $r['email'],
+                'amount' => (float) $r['amount'], 'currency' => (string) $r['currency'], 'campaign' => (string) $r['campaign'], 'frequency' => (string) $r['frequency'],
+                'listed' => (int) $r['listed'] === 1, 'recorded_by' => (string) $r['recorded_by'], 'confirmed_by' => (string) $r['confirmed_by'], 'given_at' => (string) $r['given_at']];
+    }
+
+    /**
+     * Donors: one row per person (by email), with what they gave and when —
+     * and the segments a donor office works from: gave last year and not yet
+     * this year (LYBUNT, the people most worth a call), gave for the first time
+     * this year, and give regularly. Retention: of last year's donors, how many
+     * gave again this year.
+     */
+    public static function donors(string $segment = 'all', string $q = '', ?int $year = null): array
+    {
+        self::ledgerBackfill();
+        $year = $year ?? (int) date('Y');
+        $ly = (string) ($year - 1); $ty = (string) $year;
+        $rows = Database::pdo()->query("SELECT email, MAX(donor_name) name, COUNT(*) gifts, COALESCE(SUM(CASE WHEN currency = 'NGN' THEN amount ELSE 0 END), 0) total,
+                MIN(given_at) first_at, MAX(given_at) last_at,
+                SUM(CASE WHEN substr(given_at, 1, 4) = '$ty' THEN 1 ELSE 0 END) this_year,
+                SUM(CASE WHEN substr(given_at, 1, 4) = '$ly' THEN 1 ELSE 0 END) last_year,
+                SUM(CASE WHEN frequency IN ('Monthly', 'Annual', 'Recurring') THEN 1 ELSE 0 END) recurring
+            FROM donations_ledger WHERE email <> '' AND type <> 'inkind' GROUP BY email")->fetchAll(PDO::FETCH_ASSOC);
+        $all = array_map(static fn($r) => ['email' => (string) $r['email'], 'name' => (string) $r['name'], 'gifts' => (int) $r['gifts'], 'total' => (float) $r['total'],
+            'first_at' => (string) $r['first_at'], 'last_at' => (string) $r['last_at'], 'this_year' => (int) $r['this_year'] > 0, 'last_year' => (int) $r['last_year'] > 0,
+            'recurring' => (int) $r['recurring'] > 0, 'new' => substr((string) $r['first_at'], 0, 4) === $ty], $rows);
+        $lastYear = count(array_filter($all, static fn($d) => $d['last_year']));
+        $kept = count(array_filter($all, static fn($d) => $d['last_year'] && $d['this_year']));
+        $seg = [
+            'lybunt'    => static fn($d) => $d['last_year'] && !$d['this_year'],
+            'new'       => static fn($d) => $d['new'],
+            'recurring' => static fn($d) => $d['recurring'],
+        ];
+        $list = isset($seg[$segment]) ? array_values(array_filter($all, $seg[$segment])) : $all;
+        $q = mb_strtolower(trim($q));
+        if ($q !== '') $list = array_values(array_filter($list, static fn($d) => str_contains(mb_strtolower($d['name'] . ' ' . $d['email']), $q)));
+        usort($list, static fn($a, $b) => strcmp($b['last_at'], $a['last_at']));
+        return ['donors' => array_slice($list, 0, 500), 'total' => count($list), 'year' => $year,
+                'counts' => ['all' => count($all), 'lybunt' => count(array_filter($all, $seg['lybunt'])), 'new' => count(array_filter($all, $seg['new'])), 'recurring' => count(array_filter($all, $seg['recurring']))],
+                'retention' => $lastYear > 0 ? (int) round(100 * $kept / $lastYear) : null, 'retained' => $kept, 'last_year_donors' => $lastYear];
     }
 
     public static function defaultData(): array
@@ -143,7 +299,7 @@ final class Donations
      * exclusive lock — the check and the write in one lock, as before, so no
      * concurrent write slips between them.
      */
-    public static function storeIfNew(string $ref, array $entry, float $amount, string $campaign, string $currency): bool
+    public static function storeIfNew(string $ref, array $entry, float $amount, string $campaign, string $currency, array $private = []): bool
     {
         if ($ref === '') return false;
         if (!self::claim($ref)) return false;
@@ -185,6 +341,9 @@ final class Donations
             Database::pdo()->prepare('UPDATE donation_refs SET amount = ?, currency = ?, campaign = ? WHERE reference = ?')
                 ->execute([(string) $amount, mb_substr($currency, 0, 8), mb_substr($campaign, 0, 64), mb_substr($ref, 0, 191)]);
         } catch (Throwable $e) { /* the claim is what matters; these are for reading back */ }
+
+        /* The ledger keeps the donor's real name ($private), which the display file must not. */
+        self::ledgerAdd($entry + ['reference' => $ref, 'amount' => $amount, 'currency' => $currency, 'campaign' => $campaign], $private);
 
         if (function_exists('av_emit_event')) {
             av_emit_event('donation.completed', [
@@ -262,7 +421,7 @@ final class Donations
             'status'     => 'confirmed',
             'created_at' => date('c'),
         ];
-        $isNew = self::storeIfNew($ref, $entry, $amount, $campaign, $currency);
+        $isNew = self::storeIfNew($ref, $entry, $amount, $campaign, $currency, ['name' => trim("$fn $ln")]);
         /* Count the cycle only when the donation itself was new. A retried
            webhook must not inflate somebody's recorded giving. */
         if ($isNew && class_exists('Appeals')) {

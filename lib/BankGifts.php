@@ -116,7 +116,7 @@ final class BankGifts
             'paid_on' => (string) $g['paid_on'],
             'recorded_by' => (string) $g['submitted_by'], 'confirmed_by' => $by,
         ];
-        $stored = Donations::storeIfNew($ref, $entry, (float) $g['amount'], (string) $g['campaign'], 'NGN');
+        $stored = Donations::storeIfNew($ref, $entry, (float) $g['amount'], (string) $g['campaign'], 'NGN', ['name' => $name]);
         if (!$stored && !Donations::known($ref)) {
             /* Not counted, and not because it already was: put it back to be tried again. */
             $pdo->prepare("UPDATE bank_gifts SET status = 'pending', decided_by = '', decided_at = '' WHERE id = ?")->execute([$id]);

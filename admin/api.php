@@ -61,7 +61,7 @@ try {
         $role = av_admin_role();
         $mfa = AdminMfa::status(AdminRoles::email(), $held, AdminRoles::mfaPassed());
         json_out(['ok' => $role !== '', 'csrf' => $held !== '' ? av_csrf_token() : '',
-                  'cloudinary' => Cloudinary::configured(), 'role' => $role, 'held' => $held, 'mfa' => $mfa]);
+                  'cloudinary' => Cloudinary::configured(), 'role' => $role, 'held' => $held, 'mfa' => $mfa, 'caps' => AdminRoles::currentCaps()]);
     }
 
     /* ── The second factor (lib/AdminMfa) ──
@@ -114,7 +114,7 @@ try {
        superadmin: everything. admin: management + content + undo, but not roles,
        destructive purge or the security policy. editor: content only. */
     $role = function_exists('av_admin_role') ? av_admin_role() : 'superadmin';
-    $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'superadmin_reveal', 'auth_policy_save', 'auth_policy_get',
+    $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'admin_caps_save', 'superadmin_reveal', 'auth_policy_save', 'auth_policy_get',
         'db_status', 'db_test', 'db_migrate', 'brand_get', 'brand_save',
         'db_job_state', 'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify', 'db_switch', 'db_switch_back',
         // The rules ARE the organisation's constitution — they decide promotions
@@ -161,6 +161,8 @@ try {
         'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
         // Bank-transfer gifts: donors' names and money, recorded by one admin, verified by another.
         'gifts_list', 'gifts_submit', 'gifts_decide',
+        // The donations ledger and donors: names, emails and what they gave.
+        'donations_list', 'donations_donors', 'donations_export',
         // Attendance: the register names members; the settings are the office's times and days.
         'attendance_get',
         'card_formats', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_get', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake', 'ngv_intake_email', 'ngv_intake_consent',
@@ -248,6 +250,13 @@ try {
     }
     if ($role === 'editor' && $needs !== 'editor') {
         json_out(['ok' => false, 'error' => 'Editors can manage content only.'], 403);
+    }
+    /* Money is a trust granted to a person, not a role (AdminRoles::CAPS): an
+       admin without it sees no donor and moves no money, however senior. A
+       Super Admin holds it. One list, one refusal, for every money action. */
+    $moneyOnly = ['gifts_list', 'gifts_submit', 'gifts_decide', 'donations_list', 'donations_donors', 'donations_export'];
+    if (in_array($action, $moneyOnly, true) && !AdminRoles::hasCap('money')) {
+        json_out(['ok' => false, 'code' => 'needs_money', 'error' => 'This needs Money access, which a Super Admin grants in Team & roles.'], 403);
     }
     /* An editor moderates what people wrote, not who they are: their addresses stay out of the queues. */
     $noEmails = static fn(array $rows): array => $role !== 'editor' ? $rows
@@ -418,7 +427,7 @@ try {
             json_out(['ok' => true, 'groups' => Config::diagnostics()]);
         /* What is waiting on somebody — only what this viewer may act on. */
         case 'today':
-            json_out(['ok' => true] + StudioToday::for($role));
+            json_out(['ok' => true] + StudioToday::for($role, AdminRoles::currentCaps()));
         case 'dashboard': {
             // At-a-glance overview for the Studio landing view. Every count is
             // best-effort (try/catch → 0) so a missing table never 500s the page.
@@ -1029,6 +1038,7 @@ try {
         case 'admins_list':
             json_out(['ok' => true,
                 'admins' => array_map(static fn($a) => $a + ['mfa' => AdminMfa::isEnrolled((string) $a['email'])], AdminRoles::list()),
+                'caps' => AdminRoles::CAPS,
                 'me' => $role, 'me_email' => AdminRoles::email(), 'roles' => array_keys(AdminRoles::RANK),
                 'default_superadmin'   => class_exists('SuperAdmin') ? SuperAdmin::defaultEmail() : '',
                 'has_initial_password' => class_exists('SuperAdmin') && SuperAdmin::pendingPassword() !== '']);
@@ -1044,6 +1054,14 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $res = AdminRoles::add((string) ($body['email'] ?? ''), (string) ($body['role'] ?? 'editor'), 'token');
             if (!empty($res['ok'])) AdminAudit::log('admins', 'admin_added', (string) ($body['email'] ?? ''), 'Granted ' . ($body['role'] ?? '') . ' access');
+            json_out($res, !empty($res['ok']) ? 200 : 422);
+        }
+        /* Trusts granted per person (AdminRoles::CAPS) — Super Admin only, gated above. */
+        case 'admin_caps_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $em = (string) ($body['email'] ?? '');
+            $res = AdminRoles::setCaps($em, (array) ($body['caps'] ?? []));
+            if (!empty($res['ok'])) AdminAudit::log('admins', 'admin_caps', $em, 'Trusts: ' . ($res['caps'] ? implode(', ', $res['caps']) : 'none'));
             json_out($res, !empty($res['ok']) ? 200 : 422);
         }
         case 'admin_remove': {
@@ -1821,6 +1839,30 @@ try {
                 default    => ['ok' => false, 'error' => 'Unknown decision.'],
             };
             json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['superadmin_only', 'admin_only'], true) ? 403 : 422));
+        /* ── The donations ledger and donors (lib/Donations.php) — Money access, gated above ── */
+        case 'donations_list': {
+            $f = array_intersect_key($_GET, array_flip(['q', 'campaign', 'type', 'from', 'to', 'email', 'page', 'page_size']));
+            $d = Donations::read();
+            json_out(['ok' => true] + Donations::ledger($f) + ['campaigns' => array_keys((array) ($d['campaigns'] ?? [])), 'summary' => Donations::summary()]);
+        }
+        case 'donations_donors':
+            json_out(['ok' => true] + Donations::donors((string) ($_GET['segment'] ?? 'all'), (string) ($_GET['q'] ?? '')));
+        case 'donations_export': {
+            $f = array_intersect_key($_GET, array_flip(['q', 'campaign', 'type', 'from', 'to', 'email']));
+            $rows = Donations::ledgerAll($f);
+            /* A list of donors with their emails leaves the building: who took it, and how many, is kept. */
+            AdminAudit::log('money', 'donations_export', count($rows) . ' gifts', 'Exported ' . count($rows) . ' gifts to CSV');
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="donations-' . date('Y-m-d') . '.csv"');
+            header('Cache-Control: no-store, private');
+            $out = fopen('php://output', 'w');
+            /* Through Csv:: like every export: a donor typed their own name, and a cell starting = + - @ (or a tab) must not run in a spreadsheet. */
+            Csv::put($out, ['Date', 'Reference', 'Donor', 'Email', 'Amount', 'Currency', 'Appeal', 'Kind', 'How often', 'On the wall', 'Recorded by', 'Confirmed by']);
+            foreach ($rows as $r) Csv::put($out, [substr($r['given_at'], 0, 10), $r['reference'], $r['name'], $r['email'], number_format($r['amount'], 2, '.', ''), $r['currency'],
+                $r['campaign'], $r['type'], $r['frequency'], $r['listed'] ? 'yes' : 'no', $r['recorded_by'], $r['confirmed_by']]);
+            fclose($out);
+            exit;
+        }
         /* ── Bank-transfer gifts (lib/BankGifts.php): recorded by one admin, counted when another verifies ── */
         case 'gifts_list':
             json_out(['ok' => true, 'gifts' => BankGifts::list((string) ($_GET['status'] ?? 'pending')), 'pending' => BankGifts::pendingCount(),

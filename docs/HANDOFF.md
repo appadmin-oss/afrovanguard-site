@@ -1390,3 +1390,32 @@ has."
   admin may now undo only the attendance keys they could have set.
 Tests: `tests/attendancesettings.test.php`; `gateattendance.test.php` now
 expects `punctuality` in what the gate is told. Driven in Chromium (12 checks).
+
+## The money desk, and Money as a trust granted per person (2026-11-19)
+
+The last two items of the administration audit.
+
+- **Money is a trust, not a role** (`AdminRoles::CAPS`, `admin_users.caps`),
+  as NGG keeps fees out of every bundle. A Super Admin holds it; any other admin
+  must be granted it by name in Team & roles ("Money access", logged). Every
+  money action is behind one list and one refusal in admin/api.php
+  (`$moneyOnly`, `needs_money`); the Money screens carry `cap: money` in
+  `StudioSections`, so the sidebar, search and links hide them; the Today
+  queue's bank-transfer row and the Appeals console need it too.
+  **On deploy, existing admins lose the Money screens until a Super Admin
+  grants them** — deliberate.
+- **The ledger** (`donations_ledger`, `Donations::ledgerAdd/ledger/donors/
+  summary`): every gift kept for good with the donor's real name, passed
+  privately (`storeIfNew(..., $private)`) so the display file — which the
+  public wall reads — still says "Anonymous" for anyone off the wall. No public
+  page reads the ledger. Gifts from before are carried over from the file once
+  (`ledgerBackfill`). In-kind gifts are recorded too.
+- **Money → Donations**: Gifts (search, appeal, kind, dates; true total and sum
+  for the filter; paged; who recorded and confirmed a bank gift) and Donors
+  (one row per email; segments: gave last year and not yet this year — LYBUNT,
+  new this year, give regularly; retention = last year's donors who gave
+  again). Export CSV of the filter, logged, formula-safe.
+Tests: `tests/moneydesk.test.php`; the Today test covers the trust. Driven in
+Chromium: record → verify → ledger with the real name, wall still silent,
+donors, export, an admin without Money refused everywhere until a Super Admin
+grants it (18 checks); every earlier browser check rerun and passing.

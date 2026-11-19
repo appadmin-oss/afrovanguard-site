@@ -23,7 +23,7 @@ final class StudioToday
     /**
      * @return array{items: list<array{key:string,n:int,label:string,sub:string,go:string,tab:string,tone:string}>, errors: list<array{key:string,label:string}>, total:int}
      */
-    public static function for(string $role): array
+    public static function for(string $role, array $caps = []): array
     {
         require_once __DIR__ . '/StudioSections.php';
         $min = StudioSections::minRoles();
@@ -33,6 +33,7 @@ final class StudioToday
         foreach (self::sources() as $s) {
             if ($mine < (int) ($rank[$min[$s['go']] ?? 'superadmin'] ?? 99)) continue;
             if (isset($s['role']) && $mine < (int) ($rank[$s['role']] ?? 99)) continue;
+            if (isset($s['cap']) && $role !== 'superadmin' && !in_array($s['cap'], $caps, true)) continue;   // money is a trust, not a role
             try { $n = (int) ($s['count'])(); }
             catch (Throwable $e) {
                 error_log('[studio-today] ' . $s['key'] . ': ' . $e->getMessage());
@@ -50,7 +51,7 @@ final class StudioToday
     {
         return [
             ['key' => 'gifts', 'label' => 'Bank transfers to verify', 'sub' => 'Recorded by one admin; another checks the statement and counts it.',
-             'go' => 'gifts', 'tone' => 'money', 'count' => static fn() => BankGifts::pendingCount()],
+             'go' => 'gifts', 'tone' => 'money', 'cap' => 'money', 'count' => static fn() => BankGifts::pendingCount()],
             ['key' => 'offline', 'label' => 'Offline payments to check', 'sub' => 'Dues and NGV payments by transfer, cash or POS, held until checked.',
              'go' => 'members', 'tab' => 'offline', 'tone' => 'money', 'count' => static function (): int {
                  $c = OfflinePayments::counts(); return (int) ($c['held'] ?? 0) + (int) ($c['checked'] ?? 0); }],

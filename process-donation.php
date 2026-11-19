@@ -153,8 +153,8 @@ function rateLimit(string $key, int $max = 30, int $window = 60): bool {
  * an older reference used to be counted a second time, moving the campaign
  * total and the donor count with it.
  */
-function storeDonationIfNew(string $ref, array $entry, float $amount, string $campaign, string $currency): bool {
-    return Donations::storeIfNew($ref, $entry, $amount, $campaign, $currency);
+function storeDonationIfNew(string $ref, array $entry, float $amount, string $campaign, string $currency, array $private = []): bool {
+    return Donations::storeIfNew($ref, $entry, $amount, $campaign, $currency, $private);
 }
 
 function timeAgo(string $iso): string {
@@ -659,7 +659,7 @@ if ($action==='record_donation') {
         'campaign'=>$camp,'frequency'=>$freq,
         'status'=>'confirmed','created_at'=>date('c'),
     ];
-    $stored = storeDonationIfNew($ref,$entry,$amount,$camp,$currency);
+    $stored = storeDonationIfNew($ref,$entry,$amount,$camp,$currency,['name'=>mb_substr(trim("$fn $ln"),0,100)]);
     $done   = !$stored;
     if (!$done) {
         if ($email) {
@@ -766,6 +766,7 @@ if ($action==='submit_contribute') {
     if (count($data['donations'])>500) $data['donations']=array_slice($data['donations'],0,500);
     $data['totals']['inkind']=($data['totals']['inkind']??0)+1;
     writeData($data);
+    Donations::ledgerAdd($data['donations'][0], ['name'=>$name]);   // the office's record keeps it too
     mail_send($email,'Thank You for Contributing to Afrovanguard 🙌',contributeHtml(['name'=>$name,'type_label'=>$tlabel,'description'=>$desc]));
     if (ENABLE_ADMIN_NOTIFICATIONS) {
         $__html = "<h3>New {$tlabel}</h3><p><b>Name:</b> ".esc($name)."<br><b>Email:</b> ".esc($email)."<br><b>Campaign:</b> ".esc($camp)."<br><b>Details:</b> ".esc($desc)."</p>";

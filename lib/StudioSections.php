@@ -17,6 +17,7 @@
  *   id     the screen (`#<id>View`, `activateTab('<id>')`, `#<id>` link)
  *   group  the sidebar heading it sits under ('' = above the first heading)
  *   min    the least Studio role that sees it: editor < admin < superadmin
+ *   cap    a trust the section also needs, granted per person (money); a Super Admin holds it
  *   badge  an optional counter beside the label, filled by the screen's loader
  *   frames a console that is its own set of pages (NextGen Vanguard, Appeals):
  *          one tab per page, opened inside the Studio, deep-linked #ngv/fines
@@ -69,9 +70,11 @@ final class StudioSections
          'icon' => '<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5.2 6.5-5.2s6.5 1.9 6.5 5.2"/><path d="M17 8.2a3 3 0 0 1 0 5.6"/><path d="M19 20c0-2.2-1-3.7-2.6-4.6"/>'],
         ['id' => 'celebrations', 'group' => 'People', 'label' => 'Celebrations', 'min' => 'admin', 'badge' => null,
          'icon' => '<rect x="3" y="9" width="18" height="12" rx="1.5"/><path d="M3 13h18M12 9v12"/><path d="M12 9c-1.5-2.5-5-2.5-5-.5 0 1 .8 1.5 2 1.5h3zM12 9c1.5-2.5 5-2.5 5-.5 0 1-.8 1.5-2 1.5h-3z"/>'],
-        ['id' => 'gifts', 'group' => 'Money', 'label' => 'Bank transfers', 'min' => 'admin', 'badge' => ['id' => 'giftsBadge', 'class' => 'tab-badge', 'text' => ''],
+        ['id' => 'gifts', 'group' => 'Money', 'cap' => 'money', 'label' => 'Bank transfers', 'min' => 'admin', 'badge' => ['id' => 'giftsBadge', 'class' => 'tab-badge', 'text' => ''],
          'icon' => '<path d="M3 10h18"/><path d="M5 10V20M9 10v10M15 10v10M19 10v10"/><path d="M2 20h20"/><path d="M12 3l9 5H3l9-5z"/>'],
-        ['id' => 'appeals', 'group' => 'Money', 'label' => 'Appeals', 'min' => 'admin', 'badge' => null,
+        ['id' => 'donations', 'group' => 'Money', 'cap' => 'money', 'label' => 'Donations', 'min' => 'admin', 'badge' => null,
+         'icon' => '<path d="M12 2v20"/><path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'],
+        ['id' => 'appeals', 'group' => 'Money', 'cap' => 'money', 'label' => 'Appeals', 'min' => 'admin', 'badge' => null,
          // Its own pages, one tab each, opened here (academy/ngv/_in-studio.php drops their second navigation).
          'frames' => [
            ['key' => 'manage', 'label' => 'Appeals', 'url' => '/give/manage.php'],
@@ -133,6 +136,8 @@ final class StudioSections
     public static function forPage(): array
     {
         return ['min' => self::minRoles(), 'aliases' => self::ALIASES,
+            /* A section that also needs a trust (AdminRoles::CAPS): money. */
+            'caps' => array_column(array_filter(self::all(), static fn($s) => !empty($s['cap'])), 'cap', 'id'),
             'sections' => array_map(static fn($s) => ['id' => $s['id'], 'label' => $s['label'], 'group' => $s['group']], self::all()),
             'consoles' => self::CONSOLES,
             'frames' => array_column(array_map(static fn($s) => [$s['id'], $s['frames']], self::framed()), 1, 0)];

@@ -1090,3 +1090,12 @@ body.studio .ov-card-ico { background: var(--surface-2); color: var(--ink); }
 .att-hol-x:hover, .att-hol-x:focus-visible { background: var(--surface-2); color: var(--ink); }
 .att-hol-add { display: flex; gap: 8px; align-items: center; }
 .att-hol-add input { padding: 7px 10px; border: 1px solid var(--divider); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: inherit; }
+
+/* ── Money → Donations ── */
+.don-pane { margin-top: 16px; }
+.don-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; margin-bottom: 10px; }
+.don-filters .fld { margin: 0; }
+.don-segs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.don-segs .is-on { background: var(--nav-on); border-color: var(--line-hover); }
+.don-pager { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.mt-cap { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; margin-right: 8px; }

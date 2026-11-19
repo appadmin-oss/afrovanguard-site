@@ -1262,6 +1262,55 @@
   </main>
 
   <!-- ACTIVITY (per-area admin audit trail + undo) -->
+  <!-- ═══ Money → Donations (lib/Donations.php): the ledger and the donors ═══ -->
+  <main class="studio-main" id="donationsView" hidden>
+    <div class="studio-head">
+      <div><h1>Donations</h1><p class="muted">Every gift, kept for good with the donor's real name — the public wall shows only those who asked to be on it.</p></div>
+      <a class="btn btn-outline btn-sm" id="donExport" href="#" download>Export CSV</a>
+    </div>
+    <div class="att-counts" id="donSummary" aria-live="polite"></div>
+    <div class="studio-subtabs" role="tablist" aria-label="Donations">
+      <button class="subtab active" role="tab" aria-selected="true" data-don-tab="gifts">Gifts</button>
+      <button class="subtab" role="tab" aria-selected="false" data-don-tab="donors">Donors</button>
+    </div>
+    <section class="don-pane" data-don-pane="gifts">
+      <form class="don-filters" id="donFilters" role="search" autocomplete="off">
+        <label class="fld"><span>Search</span><input type="search" id="donQ" placeholder="Name, email or reference"></label>
+        <label class="fld"><span>Appeal</span><select id="donCampaign"><option value="">All appeals</option></select></label>
+        <label class="fld"><span>Kind</span><select id="donType"><option value="">All kinds</option><option value="card">Card</option><option value="bank_static">Bank transfer</option><option value="bank_va">Virtual account</option><option value="inkind">In kind</option></select></label>
+        <label class="fld"><span>From</span><input type="date" id="donFrom"></label>
+        <label class="fld"><span>To</span><input type="date" id="donTo"></label>
+        <input type="hidden" id="donEmail">
+      </form>
+      <p class="muted tiny" id="donCount" role="status" aria-live="polite"></p>
+      <div class="att-table-wrap">
+        <table class="att-table">
+          <caption class="sr-only">Gifts</caption>
+          <thead><tr><th scope="col">Date</th><th scope="col">Donor</th><th scope="col">Amount</th><th scope="col">Appeal</th><th scope="col">Kind</th><th scope="col">Reference</th></tr></thead>
+          <tbody id="donRows"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="don-pager"><button type="button" class="btn btn-outline btn-sm" id="donPrev">← Newer</button><button type="button" class="btn btn-outline btn-sm" id="donNext">Older →</button></div>
+    </section>
+    <section class="don-pane" data-don-pane="donors" hidden>
+      <div class="don-segs" role="group" aria-label="Which donors">
+        <button type="button" class="btn btn-outline btn-sm is-on" data-don-seg="all" aria-pressed="true">Everyone</button>
+        <button type="button" class="btn btn-outline btn-sm" data-don-seg="lybunt" aria-pressed="false">Gave last year, not yet this year</button>
+        <button type="button" class="btn btn-outline btn-sm" data-don-seg="new" aria-pressed="false">New this year</button>
+        <button type="button" class="btn btn-outline btn-sm" data-don-seg="recurring" aria-pressed="false">Give regularly</button>
+      </div>
+      <div class="don-filters" role="search"><label class="fld"><span>Search donors</span><input type="search" id="donorQ" placeholder="Name or email"></label></div>
+      <p class="muted tiny" id="donorCount" role="status" aria-live="polite"></p>
+      <div class="att-table-wrap">
+        <table class="att-table">
+          <caption class="sr-only">Donors</caption>
+          <thead><tr><th scope="col">Donor</th><th scope="col">Gifts</th><th scope="col">Given in all</th><th scope="col">First gift</th><th scope="col">Latest gift</th><th scope="col"><span class="sr-only">Their gifts</span></th></tr></thead>
+          <tbody id="donorRows"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
   <!-- ═══ People → Attendance (lib/GateAttendance.php): a day's register, and the settings in their groups ═══ -->
   <main class="studio-main" id="attendanceView" hidden>
     <div class="studio-head">

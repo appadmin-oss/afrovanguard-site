@@ -79,8 +79,10 @@ separate staff consoles).
    screen (and member-desk pane) that resolves it, shown only to roles that
    may open that screen. A queue that cannot be counted is said, never shown
    as zero (2026-11-18).
-4. A money desk (ledger view, donor record, reconciliation) and a `money`
-   capability granted per person.
+4. ✅ A money desk — Money → Donations: a permanent ledger with the donor's
+   real name, donors with LYBUNT / new / regular segments and retention, export
+   — and Money as a trust granted per person (2026-11-19). Not yet done:
+   matching against Paystack settlements.
 5. ✅ The screen in the address (`#members/offline`, Back/Forward work), and one
    search (Ctrl+K) across every screen, member-desk pane and staff console (2026-11-18).
 

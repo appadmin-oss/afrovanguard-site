@@ -8,6 +8,7 @@
   var API = '/admin/api.php';
   var csrf = '';            // CSRF token kept in memory only
   var currentRole = 'superadmin';   // editor | admin | superadmin (from session)
+  var currentCaps = [];             // trusts granted to this person (AdminRoles::CAPS); a Super Admin holds them all
   var ROLE_RANK = { editor: 1, admin: 2, superadmin: 3 };
   /* Which role each screen needs comes from the ONE list of sections
      (lib/StudioSections.php), which the page carries as JSON. It was a second
@@ -15,7 +16,12 @@
      unreadable, every screen needs a Super Admin — closed, not open. */
   var SECTIONS = (function () { try { return JSON.parse(document.getElementById('studioSections').textContent) || {}; } catch (e) { return {}; } })();
   var TAB_MIN = SECTIONS.min || {};
-  function roleAllows(tab) { var need = TAB_MIN[tab] || 'superadmin'; return (ROLE_RANK[currentRole] || 0) >= (ROLE_RANK[need] || 99); }
+  function roleAllows(tab) {
+    var need = TAB_MIN[tab] || 'superadmin';
+    if ((ROLE_RANK[currentRole] || 0) < (ROLE_RANK[need] || 99)) return false;
+    var cap = (SECTIONS.caps || {})[tab];   // money is a trust granted per person, not a role
+    return !cap || currentRole === 'superadmin' || currentCaps.indexOf(cap) >= 0;
+  }
   function applyRoleVisibility() {
     document.querySelectorAll('.tab[data-tab]').forEach(function (t) {
       var tab = t.getAttribute('data-tab'); t.hidden = !roleAllows(tab);
@@ -36,7 +42,7 @@
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
     celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), sessions: $('#sessionsView'), psEdit: $('#psEditView'), events: $('#eventsView'), evEdit: $('#evEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
-    site: $('#siteView'), media: $('#mediaView'), gifts: $('#giftsView'), attendance: $('#attendanceView')
+    site: $('#siteView'), media: $('#mediaView'), gifts: $('#giftsView'), attendance: $('#attendanceView'), donations: $('#donationsView')
   };
   /* Consoles of their own pages (NextGen Vanguard, Appeals): one screen each, from the registry. */
   var FRAMES = SECTIONS.frames || {};
@@ -139,6 +145,7 @@
     else if (which === 'members') { show('members'); loadMembers(); }
     else if (which === 'gifts') { show('gifts'); loadGifts(); }
     else if (which === 'attendance') { show('attendance'); loadAttendance(); }
+    else if (which === 'donations') { show('donations'); loadDonations(); }
     else if (which === 'guide') { show('guide'); }
     else if (which === 'mentorship') { show('mentorship'); loadMentorship(); }
     else if (which === 'activity') { show('activity'); loadActivity(); }
@@ -1950,6 +1957,10 @@
             ? ' <span class="muted tiny" title="Resetting your own would make the second step optional">another Super Admin resets yours</span>'
             : ' <button class="btn btn-outline btn-sm" data-mfa-reset="' + escapeHtml(a.email) + '">Reset 2-step</button>';
         }
+        /* Money is granted to a person, not carried by a role (AdminRoles::CAPS). */
+        var hasMoney = String(a.caps || '').split(',').indexOf('money') >= 0;
+        if (a.role === 'superadmin') tag += ' <span class="badge published" title="A Super Admin holds every trust">money</span>';
+        else if (a.valid !== false) act = '<label class="mt-cap"><input type="checkbox" data-admin-cap="money" data-email="' + escapeHtml(a.email) + '"' + (hasMoney ? ' checked' : '') + '> Money access</label> ' + act;
         return '<div class="mt-row"><div class="mt-row-main"><div class="mt-pair"><b>' + escapeHtml(a.email) + '</b> <span class="badge ' + (a.valid === false ? 'draft' : 'published') + '" style="text-transform:capitalize">' + escapeHtml(a.role) + '</span>' + tag + '</div>'
           + '<div class="mt-meta">added ' + escapeHtml(a.created_at || '') + (a.added_by ? ' · by ' + escapeHtml(a.added_by) : '') + '</div></div>'
           + '<div class="mt-acts">' + act + '</div></div>';
@@ -1995,6 +2006,19 @@
         msg.textContent = d.ok ? ('Granted ' + role + ' access to ' + email + '.') : (d.error || 'Could not grant access.');
         if (d.ok) { $('#adEmail').value = ''; loadAdmins(); }
       }).finally(function () { btn.disabled = false; });
+    });
+    /* Money access: granted or withdrawn at once, by a Super Admin, and logged. */
+    $('#adList').addEventListener('change', function (e) {
+      var c = e.target.closest('[data-admin-cap]'); if (!c) return;
+      var em = c.getAttribute('data-email'), give = c.checked;
+      if (!confirm((give ? 'Give ' : 'Withdraw ') + em + (give ? ' Money access? They will see donors, and record and verify money.' : '’s Money access?'))) { c.checked = !give; return; }
+      c.disabled = true;
+      post('admin_caps_save', { email: em, caps: give ? ['money'] : [] }).then(function (r) {
+        var x = r.data || {};
+        if (!x.ok) { c.checked = !give; toast(x.error || 'Not saved.'); return; }
+        toast(give ? 'Money access given.' : 'Money access withdrawn.');
+      }).catch(function () { c.checked = !give; toast('The Studio could not be reached. Nothing changed.'); })
+        .finally(function () { c.disabled = false; });
     });
     $('#adList').addEventListener('click', function (e) {
       var b = e.target.closest('[data-admin-remove]');
@@ -4246,6 +4270,60 @@
     return out;
   }
 
+  /* ── Money → Donations (lib/Donations.php): the ledger and the donors ── */
+  var DON_KIND = { card: 'Card', bank_static: 'Bank transfer', bank_va: 'Virtual account', inkind: 'In kind' };
+  var donPage = 0, donSeg = 'all', donCampaigns = false, donTimer = null;
+  function naira(n) { return '₦' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 }); }
+  function donTab(which) {
+    document.querySelectorAll('[data-don-tab]').forEach(function (b) { var on = b.getAttribute('data-don-tab') === which; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    document.querySelectorAll('[data-don-pane]').forEach(function (p) { p.hidden = p.getAttribute('data-don-pane') !== which; });
+    if (which === 'donors') loadDonors();
+    if (!routing && views.donations && !views.donations.hidden) setHash('donations', which === 'gifts' ? '' : which, true);
+  }
+  function donQuery() {
+    var q = { q: $('#donQ').value.trim(), campaign: $('#donCampaign').value, type: $('#donType').value, from: $('#donFrom').value, to: $('#donTo').value, email: $('#donEmail').value };
+    return Object.keys(q).filter(function (k) { return q[k]; }).map(function (k) { return k + '=' + encodeURIComponent(q[k]); }).join('&');
+  }
+  function loadDonations() {
+    var rows = $('#donRows'); rows.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
+    var qs = donQuery();
+    $('#donExport').setAttribute('href', API + '?action=donations_export' + (qs ? '&' + qs : ''));
+    api('donations_list&page=' + donPage + (qs ? '&' + qs : '')).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { rows.innerHTML = '<tr><td colspan="6" class="muted">' + escapeHtml(d.error || 'Could not load the gifts.') + ' <button type="button" class="btn btn-outline btn-sm" id="donRetry">Retry</button></td></tr>'; return; }
+      var sm = d.summary || {};
+      $('#donSummary').innerHTML = [[naira(sm.month_ngn), 'This month'], [naira(sm.year_ngn), 'This year'], [sm.donors_year || 0, 'Donors this year']].map(function (c) {
+        return '<div class="att-count"><span class="att-count-n">' + escapeHtml(String(c[0])) + '</span><span>' + c[1] + '</span></div>'; }).join('');
+      if (!donCampaigns) { $('#donCampaign').innerHTML = '<option value="">All appeals</option>' + (d.campaigns || []).map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c.replace(/[-_]/g, ' ')) + '</option>'; }).join(''); donCampaigns = true; }
+      var list = d.rows || [], from = d.page * d.page_size;
+      var who = $('#donEmail').value;
+      $('#donCount').innerHTML = escapeHtml(d.total ? (from + 1) + '–' + (from + list.length) + ' of ' + d.total + ' gifts · ' + naira(d.sum_ngn) + ' in all' + (who ? ' · from ' + who : '') : 'No gifts match.')
+        + (who ? ' <button type="button" class="btn btn-outline btn-sm" id="donClearEmail">Show everyone</button>' : '');
+      rows.innerHTML = list.length ? list.map(function (g) {
+        return '<tr><td>' + escapeHtml(String(g.given_at).slice(0, 10)) + '</td><td>' + escapeHtml(g.name || '—') + (g.email ? '<div class="tiny muted">' + escapeHtml(g.email) + '</div>' : '') + '</td>'
+          + '<td>' + (g.type === 'inkind' ? 'In kind' : escapeHtml((g.currency === 'NGN' ? '₦' : g.currency + ' ') + Number(g.amount).toLocaleString('en-NG', { minimumFractionDigits: 2 }))) + '</td>'
+          + '<td>' + escapeHtml(String(g.campaign).replace(/[-_]/g, ' ')) + '</td><td>' + escapeHtml(DON_KIND[g.type] || g.type) + (g.frequency && g.frequency !== 'One-time' ? ' · ' + escapeHtml(g.frequency) : '') + '</td>'
+          + '<td class="tiny">' + escapeHtml(g.reference) + (g.confirmed_by ? '<div class="muted">recorded by ' + escapeHtml(g.recorded_by) + ', confirmed by ' + escapeHtml(g.confirmed_by) + '</div>' : '') + '</td></tr>';
+      }).join('') : '<tr><td colspan="6" class="muted">' + (qs ? 'No gifts match these filters.' : 'No gifts recorded yet.') + '</td></tr>';
+      $('#donPrev').disabled = d.page <= 0; $('#donNext').disabled = from + list.length >= d.total;
+    }).catch(function () { rows.innerHTML = '<tr><td colspan="6" class="muted">Could not load the gifts. <button type="button" class="btn btn-outline btn-sm" id="donRetry">Retry</button></td></tr>'; });
+  }
+  function loadDonors() {
+    var rows = $('#donorRows'); rows.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
+    api('donations_donors&segment=' + donSeg + '&q=' + encodeURIComponent($('#donorQ').value.trim())).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { rows.innerHTML = '<tr><td colspan="6" class="muted">' + escapeHtml(d.error || 'Could not load the donors.') + '</td></tr>'; return; }
+      var c = d.counts || {};
+      document.querySelectorAll('[data-don-seg]').forEach(function (b) { var k = b.getAttribute('data-don-seg'); b.dataset.label = b.dataset.label || b.textContent; b.textContent = b.dataset.label + ' (' + (c[k] || 0) + ')'; });
+      $('#donorCount').textContent = d.total + ' donor' + (d.total === 1 ? '' : 's') + (d.retention !== null ? ' · ' + d.retention + '% of last year’s donors have given again this year (' + d.retained + ' of ' + d.last_year_donors + ')' : '');
+      rows.innerHTML = (d.donors || []).length ? d.donors.map(function (x) {
+        return '<tr><td>' + escapeHtml(x.name || '—') + '<div class="tiny muted">' + escapeHtml(x.email) + '</div></td><td>' + x.gifts + (x.recurring ? ' <span class="att-pill">regular</span>' : '') + '</td>'
+          + '<td>' + naira(x.total) + '</td><td>' + escapeHtml(String(x.first_at).slice(0, 10)) + '</td><td>' + escapeHtml(String(x.last_at).slice(0, 10)) + '</td>'
+          + '<td><button type="button" class="btn btn-outline btn-sm" data-don-donor="' + escapeHtml(x.email) + '">Their gifts</button></td></tr>';
+      }).join('') : '<tr><td colspan="6" class="muted">' + (donSeg === 'lybunt' ? 'Nobody who gave last year is still to give this year.' : 'No donors here.') + '</td></tr>';
+    }).catch(function () { rows.innerHTML = '<tr><td colspan="6" class="muted">Could not load the donors.</td></tr>'; });
+  }
+
   function loadOffline() {
     var box = $('#offList'); box.innerHTML = '<p class="muted">Loading…</p>';
     api('offline_list&status=' + $('#offStatus').value).then(function (r) {
@@ -4720,6 +4798,23 @@
       }).catch(function () { err.textContent = 'The Studio could not be reached. Nothing was saved; try again.'; err.hidden = false; })
         .finally(function () { btn.disabled = false; });
     });
+    document.querySelectorAll('[data-don-tab]').forEach(function (b) { b.addEventListener('click', function () { donTab(b.getAttribute('data-don-tab')); }); });
+    ['#donCampaign', '#donType', '#donFrom', '#donTo'].forEach(function (k) { $(k).addEventListener('change', function () { donPage = 0; loadDonations(); }); });
+    $('#donQ').addEventListener('input', function () { clearTimeout(donTimer); donTimer = setTimeout(function () { donPage = 0; $('#donEmail').value = ''; loadDonations(); }, 300); });
+    $('#donFilters').addEventListener('submit', function (e) { e.preventDefault(); donPage = 0; loadDonations(); });
+    $('#donPrev').addEventListener('click', function () { if (donPage > 0) { donPage--; loadDonations(); } });
+    $('#donNext').addEventListener('click', function () { donPage++; loadDonations(); });
+    $('#donRows').addEventListener('click', function (e) { if (e.target.closest('#donRetry')) loadDonations(); });
+    $('#donCount').addEventListener('click', function (e) { if (e.target.closest('#donClearEmail')) { $('#donEmail').value = ''; donPage = 0; loadDonations(); } });
+    $('#donorQ').addEventListener('input', function () { clearTimeout(donTimer); donTimer = setTimeout(loadDonors, 300); });
+    document.querySelectorAll('[data-don-seg]').forEach(function (b) { b.addEventListener('click', function () {
+      donSeg = b.getAttribute('data-don-seg');
+      document.querySelectorAll('[data-don-seg]').forEach(function (x) { var on = x === b; x.classList.toggle('is-on', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+      loadDonors(); }); });
+    $('#donorRows').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-don-donor]'); if (!b) return;
+      $('#donEmail').value = b.getAttribute('data-don-donor'); $('#donQ').value = ''; donPage = 0; donTab('gifts'); loadDonations();
+    });
     $('#giftsRefresh').addEventListener('click', loadGifts);
     $('#giftsStatus').addEventListener('change', loadGifts);
     $('#giftForm').addEventListener('submit', function (e) {
@@ -5147,12 +5242,13 @@
     if (id === 'members' && MEM_PANES.indexOf(m[2]) >= 0) sub = m[2];
     if (FRAMES[id] && FRAMES[id].some(function (f) { return f.key === m[2]; })) sub = m[2];
     if (id === 'attendance' && (m[2] === 'day' || m[2] === 'settings')) sub = m[2];
+    if (id === 'donations' && (m[2] === 'gifts' || m[2] === 'donors')) sub = m[2];
     return { id: id, sub: sub };
   }
   function openFromHash() {
     var h = readHash(); if (!h || !roleAllows(h.id)) return false;
     routing = true;
-    try { if (FRAMES[h.id]) pendingFrameKey = h.sub; activateTab(h.id); if (h.sub && h.id === 'members') memTab(h.sub); if (h.sub && h.id === 'attendance') attTab(h.sub); } finally { routing = false; }
+    try { if (FRAMES[h.id]) pendingFrameKey = h.sub; activateTab(h.id); if (h.sub && h.id === 'members') memTab(h.sub); if (h.sub && h.id === 'attendance') attTab(h.sub); if (h.sub && h.id === 'donations') donTab(h.sub); } finally { routing = false; }
     return true;
   }
   window.addEventListener('popstate', function () { if (!views.login.hidden || !views.mfa.hidden) return; openFromHash(); });
@@ -5275,13 +5371,15 @@
       if (d.csrf) csrf = d.csrf;
       currentRole = d.role || currentRole;
       mfaSay(d.backup_used ? 'In. That was a backup code — ' + d.backup_remaining + ' left.' : '');
-      show('overview'); boot();
+      /* The trusts come with the session, which only now has the factor passed. */
+      api('session').then(function (s) { var x = s.data || {}; currentCaps = x.caps || []; if (x.role) currentRole = x.role; })
+        .finally(function () { show('overview'); boot(); });
     });
   });
 
   api('session').then(function (r) {
     var d = r.data || {};
-    if (d.ok) { csrf = d.csrf; cloudinary = !!d.cloudinary; currentRole = d.role || 'superadmin'; boot(); return; }
+    if (d.ok) { csrf = d.csrf; cloudinary = !!d.cloudinary; currentRole = d.role || 'superadmin'; currentCaps = d.caps || []; boot(); return; }
     if (d.held) { csrf = d.csrf; cloudinary = !!d.cloudinary; mfaGate(d); return; }
     show('login');
   }).catch(function () { show('login'); });

@@ -27,7 +27,8 @@ ck('today: with nothing pending, no bank-transfer item is listed (an empty queue
 
 foreach (['ZT-1', 'ZT-2'] as $ref) BankGifts::submit(['name' => 'Ada Obi', 'email' => 'ada@example.org', 'amount' => 5000, 'campaign' => 'general',
     'bank_ref' => $ref, 'paid_on' => date('Y-m-d')], 'first.admin@afrovanguard.org.ng');
-$tdAdmin = StudioToday::for('admin');
+$tdAdmin = StudioToday::for('admin', ['money']);
+ck('today: an admin without Money access is not shown the bank transfers (money is a trust, not a role)', !isset($tdKeys(StudioToday::for('admin'))['gifts']));
 $tdG = array_values(array_filter($tdAdmin['items'], static fn($i) => $i['key'] === 'gifts'))[0] ?? [];
 ck('today: two transfers waiting are one row saying 2, pointing at the Bank transfers screen', ($tdG['n'] ?? 0) === 2 && ($tdG['go'] ?? '') === 'gifts');
 $tdMin = StudioSections::minRoles();
@@ -40,7 +41,7 @@ ck('today: nobody below a Super Admin is shown the AI suggestions (the Rules scr
 
 /* A queue that cannot be counted is said, not zero. */
 Database::pdo()->exec('ALTER TABLE bank_gifts RENAME TO bank_gifts_away');
-$tdBroken = StudioToday::for('admin');
+$tdBroken = StudioToday::for('admin', ['money']);
 Database::pdo()->exec('ALTER TABLE bank_gifts_away RENAME TO bank_gifts');
 ck('today: a queue that cannot be counted is reported as such, not as nothing waiting',
     in_array('gifts', array_column($tdBroken['errors'], 'key'), true) && !isset($tdKeys($tdBroken)['gifts']));
