@@ -1360,3 +1360,33 @@ returns focus. Driven in Chromium (16 checks, admin and editor).
   one to a row by the panel's own width.
 Verified in Chromium: bank transfers (13), editor (7), Today (7), links and
 search (17), NGV and the sidebar (14); full suite 10,211.
+
+## Afrovanguard members have a lateness time; Attendance is one organised screen (2026-11-19)
+
+The owner: "Afrovanguard attendance and settings needs to be more structured
+and organized. Afrovanguard members should have a lateness time just like NGG
+has."
+
+- **Lateness, NGG's way.** New rules `gate.lateness_on`, `gate.resumption_ngv`
+  (07:00, the spreadsheet's), `gate.resumption_member` (09:00),
+  `gate.grace_minutes` (10), and a `time` rule type (HH:MM, refused
+  otherwise). `GateAttendance::punctualityFor()` answers the gate's lookup with
+  the member's own rule — the contract NGG answers (`gate_person_punctuality`),
+  which gate.ts already grades by — so the desk records what Afrovanguard will,
+  not the location's hours. `null` (no lateness) on a day not theirs, a holiday,
+  or with lateness off; always sent, so the gate never falls back to the
+  location for an Afrovanguard member. Late minutes count from the resumption
+  time, as NGG's do.
+- **People → Attendance** in the Studio: *The day* (any date: counts, each
+  arrival with its time and minutes late, who is expected and not in) and
+  *Settings* in `GateAttendance::SETTING_GROUPS` — When people are expected,
+  Lateness, Absence (an admin's), Fines and the gate pass, Points (a Super
+  Admin's, read-only to an admin). Programme days are day toggles; holidays a
+  list of dates. Saves go through `rules_save`, so audit and undo are the same;
+  an admin's save passes only if every key is theirs to set.
+- **Two defects fixed on the way.** `gate.holidays` could never be emptied once
+  set (csv without `allow_empty`). And Undo replayed any rule change for any
+  admin, so an admin could reverse a Super Admin's fine or promotion rule; an
+  admin may now undo only the attendance keys they could have set.
+Tests: `tests/attendancesettings.test.php`; `gateattendance.test.php` now
+expects `punctuality` in what the gate is told. Driven in Chromium (12 checks).

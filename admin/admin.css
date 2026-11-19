@@ -1051,3 +1051,42 @@ body.studio .ov-today-item { background: var(--surface); }
 body.studio .ov-today-item:hover, body.studio .ov-today-item:focus-visible { border-color: var(--line-hover); background: var(--surface-2); }
 /* One accent: the cards' icon tiles are neutral; gold is kept for money and focus. */
 body.studio .ov-card-ico { background: var(--surface-2); color: var(--ink); }
+
+/* ── People → Attendance ── */
+.att-pane { margin-top: 16px; }
+.att-day-bar { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 14px; }
+.att-day-pick { max-width: 200px; margin: 0; }
+.att-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.att-count { display: grid; gap: 2px; background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); padding: 10px 14px; font-size: 13px; color: var(--muted); }
+.att-count-n { font-size: 22px; font-weight: 700; color: var(--ink); font-variant-numeric: lining-nums tabular-nums; }
+.att-table-wrap { overflow-x: auto; border: 1px solid var(--divider); border-radius: var(--radius-md); background: var(--surface); }
+.att-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.att-table th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 9px 12px; border-bottom: 1px solid var(--divider); background: var(--surface-2); }
+.att-table td { padding: 9px 12px; border-bottom: 1px solid var(--divider); color: var(--ink); font-variant-numeric: tabular-nums; }
+.att-table tr:last-child td { border-bottom: 0; }
+.att-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--ink); }
+.att-pill.is-late { background: #fdf2d8; color: #7a5600; }
+.att-pill.is-absent { background: #fdeaea; color: #a12a2a; }
+.att-pill.is-present { background: #e8f5ec; color: #17663a; }
+:root[data-theme="dark"] .att-pill.is-late { background: #3a2c0c; color: #f3c34a; }
+:root[data-theme="dark"] .att-pill.is-absent { background: #3a1616; color: #f87171; }
+:root[data-theme="dark"] .att-pill.is-present { background: #10301c; color: #4ade80; }
+.att-h { font-size: 15px; margin: 20px 0 6px; }
+.att-group { margin-bottom: 14px; }
+.att-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 18px; }
+.att-field { display: grid; gap: 6px; align-content: start; border: 0; padding: 0; margin: 0; }
+.att-field > label, .att-field legend { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+.att-field input[type="time"], .att-field input[type="number"], .att-field input[type="text"] { padding: 8px 10px; border: 1px solid var(--divider); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: inherit; max-width: 220px; }
+.att-field p { margin: 0; }
+.att-days { display: flex; flex-wrap: wrap; gap: 6px; }
+.att-day { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border: 1px solid var(--divider); border-radius: var(--radius-sm); font-size: 13px; }
+.att-err { color: var(--st-err); font-size: 12.5px; }
+.att-locked { margin: -6px 0 10px; }
+.att-save { margin-top: 6px; align-items: center; }
+.att-hols { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.att-hols li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border: 1px solid var(--divider); border-radius: var(--radius-sm); font-size: 13px; font-variant-numeric: tabular-nums; }
+.att-hols li.att-hol-none { border: 0; padding: 0; }
+.att-hol-x { border: 0; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: var(--radius-sm); }
+.att-hol-x:hover, .att-hol-x:focus-visible { background: var(--surface-2); color: var(--ink); }
+.att-hol-add { display: flex; gap: 8px; align-items: center; }
+.att-hol-add input { padding: 7px 10px; border: 1px solid var(--divider); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: inherit; }

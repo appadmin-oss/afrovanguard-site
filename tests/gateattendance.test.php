@@ -204,7 +204,8 @@ $c1 = GateAttendance::assignCard($ada, 'b-ngv-24-0007', 1);
 ck('Gate: a spreadsheet-era card number is taken as printed', $c1['ok'] && $c1['code'] === 'B-NGV-24-0007');
 $r = GateAttendance::resolveCard('b-ngv-24-0007');
 ck('Gate: and resolves to the member, with the same ref as their pass', $r['ok'] && $r['person']['ref'] === (string) $ada && $r['person']['kind'] === 'member' && $r['person']['status'] === 'active');
-ck('Gate: …saying no more than a desk needs', array_keys($r['person']) === ['ref', 'name', 'kind', 'status', 'detail'] && str_contains($r['person']['detail'], 'NextGen Vanguard'));
+ck('Gate: …saying no more than a desk needs — and the lateness rule the gate grades the scan by',
+    array_keys($r['person']) === ['ref', 'name', 'kind', 'status', 'detail', 'punctuality'] && str_contains($r['person']['detail'], 'NextGen Vanguard'));
 $c2 = GateAttendance::assignCard($ada, '', 1);
 ck('Gate: a new card is the next free number', $c2['ok'] && (bool) preg_match('/^A-NGV-\d{2}-0001$/', $c2['code']));
 ck('Gate: and the replaced one stops working', GateAttendance::resolveCard('B-NGV-24-0007')['code'] === 'void_card');

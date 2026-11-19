@@ -38,6 +38,44 @@ final class GateAttendance
     private const SWEPT_META = 'gate_absent_swept_through';
     private const SWEEP_MAX_DAYS = 14;
 
+    /**
+     * The attendance settings, in the order somebody actually sets them up:
+     * when people are expected, when they count as late, what an absence is,
+     * then what it all costs and earns. One list, read by the Studio's
+     * Attendance screen; every Attendance rule must be in exactly one group
+     * (tests/attendance-settings.test.php). `who` is the least role that may
+     * change the group: times and days are an office's; money and points are
+     * the organisation's rules, a Super Admin's, as all rules were before.
+     */
+    public const SETTING_GROUPS = [
+        ['key' => 'when', 'title' => 'When people are expected', 'who' => 'admin', 'rules' => ['gate.programme_days', 'gate.holidays']],
+        ['key' => 'late', 'title' => 'Lateness', 'who' => 'admin', 'rules' => ['gate.lateness_on', 'gate.resumption_ngv', 'gate.resumption_member', 'gate.grace_minutes']],
+        ['key' => 'absent', 'title' => 'Absence', 'who' => 'admin', 'rules' => ['gate.mark_absent']],
+        ['key' => 'fines', 'title' => 'Fines and the gate pass', 'who' => 'superadmin', 'rules' => ['gate.late_fine', 'gate.late_fine_probation', 'gate.absent_fine', 'gate.block_overdue_days', 'gate.fine_phone_signin', 'gate.probation_levels']],
+        ['key' => 'points', 'title' => 'Points', 'who' => 'superadmin', 'rules' => ['gate.points_on_time', 'gate.points_streak3', 'gate.points_streak5', 'gate.points_perfect_week', 'gate.points_birthday']],
+    ];
+
+    /** The rules a role may change from the Attendance screen. */
+    public static function settableBy(string $role): array
+    {
+        $rank = AdminRoles::RANK[$role] ?? 0; $out = [];
+        foreach (self::SETTING_GROUPS as $g) if ($rank >= (AdminRoles::RANK[$g['who']] ?? 99)) $out = array_merge($out, $g['rules']);
+        return $out;
+    }
+
+    /** The settings screen: each group with its rules as the Rules screen describes them, and whether this role may change it. */
+    public static function settingsFor(string $role): array
+    {
+        $byKey = [];
+        foreach ((AvRules::describe()['groups'] ?? []) as $rows) foreach ((array) $rows as $r) if (is_array($r) && isset($r['key'])) $byKey[$r['key']] = $r;
+        $rank = AdminRoles::RANK[$role] ?? 0; $out = [];
+        foreach (self::SETTING_GROUPS as $g) {
+            $out[] = ['key' => $g['key'], 'title' => $g['title'], 'editable' => $rank >= (AdminRoles::RANK[$g['who']] ?? 99), 'who' => $g['who'],
+                      'rules' => array_values(array_filter(array_map(static fn($k) => $byKey[$k] ?? null, $g['rules'])))];
+        }
+        return $out;
+    }
+
     private static bool $ready = false;
 
     public static function ensure(): void
@@ -153,6 +191,39 @@ final class GateAttendance
                 'birthday' => max(0, (int) self::rule('gate.points_birthday', 50))];
     }
     public static function marksAbsent(): bool   { return (bool) self::rule('gate.mark_absent', false); }
+    public static function latenessOn(): bool    { return (bool) self::rule('gate.lateness_on', true); }
+    public static function graceMinutes(): int   { return max(0, min(180, (int) self::rule('gate.grace_minutes', 10))); }
+    private static function hhmm(string $k, string $fallback): string
+    {
+        $v = (string) self::rule($k, $fallback);
+        return preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $v) ? $v : $fallback;
+    }
+    /** @return array{ngv:string, member:string} */
+    public static function resumptionTimes(): array
+    {
+        return ['ngv' => self::hhmm('gate.resumption_ngv', '07:00'), 'member' => self::hhmm('gate.resumption_member', '09:00')];
+    }
+
+    /**
+     * Afrovanguard's own rule for when this member is late today, for the gate
+     * to judge the scan by — so the desk says what Afrovanguard will record,
+     * not what the location's hours would say. The same contract NGG answers
+     * (gate_person_punctuality): null means no lateness for them today
+     * (lateness off, or not one of their programme days), and they are shown
+     * in, on time.
+     *
+     * @return array{resumption:string, grace_minutes:int}|null
+     */
+    public static function punctualityFor(array $u, ?string $day = null): ?array
+    {
+        if (!self::latenessOn()) return null;
+        $mid = (int) ($u['id'] ?? 0);
+        $day = $day ?? self::today();
+        /* A day their centre meets (or the portal's programme days, for a centre with no calendar), never a holiday. */
+        if (!self::isProgrammeDayFor($mid, $day)) return null;
+        $t = self::resumptionTimes();
+        return ['resumption' => self::expected($mid) ? $t['ngv'] : $t['member'], 'grace_minutes' => self::graceMinutes()];
+    }
     public static function blockOverdueDays(): int { return max(0, (int) self::rule('gate.block_overdue_days', 0)); }
     /** @return string[] three-letter days */
     public static function programmeDays(): array
@@ -305,7 +376,9 @@ final class GateAttendance
         $p = self::participant((int) $u['id']);
         $detail = $p ? trim('NextGen Vanguard' . ((string) $p['track'] !== '' ? ' · ' . $p['track'] : '')) : ucfirst(strtolower((string) $u['role']));
         return ['ref' => (string) (int) $u['id'], 'name' => (string) $u['name'], 'kind' => 'member',
-                'status' => $why === null ? 'active' : $why, 'detail' => $detail];
+                'status' => $why === null ? 'active' : $why, 'detail' => $detail,
+                /* Always said, so the gate never falls back to the location's hours for an Afrovanguard member. */
+                'punctuality' => self::punctualityFor($u)];
     }
 
     public static function resolveCard(string $code): array

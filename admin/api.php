@@ -161,6 +161,8 @@ try {
         'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
         // Bank-transfer gifts: donors' names and money, recorded by one admin, verified by another.
         'gifts_list', 'gifts_submit', 'gifts_decide',
+        // Attendance: the register names members; the settings are the office's times and days.
+        'attendance_get',
         'card_formats', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_get', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake', 'ngv_intake_email', 'ngv_intake_consent',
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
@@ -229,6 +231,14 @@ try {
     $needs = in_array($action, $superadminOnly, true) ? 'superadmin'
            : (in_array($action, $editorAllowed, true) ? 'editor'
            : (in_array($action, $managementOnly, true) ? 'admin' : ''));
+    /* The attendance times and days are an office's to set, from the Attendance
+       screen, through the same save (so audit and undo are the same). Only those
+       keys: one fine, point or other rule in the request and it needs a Super
+       Admin, as every rule did. */
+    if ($action === 'rules_save' && $role === 'admin') {
+        $askKeys = array_keys(is_array($body['rules'] ?? null) ? $body['rules'] : []);
+        if ($askKeys && !array_diff($askKeys, GateAttendance::settableBy('admin'))) $needs = 'admin';
+    }
     if ($needs === '') {
         error_log('[studio] unlisted action "' . $action . '" — refused below Super Admin until it is listed');
         $needs = 'superadmin';
@@ -995,9 +1005,25 @@ try {
 
         /* ════ Activity trail (per-area) + undo ════ */
         case 'activity':       json_out(['ok' => true, 'entries' => AdminAudit::recent((string) ($_GET['area'] ?? ''), (int) ($_GET['limit'] ?? 80)), 'areas' => AdminAudit::areas()]);
-        case 'activity_undo':
+        case 'activity_undo': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            json_out(AdminAudit::undo((int) ($body['id'] ?? 0)));
+            $uid = (int) ($body['id'] ?? 0);
+            /* Undoing a rules change IS a rules change: an admin may undo only the
+               attendance times and days they could have set themselves. (Undo
+               used to replay any rule, so an admin could reverse a Super Admin's
+               fine or promotion rule.) */
+            if ($role !== 'superadmin') {
+                try {
+                    $ust = Database::pdo()->prepare('SELECT undo FROM lms_audit WHERE id = ?'); $ust->execute([$uid]);
+                    $u = json_decode((string) $ust->fetchColumn(), true);
+                    if (is_array($u) && ($u['class'] ?? '') === 'AvRules') {
+                        $uk = array_keys((array) (($u['args'] ?? [])['values'] ?? []));
+                        if (!$uk || array_diff($uk, GateAttendance::settableBy($role))) json_out(['ok' => false, 'error' => 'Undoing that rule change needs a Super Admin.'], 403);
+                    }
+                } catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Could not check that change.'], 500); }
+            }
+            json_out(AdminAudit::undo($uid));
+        }
 
         /* ════ Admin team & roles (Super Admin only — gated above) ════ */
         case 'admins_list':
@@ -1385,6 +1411,16 @@ try {
         /* ---- The rules engine: Afrovanguard's constitution, as data ----
            Every threshold the accountability engine obeys. Superadmin-only:
            these govern promotions and escalations across the whole movement. */
+        /* ── Attendance (lib/GateAttendance.php): a day's register, and the settings in their groups ── */
+        case 'attendance_get': {
+            $day = (string) ($_GET['day'] ?? '');
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) $day = function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d');
+            $reg = GateAttendance::register($day);
+            $reg['rows'] = array_map(static fn($r) => ['member_id' => (int) $r['member_id'], 'name' => (string) ($r['name'] ?? ''), 'status' => (string) $r['status'],
+                'late_minutes' => (int) $r['late_minutes'], 'in_at' => (string) $r['in_at'], 'out_at' => (string) $r['out_at'], 'centre' => (string) $r['centre']], $reg['rows']);
+            json_out(['ok' => true, 'register' => $reg, 'settings' => GateAttendance::settingsFor($role), 'excuses' => count(GateAttendance::pendingExcuses()),
+                      'times' => GateAttendance::resumptionTimes(), 'grace' => GateAttendance::graceMinutes(), 'lateness_on' => GateAttendance::latenessOn()]);
+        }
         case 'rules_get':
             json_out(['ok' => true] + AvRules::describe());
         case 'rules_save': {

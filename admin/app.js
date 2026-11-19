@@ -36,7 +36,7 @@
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
     celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), sessions: $('#sessionsView'), psEdit: $('#psEditView'), events: $('#eventsView'), evEdit: $('#evEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
-    site: $('#siteView'), media: $('#mediaView'), gifts: $('#giftsView')
+    site: $('#siteView'), media: $('#mediaView'), gifts: $('#giftsView'), attendance: $('#attendanceView')
   };
   /* Consoles of their own pages (NextGen Vanguard, Appeals): one screen each, from the registry. */
   var FRAMES = SECTIONS.frames || {};
@@ -138,6 +138,7 @@
     else if (which === 'signin') { show('signin'); loadAuthPolicy(); loadArt(); }
     else if (which === 'members') { show('members'); loadMembers(); }
     else if (which === 'gifts') { show('gifts'); loadGifts(); }
+    else if (which === 'attendance') { show('attendance'); loadAttendance(); }
     else if (which === 'guide') { show('guide'); }
     else if (which === 'mentorship') { show('mentorship'); loadMentorship(); }
     else if (which === 'activity') { show('activity'); loadActivity(); }
@@ -2539,6 +2540,8 @@
         (r.options || []).map(function (o) {
           return '<option value="' + escapeHtml(o) + '"' + (String(o) === String(r.value) ? ' selected' : '') + '>' + escapeHtml(o) + '</option>';
         }).join('') + '</select>';
+    } else if (r.type === 'time') {
+      input = '<input type="time" id="' + id + '" data-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(r.value) + '" step="60" />';
     } else if (r.type === 'int') {
       input = '<input type="number" id="' + id + '" data-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(r.value) + '"' +
         (r.min !== null && r.min !== undefined ? ' min="' + escapeHtml(r.min) + '"' : '') +
@@ -4156,6 +4159,93 @@
     }).catch(function () { giftsError(box); });
   }
 
+  /* ── People → Attendance (lib/GateAttendance.php) ──
+     The day's register, and the settings grouped as they are set up: when
+     people are expected, lateness, absence, then fines and points (a Super
+     Admin's). Saving sends only what changed, through the rules' own save. */
+  var ATT_DAYS = [['mon', 'Mon'], ['tue', 'Tue'], ['wed', 'Wed'], ['thu', 'Thu'], ['fri', 'Fri'], ['sat', 'Sat'], ['sun', 'Sun']];
+  var ATT_LABEL = { present: 'On time', late: 'Late', absent: 'Absent', excused: 'Excused' };
+  var attLoaded = {}, attSettings = [];
+  function attTab(which) {
+    document.querySelectorAll('[data-att-tab]').forEach(function (b) { var on = b.getAttribute('data-att-tab') === which; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    document.querySelectorAll('[data-att-pane]').forEach(function (p) { p.hidden = p.getAttribute('data-att-pane') !== which; });
+    if (!routing && views.attendance && !views.attendance.hidden) setHash('attendance', which === 'day' ? '' : which, true);
+  }
+  function addMins(hhmm, m) { var p = String(hhmm).split(':'), t = (+p[0]) * 60 + (+p[1]) + m; return String(Math.floor(t / 60) % 24).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); }
+  function attTime(iso) { if (!iso) return '—'; var d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Lagos' }); }
+  function loadAttendance() {
+    var day = $('#attDay'); if (!day.value) day.value = new Date().toISOString().slice(0, 10);
+    var rows = $('#attRows'); rows.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
+    api('attendance_get&day=' + encodeURIComponent(day.value)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { rows.innerHTML = '<tr><td colspan="6" class="muted">Could not load the register. <button type="button" class="btn btn-outline btn-sm" id="attRetry">Retry</button></td></tr>'; return; }
+      var reg = d.register || {}, n = reg.counts || {}, notIn = reg.not_in || [];
+      $('#attRule').textContent = d.lateness_on
+        ? 'Late after ' + addMins(d.times.ngv, d.grace) + ' for NextGen Vanguard and ' + addMins(d.times.member, d.grace) + ' for other members (' + d.grace + ' minutes’ grace), on their programme days.'
+        : 'Lateness is not recorded: everybody who comes in is on time.';
+      $('#attCounts').innerHTML = [['present', 'On time'], ['late', 'Late'], ['absent', 'Absent'], ['excused', 'Excused']].map(function (c) {
+        return '<div class="att-count is-' + c[0] + '"><span class="att-count-n">' + (n[c[0]] || 0) + '</span><span>' + c[1] + '</span></div>';
+      }).join('') + '<div class="att-count"><span class="att-count-n">' + notIn.length + '</span><span>Not in yet</span></div>';
+      var list = reg.rows || [];
+      rows.innerHTML = list.length ? list.map(function (x) {
+        return '<tr><td>' + escapeHtml(x.name || ('#' + x.member_id)) + '</td><td><span class="att-pill is-' + escapeHtml(x.status) + '">' + escapeHtml(ATT_LABEL[x.status] || x.status) + '</span></td>'
+          + '<td>' + attTime(x.in_at) + '</td><td>' + (x.status === 'late' ? x.late_minutes + ' min' : '—') + '</td><td>' + attTime(x.out_at) + '</td><td>' + escapeHtml(x.centre || '—') + '</td></tr>';
+      }).join('') : '<tr><td colspan="6" class="muted">' + (reg.programme_day ? 'Nobody has come through the gate on this day.' : 'Not a programme day: nobody is expected.') + '</td></tr>';
+      $('#attNotIn').textContent = notIn.length ? notIn.map(function (p) { return p.name; }).join(', ') : 'Nobody — everybody expected has come in, or nobody is expected.';
+      $('#attBadge').hidden = !d.excuses; $('#attBadge').textContent = d.excuses || '';
+      attSettings = d.settings || []; attRenderSettings();
+    }).catch(function () { rows.innerHTML = '<tr><td colspan="6" class="muted">Could not load the register. <button type="button" class="btn btn-outline btn-sm" id="attRetry">Retry</button></td></tr>'; });
+  }
+  function attField(r, editable) {
+    var id = 'att_' + r.key.replace(/\./g, '_'), dis = editable ? '' : ' disabled', v = r.value;
+    attLoaded[r.key] = typeof v === 'boolean' ? v : String(v);
+    if (r.key === 'gate.programme_days') {
+      var on = String(v).split(',');
+      return '<fieldset class="att-field"><legend>' + escapeHtml(r.label) + '</legend><div class="att-days">' + ATT_DAYS.map(function (d) {
+        return '<label class="att-day"><input type="checkbox" data-att-day="' + d[0] + '"' + (on.indexOf(d[0]) >= 0 ? ' checked' : '') + dis + '> ' + d[1] + '</label>';
+      }).join('') + '</div><p class="muted tiny">' + escapeHtml(r.help) + '</p></fieldset>';
+    }
+    if (r.key === 'gate.holidays') {
+      var days = String(v).split(',').filter(Boolean).sort();
+      return '<fieldset class="att-field" data-att-holidays><legend>' + escapeHtml(r.label) + '</legend><ul class="att-hols">' + days.map(function (d) {
+        return '<li><span>' + escapeHtml(d) + '</span>' + (editable ? '<button type="button" class="att-hol-x" data-att-hol-x="' + escapeHtml(d) + '" aria-label="Remove ' + escapeHtml(d) + '">×</button>' : '') + '</li>';
+      }).join('') + (days.length ? '' : '<li class="muted att-hol-none">No holidays set.</li>') + '</ul>'
+        + (editable ? '<div class="att-hol-add"><label class="sr-only" for="attHolNew">Add a holiday</label><input type="date" id="attHolNew"><button type="button" class="btn btn-outline btn-sm" id="attHolAdd">Add</button></div>' : '')
+        + '<p class="muted tiny">' + escapeHtml(r.help) + '</p><p class="att-err" id="' + id + '_err" hidden></p></fieldset>';
+    }
+    var input;
+    if (r.type === 'bool') input = '<input type="checkbox" id="' + id + '" data-att-key="' + escapeHtml(r.key) + '"' + (v ? ' checked' : '') + dis + '>';
+    else if (r.type === 'time') input = '<input type="time" id="' + id + '" data-att-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(v) + '" step="60"' + dis + '>';
+    else if (r.type === 'int') input = '<input type="number" id="' + id + '" data-att-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(v) + '" min="' + escapeHtml(r.min) + '" max="' + escapeHtml(r.max) + '" step="1"' + dis + '>';
+    else input = '<input type="text" id="' + id + '" data-att-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(v) + '"' + dis + '>';
+    return '<div class="att-field' + (r.type === 'bool' ? ' is-check' : '') + '"><label for="' + id + '">' + (r.type === 'bool' ? input + ' ' : '') + escapeHtml(r.label) + '</label>'
+      + (r.type === 'bool' ? '' : input) + '<p class="muted tiny">' + escapeHtml(r.help) + '</p><p class="att-err" id="' + id + '_err" hidden></p></div>';
+  }
+  function attRenderSettings() {
+    attLoaded = {};
+    $('#attGroups').innerHTML = attSettings.map(function (g) {
+      return '<section class="side-card att-group" data-att-group="' + escapeHtml(g.key) + '"><h3>' + escapeHtml(g.title) + '</h3>'
+        + (g.editable ? '' : '<p class="muted tiny att-locked">Set by a Super Admin — money and points are the organisation’s rules.</p>')
+        + '<div class="att-fields">' + g.rules.map(function (r) { return attField(r, g.editable); }).join('') + '</div></section>';
+    }).join('');
+    $('#attSave').hidden = !attSettings.some(function (g) { return g.editable; });
+  }
+  function attCollect() {
+    var out = {};
+    attSettings.forEach(function (g) {
+      if (!g.editable) return;
+      var box = document.querySelector('[data-att-group="' + g.key + '"]');
+      g.rules.forEach(function (r) {
+        var val;
+        if (r.key === 'gate.holidays') val = Array.prototype.map.call(box.querySelectorAll('[data-att-hol-x]'), function (b) { return b.getAttribute('data-att-hol-x'); }).sort().join(',');
+        else if (r.key === 'gate.programme_days') val = Array.prototype.map.call(box.querySelectorAll('[data-att-day]:checked'), function (c) { return c.getAttribute('data-att-day'); }).join(',');
+        else { var el = box.querySelector('[data-att-key="' + r.key + '"]'); if (!el) return; val = r.type === 'bool' ? el.checked : el.value.trim(); }
+        if (String(val) !== String(attLoaded[r.key])) out[r.key] = val;
+      });
+    });
+    return out;
+  }
+
   function loadOffline() {
     var box = $('#offList'); box.innerHTML = '<p class="muted">Loading…</p>';
     api('offline_list&status=' + $('#offStatus').value).then(function (r) {
@@ -4596,6 +4686,40 @@
       activateTab(go);
       if (go === 'members' && tab) memTab(tab);
     });
+    document.querySelectorAll('[data-att-tab]').forEach(function (b) { b.addEventListener('click', function () { attTab(b.getAttribute('data-att-tab')); }); });
+    $('#attDay').addEventListener('change', loadAttendance);
+    /* Holidays: a list of dates to add to and remove from, saved with the rest. */
+    $('#attGroups').addEventListener('click', function (e) {
+      var x = e.target.closest('[data-att-hol-x]');
+      if (x) { var li = x.closest('li'), ul = li.parentNode; li.remove(); if (!ul.querySelector('[data-att-hol-x]')) ul.innerHTML = '<li class="muted att-hol-none">No holidays set.</li>'; $('#attSaved').textContent = 'Not saved yet.'; return; }
+      if (e.target.closest('#attHolAdd')) {
+        var d = $('#attHolNew').value; if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { $('#attHolNew').focus(); return; }
+        var list = document.querySelector('[data-att-holidays] .att-hols');
+        if (list.querySelector('[data-att-hol-x="' + d + '"]')) return;
+        var none = list.querySelector('.att-hol-none'); if (none) none.remove();
+        var li = document.createElement('li'); li.innerHTML = '<span>' + escapeHtml(d) + '</span><button type="button" class="att-hol-x" data-att-hol-x="' + escapeHtml(d) + '" aria-label="Remove ' + escapeHtml(d) + '">×</button>';
+        list.appendChild(li); $('#attHolNew').value = ''; $('#attSaved').textContent = 'Not saved yet.';
+      }
+    });
+    $('#attRows').addEventListener('click', function (e) { if (e.target.closest('#attRetry')) loadAttendance(); });
+    $('#attSettings').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var vals = attCollect(), err = $('#attErrors'), btn = $('#attSave');
+      document.querySelectorAll('.att-err').forEach(function (x) { x.hidden = true; });
+      err.hidden = true;
+      if (!Object.keys(vals).length) { $('#attSaved').textContent = 'Nothing has changed.'; return; }
+      btn.disabled = true;
+      post('rules_save', { rules: vals }).then(function (r) {
+        var x = r.data || {};
+        if (!x.ok) {
+          Object.keys(x.errors || {}).forEach(function (k) { var el = document.getElementById('att_' + k.replace(/\./g, '_') + '_err'); if (el) { el.textContent = x.errors[k]; el.hidden = false; } });
+          err.textContent = x.error || 'Not saved.'; err.hidden = false; return;
+        }
+        $('#attSaved').textContent = 'Saved. The gate judges the next scan by these.';
+        loadAttendance();
+      }).catch(function () { err.textContent = 'The Studio could not be reached. Nothing was saved; try again.'; err.hidden = false; })
+        .finally(function () { btn.disabled = false; });
+    });
     $('#giftsRefresh').addEventListener('click', loadGifts);
     $('#giftsStatus').addEventListener('change', loadGifts);
     $('#giftForm').addEventListener('submit', function (e) {
@@ -5022,12 +5146,13 @@
     var sub = '';
     if (id === 'members' && MEM_PANES.indexOf(m[2]) >= 0) sub = m[2];
     if (FRAMES[id] && FRAMES[id].some(function (f) { return f.key === m[2]; })) sub = m[2];
+    if (id === 'attendance' && (m[2] === 'day' || m[2] === 'settings')) sub = m[2];
     return { id: id, sub: sub };
   }
   function openFromHash() {
     var h = readHash(); if (!h || !roleAllows(h.id)) return false;
     routing = true;
-    try { if (FRAMES[h.id]) pendingFrameKey = h.sub; activateTab(h.id); if (h.sub && h.id === 'members') memTab(h.sub); } finally { routing = false; }
+    try { if (FRAMES[h.id]) pendingFrameKey = h.sub; activateTab(h.id); if (h.sub && h.id === 'members') memTab(h.sub); if (h.sub && h.id === 'attendance') attTab(h.sub); } finally { routing = false; }
     return true;
   }
   window.addEventListener('popstate', function () { if (!views.login.hidden || !views.mfa.hidden) return; openFromHash(); });

@@ -1262,6 +1262,40 @@
   </main>
 
   <!-- ACTIVITY (per-area admin audit trail + undo) -->
+  <!-- ═══ People → Attendance (lib/GateAttendance.php): a day's register, and the settings in their groups ═══ -->
+  <main class="studio-main" id="attendanceView" hidden>
+    <div class="studio-head">
+      <div><h1>Attendance</h1><p class="muted">Who came in through the CACENTRE gate, and the rules it is judged by. NextGen Vanguard's own desk is under NextGen Vanguard → Attendance.</p></div>
+    </div>
+    <div class="studio-subtabs" role="tablist" aria-label="Attendance">
+      <button class="subtab active" role="tab" aria-selected="true" data-att-tab="day">The day</button>
+      <button class="subtab" role="tab" aria-selected="false" data-att-tab="settings">Settings</button>
+    </div>
+    <section class="att-pane" data-att-pane="day">
+      <div class="att-day-bar">
+        <label class="fld att-day-pick"><span>Day</span><input type="date" id="attDay" /></label>
+        <p class="muted tiny" id="attRule"></p>
+      </div>
+      <div class="att-counts" id="attCounts" aria-live="polite"></div>
+      <div class="att-table-wrap">
+        <table class="att-table">
+          <caption class="sr-only">The day's register</caption>
+          <thead><tr><th scope="col">Name</th><th scope="col">Status</th><th scope="col">In</th><th scope="col">Late by</th><th scope="col">Out</th><th scope="col">Centre</th></tr></thead>
+          <tbody id="attRows"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <h2 class="att-h">Expected and not in yet</h2>
+      <p class="muted" id="attNotIn"></p>
+    </section>
+    <section class="att-pane" data-att-pane="settings" hidden>
+      <form id="attSettings" novalidate>
+        <div id="attGroups"><p class="muted">Loading…</p></div>
+        <div class="mem-errors" id="attErrors" role="alert" hidden></div>
+        <div class="editor-actions att-save"><button type="submit" class="btn btn-primary" id="attSave">Save attendance settings</button><span class="muted tiny" id="attSaved" role="status" aria-live="polite"></span></div>
+      </form>
+    </section>
+  </main>
+
   <!-- Consoles of their own pages, one tab each (NextGen Vanguard, Appeals) — drawn from lib/StudioSections.php -->
 <?= StudioSections::frameViewsHtml() ?>
   <!-- ═══ Money → Bank transfers (lib/BankGifts.php): one admin records, another verifies ═══ -->

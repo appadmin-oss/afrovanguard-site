@@ -48,6 +48,8 @@ final class StudioSections
          'icon' => '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>'],
         ['id' => 'members', 'group' => 'People', 'label' => 'Members', 'min' => 'admin', 'badge' => null,
          'icon' => '<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.6 2.7-5.5 6-5.5"/><path d="M15 12l2 2 4-4"/>'],
+        ['id' => 'attendance', 'group' => 'People', 'label' => 'Attendance', 'min' => 'admin', 'badge' => ['id' => 'attBadge', 'class' => 'tab-badge', 'text' => ''],
+         'icon' => '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/>'],
         ['id' => 'ngv', 'group' => 'People', 'label' => 'NextGen Vanguard', 'min' => 'admin', 'badge' => null,
          // Its own pages, one tab each, opened here (academy/ngv/_in-studio.php drops their second navigation).
          'frames' => [
