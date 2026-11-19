@@ -275,6 +275,12 @@ body.studio-authed .studio-side { display: block; }
 .ov-link { background: none; border: none; padding: 0; color: var(--gold-deep, var(--gold)); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
 
 .ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; margin-bottom: 26px; }
+/* The Overview's six cards: three to a row, two, then one, by the panel's own
+   width — never a lone card on a row of its own. */
+#overviewView { container-type: inline-size; }
+#ovGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@container (max-width: 700px) { #ovGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 440px) { #ovGrid { grid-template-columns: 1fr; } }
 .ov-card { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
   background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md);
   padding: 18px 18px 16px; cursor: pointer; font-family: inherit; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
@@ -283,7 +289,7 @@ body.studio-authed .studio-side { display: block; }
 .ov-card-ico { width: 34px; height: 34px; border-radius: var(--radius-sm); display: inline-grid; place-items: center;
   background: rgba(243,180,22,.14); color: var(--gold-deep, #9c6906); margin-bottom: 10px; }
 .ov-card-ico svg { width: 19px; height: 19px; }
-.ov-card-num { font-family: var(--font-heading); font-size: 34px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ov-card-num { font-family: var(--font-body); font-weight: 700; font-size: 30px; line-height: 1; color: var(--ink); font-variant-numeric: lining-nums tabular-nums; }
 .ov-card-label { font-size: 13px; font-weight: 700; color: var(--ink); margin-top: 6px; }
 .ov-card-sub { font-size: 12px; color: var(--muted); }
 
@@ -949,3 +955,99 @@ body.studio { --gold-deep: var(--av-gold-text); }
 .find-list .find-where { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
 .find-list .find-none { color: var(--muted); cursor: default; }
 .find-keys { margin: 10px 2px 2px; font-size: 12px; color: var(--muted); }
+
+/* ── Consoles opened inside the Studio (NextGen Vanguard, Appeals) ── */
+.studio-frame-page { display: block; width: 100%; height: calc(100vh - 230px); min-height: 560px; border: 1px solid var(--divider); border-radius: var(--radius-md); background: var(--surface); margin-top: 14px; }
+/* ── The sidebar's folded group (Settings) ── */
+/* It is a heading that opens: the heading's own type (.nav-group-h), not a button's. */
+.nav-fold { display: flex; align-items: center; justify-content: space-between; width: 100%; border: 0; background: transparent; cursor: pointer; font-family: inherit; text-align: left; padding: 0; width: calc(100% - 24px); }
+.nav-fold-ico { width: 8px; height: 8px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); margin-right: 6px; transition: transform .15s; }
+.nav-fold[aria-expanded="true"] .nav-fold-ico { transform: rotate(45deg); }
+.nav-fold:focus-visible { outline: 2px solid var(--gold-deep); outline-offset: 2px; border-radius: var(--radius-sm); }
+
+/* The header on a phone: Find and View site as icons (each keeps its name for
+   a screen reader), so the bar stays one row. The header spans the window, so
+   the window's width is the right measure here. */
+.hdr-ico { width: 15px; height: 15px; vertical-align: -3px; margin-right: 5px; }
+.hdr-ico-only { display: none; }
+@media (max-width: 640px) {
+  .studio-actions .hdr-label { display: none; }
+  .studio-actions .hdr-ico { margin-right: 0; }
+  .studio-actions .hdr-ico-only { display: inline-block; }
+  .studio-actions { flex-wrap: nowrap; }
+  .studio-actions .btn-sm, .studio-actions .icon-btn { min-width: 38px; padding-left: 9px; padding-right: 9px; }
+  .studio-actions { gap: 6px; }
+  .studio-brand .studio-tag { display: none; }
+  body.studio .studio-brand .brand-wordmark { font-size: 20px; }
+  body.studio .studio-bar { gap: 8px; padding-left: 14px; padding-right: 14px; }
+  body.studio .studio-actions .icon-btn { width: 36px; height: 36px; min-width: 36px; padding: 0; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   The Control Room skin (2026-11-18) — NGG's Control Room look, for the Studio.
+   Neutral greys on white, ink for the live state, ONE accent (gold) kept for
+   money and focus, small radii, compact rows, Geist for structure. Tokens
+   first (scoped to the Studio, so the public site keeps its own), then the
+   few pieces the tokens cannot reach. The wordmark stays the brand's serif.
+   Geist: assets/site/fonts/geist-variable.woff2, SIL OFL (fonts/licenses/).
+   ════════════════════════════════════════════════════════════════════════ */
+@font-face { font-family: "Geist"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("/assets/site/fonts/geist-variable.woff2") format("woff2"); }
+@font-face { font-family: "Geist Mono"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("/assets/site/fonts/geist-mono-variable.woff2") format("woff2"); }
+body.studio {
+  --bg: #fafaf9; --surface: #ffffff; --surface-2: #f4f4f3; --nav-on: #ebebe9;
+  --ink: #0b0b0c; --body: #2b2b30; --muted: #5d5d63; --divider: #e7e7e5; --line-hover: #d2d2ce;
+  --font-heading: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", monospace;
+  --radius-sm: 8px; --radius-md: 10px; --radius-lg: 14px;
+  --card-shadow: 0 16px 40px rgba(11, 11, 12, .10);
+  --nav-bg: #ffffff;
+  font-family: var(--font-body); font-size: 14px; letter-spacing: 0;
+}
+:root[data-theme="dark"] body.studio {
+  --bg: #0e0e10; --surface: #151517; --surface-2: #1c1c1f; --nav-on: #232327;
+  --ink: #f4f4f3; --body: #d6d6d3; --muted: #a3a3a8; --divider: #2a2a2e; --line-hover: #3a3a40;
+  --card-shadow: 0 16px 40px rgba(0, 0, 0, .5); --nav-bg: #111113;
+}
+/* The top bar: a plain bar on the page's own surface, not a dark slab. */
+body.studio .studio-bar { background: var(--nav-bg); border-bottom: 1px solid var(--divider); -webkit-backdrop-filter: none; backdrop-filter: none; min-height: 56px; padding: 9px 20px; }
+body.studio .studio-brand .wm-1 { color: var(--ink); }
+body.studio .studio-brand .wm-2 { color: var(--gold-deep); }
+body.studio .studio-tag { color: var(--muted); border-color: var(--divider); }
+body.studio .studio-burger { color: var(--ink); border-color: var(--divider); }
+body.studio .studio-actions .btn-outline, body.studio .icon-btn { color: var(--ink); border-color: var(--divider); }
+body.studio .studio-actions .btn-outline:hover, body.studio .icon-btn:hover { border-color: var(--line-hover); color: var(--ink); background: var(--surface-2); }
+body.studio .find-open kbd { color: var(--muted); border-color: var(--divider); }
+/* The sidebar: quiet, the current screen in ink on a soft grey — no gold bar. */
+body.studio .studio-side { background: var(--bg); border-right-color: var(--divider); padding-top: 66px; }
+body.studio .nav-group { margin-bottom: 14px; }
+body.studio .nav-group-h { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--muted); margin: 4px 10px 4px; }
+body.studio .studio-nav .tab { font-weight: 500; font-size: 13.5px; padding: 7px 10px; border-radius: var(--radius-sm); color: var(--body); gap: 10px; }
+body.studio .studio-nav .tab .t-ico { width: 17px; height: 17px; opacity: .7; }
+body.studio .studio-nav .tab:hover { background: var(--surface-2); color: var(--ink); }
+body.studio .studio-nav .tab.active { background: var(--nav-on); color: var(--ink); font-weight: 600; }
+body.studio .studio-nav .tab.active::before { content: none; }
+body.studio .studio-nav .tab.active .t-ico { color: var(--ink); opacity: 1; }
+/* Headings: one face, sized for work, not for a magazine. */
+body.studio .studio-head h1 { font-family: var(--font-heading); font-size: 26px; font-weight: 600; letter-spacing: -.02em; line-height: 1.2; }
+body.studio h2 { font-family: var(--font-heading); font-weight: 600; letter-spacing: -.01em; }
+body.studio .ov-today h2, body.studio .brief-head h2 { font-size: 15px; }
+body.studio .side-card h3 { font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+/* Buttons: compact, squared to the scale; the primary is ink, gold is kept for money. */
+body.studio .btn { border-radius: var(--radius-sm); font-weight: 600; letter-spacing: 0; padding: 9px 16px; min-height: 38px; border-width: 1px; box-shadow: none; }
+body.studio .btn-sm { padding: 6px 12px; min-height: 34px; font-size: 13px; }
+body.studio .btn-primary { background: var(--ink); border-color: var(--ink); color: var(--surface); box-shadow: none; }
+body.studio .btn-primary:hover { background: var(--ink); border-color: var(--ink); color: var(--surface); opacity: .9; transform: none; }
+body.studio .btn-outline { border-color: var(--divider); color: var(--ink); background: var(--surface); }
+body.studio .btn-outline:hover { border-color: var(--line-hover); background: var(--surface-2); }
+/* Cards and fields: hairlines and the small radius, no drop shadows. */
+body.studio .side-card, body.studio .brief, body.studio .ov-today, body.studio .ov-card, body.studio .entry-row, body.studio .inbox-row { border-radius: var(--radius-md); box-shadow: none; }
+body.studio .ov-card:hover { transform: none; box-shadow: none; border-color: var(--line-hover); }
+body.studio .fld input, body.studio .fld textarea, body.studio .fld select { border-radius: var(--radius-sm); background: var(--surface); padding: 9px 11px; }
+body.studio .fld input:focus, body.studio .fld textarea:focus, body.studio .fld select:focus { border-color: var(--ink); }
+body.studio .subtab { font-weight: 600; font-size: 13.5px; }
+body.studio .subtab.active { border-bottom-color: var(--ink); }
+body.studio .ov-today-item { background: var(--surface); }
+body.studio .ov-today-item:hover, body.studio .ov-today-item:focus-visible { border-color: var(--line-hover); background: var(--surface-2); }
+/* One accent: the cards' icon tiles are neutral; gold is kept for money and focus. */
+body.studio .ov-card-ico { background: var(--surface-2); color: var(--ink); }

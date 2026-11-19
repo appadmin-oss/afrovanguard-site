@@ -30,9 +30,9 @@
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
         <svg class="moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       </button>
-      <button class="btn btn-outline btn-sm find-open" id="findOpen" type="button" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K" hidden>Find <kbd>Ctrl K</kbd></button>
-      <a class="btn btn-outline btn-sm" href="/diary/" target="_blank" rel="noopener">View site <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a>
-      <button class="btn btn-outline btn-sm" id="logoutBtn" hidden>Log out</button>
+      <button class="btn btn-outline btn-sm find-open" id="findOpen" type="button" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K" aria-label="Find a screen" hidden><svg class="hdr-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span class="hdr-label">Find</span> <kbd class="hdr-label">Ctrl K</kbd></button>
+      <a class="btn btn-outline btn-sm view-site" href="/diary/" target="_blank" rel="noopener" aria-label="View site (opens in a new tab)"><span class="hdr-label">View site</span> <span aria-hidden="true">↗</span></a>
+      <button class="btn btn-outline btn-sm" id="logoutBtn" aria-label="Log out" hidden><svg class="hdr-ico hdr-ico-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span class="hdr-label">Log out</span></button>
     </div>
   </header>
 
@@ -1262,6 +1262,8 @@
   </main>
 
   <!-- ACTIVITY (per-area admin audit trail + undo) -->
+  <!-- Consoles of their own pages, one tab each (NextGen Vanguard, Appeals) — drawn from lib/StudioSections.php -->
+<?= StudioSections::frameViewsHtml() ?>
   <!-- ═══ Money → Bank transfers (lib/BankGifts.php): one admin records, another verifies ═══ -->
   <main class="studio-main" id="giftsView" hidden>
     <div class="studio-head">

@@ -95,6 +95,7 @@ $nCourses = $may ? NgvCourses::queueCount() : 0;
 .bkq-sits-none{color:var(--danger);font-weight:700}
 .bkq-val{display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;background:#fff3cd;color:#6b4e00;font-size:.76rem;font-weight:800}
 </style>
+<?php require __DIR__ . '/_in-studio.php'; /* opened inside the Studio: drop the second navigation */ ?>
 </head>
 <body>
 <?php if (!$may): ?>

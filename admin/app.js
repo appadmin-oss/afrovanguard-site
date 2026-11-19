@@ -38,6 +38,9 @@
     celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), sessions: $('#sessionsView'), psEdit: $('#psEditView'), events: $('#eventsView'), evEdit: $('#evEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
     site: $('#siteView'), media: $('#mediaView'), gifts: $('#giftsView')
   };
+  /* Consoles of their own pages (NextGen Vanguard, Appeals): one screen each, from the registry. */
+  var FRAMES = SECTIONS.frames || {};
+  Object.keys(FRAMES).forEach(function (id) { views[id] = $('#' + id + 'View'); });
   function show(v) {
     /* The sign-in field is autofocused in the markup; when a live session hides that
        screen at once, the browser's Tab starting point stayed where it was and the
@@ -145,11 +148,14 @@
     else if (which === 'aiops') { show('aiops'); loadAiOps(); }
     else if (which === 'site') { show('site'); if (window.AvSite) window.AvSite.open('site', siteRef); }
     else if (which === 'media') { show('media'); if (window.AvSite) window.AvSite.open('media'); }
+    else if (FRAMES[which]) { show(which); loadFrame(which, takeFrameKey()); }
     else if (which === 'inbox') { show('inbox'); loadInbox(); }
     /* A name that is not a section (a stale bookmark, a retired screen) lands on
        the Overview — it used to fall through to the Inbox. */
     else { show('overview'); loadOverview(); }
     var on = document.querySelector('.tab.active');
+    var fold = on && on.closest('.nav-group-items');
+    if (fold && fold.hidden) setFold(fold, true);
     /* Keep the active section in view by scrolling its container, not with
        scrollIntoView(): that moves Chrome's Tab starting point to the button, so on
        load the first Tab skipped the skip link and the header and landed on Diary. */
@@ -4549,6 +4555,25 @@
       }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
     });
     $('#offStatus').addEventListener('change', loadOffline);
+    document.querySelectorAll('.nav-fold').forEach(function (b) {
+      var box = document.getElementById(b.getAttribute('aria-controls'));
+      var saved = null; try { saved = localStorage.getItem('av.studio.fold.' + box.id); } catch (e) {}
+      if (saved === '1') setFold(box, true);
+      b.addEventListener('click', function () { setFold(box, box.hidden); });
+    });
+    document.querySelectorAll('[data-frame-tab]').forEach(function (b) {
+      b.addEventListener('click', function () { loadFrame(b.getAttribute('data-frame-tab'), b.getAttribute('data-frame-key')); });
+    });
+    /* A link followed inside the console moves its tab and the address with it. */
+    document.querySelectorAll('iframe[data-frame-for]').forEach(function (fr) {
+      fr.addEventListener('load', function () {
+        var id = fr.getAttribute('data-frame-for'), path = '';
+        try { path = fr.contentWindow.location.pathname; } catch (e) { return; }
+        var key = frameKeyFor(id, path); if (!key) return;
+        markFrameTab(id, key);
+        if (views[id] && !views[id].hidden && (FRAMES[id] || []).length > 1) setHash(id, key, true);
+      });
+    });
     $('#findOpen').addEventListener('click', findOpen);
     document.addEventListener('keydown', function (e) {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); if ($('#findBox').hidden) findOpen(); else findClose(true); return; }
@@ -4950,6 +4975,37 @@
     });
   }
 
+  /* ── Consoles opened inside the Studio ── */
+  var pendingFrameKey = '';
+  function takeFrameKey() { var k = pendingFrameKey; pendingFrameKey = ''; return k; }
+  function frameKeyFor(id, path) {
+    var hit = (FRAMES[id] || []).filter(function (f) { return f.url.split('?')[0] === path; })[0];
+    return hit ? hit.key : '';
+  }
+  function loadFrame(id, key) {
+    var pages = FRAMES[id] || []; if (!pages.length) return;
+    var page = pages.filter(function (f) { return f.key === key; })[0] || pages[0];
+    var frame = document.querySelector('iframe[data-frame-for="' + id + '"]');
+    var here = '';
+    try { here = frame.contentWindow && frame.contentWindow.location.pathname; } catch (e) { here = ''; }
+    if (!frame.getAttribute('src') || here.split('?')[0] !== page.url.split('?')[0]) frame.setAttribute('src', page.url);
+    markFrameTab(id, page.key);
+    if (!routing) setHash(id, pages.length > 1 ? page.key : '', true);
+  }
+  function markFrameTab(id, key) {
+    document.querySelectorAll('[data-frame-tab="' + id + '"]').forEach(function (b) {
+      var on = b.getAttribute('data-frame-key') === key; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    var own = document.querySelector('[data-frame-own="' + id + '"]');
+    var page = (FRAMES[id] || []).filter(function (f) { return f.key === key; })[0];
+    if (own && page) own.setAttribute('href', page.url);
+  }
+  function setFold(box, open) {
+    box.hidden = !open;
+    var btn = document.querySelector('[aria-controls="' + box.id + '"]'); if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    try { localStorage.setItem('av.studio.fold.' + box.id, open ? '1' : '0'); } catch (e) {}
+  }
+
   /* ── The screen in the address: #gifts, #members/offline ── */
   var routing = false;
   var MEM_PANES = ['dash', 'roster', 'roles', 'verify', 'centres', 'approvals', 'import', 'volunteers', 'dups', 'dues', 'offline'];
@@ -4963,12 +5019,15 @@
     if (!m) return null;
     var id = (SECTIONS.aliases || {})[m[1]] || m[1];
     if (!document.querySelector('.tab[data-tab="' + id + '"]')) return null;
-    return { id: id, sub: id === 'members' && MEM_PANES.indexOf(m[2]) >= 0 ? m[2] : '' };
+    var sub = '';
+    if (id === 'members' && MEM_PANES.indexOf(m[2]) >= 0) sub = m[2];
+    if (FRAMES[id] && FRAMES[id].some(function (f) { return f.key === m[2]; })) sub = m[2];
+    return { id: id, sub: sub };
   }
   function openFromHash() {
     var h = readHash(); if (!h || !roleAllows(h.id)) return false;
     routing = true;
-    try { activateTab(h.id); if (h.sub) memTab(h.sub); } finally { routing = false; }
+    try { if (FRAMES[h.id]) pendingFrameKey = h.sub; activateTab(h.id); if (h.sub && h.id === 'members') memTab(h.sub); } finally { routing = false; }
     return true;
   }
   window.addEventListener('popstate', function () { if (!views.login.hidden || !views.mfa.hidden) return; openFromHash(); });
@@ -4980,6 +5039,11 @@
   function findItems() {
     var out = [];
     (SECTIONS.sections || []).forEach(function (s) { if (roleAllows(s.id)) out.push({ kind: 'screen', id: s.id, label: s.label, where: s.group || 'Studio', words: s.group }); });
+    Object.keys(FRAMES).forEach(function (id) {
+      if (!roleAllows(id) || FRAMES[id].length < 2) return;
+      var sec = (SECTIONS.sections || []).filter(function (x) { return x.id === id; })[0] || { label: id };
+      FRAMES[id].forEach(function (f) { out.push({ kind: 'frame', id: id, sub: f.key, label: f.label, where: sec.label, words: '' }); });
+    });
     if (roleAllows('members')) Object.keys(MEM_LABEL).forEach(function (k) { out.push({ kind: 'pane', id: 'members', sub: k, label: MEM_LABEL[k], where: 'Members', words: 'member desk' }); });
     var rank = ROLE_RANK[currentRole] || 0;
     (SECTIONS.consoles || []).forEach(function (c) { if (rank >= (ROLE_RANK[c.min] || 99)) out.push({ kind: 'console', url: c.url, label: c.label, where: 'Opens its own page', words: c.words || '' }); });
@@ -5010,7 +5074,8 @@
     var it = findHits[i]; if (!it) return;
     findClose(false);
     if (it.kind === 'console') { location.href = it.url; return; }
-    activateTab(it.id); if (it.sub) memTab(it.sub);
+    if (it.kind === 'frame') pendingFrameKey = it.sub;
+    activateTab(it.id); if (it.sub && it.kind === 'pane') memTab(it.sub);
     var t = document.querySelector('.tab[data-tab="' + it.id + '"]'); if (t) t.focus();
   }
 

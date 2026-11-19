@@ -118,6 +118,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
 .note{background:var(--amber-bg);border:1px solid #f2c98a;border-radius:12px;padding:.7rem .9rem;font-size:.9rem;margin:0}
 .scroll{overflow-x:auto}
 </style>
+<?php require __DIR__ . '/_in-studio.php'; /* opened inside the Studio: drop the second navigation */ ?>
 </head>
 <body>
 <?php if (!$isAdmin): ?>

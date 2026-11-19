@@ -39,7 +39,13 @@ ck('studio sections: app.js keeps no screen→role table of its own; it reads th
 ck('studio sections: …and a screen missing from it needs a Super Admin (closed, not open)', str_contains($srJs, "TAB_MIN[tab] || 'superadmin'"));
 
 $srMissing = [];
-foreach ($srIds as $id) {
+$srFramed = array_column(StudioSections::framed(), 'id');
+$srFrameHtml = StudioSections::frameViewsHtml();
+foreach ($srFramed as $id) {
+    /* A console of its own pages: its screen is drawn from the registry and opened by one loader. */
+    if (!str_contains($srFrameHtml, 'id="' . $id . 'View"') || !str_contains($srJs, "else if (FRAMES[which]) { show(which); loadFrame(which, takeFrameKey()); }")) $srMissing[] = $id . ' (no console screen)';
+}
+foreach (array_diff($srIds, $srFramed) as $id) {
     $view = str_contains($srIdx, 'id="' . $id . 'View"');
     $map = (bool) preg_match('/\b' . $id . ': \$\(\'#' . $id . 'View\'\)/', $srJs);
     $loader = str_contains($srJs, "which === '" . $id . "'");
@@ -95,3 +101,32 @@ ck('studio search: the page carries every section and the other staff consoles f
 ck('studio search: it is a labelled dialog that Escape closes, giving focus back',
     str_contains($srIdx, 'role="dialog" aria-modal="true" aria-labelledby="findTitle"') && str_contains($srJs, "if (e.key === 'Escape') { e.preventDefault(); findClose(true); }")
     && str_contains($srJs, 'findTrigger.focus()'));
+
+/* Consoles that were their own pages are inside the Studio now. */
+$srNgv = array_values(array_filter($srAll, static fn($s) => $s['id'] === 'ngv'))[0] ?? [];
+$srNgvUrls = array_column($srNgv['frames'] ?? [], 'url');
+ck('studio consoles: NextGen Vanguard is one section, its staff pages tabs inside it',
+    in_array('/academy/ngv/members.php', $srNgvUrls, true) && in_array('/academy/ngv/fines.php', $srNgvUrls, true) && in_array('/academy/ngv/desk.php', $srNgvUrls, true) && ($srNgv['min'] ?? '') === 'admin');
+$srOwnNav = [];
+foreach (StudioSections::framed() as $s) foreach ($s['frames'] as $f) {
+    $file = AV_ROOT . rtrim($f['url'], '/') ; if (is_dir($file)) $file .= '/index.php';
+    $src = is_file($file) ? (string) file_get_contents($file) : '';
+    if ($src === '' || !str_contains($src, '_in-studio.php')) $srOwnNav[] = $f['url'];
+}
+ck('studio consoles: every page opened inside the Studio drops its own navigation there' . ($srOwnNav ? ' — ' . implode(', ', $srOwnNav) : ''), !$srOwnNav);
+$srIn = (string) file_get_contents(AV_ROOT . '/academy/ngv/_in-studio.php');
+ck('studio consoles: …but keeps its own buttons and status line, and is unchanged on its own',
+    str_contains($srIn, "window.top !== window.self") && !preg_match('/\.in-studio \.top \{ display: none/', $srIn) && str_contains($srIn, '.in-studio .top .msg:empty'));
+ck('studio consoles: the pages they replace are no longer listed as separate consoles',
+    !array_filter(StudioSections::CONSOLES, static fn($c) => in_array($c['url'], $srNgvUrls, true) || $c['url'] === '/give/manage.php'));
+ck('studio sidebar: the settings start folded, and open themselves when one of their screens is opened',
+    in_array('Settings', StudioSections::FOLDED, true) && str_contains($srNav, 'class="nav-group-h nav-fold" aria-expanded="false"') && str_contains($srJs, 'if (fold && fold.hidden) setFold(fold, true);'));
+
+/* The Control Room skin: the Studio's own, self-hosted, licensed. */
+$srCss = (string) file_get_contents(AV_ROOT . '/admin/admin.css');
+ck('studio skin: Geist is served from this site, with its licence beside it (no third-party font host)',
+    is_file(AV_ROOT . '/assets/site/fonts/geist-variable.woff2') && is_file(AV_ROOT . '/assets/site/fonts/licenses/geist-OFL.txt')
+    && str_contains($srCss, 'url("/assets/site/fonts/geist-variable.woff2")'));
+ck('studio skin: its tokens are scoped to the Studio (body.studio), so the public site keeps its own look',
+    (bool) preg_match('/body\.studio \{\s*--bg: #fafaf9;/', $srCss) && (bool) preg_match('/:root\[data-theme="dark"\] body\.studio \{/', $srCss));
+ck('studio skin: no !important was needed for it', !preg_match('/Control Room skin[\s\S]*!important/', $srCss));

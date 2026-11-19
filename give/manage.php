@@ -157,6 +157,7 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
   <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
 <link href="<?= e(av_asset('/assets/site/tokens.css')) ?>" rel="stylesheet">
 <link href="<?= e(av_asset('/give/manage.css')) ?>" rel="stylesheet">
+<?php require dirname(__DIR__) . '/academy/ngv/_in-studio.php'; /* opened inside the Studio: drop the second navigation */ ?>
 </head>
 <body>
 <?php if (!$isAdmin): ?>

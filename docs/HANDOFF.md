@@ -1336,3 +1336,27 @@ address. Ctrl+K (or Find in the header) searches every Studio screen the viewer
 may open, the member desk's panes, and the other staff consoles listed in
 `StudioSections::CONSOLES` — a labelled dialog, arrow keys, Enter, Escape
 returns focus. Driven in Chromium (16 checks, admin and editor).
+
+## The Studio, in NGG's Control Room style; NGV and Appeals inside it (2026-11-18)
+
+- **Sidebar by job**, from `StudioSections` alone: People (Members, NextGen
+  Vanguard, Mentorship, Team directory, Celebrations), Money (Bank transfers,
+  Appeals), Content, Programmes, Settings (nine system screens, **folded** by
+  default and unfolding when one of them is opened), Help.
+- **NextGen Vanguard and Appeals are Studio sections now.** A registry entry
+  with `frames` is a console of its own pages, opened inside the Studio one tab
+  each (`#ngv/fines`), with "Open on its own". Each page includes
+  `academy/ngv/_in-studio.php`, which — only when framed by the Studio — hides
+  the page's title and its links to the other console pages, keeps its own
+  buttons and status line, and hides the public cookie notice. Opened alone,
+  every page is unchanged. The Quest desk stays a separate console in Ctrl+K.
+- **The Control Room skin** (end of admin/admin.css): Geist (self-hosted,
+  SIL OFL in `assets/site/fonts/licenses/`), neutral greys, ink for the live
+  state and the primary button, gold kept for money and focus, 8/10/14 radii,
+  compact rows, a light top bar; dark theme to match. Tokens are scoped to
+  `body.studio`, so the public site keeps its look. No `!important`.
+- Phone header: Find, View site and Log out become icons (named for screen
+  readers) so the bar is one row; the Overview's six cards sit three, two or
+  one to a row by the panel's own width.
+Verified in Chromium: bank transfers (13), editor (7), Today (7), links and
+search (17), NGV and the sidebar (14); full suite 10,211.

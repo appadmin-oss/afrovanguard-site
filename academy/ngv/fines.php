@@ -118,6 +118,7 @@ dialog header h2{font-size:1rem;flex:1}
 dialog .body{padding:14px 18px 18px;display:flex;flex-direction:column;gap:10px}
 dialog .lbl input,dialog .lbl select{width:100%}
 </style>
+<?php require __DIR__ . '/_in-studio.php'; /* opened inside the Studio: drop the second navigation */ ?>
 </head>
 <body>
 <?php if (!$isAdmin): ?>

@@ -206,6 +206,7 @@ legend{font-weight:700;font-size:13.5px;padding:0 4px}
 .gate{max-width:520px;margin:12vh auto;padding:0 20px;text-align:center}
 @media(max-width:620px){.grid{grid-template-columns:1fr}.wrap{padding:0 14px}}
 </style>
+<?php require __DIR__ . '/_in-studio.php'; /* opened inside the Studio: drop the second navigation */ ?>
 </head>
 <body>
 <?php if (!$isAdmin): ?>

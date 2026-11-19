@@ -111,3 +111,13 @@ separate staff consoles).
 - Bloomerang donor retention and engagement (bloomerang.com; Tech Impact guide)
 - G2 / TrustRadius comparisons of Raiser's Edge NXT, Neon CRM, CiviCRM
 - NDPC, NDP Act GAID 2025 (ndpc.gov.ng); KPMG review of GAID 2025
+
+## Follow-up the owner asked for (2026-11-18)
+
+- **"Redesign the admin cleaner" / "NGG style! Sleek"** — done: the sidebar
+  grouped by job with Settings folded, and NGG's Control Room look (Geist,
+  neutral greys, ink live state, one accent).
+- **"Combine the detached NGV administration"** — done: NextGen Vanguard is one
+  Studio section with its eight staff pages as tabs; Appeals is under Money.
+  This closes finding 6 for those consoles; the Quest desk remains separate
+  and is found by the one search.

@@ -67,6 +67,7 @@ $csrf    = av_csrf_token();
 .c-prov{color:var(--muted);font-size:.82rem}
 .c-link{font-size:.8rem;word-break:break-all}
 </style>
+<?php require __DIR__ . '/_in-studio.php'; /* opened inside the Studio: drop the second navigation */ ?>
 </head>
 <body>
 <?php if (!$isAdmin): ?>
