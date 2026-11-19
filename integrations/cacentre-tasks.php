@@ -152,7 +152,10 @@ if ($method === 'POST') {
                     $in['due'] = $due;
                 }
                 if (array_key_exists('priority', $body)) $in['priority'] = (string) $body['priority'];
+                /* A task somebody else gave, moved by its holder, says why (Collab::updateTask). */
+                if (array_key_exists('reason', $body)) $in['reason'] = (string) $body['reason'];
                 $t = Collab::updateTask($uid, $taskId, $in);
+                if ($t === null && str_starts_with(Collab::$lastError, 'Give a reason')) $refuse('reason-required', 422);
                 if ($t === null) $refuse('not-yours', 404);
                 echo json_encode(['ok' => true, 'task' => [
                     'id'       => (int) $t['id'],
