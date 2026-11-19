@@ -56,8 +56,13 @@ ck('studio sections: a name that is not a section lands on the Overview, not on 
     (bool) preg_match("/else if \\(which === 'inbox'\\) \\{[^}]*\\}\\s*(?:\\/\\*.*?\\*\\/\\s*)?else \\{ show\\('overview'\\); loadOverview\\(\\); \\}/s", $srJs));
 $srNav = StudioSections::navHtml();
 ck('studio sections: the drawn sidebar has one tab per section, the first one current',
-    substr_count($srNav, 'data-tab="') === count($srIds) && (bool) preg_match('/^\s*<div class="nav-group">\s*<button class="tab active" data-tab="' . $srIds[0] . '" aria-current="page">/', $srNav));
+    substr_count($srNav, 'data-tab="') === count(array_filter($srAll, static fn($s) => empty($s['parent']))) && (bool) preg_match('/^\s*<div class="nav-group">\s*<button class="tab active" data-tab="' . $srIds[0] . '" aria-current="page">/', $srNav));
 $srMin = StudioSections::minRoles();
+$srNgvP = array_values(array_filter($srAll, static fn($s) => $s['id'] === 'ngv'))[0] ?? [];
+ck('studio sections: NextGen Vanguard is part of Members (a vanguard is a member) — no sidebar entry of its own, opened from the Members tabs, Members stays lit',
+    ($srNgvP['parent'] ?? '') === 'members' && !str_contains($srNav, 'data-tab="ngv"') && str_contains($srIdx, 'data-ngv-open="members"')
+    && str_contains($srJs, '.parent || which;') && str_contains(StudioSections::frameViewsHtml(), 'data-tab-go="members"'));
+foreach ($srAll as $s) if (!empty($s['parent'])) ck('studio sections: ' . $s['id'] . '\'s parent is a section', in_array($s['parent'], $srIds, true) && empty(array_values(array_filter($srAll, static fn($x) => $x['id'] === $s['parent']))[0]['parent']));
 ck('studio sections: old names still open their screen (homepage, pages → site)', ($srMin['homepage'] ?? '') === $srMin['site'] && ($srMin['pages'] ?? '') === $srMin['site']);
 
 /* The server: every action assigned, exactly once. */

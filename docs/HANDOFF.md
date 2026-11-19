@@ -1419,3 +1419,39 @@ Tests: `tests/moneydesk.test.php`; the Today test covers the trust. Driven in
 Chromium: record → verify → ledger with the real name, wall still silent,
 donors, export, an admin without Money refused everywhere until a Super Admin
 grants it (18 checks); every earlier browser check rerun and passing.
+
+## Member evaluation, and NextGen Vanguard as part of Members (2026-11-19)
+
+Asked for: "focus more on effective member management and evaluation;
+NextGen Vanguards are members — merge them".
+
+- **How they are doing** (`lib/MemberEvaluation.php`, read by `roster_get`):
+  opening a member now starts with their record side by side — attendance at
+  the gate over 90 days (came, on time, late and by how many minutes, absent,
+  streak), commitments kept, their level and what stands between them and the
+  next, fines owing and months behind on dues — and one standing (Doing well /
+  Steady / Needs attention) **with its reasons written out**. Records only, no
+  AI. A judgement needs evidence: attendance is judged on 5+ counted days,
+  commitments on 3+ settled; too little is said, not scored. A part that fails
+  to read is named (`unavailable`), never shown as zero.
+- **A vanguard's programme is a block of their member record**: status,
+  track, cohort, months in and end date, points, probation, programme account,
+  NGV card, and buttons straight to their NGV record, the fines desk and NGV
+  attendance. Probation counts as a concern on the member's standing.
+- **Attendance tiles** on the Members dashboard: attendance under 70%
+  (90 days), late 3+ times (30 days), attending and on time (90%+, on time
+  85%+). They are roster segments, so each is a list, a filter and an export.
+  The thresholds are `MemberEvaluation`'s constants, used by both, so a tile
+  and the drawer cannot disagree. (The day minimum is inlined in the SQL: a
+  bound value arrives as text, and SQLite ranks every number below every text,
+  so `>= '5'` was never true.)
+- **NextGen Vanguard is part of Members** in the Studio: `parent: members` in
+  `StudioSections`. It has no sidebar entry of its own; it opens from the
+  Members tab row ("NextGen Vanguard →") and from a vanguard's record, Members
+  stays lit, and its screen says "← Members". `#ngv/...` links still land —
+  the address parser now resolves a section from the registry, not from the
+  presence of a sidebar tab (which had silently dropped every NGV deep link).
+Tests: `tests/memberevaluation.test.php` (18), the registry test (parent).
+Driven in Chromium: tiles → list → drawer with reasons, vanguard block,
+programme record opened inside the Studio, Members lit, back link, deep link
+(16 checks); the NGV console check rerun through Members (14 checks).

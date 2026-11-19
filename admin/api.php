@@ -1718,6 +1718,10 @@ try {
             if ($m) {
                 $m['verified'] = ['state' => MemberVerification::state((int) $m['id']),
                                   'history' => MemberVerification::historyFor((int) $m['id'])];
+
+                /* How they are doing, beside who they are (lib/MemberEvaluation.php). */
+                try { $m['evaluation'] = MemberEvaluation::evaluate((int) $m['id']); }
+                catch (Throwable $e) { error_log('[roster_get] evaluation: ' . $e->getMessage()); $m['evaluation'] = ['ok' => false]; }
             }
             json_out($m ? ['ok' => true, 'member' => $m] : ['ok' => false, 'error' => 'No such member.'], $m ? 200 : 404);
         case 'ngv_intake':

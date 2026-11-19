@@ -19,6 +19,9 @@
  *   min    the least Studio role that sees it: editor < admin < superadmin
  *   cap    a trust the section also needs, granted per person (money); a Super Admin holds it
  *   badge  an optional counter beside the label, filled by the screen's loader
+ *   parent a section that is part of another (NextGen Vanguard is part of
+ *          Members: a vanguard IS a member). It has no sidebar entry of its
+ *          own; it opens from its parent's tabs, and the parent stays lit
  *   frames a console that is its own set of pages (NextGen Vanguard, Appeals):
  *          one tab per page, opened inside the Studio, deep-linked #ngv/fines
  *   icon   the inner markup of a 24×24 stroke icon
@@ -51,7 +54,7 @@ final class StudioSections
          'icon' => '<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.6 2.7-5.5 6-5.5"/><path d="M15 12l2 2 4-4"/>'],
         ['id' => 'attendance', 'group' => 'People', 'label' => 'Attendance', 'min' => 'admin', 'badge' => ['id' => 'attBadge', 'class' => 'tab-badge', 'text' => ''],
          'icon' => '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/>'],
-        ['id' => 'ngv', 'group' => 'People', 'label' => 'NextGen Vanguard', 'min' => 'admin', 'badge' => null,
+        ['id' => 'ngv', 'group' => 'People', 'parent' => 'members', 'label' => 'NextGen Vanguard', 'min' => 'admin', 'badge' => null,
          // Its own pages, one tab each, opened here (academy/ngv/_in-studio.php drops their second navigation).
          'frames' => [
            ['key' => 'members', 'label' => 'Vanguards', 'url' => '/academy/ngv/members.php'],
@@ -138,7 +141,7 @@ final class StudioSections
         return ['min' => self::minRoles(), 'aliases' => self::ALIASES,
             /* A section that also needs a trust (AdminRoles::CAPS): money. */
             'caps' => array_column(array_filter(self::all(), static fn($s) => !empty($s['cap'])), 'cap', 'id'),
-            'sections' => array_map(static fn($s) => ['id' => $s['id'], 'label' => $s['label'], 'group' => $s['group']], self::all()),
+            'sections' => array_map(static fn($s) => ['id' => $s['id'], 'label' => $s['label'], 'group' => $s['group'], 'parent' => $s['parent'] ?? ''], self::all()),
             'consoles' => self::CONSOLES,
             'frames' => array_column(array_map(static fn($s) => [$s['id'], $s['frames']], self::framed()), 1, 0)];
     }
@@ -160,8 +163,12 @@ final class StudioSections
         $out = '';
         foreach (self::framed() as $s) {
             $id = $s['id'];
+            $parent = !empty($s['parent']) ? (array_values(array_filter(self::all(), static fn($x) => $x['id'] === $s['parent']))[0] ?? null) : null;
+            $title = $parent
+                ? '<p class="studio-crumb"><button type="button" class="btn-link" data-tab-go="' . $h($parent['id']) . '"><span aria-hidden="true">←</span> ' . $h($parent['label']) . '</button></p><h1>' . $h($s['label']) . '</h1>'
+                : '<h1>' . $h($s['label']) . '</h1>';
             $out .= '  <main class="studio-main studio-frame" id="' . $h($id) . 'View" data-frame-section="' . $h($id) . '" hidden>' . "\n"
-                  . '    <div class="studio-head"><div><h1>' . $h($s['label']) . '</h1></div>'
+                  . '    <div class="studio-head"><div>' . $title . '</div>'
                   . '<a class="btn btn-outline btn-sm" data-frame-own="' . $h($id) . '" href="' . $h($s['frames'][0]['url']) . '" target="_blank" rel="noopener">Open on its own <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a></div>' . "\n";
             if (count($s['frames']) > 1) {
                 $out .= '    <div class="studio-subtabs" role="tablist" aria-label="' . $h($s['label']) . ' pages">';
@@ -175,10 +182,10 @@ final class StudioSections
     }
 
     /** The sections in sidebar order, grouped under their headings. */
-    public static function groups(): array
+    public static function groups(bool $navOnly = false): array
     {
         $g = [];
-        foreach (self::all() as $s) $g[$s['group']][] = $s;
+        foreach (self::all() as $s) { if ($navOnly && !empty($s['parent'])) continue; $g[$s['group']][] = $s; }
         return $g;
     }
 
@@ -188,7 +195,7 @@ final class StudioSections
         $h = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
         $out = '';
         $first = true;
-        foreach (self::groups() as $group => $items) {
+        foreach (self::groups(true) as $group => $items) {
             $out .= '      <div class="nav-group">' . "\n";
             $fold = in_array($group, self::FOLDED, true);
             $gid = 'navg-' . strtolower((string) preg_replace('/[^a-z0-9]+/i', '-', $group));

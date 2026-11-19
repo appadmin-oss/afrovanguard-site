@@ -119,8 +119,11 @@
     var siteRef = which === 'homepage' ? 'hero' : '';
     if (which === 'homepage' || which === 'pages') which = 'site';
     // The section you are in is said in words too (aria-current), not only by the highlight.
+    /* A section that is part of another (NextGen Vanguard, part of Members)
+       has no sidebar entry: its parent stays lit. */
+    var lit = (((SECTIONS.sections || []).filter(function (x) { return x.id === which; })[0]) || {}).parent || which;
     document.querySelectorAll('.tab').forEach(function (t) {
-      var on = t.getAttribute('data-tab') === which;
+      var on = t.getAttribute('data-tab') === lit;
       t.classList.toggle('active', on);
       if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
     });
@@ -3677,7 +3680,8 @@
 
   /* The member dashboard, like NGG's: four rows of tiles, each one a list. */
   var MEM_SEGMENTS = { active: 'Active', suspended: 'Suspended', dormant: 'Active, not signed in for 60 days', joined30: 'Joined in the last 30 days', joined365: 'Joined in the last 12 months',
-    fined: 'Have been fined', fines_owed: 'Owe a fine', fines_cleared: 'Fined, nothing owing', level_raised: 'Level raised in the last 12 months', review_open: 'Promotion awaiting a decision' };
+    fined: 'Have been fined', fines_owed: 'Owe a fine', fines_cleared: 'Fined, nothing owing', level_raised: 'Level raised in the last 12 months', review_open: 'Promotion awaiting a decision',
+    att_low: 'Attendance under 70% (90 days)', often_late: 'Late 3 or more times (30 days)', att_strong: 'Attendance 90%+ and on time (90 days)' };
   function memTile(n, label, attrs, sub) {
     return '<button class="ov-card" ' + (attrs || 'disabled') + '><span class="ov-card-num">' + n + '</span><span class="ov-card-label">' + escapeHtml(label) + '</span>'
       + (sub ? '<span class="ov-card-sub">' + escapeHtml(sub) + '</span>' : '') + '</button>';
@@ -3694,6 +3698,11 @@
       + memTile(b.vanguards || 0, 'NextGen Vanguards', 'data-kind="ngv"')
       + memTile(d.learners || 0, 'Academy learners', 'data-kind="learner"', 'not members')
       + '</div>'
+      /* Evaluation: who to call, who to commend — from the gate, judged only on 5+ counted days. */
+      + '<h2 class="mem-tiles-h">Attendance</h2><div class="ov-grid mem-tiles">'
+      + seg('att_low', 'Attendance under 70%', 'last 90 days') + seg('often_late', 'Late 3+ times', 'last 30 days')
+      + seg('att_strong', 'Attending and on time', '90%+ · last 90 days')
+      + '</div><p class="mem-tiles-note">Judged only for somebody with at least 5 counted days at the gate. Open a member for their whole record: attendance, commitments, level, fines and dues, and their NextGen Vanguard programme if they are on it.</p>'
       + '<h2 class="mem-tiles-h">Fines</h2><div class="ov-grid mem-tiles">'
       + seg('fined', 'Fined', (f.count || 0) + ' fine' + (f.count === 1 ? '' : 's') + ' in all')
       + seg('fines_owed', 'Owe a fine', naira(f.owing_ngn) + ' outstanding')
@@ -4470,11 +4479,80 @@
       memMember = m; $('#mdMsForm').hidden = true;
       $('#mdMembership').innerHTML = msHTML(m.membership); loadMemMembership();
       memVolDraw(m);
+      memEvalDraw(m);
       memErrors('#md_errors', null);
       $('#memDrawer').hidden = false; $('#md_name').focus();
     });
   }
   function closeMember() { $('#memDrawer').hidden = true; memOpen = 0; }
+
+  /* How they are doing (lib/MemberEvaluation.php): the records side by side,
+     one standing, and its reasons written out — never a label alone. A part
+     that could not be read is said, not shown as nothing. */
+  function memEvalDraw(m) {
+    var e = m.evaluation || {}, box = $('#mdEval'), nb = $('#mdNgv');
+    if (!e.ok) { box.innerHTML = '<h3 class="mem-card-h" id="mdEvalH">How they are doing</h3><p class="muted">Could not read their records just now. Close and open again to retry.</p>'; nb.hidden = true; return; }
+    var pct = function (v) { return v === null || v === undefined ? '—' : v + '%'; };
+    var stat = function (n, label, sub, tone) { return '<div class="mem-eval-stat' + (tone ? ' is-' + tone : '') + '"><span class="mem-eval-n">' + n + '</span><span class="mem-eval-l">' + escapeHtml(label) + '</span>' + (sub ? '<span class="mem-eval-s">' + escapeHtml(sub) + '</span>' : '') + '</div>'; };
+    var gone = function (k) { return (e.unavailable || []).indexOf(k) >= 0; };
+    var a = e.attendance, c = e.commitments, g = e.growth, mo = e.money;
+    var h = '<div class="mem-eval-top"><h3 class="mem-card-h" id="mdEvalH">How they are doing</h3><span class="mem-eval-badge is-' + e.standing + '">' + escapeHtml(e.standing_label) + '</span></div>';
+    var why = (e.concerns || []).map(function (t) { return '<li class="is-concern">' + escapeHtml(t) + '</li>'; }).join('')
+      + (e.strengths || []).map(function (t) { return '<li class="is-strength">' + escapeHtml(t) + '</li>'; }).join('')
+      + (e.notes || []).map(function (t) { return '<li class="is-note">' + escapeHtml(t) + '</li>'; }).join('');
+    h += why ? '<ul class="mem-eval-why">' + why + '</ul>' : '<p class="muted tiny">Nothing stands out in their records either way.</p>';
+    h += '<div class="mem-eval-grid">';
+    if (a) h += stat(pct(a.rate), 'Attendance', a.counted + ' day' + (a.counted === 1 ? '' : 's') + ' counted · ' + e.days + ' days', a.enough && a.rate < 70 ? 'low' : '')
+      + stat(pct(a.punctuality), 'On time', a.grade ? 'grade ' + a.grade : 'no grade yet')
+      + stat(a.late, 'Late', a.late_minutes + ' min in all · ' + a.late_30 + ' in 30 days', a.late_30 >= 3 ? 'low' : '')
+      + stat(a.absent, 'Absent', a.excused ? a.excused + ' excused' : '')
+      + stat(a.streak, 'On-time streak', 'days in a row');
+    else if (gone('attendance')) h += stat('?', 'Attendance', 'could not be read');
+    if (c) h += stat(pct(c.rate), 'Commitments kept', c.done + ' kept · ' + c.missed + ' missed' + (c.overdue ? ' · ' + c.overdue + ' overdue' : ''), c.overdue ? 'low' : '');
+    else if (gone('commitments')) h += stat('?', 'Commitments', 'could not be read');
+    if (mo) h += stat(naira(mo.fines_owing_ngn), 'Fines owing', mo.fines_open + ' open', mo.fines_owing_ngn > 0 ? 'low' : '')
+      + stat(mo.dues_owes ? mo.dues_months : '—', 'Months behind on dues', mo.dues_owes ? naira(mo.dues_ngn) + ' owed' : 'no dues owed', mo.dues_owes && mo.dues_months >= 2 ? 'low' : '');
+    else if (gone('money')) h += stat('?', 'Fines and dues', 'could not be read');
+    h += '</div>';
+    if (g) h += '<div class="mem-eval-growth"><p><b>Level ' + escapeHtml(g.level) + '</b> ' + escapeHtml(g.level_label || '')
+      + (g.next ? ' · next: <b>' + escapeHtml(g.next) + '</b> ' + escapeHtml(g.next_label || '') + (g.ready ? ' — <span class="mem-eval-ok">meets the bar</span>' : '') : '')
+      + (g.mentees ? ' · ' + g.mentees + ' active mentee' + (g.mentees === 1 ? '' : 's') : '') + '</p>'
+      + (!g.ready && (g.gaps || []).length ? '<details class="mem-eval-gaps"><summary>What stands between them and ' + escapeHtml(g.next || 'the next level') + ' (' + g.gaps.length + ')</summary><ul>' + g.gaps.map(function (t) { return '<li>' + escapeHtml(t) + '</li>'; }).join('') + '</ul></details>' : '')
+      + (g.review ? '<p class="muted tiny">Latest promotion review: ' + escapeHtml(g.review.status || 'open') + (g.review.to ? ' (to ' + escapeHtml(g.review.to) + ')' : '') + '.</p>' : '') + '</div>';
+    box.innerHTML = h;
+
+    /* A vanguard is a member: their programme is part of their record, here. */
+    var v = e.vanguard;
+    if (!v) { nb.hidden = true; nb.innerHTML = ''; return; }
+    nb.hidden = false;
+    nb.innerHTML = '<div class="mem-eval-top"><h3 class="mem-card-h" id="mdNgvH">NextGen Vanguard</h3><span class="mem-eval-badge">' + escapeHtml(({ active: 'On the programme', paused: 'On a break', completed: 'Completed' })[v.status] || v.status) + '</span></div>'
+      + (v.probation ? '<p class="mem-eval-warn">On probation since ' + escapeHtml(v.probation.since) + (v.probation.until ? ' until ' + escapeHtml(v.probation.until) : '') + ': ' + escapeHtml(v.probation.reason) + '</p>' : '')
+      + '<div class="mem-eval-grid">'
+      + stat(escapeHtml(v.track || '—'), 'Track', v.cohort ? 'cohort ' + v.cohort : '')
+      + stat(v.months_in, 'Months in', v.start ? 'from ' + v.start + (v.end ? ' · ends ' + v.end : '') : 'no start date')
+      + stat(v.points, 'Points', v.points_month + ' this month')
+      + stat(naira(v.owing_ngn), 'Programme account', v.owing_ngn > 0 ? 'owing' : 'nothing owing', v.owing_ngn > 0 ? 'low' : '')
+      + stat(escapeHtml(v.card || '—'), 'NGV card', v.card ? 'active' : 'none issued')
+      + '</div>'
+      + (v.recorded ? '<p class="mem-eval-links"><button type="button" class="btn btn-outline btn-sm" data-ngv-record="' + m.id + '">Open their programme record</button>'
+        + ' <button type="button" class="btn btn-outline btn-sm" data-ngv-page="fines">Fines desk</button> <button type="button" class="btn btn-outline btn-sm" data-ngv-page="attendance">NGV attendance</button></p>'
+        : '<p class="muted tiny">Known by their NGV card only: there is no programme record for them yet. Enrol them from the registration desk.</p>');
+  }
+  /* The NGV console is part of Members: open it, at one page or one person. */
+  function openNgv(key, url) {
+    closeMember();
+    activateTab('ngv');
+    if (key) loadFrame('ngv', key);
+    if (url) { var f = document.querySelector('iframe[data-frame-for="ngv"]'); if (f) f.setAttribute('src', url); markFrameTab('ngv', 'members'); }
+  }
+  document.addEventListener('click', function (ev) {
+    var back = ev.target.closest && ev.target.closest('[data-tab-go]');
+    if (back) { activateTab(back.getAttribute('data-tab-go')); return; }
+    var t = ev.target.closest && ev.target.closest('[data-ngv-record],[data-ngv-page],[data-ngv-open]');
+    if (!t) return;
+    if (t.hasAttribute('data-ngv-record')) openNgv('', '/academy/ngv/members.php?m=' + encodeURIComponent(t.getAttribute('data-ngv-record')));
+    else openNgv(t.getAttribute('data-ngv-page') || t.getAttribute('data-ngv-open') || 'members');
+  });
 
   /* Volunteers by project — the office's view of who serves what. */
   function loadVolProjects() {
@@ -5237,7 +5315,9 @@
     var m = /^#([a-z]+)(?:\/([a-z]+))?$/.exec(location.hash || '');
     if (!m) return null;
     var id = (SECTIONS.aliases || {})[m[1]] || m[1];
-    if (!document.querySelector('.tab[data-tab="' + id + '"]')) return null;
+    /* A section, by the registry, not by a sidebar tab: a section that is part
+       of another (NextGen Vanguard, in Members) has no tab of its own. */
+    if (!(SECTIONS.sections || []).some(function (x) { return x.id === id; })) return null;
     var sub = '';
     if (id === 'members' && MEM_PANES.indexOf(m[2]) >= 0) sub = m[2];
     if (FRAMES[id] && FRAMES[id].some(function (f) { return f.key === m[2]; })) sub = m[2];
@@ -5308,7 +5388,7 @@
     if (openFromHash()) { refreshModBadge(); return; }
     /* A screen this role may not open (or a stale name): drop it from the address rather than show one screen under another's name. */
     if (location.hash) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
-    if (saved !== 'homepage' && saved !== 'pages' && !document.querySelector('.tab[data-tab="' + saved + '"]')) saved = 'overview';
+    if (saved !== 'homepage' && saved !== 'pages' && !(SECTIONS.sections || []).some(function (x) { return x.id === saved; })) saved = 'overview';
     if (!roleAllows(saved)) saved = 'overview';
     activateTab(saved);
     refreshModBadge();

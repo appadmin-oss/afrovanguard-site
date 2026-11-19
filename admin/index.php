@@ -452,6 +452,7 @@
     <div class="studio-subtabs" role="tablist" aria-label="Member sections">
       <button class="subtab active" data-mv="dash" role="tab">Dashboard</button>
       <button class="subtab" data-mv="roster" role="tab">Roster</button>
+      <button class="subtab subtab-go" data-ngv-open="members" type="button">NextGen Vanguard <span aria-hidden="true">→</span></button>
       <button class="subtab" data-mv="roles" role="tab">Roles</button>
       <button class="subtab" data-mv="verify" role="tab">To verify <span class="badge draft" id="mvBadge" hidden></span></button>
       <button class="subtab" data-mv="centres" role="tab">Centres</button>
@@ -688,6 +689,9 @@
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="mdTitle">
       <div class="modal-top"><h2 id="mdTitle">Member</h2><button class="btn btn-outline btn-sm" id="mdClose" aria-label="Close">✕</button></div>
       <div class="modal-body">
+        <section class="mem-eval" id="mdEval" aria-labelledby="mdEvalH" aria-live="polite"><h3 class="mem-card-h" id="mdEvalH">How they are doing</h3><p class="muted">…</p></section>
+        <section class="mem-eval mem-eval-ngv" id="mdNgv" aria-labelledby="mdNgvH" hidden></section>
+        <h3 class="mem-card-h">Details</h3>
         <div class="mem-create-grid">
           <label class="fld"><span>Name</span><input id="md_name" /></label>
           <label class="fld"><span>Email</span><input id="md_email" type="email" /></label>
@@ -1314,7 +1318,7 @@
   <!-- ═══ People → Attendance (lib/GateAttendance.php): a day's register, and the settings in their groups ═══ -->
   <main class="studio-main" id="attendanceView" hidden>
     <div class="studio-head">
-      <div><h1>Attendance</h1><p class="muted">Who came in through the CACENTRE gate, and the rules it is judged by. NextGen Vanguard's own desk is under NextGen Vanguard → Attendance.</p></div>
+      <div><h1>Attendance</h1><p class="muted">Who came in through the CACENTRE gate, and the rules it is judged by. NextGen Vanguard's own desk is under Members → NextGen Vanguard → Attendance.</p></div>
     </div>
     <div class="studio-subtabs" role="tablist" aria-label="Attendance">
       <button class="subtab active" role="tab" aria-selected="true" data-att-tab="day">The day</button>

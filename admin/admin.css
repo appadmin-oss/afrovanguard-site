@@ -1099,3 +1099,38 @@ body.studio .ov-card-ico { background: var(--surface-2); color: var(--ink); }
 .don-segs .is-on { background: var(--nav-on); border-color: var(--line-hover); }
 .don-pager { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
 .mt-cap { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; margin-right: 8px; }
+
+/* ── Member evaluation (Members → a member): how they are doing ───────── */
+.mem-eval { border: 1px solid var(--divider); border-radius: var(--radius-sm); background: var(--bg); padding: 14px 16px; margin: 0 0 14px; container-type: inline-size; }
+.mem-eval-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mem-eval-top .mem-card-h { margin: 0; }
+.mem-eval-badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--divider); }
+.mem-eval-badge.is-attention { background: rgba(212,56,13,.1); color: var(--st-err); border-color: transparent; }
+.mem-eval-badge.is-well { background: rgba(46,138,87,.12); color: var(--st-ok); border-color: transparent; }
+.mem-eval-why { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; color: var(--body); }
+.mem-eval-why li { padding-left: 16px; position: relative; }
+.mem-eval-why li::before { content: ''; position: absolute; left: 2px; top: .55em; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.mem-eval-why li.is-concern::before { background: var(--st-err); }
+.mem-eval-why li.is-strength::before { background: var(--st-ok); }
+.mem-eval-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+@container (min-width: 420px) { .mem-eval-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container (min-width: 640px) { .mem-eval-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.mem-eval-stat { display: flex; flex-direction: column; gap: 2px; background: var(--surface); border-radius: var(--radius-sm); padding: 9px 11px; min-width: 0; }
+.mem-eval-n { font-weight: 700; font-size: 18px; color: var(--ink); font-variant-numeric: lining-nums tabular-nums; overflow-wrap: anywhere; }
+.mem-eval-stat.is-low .mem-eval-n { color: var(--st-err); }
+.mem-eval-l { font-size: 12px; font-weight: 600; color: var(--body); }
+.mem-eval-s { font-size: 11.5px; color: var(--muted); }
+.mem-eval-growth { margin-top: 12px; font-size: 13.5px; }
+.mem-eval-growth p { margin: 0 0 4px; }
+.mem-eval-ok { color: var(--st-ok); font-weight: 600; }
+.mem-eval-gaps { font-size: 13px; color: var(--body); }
+.mem-eval-gaps summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+.mem-eval-gaps ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.mem-eval-warn { margin: 10px 0 0; font-size: 13px; color: var(--st-err); font-weight: 600; }
+.mem-eval-links { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+/* NextGen Vanguard is part of Members: its tab in the Members row, and the way back. */
+.subtab-go { color: var(--gold-deep); }
+.studio-crumb { margin: 0 0 2px; }
+.studio-crumb .btn-link { background: none; border: none; padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.studio-crumb .btn-link:hover, .studio-crumb .btn-link:focus-visible { color: var(--ink); text-decoration: underline; }
