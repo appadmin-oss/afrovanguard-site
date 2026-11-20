@@ -505,6 +505,7 @@ final class MemberRoster
            two absences out of two is not a pattern. */
         'att_low' => 'Attendance under 70% (90 days)', 'often_late' => 'Late 3 or more times (30 days)',
         'att_strong' => 'Attendance 90%+ and on time (90 days)',
+        'followup_due' => 'Follow-up due or late', 'followup_open' => 'Being followed up',
     ];
     public const ATT_MIN_DAYS = 5;
     private static ?array $fineCache = null;
@@ -564,6 +565,8 @@ final class MemberRoster
                 if ($seg === 'att_low') return ["u.id IN (SELECT member_id FROM gate_attendance WHERE day >= ? GROUP BY member_id HAVING $counted >= $min AND 100 * $came < $low * $counted)", [$since90]];
                 return ["u.id IN (SELECT member_id FROM gate_attendance WHERE day >= ? GROUP BY member_id HAVING $counted >= $min AND 100 * $came >= $hi * $counted AND 100 * $onTime >= $pu * $counted)", [$since90]];
             }
+            case 'followup_due':  return MemberFollowUps::segmentSql(true);
+            case 'followup_open': return MemberFollowUps::segmentSql(false);
             case 'review_open':
                 if (class_exists('Promotion')) Promotion::ensure();
                 /* Open, and for a level not yet reached: a review for a level the

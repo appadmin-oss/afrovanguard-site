@@ -1134,3 +1134,14 @@ body.studio .ov-card-ico { background: var(--surface-2); color: var(--ink); }
 .studio-crumb { margin: 0 0 2px; }
 .studio-crumb .btn-link { background: none; border: none; padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
 .studio-crumb .btn-link:hover, .studio-crumb .btn-link:focus-visible { color: var(--ink); text-decoration: underline; }
+/* Following up on a member (lib/MemberFollowUps.php) */
+.mem-eval-tags { display: inline-flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.mem-follow { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--divider); font-size: 13.5px; }
+.mem-follow-now { margin: 0 0 8px; }
+.mem-follow-now span { color: var(--body); }
+.mem-follow-now.is-late b { color: var(--st-err); }
+.mem-follow-new summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+.mem-follow-new form, .mem-follow-close { display: grid; gap: 8px; margin-top: 8px; }
+.mem-follow-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.mem-follow-new form > .btn { justify-self: start; }
+.mem-follow-past { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }

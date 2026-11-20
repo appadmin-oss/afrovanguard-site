@@ -201,7 +201,9 @@ ck('courses: …but a sitting against no course at all is still refused',
 ck('courses: a sitting with nothing said about it is refused',
    !NgvCourses::logSession($ncVan, ['course_id' => $ncId, 'day' => '2026-03-03', 'minutes' => 30, 'notes' => 'short'])['ok']);
 ck('courses: a sitting in the future is refused',
-   !NgvCourses::logSession($ncVan, ['day' => gmdate('Y-m-d', time() + 86400)] + $ncSit)['ok']);
+   /* Tomorrow by the programme's clock (Lagos), not UTC's: after 23:00 UTC,
+      UTC's tomorrow is already today in Lagos, and the test failed nightly. */
+   !NgvCourses::logSession($ncVan, ['day' => date('Y-m-d', strtotime((function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d')) . ' +1 day'))] + $ncSit)['ok']);
 ck('courses: a sitting before the course began is refused',
    !NgvCourses::logSession($ncVan, ['day' => '2026-01-01'] + $ncSit)['ok']);
 $ncSent = NgvCourses::save($ncVan, $ncClaim, true);

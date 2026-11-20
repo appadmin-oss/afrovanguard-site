@@ -59,6 +59,8 @@ final class StudioToday
              'go' => 'members', 'tab' => 'approvals', 'count' => static fn() => Approvals::pendingCount()],
             ['key' => 'requests', 'label' => 'Member requests', 'sub' => 'What members have asked the office to change.',
              'go' => 'members', 'tab' => 'approvals', 'count' => static fn() => MemberRequests::pendingCount()],
+            ['key' => 'followups', 'label' => 'Member follow-ups due', 'sub' => 'Somebody needed attention and an admin said they would follow up by today.',
+             'go' => 'members', 'tab' => 'dash', 'count' => static fn() => MemberFollowUps::dueCount()],
             ['key' => 'verify', 'label' => 'Members to verify', 'sub' => 'New accounts waiting for somebody to confirm who they are.',
              'go' => 'members', 'tab' => 'verify', 'count' => static fn() => count(MemberVerification::toVerify(500))],
             ['key' => 'review', 'label' => 'Site changes waiting to be published', 'sub' => 'Sent for review by an editor; an admin publishes or sends back.',

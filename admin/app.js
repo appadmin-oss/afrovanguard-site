@@ -3681,7 +3681,8 @@
   /* The member dashboard, like NGG's: four rows of tiles, each one a list. */
   var MEM_SEGMENTS = { active: 'Active', suspended: 'Suspended', dormant: 'Active, not signed in for 60 days', joined30: 'Joined in the last 30 days', joined365: 'Joined in the last 12 months',
     fined: 'Have been fined', fines_owed: 'Owe a fine', fines_cleared: 'Fined, nothing owing', level_raised: 'Level raised in the last 12 months', review_open: 'Promotion awaiting a decision',
-    att_low: 'Attendance under 70% (90 days)', often_late: 'Late 3 or more times (30 days)', att_strong: 'Attendance 90%+ and on time (90 days)' };
+    att_low: 'Attendance under 70% (90 days)', often_late: 'Late 3 or more times (30 days)', att_strong: 'Attendance 90%+ and on time (90 days)',
+    followup_due: 'Follow-up due or late', followup_open: 'Being followed up' };
   function memTile(n, label, attrs, sub) {
     return '<button class="ov-card" ' + (attrs || 'disabled') + '><span class="ov-card-num">' + n + '</span><span class="ov-card-label">' + escapeHtml(label) + '</span>'
       + (sub ? '<span class="ov-card-sub">' + escapeHtml(sub) + '</span>' : '') + '</button>';
@@ -3699,9 +3700,10 @@
       + memTile(d.learners || 0, 'Academy learners', 'data-kind="learner"', 'not members')
       + '</div>'
       /* Evaluation: who to call, who to commend — from the gate, judged only on 5+ counted days. */
-      + '<h2 class="mem-tiles-h">Attendance</h2><div class="ov-grid mem-tiles">'
+      + '<h2 class="mem-tiles-h">Attendance and follow-up</h2><div class="ov-grid mem-tiles">'
       + seg('att_low', 'Attendance under 70%', 'last 90 days') + seg('often_late', 'Late 3+ times', 'last 30 days')
       + seg('att_strong', 'Attending and on time', '90%+ · last 90 days')
+      + seg('followup_due', 'Follow-ups due', 'due today or late') + seg('followup_open', 'Being followed up', 'an admin is on it')
       + '</div><p class="mem-tiles-note">Judged only for somebody with at least 5 counted days at the gate. Open a member for their whole record: attendance, commitments, level, fines and dues, and their NextGen Vanguard programme if they are on it.</p>'
       + '<h2 class="mem-tiles-h">Fines</h2><div class="ov-grid mem-tiles">'
       + seg('fined', 'Fined', (f.count || 0) + ' fine' + (f.count === 1 ? '' : 's') + ' in all')
@@ -4496,13 +4498,17 @@
     var stat = function (n, label, sub, tone) { return '<div class="mem-eval-stat' + (tone ? ' is-' + tone : '') + '"><span class="mem-eval-n">' + n + '</span><span class="mem-eval-l">' + escapeHtml(label) + '</span>' + (sub ? '<span class="mem-eval-s">' + escapeHtml(sub) + '</span>' : '') + '</div>'; };
     var gone = function (k) { return (e.unavailable || []).indexOf(k) >= 0; };
     var a = e.attendance, c = e.commitments, g = e.growth, mo = e.money;
-    var h = '<div class="mem-eval-top"><h3 class="mem-card-h" id="mdEvalH">How they are doing</h3><span class="mem-eval-badge is-' + e.standing + '">' + escapeHtml(e.standing_label) + '</span></div>';
+    var ten = e.tenure || {};
+    var h = '<div class="mem-eval-top"><h3 class="mem-card-h" id="mdEvalH">How they are doing</h3><span class="mem-eval-tags">'
+      + (ten.first_year ? '<span class="mem-eval-badge" title="Joined ' + escapeHtml(ten.since || '') + '">First year</span>' : '')
+      + '<span class="mem-eval-badge is-' + e.standing + '">' + escapeHtml(e.standing_label) + '</span></span></div>';
     var why = (e.concerns || []).map(function (t) { return '<li class="is-concern">' + escapeHtml(t) + '</li>'; }).join('')
       + (e.strengths || []).map(function (t) { return '<li class="is-strength">' + escapeHtml(t) + '</li>'; }).join('')
       + (e.notes || []).map(function (t) { return '<li class="is-note">' + escapeHtml(t) + '</li>'; }).join('');
     h += why ? '<ul class="mem-eval-why">' + why + '</ul>' : '<p class="muted tiny">Nothing stands out in their records either way.</p>';
     h += '<div class="mem-eval-grid">';
-    if (a) h += stat(pct(a.rate), 'Attendance', a.counted + ' day' + (a.counted === 1 ? '' : 's') + ' counted · ' + e.days + ' days', a.enough && a.rate < 70 ? 'low' : '')
+    var tr = a && a.trend, arrow = tr ? ({ slipping: '↓ ', improving: '↑ ', level: '' })[tr.direction] : '';
+    if (a) h += stat(pct(a.rate), 'Attendance', (tr ? arrow + tr.recent + '% last 30 days · was ' + tr.before + '%' : a.counted + ' day' + (a.counted === 1 ? '' : 's') + ' counted · ' + e.days + ' days'), (a.enough && a.rate < 70) || (tr && tr.direction === 'slipping') ? 'low' : '')
       + stat(pct(a.punctuality), 'On time', a.grade ? 'grade ' + a.grade : 'no grade yet')
       + stat(a.late, 'Late', a.late_minutes + ' min in all · ' + a.late_30 + ' in 30 days', a.late_30 >= 3 ? 'low' : '')
       + stat(a.absent, 'Absent', a.excused ? a.excused + ' excused' : '')
@@ -4519,6 +4525,7 @@
       + (g.mentees ? ' · ' + g.mentees + ' active mentee' + (g.mentees === 1 ? '' : 's') : '') + '</p>'
       + (!g.ready && (g.gaps || []).length ? '<details class="mem-eval-gaps"><summary>What stands between them and ' + escapeHtml(g.next || 'the next level') + ' (' + g.gaps.length + ')</summary><ul>' + g.gaps.map(function (t) { return '<li>' + escapeHtml(t) + '</li>'; }).join('') + '</ul></details>' : '')
       + (g.review ? '<p class="muted tiny">Latest promotion review: ' + escapeHtml(g.review.status || 'open') + (g.review.to ? ' (to ' + escapeHtml(g.review.to) + ')' : '') + '.</p>' : '') + '</div>';
+    h += memFollowHTML(m, e);
     box.innerHTML = h;
 
     /* A vanguard is a member: their programme is part of their record, here. */
@@ -4538,6 +4545,42 @@
         + ' <button type="button" class="btn btn-outline btn-sm" data-ngv-page="fines">Fines desk</button> <button type="button" class="btn btn-outline btn-sm" data-ngv-page="attendance">NGV attendance</button></p>'
         : '<p class="muted tiny">Known by their NGV card only: there is no programme record for them yet. Enrol them from the registration desk.</p>');
   }
+  /* Following up (lib/MemberFollowUps.php): one open at a time, an owner and
+     a day; closed with what happened, which goes into the notes as well. */
+  function memFollowHTML(m, e) {
+    var open = e.followup_open, past = (e.followups || []).filter(function (f) { return f.status !== 'open'; }).slice(0, 3);
+    var h = '<div class="mem-follow" id="mdFollow">';
+    if (open) {
+      h += '<p class="mem-follow-now' + (open.overdue ? ' is-late' : '') + '"><b>Follow-up</b> · ' + escapeHtml(open.owner) + ', due ' + escapeHtml(open.due_on) + (open.overdue ? ' — <b>late</b>' : open.due ? ' — <b>today</b>' : '') + '<br><span>' + escapeHtml(open.reason) + '</span></p>'
+        + '<form class="mem-follow-close" data-fu-close="' + open.id + '" autocomplete="off"><label class="fld"><span>What happened</span><textarea name="outcome" rows="2" maxlength="1000" required placeholder="Spoke to her mother; transport problem until January. Back on Saturday."></textarea></label>'
+        + '<div class="mem-follow-btns"><button type="submit" class="btn btn-primary btn-sm" value="done">Done</button><button type="submit" class="btn btn-outline btn-sm" value="cancelled">Cancel the follow-up</button></div>'
+        + '<p class="mem-errors" role="alert" hidden></p></form>';
+    } else {
+      var due = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+      var team = m.followup_team || [], me = String(m.followup_me || '').toLowerCase();
+      h += '<details class="mem-follow-new"' + (e.standing === 'attention' ? ' open' : '') + '><summary>' + (e.standing === 'attention' ? 'Follow up on this' : 'Follow up') + '</summary>'
+        + '<form data-fu-open="' + m.id + '" autocomplete="off"><label class="fld"><span>What for</span><input name="reason" maxlength="500" required value="' + escapeHtml((e.concerns || [])[0] || '') + '"></label>'
+        + '<div class="mem-create-grid"><label class="fld"><span>Who follows up</span><select name="owner">' + team.map(function (t) { return '<option' + (t.toLowerCase() === me ? ' selected' : '') + '>' + escapeHtml(t) + '</option>'; }).join('') + '</select></label>'
+        + '<label class="fld"><span>By</span><input name="due_on" type="date" required value="' + due + '"></label></div>'
+        + '<button type="submit" class="btn btn-primary btn-sm">Start the follow-up</button><p class="mem-errors" role="alert" hidden></p></form></details>';
+    }
+    if (past.length) h += '<ul class="mem-follow-past">' + past.map(function (f) { return '<li><b>' + escapeHtml(f.status === 'done' ? 'Done' : 'Cancelled') + '</b> ' + escapeHtml(String(f.closed_at).slice(0, 10)) + ' · ' + escapeHtml(f.closed_by) + ': ' + escapeHtml(f.outcome) + '</li>'; }).join('') + '</ul>';
+    return h + '</div>';
+  }
+  document.addEventListener('submit', function (ev) {
+    var f = ev.target; if (!f.matches || !f.matches('[data-fu-open],[data-fu-close]')) return;
+    ev.preventDefault();
+    var err = f.querySelector('.mem-errors'), btn = ev.submitter, opening = f.hasAttribute('data-fu-open');
+    var body = opening ? { id: +f.getAttribute('data-fu-open'), reason: f.reason.value, owner: f.owner.value, due_on: f.due_on.value }
+                       : { followup_id: +f.getAttribute('data-fu-close'), outcome: f.outcome.value, status: (btn && btn.value) || 'done' };
+    f.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+    post(opening ? 'member_followup_open' : 'member_followup_close', body).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { err.hidden = false; err.textContent = d.error || 'Could not save. Try again.'; f.querySelectorAll('button').forEach(function (b) { b.disabled = false; }); return; }
+      toast(opening ? 'Follow-up started.' : 'Follow-up closed, and noted.');
+      openMember(memOpen);
+    });
+  });
   /* The NGV console is part of Members: open it, at one page or one person. */
   function openNgv(key, url) {
     closeMember();

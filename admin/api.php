@@ -155,7 +155,7 @@ try {
         'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke',
         // Events: ours are written here; Africa GATES events are read from there.
         'sev_list', 'sev_refresh', 'sev_save', 'sev_delete',
-        'roster_export', 'roster_centres', 'member_notes', 'member_note_add', 'member_note_delete', 'member_activity', 'member_message',
+        'roster_export', 'roster_centres', 'member_notes', 'member_note_add', 'member_note_delete', 'member_activity', 'member_message', 'member_followup_open', 'member_followup_close',
         'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
         'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
@@ -1610,6 +1610,15 @@ try {
             exit;
         case 'member_notes':
             json_out(['ok' => true, 'notes' => MemberDesk::notes((int) ($_GET['id'] ?? 0)), 'activity' => MemberDesk::activity((int) ($_GET['id'] ?? 0)), 'me' => av_admin_actor()]);
+        /* Following up on a member who needs attention (lib/MemberFollowUps.php). */
+        case 'member_followup_open':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberFollowUps::open((int) ($body['id'] ?? 0), (string) ($body['reason'] ?? ''), (string) ($body['owner'] ?? ''), (string) ($body['due_on'] ?? ''), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : ($r['code'] === 'already_open' ? 409 : 422));
+        case 'member_followup_close':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberFollowUps::close((int) ($body['followup_id'] ?? 0), (string) ($body['outcome'] ?? ''), (string) ($body['status'] ?? 'done'), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : ($r['code'] === 'not_found' ? 404 : 422));
         case 'member_activity':
             json_out(['ok' => true, 'activity' => MemberDesk::activity((int) ($_GET['id'] ?? 0))]);
         case 'member_note_add':
@@ -1720,6 +1729,7 @@ try {
                                   'history' => MemberVerification::historyFor((int) $m['id'])];
 
                 /* How they are doing, beside who they are (lib/MemberEvaluation.php). */
+                $m['followup_team'] = MemberFollowUps::team(); $m['followup_me'] = av_admin_actor();
                 try { $m['evaluation'] = MemberEvaluation::evaluate((int) $m['id']); }
                 catch (Throwable $e) { error_log('[roster_get] evaluation: ' . $e->getMessage()); $m['evaluation'] = ['ok' => false]; }
             }

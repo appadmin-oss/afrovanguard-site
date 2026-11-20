@@ -1455,3 +1455,36 @@ Tests: `tests/memberevaluation.test.php` (18), the registry test (parent).
 Driven in Chromium: tiles → list → drawer with reasons, vanguard block,
 programme record opened inside the Studio, Members lit, back link, deep link
 (16 checks); the NGV console check rerun through Members (14 checks).
+
+## Following up, and seeing it early (2026-11-19)
+
+"Research and improve" on member management and evaluation. What the research
+said, and what changed for it:
+
+- **A flag nobody owns changes nothing.** Harvard CEPR found one district's
+  attendance early-warning system had no measurable effect; the systems that
+  worked kept a shared log of who intervened and what happened. So
+  **follow-ups** (`lib/MemberFollowUps.php`, table `member_followups`): from a
+  member's record, an admin starts one — what for (filled in from the first
+  concern), who (an admin; editors cannot open the member desk), by when
+  (today to 60 days). One open per member, so two people do not call the same
+  family. It is closed as done or cancelled **with what happened**, and that
+  outcome is written into the member's notes, dated and signed. Opens and
+  closes are audited. Due or late follow-ups are a roster list and a
+  dashboard tile ("Follow-ups due", "Being followed up") and a line on the
+  Overview's Today queue; a late one is a concern on the member's standing.
+- **Tardiness and a falling rate come before chronic absence**, and the
+  first weeks are when to act. So the evaluation has a **trend**: the last 30
+  days against the 60 before (each on 3+ counted days; a shift of 15 points
+  or more). "Slipping" is a concern even while the 90-day rate is still fine
+  (100% → 25% with 70% overall); "improving" is a strength.
+- **Being a first-year member is the main predictor of leaving** (4-H
+  retention study). The record says "First year" (from the joined date, else
+  the account's), and a first-year member with any concern gets "follow up
+  early".
+Also: `tests/ngvcourses.test.php` built "tomorrow" in UTC, which after 23:00
+UTC is already today in Lagos, so it failed every night; it now uses the
+programme's clock.
+Tests: `tests/memberfollowups.test.php` (22). Driven in Chromium: tiles,
+trend, first-year flag, start and close a follow-up, outcome in the notes
+(22 checks in the members run).
