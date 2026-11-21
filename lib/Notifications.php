@@ -160,25 +160,14 @@ final class Notifications
             }
         } catch (Throwable $e) { error_log('[notif] sessions: ' . $e->getMessage()); }
 
-        // 3) Task deadlines. Remind the assignee once per day about tasks that are
-        //    due today (their tz) or overdue and still open — the webcron tick.
-        try {
-            if (Database::columnExists('collab_tasks', 'due')) {
-                $st = $db->query("SELECT id, assignee_id, title, due FROM collab_tasks WHERE done = 0 AND assignee_id > 0 AND due <> ''");
-                foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
-                    $uid = (int) $r['assignee_id'];
-                    $tz  = function_exists('av_user_tz') ? av_user_tz($uid) : (defined('AV_TZ') ? AV_TZ : 'UTC');
-                    $today = av_now_tz('Y-m-d', $tz);
-                    if ((string) $r['due'] > $today) continue;                 // not due yet in their tz
-                    $overdue = (string) $r['due'] < $today;
-                    $title = ($overdue ? 'Overdue task: ' : 'Task due today: ') . (string) $r['title'];
-                    // Dedupe per task per day so a 5-minute cron doesn't spam.
-                    $nid = self::push($uid, 'task', $title, $overdue ? 'This task is past its due date.' : 'This task is due today.',
-                        '/portal/#tasks', 'taskdue:' . (int) $r['id'] . ':' . $today);
-                    if ($nid) { $made['tasks'] = ($made['tasks'] ?? 0) + 1; self::email($uid, $title, $overdue ? 'This task is past its due date — a nudge to close it out.' : 'This task is due today.', '/portal/#tasks'); }
-                }
-            }
-        } catch (Throwable $e) { error_log('[notif] task deadlines: ' . $e->getMessage()); }
+        // 3) Task and commitment deadlines: the escalation ladder
+        //    (TaskLedger::chaseAll) — the owner on the due day and the day after,
+        //    whoever gave the work on day 3, then one weekly roll-up. It replaced
+        //    an "Overdue task" notice and email to the owner every day for as long
+        //    as a task stayed late, which taught people to ignore the bell and
+        //    never told the person who could do something about it.
+        try { if (class_exists('TaskLedger')) $made['ladder'] = TaskLedger::chaseAll(); }
+        catch (Throwable $e) { error_log('[notif] ladder: ' . $e->getMessage()); }
 
         return $made;
     }

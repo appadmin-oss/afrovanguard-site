@@ -85,6 +85,9 @@
       return;
     }
     WS = d.workspaces || [];
+    /* Handed to "Everything you owe" on the Tasks page (portal/tasks.js): what this card already has. */
+    var mine = []; WS.forEach(function(w){ (w.my_tasks||[]).forEach(function(t){ if (t.status === 'open' || t.status === 'awaiting_proof') mine.push({ title: t.title, due: t.due_on || '', src: 'Goalspace · ' + (w.title || '') }); }); });
+    document.dispatchEvent(new CustomEvent('av:owe', { detail: { source: 'goalspace', items: mine } }));
     if (!d.linked) { list.innerHTML = '<p class="pc-empty">'+esc(d.why||'CACENTRE does not know your account yet.')+'</p>'; return; }
     if (!WS.length) { list.innerHTML = '<p class="pc-empty">You are not in any goal at CACENTRE yet. When a lead adds you, your part shows here.</p>'; return; }
     /* What to do next, first: ranked on the server (CacGoalspace::triage), each with its reason. */

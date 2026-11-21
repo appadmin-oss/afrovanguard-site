@@ -10,7 +10,10 @@
  *     when it is configured (Collab::aiTasksFromGoal, the Studio's goal.tasks
  *     prompt) — and each step goes to the person whose role, course, centre
  *     and project fit it, spread so one willing person is not handed the lot
- *     (lib/TaskMatch.php). With no AI, the goal's author is given one task:
+ *     (lib/TaskMatch.php) — as a PROPOSAL: it waits for that person to
+     accept it (Collab::acceptTask), and a step they decline goes back to the
+     pool. A machine's guess about who should do something is not an
+     assignment until somebody says yes. With no AI, the goal's author is given one task:
  *     agree the next step. A goal is never left with nothing to do.
  *   · It is planned again when every step is done, or when its steps have sat
  *     untouched for tasks.goal_replan_days.

@@ -117,6 +117,23 @@ try {
             json_out(['ok' => Commitments::cancel($id)]);
         }
 
+        /* Day 3 late, the chair is told and offered: reassign (assign), a new date (redate) or drop it (cancel). */
+        case 'escalated': {
+            $items = Commitments::escalatedFor($uid);
+            json_out(['ok' => true, 'items' => $items, 'members' => Commitments::assignableFor($items)]);
+        }
+
+        case 'redate': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $writeGuard();
+            $id = (int) ($body['id'] ?? 0);
+            $c  = Commitments::get($id);
+            if (!$c) json_out(['ok' => false, 'error' => 'Commitment not found.'], 404);
+            if (!Commitments::canManage($uid, $c)) json_out(['ok' => false, 'error' => 'Only someone who was in that meeting or session can set its date.'], 403);
+            if (!Commitments::setDue($id, (string) ($body['due'] ?? ''))) json_out(['ok' => false, 'error' => 'Pick a date.'], 422);
+            json_out(['ok' => true]);
+        }
+
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
     }

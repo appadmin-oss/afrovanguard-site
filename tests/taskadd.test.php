@@ -35,6 +35,6 @@ ck('add: and does give one to an active member, who is told', $given > 0 && $taN
 /* Both doors pass the caller's right to hand out work, the one assignTask takes. */
 $taCollab = (string) file_get_contents(AV_ROOT . '/portal/collab.php');
 $taChat   = (string) file_get_contents(AV_ROOT . '/portal/chat.php');
-ck('door: task_add passes $allocates to addTask', (bool) preg_match('/case \'task_add\':.*?Collab::addTask\([^;]*\$allocates\)/s', $taCollab));
-ck('door: chat\'s assign passes it too, from the same rule', (bool) preg_match('/case \'assign\':.*?Collab::addTask\([^;]*\$allocates\)/s', $taChat)
+ck('door: task_add passes $allocates to addTask', (bool) preg_match('/case \'task_add\':.*?Collab::addTask\([^;]*\$allocates[,)]/s', $taCollab));
+ck('door: chat\'s assign passes it too, from the same rule', (bool) preg_match('/case \'assign\':.*?Collab::addTask\([^;]*\$allocates[,)]/s', $taChat)
    && str_contains($taChat, 'Collab::mayAllocate($u)') && str_contains($taCollab, 'Collab::mayAllocate($u)'));

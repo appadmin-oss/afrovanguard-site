@@ -110,3 +110,22 @@ ck('the comment above the rows no longer claims there is no checkbox, which ther
    !str_contains($portal, 'No checkbox and no delete'));
 ck('there is still no delete: deciding a piece of work should not exist belongs where the '
  . 'work is managed', !str_contains($portal, 'data-cac-delete'));
+
+/* ── Moving the date of GIVEN work needs a reason, on both sites (19 Nov 2026) ─
+ * CACENTRE answers 422 reason-required when a member moves the due date of a
+ * task somebody else gave them without saying why — the same rule this site
+ * keeps for its own tasks. Until the portal sent one, such a date simply could
+ * not be moved from here, and the screen said "the console refused that change",
+ * which names the wrong cause. The reason travels, the refusal keeps its code so
+ * the screen can ask, and a move with no reason is put back rather than left
+ * showing a date the console does not hold.
+ */
+$collabSrc = (string) file_get_contents(__DIR__ . '/../portal/collab.php');
+ck('the portal passes a reason through to CACENTRE with a date change',
+   str_contains($collabSrc, "\$fields['reason'] = "));
+ck('…and a reason-required refusal keeps its code and is not called a console failure',
+   (bool) preg_match("/'reason-required'\\) json_out\\(\\['ok' => false, 'code' => 'reason-required'/", $collabSrc));
+ck('the screen asks for the reason on reason-required and sends the change again with it',
+   str_contains($portal, "r.code === 'reason-required'") && str_contains($portal, 'body.reason = why.trim()'));
+ck('…and a move left without a reason is put back to the date the console holds',
+   str_contains($portal, 'el.value = last;'));

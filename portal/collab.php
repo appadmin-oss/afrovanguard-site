@@ -62,6 +62,8 @@ try {
                 /* Not taking new tasks until this date (TaskLedger), and the reasons a task can be handed back with. */
                 'away_until' => class_exists('TaskLedger') ? TaskLedger::awayUntil($uid) : '',
                 'handback_reasons' => class_exists('TaskLedger') ? TaskLedger::REASONS : [],
+                /* The same list answers "can't, because…" when a task is given (Collab::declineTask). */
+                'decline_reasons' => class_exists('TaskLedger') ? TaskLedger::REASONS : [],
                 'ai'       => $isOrg && Collab::aiAvailable(),
                 'goals'    => $isOrg ? array_values(array_filter(Goals::listGoals($uid, 40), fn($g) => empty($g['closed']))) : [],
                 /* Where CACENTRE's goals stand, so an empty list says why; and an
@@ -99,7 +101,7 @@ try {
             $writeGuard();
             if (!av_rate_ok('collab_task_' . $uid, 40, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
             $to = (int) ($body['assignee'] ?? 0);
-            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), $to, (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'), 0, '', 'person', $allocates);
+            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), $to, (string) ($body['due'] ?? ''), (string) ($body['priority'] ?? 'normal'), 0, (string) ($body['size'] ?? ''), 'person', $allocates, (string) ($body['outcome'] ?? ''));
             if (!$id) json_out(['ok' => false, 'error' => Collab::$lastError ?: 'Enter a task.'], Collab::$lastError === 'You cannot give a task to somebody else.' ? 403 : (Collab::$lastError === '' || Collab::$lastError === 'Enter a task.' ? 400 : 422));
             /* The task itself, not a search of the first 50 of mine: with a long
                list, a new undated task was not among them and came back as an
@@ -177,6 +179,13 @@ try {
             if ($done === null) json_out(['ok' => false, 'error' => 'Task not found.'], 404);
             json_out(['ok' => true, 'id' => (int) $body['id'], 'done' => $done]);
 
+        /* The tick, as a state rather than a flip: safe to send twice (a retry after a bad connection). */
+        case 'task_done':
+            $writeGuard();
+            $done = Collab::setTaskDone($uid, (int) ($body['id'] ?? 0), !empty($body['done']));
+            if ($done === null) json_out(['ok' => false, 'error' => 'Task not found.'], 404);
+            json_out(['ok' => true, 'id' => (int) $body['id'], 'done' => $done]);
+
         /* Where a task is: to do, doing, blocked (on what), done — and how big. */
         case 'task_state':
             $writeGuard();
@@ -189,6 +198,30 @@ try {
             $t = Collab::setSize($uid, (int) ($body['id'] ?? 0), (string) ($body['size'] ?? ''));
             if ($t === null) json_out(['ok' => false, 'error' => 'Task not found.'], 404);
             json_out(['ok' => true, 'task' => $t]);
+
+        /* ── Given work is a request: accept · propose a date · can't, because…;
+           finished work is told: thanks · send back; a date moved says why. ── */
+        case 'task_accept':
+        case 'task_propose':
+        case 'task_answer':
+        case 'task_decline':
+        case 'task_thanks':
+        case 'task_sendback':
+        case 'task_update':
+            $writeGuard();
+            if (!av_rate_ok('collab_flow_' . $uid, 60, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            $tid = (int) ($body['id'] ?? 0);
+            $t = match ($action) {
+                'task_accept'   => Collab::acceptTask($uid, $tid),
+                'task_propose'  => Collab::proposeDate($uid, $tid, (string) ($body['date'] ?? ''), (string) ($body['why'] ?? '')),
+                'task_answer'   => Collab::answerDate($uid, $tid, !empty($body['agree'])),
+                'task_decline'  => Collab::declineTask($uid, $tid, (string) ($body['reason'] ?? ''), (string) ($body['note'] ?? '')),
+                'task_thanks'   => Collab::thankTask($uid, $tid),
+                'task_sendback' => Collab::sendBack($uid, $tid, (string) ($body['reason'] ?? '')),
+                default         => Collab::updateTask($uid, $tid, array_intersect_key($body, ['due' => 1, 'priority' => 1, 'outcome' => 1, 'reason' => 1])),
+            };
+            if ($t === null) json_out(['ok' => false, 'error' => Collab::$lastError ?: 'That task is not yours to change.'], 422);
+            json_out(['ok' => true, 'task' => $t ?: null, 'id' => $tid]);
 
         case 'task_delete':
             $writeGuard();
@@ -253,10 +286,20 @@ try {
             $fields = [];
             if (array_key_exists('due', $body))      $fields['due'] = (string) $body['due'];
             if (array_key_exists('priority', $body)) $fields['priority'] = (string) $body['priority'];
+            /* Moving the date of work somebody else gave you needs a reason, on
+               both sites (19 Nov 2026): CACENTRE answers 422 reason-required
+               without one, and the giver is told why. The reason travels as
+               typed; CACENTRE trims and bounds it. */
+            if (array_key_exists('reason', $body))   $fields['reason'] = mb_substr(trim((string) $body['reason']), 0, 500);
 
             $r = CacTasks::write($uid, $action === 'cac_toggle' ? 'toggle' : 'update',
                                  (int) ($body['id'] ?? 0), $fields);
             if ($r['ok']) json_out(['ok' => true] + $r['data']);
+            /* Not a failure of the link: the screen asks for the reason and
+               sends the same change again, so it needs the code, not a sentence
+               about the console refusing. */
+            if ($r['error'] === 'reason-required') json_out(['ok' => false, 'code' => 'reason-required',
+                'error' => 'Somebody gave you this task, so moving its date needs a reason. They will be told.'], 422);
             json_out(['ok' => false, 'error' => match ($r['error']) {
                 'not-yours'      => 'That task is not yours.',
                 'bad-due'        => 'The console will not take that date.',

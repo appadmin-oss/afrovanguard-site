@@ -535,27 +535,86 @@ final class Commitments
     }
 
     /**
-     * Chase what is overdue. Called by the cron sweep.
+     * Chase what is late — through the escalation ladder tasks use
+     * (TaskLedger::ladder / chaseAll): the owner on the due day and the day
+     * after, the meeting's chair on day 3 (who can reassign it, set a new date
+     * or drop it), then one weekly roll-up.
      *
-     * One notification per commitment per day, deduped by Notifications' own key,
-     * so a commitment that stays overdue for a week nags once a day and not once a
-     * tick. Returns the number of nudges sent.
+     * It replaced a nudge to the owner's bell every day for as long as the
+     * promise stayed open: after a week of those nobody reads them, and the
+     * chair — the one person who could act — never heard. Kept as the cron's
+     * door; returns the commitment notices sent this tick.
      */
-    public static function sweepOverdue(): int
+    public static function sweepOverdue(?int $now = null): int
     {
         self::ensure();
-        if (!class_exists('Notifications')) return 0;
-        $n = 0;
-        foreach (self::overdue() as $c) {
-            $key = 'commitment_overdue:' . (int) $c['id'] . ':' . gmdate('Y-m-d');
-            try {
-                $sent = Notifications::push((int) $c['member_id'], 'commitment_overdue',
-                    'Overdue commitment',
-                    mb_substr((string) $c['title'], 0, 180) . ' — was due ' . (string) $c['due'],
-                    '/portal/', $key);
-                if ($sent) $n++;
-            } catch (Throwable $e) { error_log('[commitments] sweep: ' . $e->getMessage()); }
+        if (!class_exists('TaskLedger')) return 0;
+        return (int) (TaskLedger::chaseAll($now)['commitments'] ?? 0);
+    }
+
+    /**
+     * Whoever answers for a commitment above its owner: the meeting's chair
+     * (who called it), the mentor of a session, the person who filed a chat
+     * promise. 0 when there is nobody.
+     */
+    public static function chairOf(array $c): int
+    {
+        $sid = (int) ($c['source_id'] ?? 0);
+        if ($sid <= 0) return 0;
+        try {
+            $db = Database::pdo();
+            $sql = match ((string) ($c['source_kind'] ?? '')) {
+                self::SRC_MEETING => 'SELECT creator_id FROM meetings WHERE id = ?',
+                self::SRC_SESSION => 'SELECT m.mentor_id FROM mentor_sessions s JOIN mentorships m ON m.id = s.mentorship_id WHERE s.id = ?',
+                self::SRC_CHAT    => 'SELECT sender_id FROM av_chat_tasks WHERE id = ?',
+                default           => '',
+            };
+            if ($sql === '') return 0;
+            $st = $db->prepare($sql); $st->execute([$sid]);
+            return (int) ($st->fetchColumn() ?: 0);
+        } catch (Throwable $e) { return 0; }
+    }
+
+    /** What the ladder runs over: open, owned commitments with a date. */
+    public static function ladderItems(): array
+    {
+        self::ensure();
+        $out = [];
+        $names = [];
+        foreach (Database::pdo()->query("SELECT * FROM commitments WHERE status = 'open' AND member_id > 0 AND due <> ''")->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            $m = (int) $c['member_id'];
+            if (!isset($names[$m])) { $st = Database::pdo()->prepare('SELECT name FROM lms_users WHERE id = ?'); $st->execute([$m]); $names[$m] = (string) ($st->fetchColumn() ?: 'The owner'); }
+            $out[] = ['kind' => 'commitment', 'id' => (int) $c['id'], 'title' => mb_substr((string) $c['title'], 0, 180), 'due' => substr((string) $c['due'], 0, 10),
+                      'owner' => $m, 'owner_name' => $names[$m], 'giver' => self::chairOf($c), 'url' => '/portal/#tasks', 'giver_url' => '/portal/#commitments'];
         }
-        return $n;
+        return $out;
+    }
+
+    /** Commitments past day 3, in rooms $uid chairs: what "reassign, new date or drop" acts on. */
+    public static function escalatedFor(int $uid, ?int $now = null): array
+    {
+        $cut = gmdate('Y-m-d', strtotime(TaskReport::today($now) . ' 12:00 UTC') - 3 * 86400);
+        return array_values(array_map([self::class, 'redactedFor'], array_filter(self::ladderItemsRows(), static fn($c) => substr((string) $c['due'], 0, 10) <= $cut && (int) $c['member_id'] !== $uid && self::chairOf($c) === $uid)));
+    }
+
+    private static function ladderItemsRows(): array
+    {
+        self::ensure();
+        return Database::pdo()->query("SELECT * FROM commitments WHERE status = 'open' AND member_id > 0 AND due <> ''")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /** A new date, set by whoever may manage it (the chair, offered it on day 3). The ladder starts again from it. */
+    public static function setDue(int $id, string $due): bool
+    {
+        self::ensure();
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $due)) return false;
+        $now = gmdate('Y-m-d H:i:s');
+        $st = Database::pdo()->prepare("UPDATE commitments SET due = ?, updated_at = ? WHERE id = ? AND status = 'open'");
+        $st->execute([$due, $now, $id]);
+        if ($st->rowCount() > 0 && ($c = self::get($id)) && (int) $c['member_id'] > 0 && class_exists('Notifications')) {
+            try { Notifications::push((int) $c['member_id'], 'commitment', 'New date: ' . mb_substr((string) $c['title'], 0, 180), 'It is now due ' . $due . '.', '/portal/#tasks', 'commitment-due:' . $id . ':' . $due); }
+            catch (Throwable $e) { error_log('[commitments] setDue: ' . $e->getMessage()); }
+        }
+        return $st->rowCount() > 0;
     }
 }

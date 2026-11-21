@@ -53,7 +53,7 @@ Database::metaSet('task_report_day', '');
 $lagos = static fn(string $hm) => (new DateTimeImmutable($today . ' ' . $hm, new DateTimeZone('Africa/Lagos')))->getTimestamp();
 ck('send: not before the hour', TaskReport::sendIfDue($lagos('17:30')) === null);
 $s = TaskReport::sendIfDue($lagos('18:05'));
-ck('send: after it, to coordinators and admins', is_array($s) && $s['sent'] >= 1 && (bool) $xp->query("SELECT 1 FROM user_notifications WHERE user_id = 9851 AND title LIKE 'Tasks today:%'")->fetchColumn());
+ck('send: after it, to whoever gave out the late work', is_array($s) && $s['sent'] >= 1 && (bool) $xp->query("SELECT 1 FROM user_notifications WHERE user_id = 9851 AND title LIKE 'Tasks today:%'")->fetchColumn());
 ck('send: not to a member who does not hand out work', !$xp->query("SELECT 1 FROM user_notifications WHERE user_id = 9852 AND title LIKE 'Tasks today:%'")->fetchColumn());
 ck('send: once a day', TaskReport::sendIfDue($lagos('20:00')) === null);
 AvRules::save(['tasks.daily_report' => '0'], 'test');
