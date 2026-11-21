@@ -34,6 +34,13 @@ declare(strict_types=1);
             <p class="pcard-note" data-mr-off hidden>Finance is not connected to this site yet. You can still ask: your request is kept, the office is told, and it goes to finance by itself once it is connected.</p>
 
             <form class="mr-form" data-mr-form novalidate hidden enctype="multipart/form-data">
+              <!-- Shown by the script only when finance can read receipts. No
+                   name, so it is never sent with the form: it only fills it in. -->
+              <div class="mr-wide mr-photo" data-mr-photo hidden>
+                <label>Fill this in from a photo of the receipt <span class="pcard-note">optional. You check every box before sending.</span>
+                  <input type="file" data-mr-photo-in accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"></label>
+                <p class="pcard-note" data-mr-photo-note role="status" aria-live="polite" hidden></p>
+              </div>
               <fieldset class="mr-wide mr-kind">
                 <legend>Have you already paid?</legend>
                 <label><input type="radio" name="claim_kind" value="reimbursement" checked> Yes — I paid and want it back</label>
@@ -43,6 +50,9 @@ declare(strict_types=1);
               <label class="mr-wide">Why it is needed <textarea name="purpose" rows="2" required placeholder="Four facilitators travelling to the Ikeja centre"></textarea></label>
               <label data-mr-single>Kind of spending <select name="category" required></select>
                 <span class="pcard-note" data-mr-hint></span></label>
+              <!-- A suggested kind, from what is typed above and this member's
+                   own earlier requests. Drawn by the script; a suggestion only. -->
+              <p class="mr-wide mr-suggest" data-mr-suggest role="status" aria-live="polite" hidden></p>
               <label data-mr-single>Amount (₦) <input name="amount" type="number" min="100" step="1" required></label>
 
               <!-- Several things in one request: drawn by the script, which

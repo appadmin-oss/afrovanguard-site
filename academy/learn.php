@@ -187,10 +187,11 @@ avac_head([
 <?php endif; ?>
       <div class="avle-gate-btns"><a class="avle-btn avle-btn--line avle-btn--lg" href="<?= e($courseUrl) ?>">Course overview</a></div>
 <?php elseif ($access === 'membership'): ?>
-      <p><strong><?= e((string) $course['title']) ?></strong> is a members’ programme. Become a member to unlock every lesson.</p>
+      <p><strong><?= e((string) $course['title']) ?></strong> is a members’ programme. <?= e(AcademyDonation::summary()) ?>, and it unlocks every lesson.</p>
 <?php if (Payments::canCollect()): ?>
+      <?= AcademyDonation::field('avle-give') ?>
       <div class="avle-gate-btns">
-        <button type="button" class="avle-btn avle-btn--lg" data-avac-pay="membership">Become a member — ₦<?= e(number_format(AcademyPricing::membershipNgn())) ?>/yr →</button>
+        <button type="button" class="avle-btn avle-btn--lg" data-avac-pay="membership"><?= e(AcademyDonation::buttonLabel()) ?></button>
         <a class="avle-btn avle-btn--line avle-btn--lg" href="<?= e($courseUrl) ?>">Course overview</a>
       </div>
 <?php else: ?>

@@ -23,6 +23,14 @@
    before sending (never a reason not to send), where each request stands
    and why it was refused, a Withdraw button while nobody has decided, and
    the member's earlier requests from finance's own record.
+
+   And, since 17 Nov 2026: finance's questions shown at the top of the
+   request with an answer box; "Add receipt" on decided requests; a photo
+   of a receipt read to fill the form (only when finance offers it, and
+   silent when it reads nothing); a suggested kind of spending as the
+   member types; "you asked for something similar" before a second claim;
+   one plain line for where each request is; and "Ask again like this".
+   None of it changes what the form posts: its own fields are untouched.
    ============================================================ */
 (function () {
   'use strict';
@@ -98,6 +106,9 @@
     syncLineOptions();
     drawBanks(data.banks || []);
     drawEarlier(data.earlier || []);
+    past = data.past || [];
+    if (photo) photo.hidden = !data.reads_receipts;
+    suggest();
 
     var reachable = !!data.finance_reachable;
     /* Asking is always open (data.accepting): a request finance cannot take
@@ -143,8 +154,15 @@
       li.appendChild(sub);
 
       standing(li, r);
+      (r.asks || []).forEach(function (a) { li.appendChild(askBox(r, a)); });
+      /* Decided: a receipt is the only thing finance takes now. */
+      if (r.can_add_receipt && !r.can_add_evidence) li.appendChild(receiptBox(r));
 
-      if (r.can_withdraw) li.appendChild(withdrawButton(r));
+      var acts = document.createElement('div');
+      acts.className = 'mr-actions';
+      if (r.can_withdraw) acts.appendChild(withdrawButton(r));
+      if (r.again && r.status !== 'withdrawn') acts.appendChild(againButton(r));
+      if (acts.childNodes.length) li.appendChild(acts);
 
       /* Only where it can act: a request finance already has is not
          offered a button that would do nothing. */
@@ -177,10 +195,12 @@
   /* Where it is, in finance's words, and — only when it was refused —
      the reason the approver gave. A CFIS from before these sends neither. */
   function standing(li, r) {
-    if (r.stage) {
+    /* The plain line when finance sends one (where it is, who decides next,
+       what is needed, how long it has waited); else the stage alone. */
+    if (r.plain || r.stage) {
       var st = document.createElement('p');
-      st.className = 'mr-sub mr-stage';
-      st.textContent = r.stage;
+      st.className = 'mr-sub mr-stage' + (r.plain ? ' mr-plain' : '');
+      st.textContent = r.plain || r.stage;
       li.appendChild(st);
     }
     if (r.reason) {
@@ -208,6 +228,254 @@
       });
     });
     return b;
+  }
+
+  var uid = 0;
+  /* Finance's question, first on the request because the request waits on
+     it, with the answer box under it. Files are optional. */
+  function askBox(r, a) {
+    var n = ++uid;
+    var box = document.createElement('div');
+    box.className = 'mr-ask';
+    box.setAttribute('role', 'group');
+    box.setAttribute('aria-labelledby', 'mrAskQ' + n);
+    box.innerHTML = '<p class="mr-ask-q"></p><p class="mr-ask-due"></p>'
+      + '<form novalidate><label>Your answer <textarea name="answer" rows="3" maxlength="2000" required></textarea></label>'
+      + '<label>Photo or PDF <span class="pcard-note">optional, up to three</span>'
+      + '<input type="file" name="files[]" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"></label>'
+      + '<button type="submit" class="pbtn pbtn-gold">Send answer</button></form>';
+    var q = box.querySelector('.mr-ask-q');
+    q.id = 'mrAskQ' + n;
+    q.textContent = 'Finance asked: ' + a.question;
+    var due = box.querySelector('.mr-ask-due');
+    if (a.due_on) due.textContent = 'Finance would like your answer by ' + day(a.due_on) + '. The request waits until then.';
+    else due.hidden = true;
+    var f = box.querySelector('form');
+    f.querySelector('textarea').id = 'mrAskA' + n;
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var text = f.querySelector('textarea');
+      if (!text.value.trim()) { say('Write your answer first.', true); text.focus(); return; }
+      var fd = new FormData(f);
+      fd.append('id', r.id);
+      fd.append('ask', a.id);
+      var b = f.querySelector('button');
+      b.disabled = true;
+      upload('answer', fd).then(function (res) {
+        b.disabled = false;
+        say(res.ok ? (res.message || 'Sent. Finance has your answer.') : (res.error || 'Your answer could not be sent.'), !res.ok);
+        if (res.ok) load();
+      });
+    });
+    return box;
+  }
+
+  function receiptBox(r) {
+    var f = document.createElement('form');
+    f.className = 'mr-addrcpt';
+    f.noValidate = true;
+    f.innerHTML = '<label>Add receipt <span class="pcard-note">a photo or PDF of what was spent</span>'
+      + '<input type="file" name="receipts[]" multiple accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"></label>'
+      + '<button type="submit" class="pbtn pbtn-ghost">Add receipt</button>';
+    f.querySelector('button').setAttribute('aria-label', 'Add receipt to "' + r.title + '"');
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var input = f.querySelector('input');
+      if (!input.files || !input.files.length) { say('Choose a photo or PDF of the receipt first.', true); input.focus(); return; }
+      var fd = new FormData(f);
+      fd.append('id', r.id);
+      var b = f.querySelector('button');
+      b.disabled = true;
+      upload('receipt', fd).then(function (res) {
+        b.disabled = false;
+        say(res.ok ? (res.message || 'Receipt added.') : (res.error || 'The receipt could not be added.'), !res.ok);
+        if (res.ok) load();
+      });
+    });
+    return f;
+  }
+
+  /* "Ask again like this": the form filled from a past request. Receipts and
+     dates are left empty: they belong to the new claim, not the old one. */
+  function againButton(r) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pbtn pbtn-ghost';
+    b.textContent = 'Ask again like this';
+    b.setAttribute('aria-label', 'Ask again like "' + r.title + '"');
+    b.addEventListener('click', function () { fillFrom(r.again); });
+    return b;
+  }
+
+  function fillFrom(a) {
+    if (inLines()) singleMode();
+    var kindIn = form.querySelector('[name=claim_kind][value=' + (a.claim_kind === 'reimbursement' ? 'reimbursement' : 'advance') + ']');
+    if (kindIn) kindIn.checked = true;
+    form.querySelector('[name=title]').value = a.title || '';
+    form.querySelector('[name=purpose]').value = a.purpose || '';
+    ['needed_by', 'no_receipt_reason'].forEach(function (n) { var i = form.querySelector('[name=' + n + ']'); if (i) i.value = ''; });
+    var files = form.querySelector('[name="receipts[]"]'); if (files) files.value = '';
+    if (a.lines && a.lines.length > 1) {
+      singles.forEach(function (l) { l.hidden = true; l.querySelector('select, input').disabled = true; });
+      linesBox.hidden = false;
+      a.lines.slice(0, maxLines).forEach(function (l) { addLine(l); });
+    } else {
+      if (a.category) kind.value = a.category;
+      amountIn.value = whole(a.amount);
+    }
+    syncHint();
+    syncKind();
+    suggest();
+    form.hidden = false;
+    var t = form.querySelector('[name=title]');
+    if (t.scrollIntoView) t.scrollIntoView({ block: 'center' });
+    t.focus();
+    say('The form is filled in from "' + a.title + '". Check it, add any new receipt and dates, then send.');
+  }
+
+  /* 12000.00 reads as 12000 in a whole-naira box; a kobo figure stays as it is. */
+  function whole(v) {
+    var s = String(v || '');
+    return /\.00$/.test(s) ? s.slice(0, -3) : s;
+  }
+
+  function day(ymd) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd || '');
+    if (!m) return ymd || '';
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return Number(m[3]) + ' ' + months[Number(m[2]) - 1] + ' ' + m[1];
+  }
+
+  /* ── a suggested kind of spending ──────────────────────────────────
+     From the member's own earlier requests (the same words, and the kind
+     each went under) and simple keywords for the kinds finance publishes.
+     A suggestion with a button, never a change made behind their back. */
+  var past = [];
+  var suggestOut = card.querySelector('[data-mr-suggest]');
+  var KEYWORDS = {
+    transport: ['fare', 'fares', 'bus', 'taxi', 'uber', 'bolt', 'keke', 'okada', 'petrol', 'trip', 'travel', 'flight', 'ticket', 'transport', 'logistics'],
+    materials: ['print', 'printing', 'paper', 'stationery', 'workbook', 'workbooks', 'book', 'books', 'pens', 'markers', 'photocopy', 'photocopies'],
+    equipment: ['laptop', 'cable', 'cables', 'projector', 'device', 'tool', 'tools', 'router', 'charger', 'speaker', 'microphone'],
+    venue: ['hall', 'venue', 'chairs', 'tent', 'canopy', 'hire', 'rent', 'decoration'],
+    internet: ['data', 'airtime', 'wifi', 'internet', 'hosting', 'recharge', 'subscription', 'bundle'],
+    utility: ['electricity', 'prepaid', 'units', 'nepa', 'water', 'diesel', 'generator', 'waste', 'bill', 'light'],
+    facilitation: ['facilitator', 'facilitators', 'instructor', 'trainer', 'honorarium', 'tutor', 'coach'],
+    repairs: ['repair', 'repairs', 'fix', 'fixing', 'plumbing', 'plumber', 'mechanic', 'maintenance', 'broken', 'servicing', 'electrician'],
+    events: ['refreshment', 'refreshments', 'food', 'snacks', 'drinks', 'lunch', 'catering', 'party', 'event', 'celebration'],
+    publicity: ['flyer', 'flyers', 'banner', 'banners', 'poster', 'posters', 'advert', 'adverts', 'publicity', 'boost']
+  };
+  var STOP = ['the', 'and', 'for', 'with', 'from', 'this', 'that', 'our', 'their', 'into', 'need', 'needed', 'money', 'paid', 'buy', 'bought'];
+
+  function words(s) {
+    return (String(s || '').toLowerCase().match(/[a-z0-9]{3,}/g) || []).filter(function (w) { return STOP.indexOf(w) < 0; });
+  }
+
+  function guess(text) {
+    var typed = words(text);
+    if (!typed.length || !cats.length) return null;
+    var score = {};
+    cats.forEach(function (c) { score[c.key] = 0; });
+    /* Their own words weigh most: what they called it last time, and where it went. */
+    past.forEach(function (p) {
+      if (!(p.category in score)) return;
+      var theirs = words(p.words);
+      typed.forEach(function (w) { if (theirs.indexOf(w) >= 0) score[p.category] += 3; });
+    });
+    cats.forEach(function (c) {
+      var vocab = words(c.label + ' ' + (c.hint || '')).concat(KEYWORDS[c.key] || []);
+      typed.forEach(function (w) {
+        if (vocab.indexOf(w) >= 0) score[c.key] += 1;
+        else if (w.length > 4 && vocab.some(function (v) { return v.length > 4 && v.slice(0, 5) === w.slice(0, 5); })) score[c.key] += 1;
+      });
+    });
+    var best = null;
+    cats.forEach(function (c) { if (score[c.key] > 0 && (!best || score[c.key] > score[best.key])) best = c; });
+    return best;
+  }
+
+  var suggestTimer = null;
+  function suggest() {
+    if (!suggestOut) return;
+    clearTimeout(suggestTimer);
+    suggestTimer = setTimeout(function () {
+      var c = inLines() ? null
+        : guess(form.querySelector('[name=title]').value + ' ' + form.querySelector('[name=purpose]').value);
+      suggestOut.innerHTML = '';
+      if (!c || c.key === kind.value) { suggestOut.hidden = true; return; }
+      suggestOut.appendChild(document.createTextNode('This sounds like ' + c.label + '.'));
+      var use = document.createElement('button');
+      use.type = 'button';
+      use.className = 'pbtn pbtn-ghost';
+      use.textContent = 'Use this';
+      use.setAttribute('aria-label', 'Use ' + c.label + ' as the kind of spending');
+      use.addEventListener('click', function () { kind.value = c.key; syncHint(); suggestOut.hidden = true; kind.focus(); });
+      suggestOut.appendChild(use);
+      suggestOut.hidden = false;
+    }, 300);
+  }
+  form.addEventListener('input', function (e) { if (e.target.name === 'title' || e.target.name === 'purpose') suggest(); });
+  kind.addEventListener('change', suggest);
+
+  /* ── a photo of the receipt fills the form ─────────────────────────
+     Only empty boxes are filled, and the member checks each before
+     sending. When nothing is read — reading off, a blurred photo, finance
+     not answering — nothing is said and nothing changes. */
+  var photo = card.querySelector('[data-mr-photo]');
+  var photoIn = card.querySelector('[data-mr-photo-in]');
+  var photoNote = card.querySelector('[data-mr-photo-note]');
+  if (photoIn) photoIn.addEventListener('change', function () {
+    var file = photoIn.files && photoIn.files[0];
+    photoNote.hidden = true;
+    if (!file) return;
+    photoNote.textContent = 'Reading the receipt…';
+    photoNote.hidden = false;
+    var fd = new FormData();
+    fd.append('receipt', file);
+    upload('read_receipt', fd).then(function (res) {
+      var got = res && res.ok && res.read ? fillFromReceipt(res.read, file) : false;
+      photoNote.textContent = got ? 'Filled in from the receipt. Check each box before you send.' : '';
+      photoNote.hidden = !got;
+    });
+  });
+
+  function fillFromReceipt(read, file) {
+    var filled = false;
+    function put(input, value) {
+      if (!input || !value || String(input.value).trim() !== '') return;
+      input.value = value;
+      filled = true;
+    }
+    var what = [read.description, read.vendor].filter(Boolean).join(' from ');
+    put(form.querySelector('[name=title]'), what);
+    put(form.querySelector('[name=purpose]'), read.vendor || read.date
+      ? 'Paid' + (read.vendor ? ' to ' + read.vendor : '') + (read.date ? ' on ' + day(read.date) : '') + '.' : '');
+    if (!inLines()) {
+      if (read.amount && !amountIn.value) {
+        if (!/\.00$/.test(read.amount) && /\./.test(read.amount)) amountIn.step = 'any';
+        put(amountIn, whole(read.amount));
+      }
+      if (read.category && cats.some(function (c) { return c.key === read.category; }) && !kindTouched) {
+        kind.value = read.category;
+        syncHint();
+        filled = true;
+      }
+    }
+    /* The photo is the receipt: offered with the request unless one is chosen. */
+    var receipts = form.querySelector('[name="receipts[]"]');
+    if (filled && receipts && (!receipts.files || !receipts.files.length) && window.DataTransfer) {
+      try { var dt = new DataTransfer(); dt.items.add(file); receipts.files = dt.files; } catch (e) { /* the member adds it */ }
+    }
+    if (filled) suggest();
+    return filled;
+  }
+  var kindTouched = false;
+  kind.addEventListener('change', function () { kindTouched = true; });
+
+  /* Multipart with the CSRF token in the header, as the request form sends. */
+  function upload(action, fd) {
+    return fetch(API + '?action=' + action, { method: 'POST', headers: { 'X-CSRF-Token': CSRF }, body: fd })
+      .then(function (r) { return r.json(); })
+      .catch(function () { return { ok: false, error: 'Could not reach the portal.' }; });
   }
 
   var earlier = card.querySelector('[data-mr-earlier]');
@@ -408,18 +676,37 @@
     var fd = new FormData(form);
     var btn = form.querySelector('button[type=submit]');
     btn.disabled = true;
-    fetch(API + '?action=create', { method: 'POST', headers: { 'X-CSRF-Token': CSRF }, body: fd })
-      .then(function (r) { return r.json(); })
-      .catch(function () { return { ok: false, error: 'Could not reach the portal.' }; })
-      .then(function (res) {
+    send(fd);
+  });
+
+  function send(fd) {
+    var btn = form.querySelector('button[type=submit]');
+    upload('create', fd).then(function (res) {
       btn.disabled = false;
+      /* Asked for something like this lately: the member decides, with the
+         earlier one named. A native confirm, so keyboard and screen readers
+         handle it as the browser's own dialog. */
+      if (!res.ok && res.needs_confirm) {
+        if (window.confirm(res.error || 'You asked for something similar recently. Still send?')) {
+          fd.append('confirm_similar', '1');
+          btn.disabled = true;
+          send(fd);
+        } else {
+          say('Not sent. Your form is as you left it.');
+        }
+        return;
+      }
       if (res.ok) {
         if (inLines()) singleMode();                     // before reset, which would empty what it copies back
         form.reset();
         acctOut.hidden = true;
         if (bank) bank.open = false;
         say(res.queued ? (res.message || 'Asked. Your request is kept and goes to finance by itself.')
-          : 'Sent to finance' + (res.reference ? ' as ' + res.reference : '') + '. They decide from here.');
+          : 'Sent to finance' + (res.reference ? ' as ' + res.reference : '') + '. They decide from here.'
+            + (res.similar ? ' ' + res.similar : ''));
+        if (photoNote) photoNote.hidden = true;
+        amountIn.step = '1';
+        kindTouched = false;
         load();
       } else {
         /* Finance's own sentence, not "something went wrong": it says
@@ -427,8 +714,8 @@
            a form may ask for. */
         say(res.error || 'It could not be sent.', true);
       }
-      });
-  });
+    });
+  }
 
   load();
 })();

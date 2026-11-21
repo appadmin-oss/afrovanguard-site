@@ -132,13 +132,15 @@ try {
         'card_format_save',
         // What every member is charged in dues, and from when.
         'dues_settings_save',
+        // What Academy membership costs: a donation and its minimum, or a fixed price.
+        'academy_membership_save',
         // Clearing somebody's second factor so they can enrol afresh.
         'mfa_reset'];
     $managementOnly = [ // not available to editors
         'mem_list', 'mem_save', 'mem_create',
         // The member desk names every member, their phone and their birthday.
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
-        'roster_membership', 'roster_membership_change', 'dues_settings', 'dues_owing', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
+        'roster_membership', 'roster_membership_change', 'dues_settings', 'dues_owing', 'academy_membership', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
         'roles_list', 'role_save', 'role_delete',
         'member_verify_list', 'member_verify', 'member_unverify', 'member_decline',
         'centres_list', 'centre_save', 'centre_status', 'centre_delete',
@@ -1785,6 +1787,7 @@ try {
            Studio may see it; admins and above set it ($managementOnly). */
         case 'ac_pricing':
             json_out(['ok' => true, 'settings' => AcademyPricing::settings(), 'shipped_ngn' => AcademyPricing::shipped(),
+                'mode' => AcademyDonation::settings()['mode'], 'min_usd' => AcademyDonation::minUsd(),
                 'can_edit' => !in_array($role, ['editor'], true)]);
         case 'ac_pricing_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
@@ -1796,6 +1799,21 @@ try {
         case 'dues_settings_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = Membership::saveSettings(array_intersect_key($body, array_flip(['enabled', 'monthly_ngn', 'annual_ngn', 'start', 'from_level'])), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        /* ── Academy membership: donation or fixed price (lib/AcademyDonation.php) ── */
+        case 'academy_membership':
+            json_out(['ok' => true, 'settings' => AcademyDonation::settings() + ['fixed_ngn' => AcademyDonation::fixedNgn()], 'can_edit' => $role === 'superadmin',
+                      'preview' => ['headline' => AcademyDonation::headline(), 'note' => AcademyDonation::note(), 'button' => AcademyDonation::buttonLabel(), 'from_ngn' => AcademyDonation::fromNgn()]]);
+        case 'academy_membership_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            /* The fixed price has one home, AcademyPricing (its history, and payments in flight held
+               to the price they started at); this card edits that same figure. */
+            if (isset($body['fixed_ngn']) && trim((string) $body['fixed_ngn']) !== '' && (int) preg_replace('/\D/', '', (string) $body['fixed_ngn']) !== AcademyPricing::membershipNgn()) {
+                $p = AcademyPricing::save(['membership_ngn' => $body['fixed_ngn']], av_admin_actor());
+                if (!$p['ok']) json_out(['ok' => false, 'error' => $p['error'] ?? 'The fixed price was not saved.', 'fields' => ['fixed_ngn' => $p['error'] ?? '']], 422);
+            }
+            $r = AcademyDonation::save(array_intersect_key($body, array_flip(['mode', 'min_usd', 'usd_ngn', 'headline', 'note'])), av_admin_actor());
+            if ($r['ok']) $r['settings'] = ($r['settings'] ?? AcademyDonation::settings()) + ['fixed_ngn' => AcademyDonation::fixedNgn()];
             json_out($r, $r['ok'] ? 200 : 422);
         case 'dues_owing':
             /* The largest debts first, with names: the list the office calls from. */

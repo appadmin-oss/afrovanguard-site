@@ -129,6 +129,7 @@
     msg.textContent = s.source === 'studio'
       ? 'Set in the Studio' + (s.updated_by ? ' by ' + s.updated_by : '') + (s.updated_at ? ' on ' + s.updated_at.slice(0, 10) : '') + '.'
       : 'The starting price from the site’s configuration (' + naira(d.shipped_ngn) + ').' + (d.can_edit ? '' : ' An administrator can change it.');
+    if (d.mode === 'donation') msg.textContent += ' Membership is a donation just now (from $' + (d.min_usd || 20) + ' a year), so this price applies only when the Studio switches membership to a fixed price (Members › Dues › Academy membership).';
     var h = s.history || [], box = $('#pricingHist');
     box.hidden = !h.length;
     $('#pricingHistList').innerHTML = h.map(function (x) {

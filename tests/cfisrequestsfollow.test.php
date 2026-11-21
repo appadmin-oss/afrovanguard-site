@@ -38,7 +38,9 @@ $fuLast = static function (string $suffix) use (&$fuCalls): ?array {
     return null;
 };
 $fuRow = static fn (string $ref) => Database::pdo()->query("SELECT * FROM cfis_member_requests WHERE ref = " . Database::pdo()->quote($ref))->fetch(PDO::FETCH_ASSOC);
-$fuBase = ['title' => 'Saturday session', 'purpose' => 'Getting four facilitators there and the workbooks printed', 'claim_kind' => 'advance'];
+$fuBase = ['title' => 'Saturday session', 'purpose' => 'Getting four facilitators there and the workbooks printed', 'claim_kind' => 'advance', 'confirm_similar' => 1];
+/* These requests share a title on purpose; "you asked for something similar" is
+   tested in cfisrequestsmarter.test.php, so here the member has already said yes. */
 $fuUser = 41;
 /* The paths as this site builds them: the source is whatever this install is set to. */
 $fuS = '/api/requests/' . rawurlencode(CfisCheckout::source());

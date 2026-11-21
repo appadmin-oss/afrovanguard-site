@@ -49,9 +49,13 @@ ck('academy price: a cut does not let somebody who started at the higher price p
    $apLms->finalizePayment($apRef2, 200000, 'NGN') === false);
 
 /* Every place the price is shown or charged reads the one figure. */
+/* Pages go through AcademyDonation (donation or fixed), whose fixed price IS this figure. */
+$adSrc = (string) file_get_contents(AV_ROOT . '/lib/AcademyDonation.php');
+ck('academy price: AcademyDonation\'s fixed price is AcademyPricing\'s, never a copy or the constant',
+   str_contains($adSrc, 'return AcademyPricing::membershipNgn();') && !str_contains($adSrc, 'AV_MEMBERSHIP_NGN') && !str_contains($adSrc, "'fixed_ngn'     =>"));
 foreach (['academy/index.php', 'academy/api.php', 'academy/course.php', 'academy/learn.php', 'lib/AiKnowledge.php'] as $f) {
     $src = (string) file_get_contents(AV_ROOT . '/' . $f);
-    ck("academy price: $f reads AcademyPricing, not the constant", str_contains($src, 'AcademyPricing::membershipNgn()') && !str_contains($src, 'AV_MEMBERSHIP_NGN'));
+    ck("academy price: $f reads AcademyPricing, not the constant", (str_contains($src, 'AcademyPricing::membershipNgn()') || str_contains($src, 'AcademyDonation::')) && !str_contains($src, 'AV_MEMBERSHIP_NGN'));
 }
 $apApi = (string) file_get_contents(AV_ROOT . '/admin/api.php');
 preg_match('/\$managementOnly = \[(.*?)\];/s', $apApi, $apMo);

@@ -30,7 +30,9 @@ $png = static function (): string {
     $im = imagecreatetruecolor(4, 4); imagepng($im, $p);
     return $p;
 };
-$base = ['title' => 'Prepaid electricity', 'purpose' => 'Units for the Saturday session', 'category' => 'utility', 'amount' => 15000];
+$base = ['title' => 'Prepaid electricity', 'purpose' => 'Units for the Saturday session', 'category' => 'utility', 'amount' => 15000, 'confirm_similar' => 1];
+/* These requests share a title on purpose; "you asked for something similar" is
+   tested in cfisrequestsmarter.test.php, so here the member has already said yes. */
 
 /* ── The finance mailbox ───────────────────────────────────────────── */
 

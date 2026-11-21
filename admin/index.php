@@ -596,6 +596,21 @@
           </form>
         </div>
         <div class="side-card">
+          <h3>Academy membership</h3>
+          <p class="muted tiny">What it costs to unlock every members’ programme for a year. Separate from member dues. In the wording you can use {min_usd}, {min_ngn}, {rate} and {price_ngn}; leave it blank for the standard words.</p>
+          <form class="dues-rules" id="acmRules" autocomplete="off" novalidate>
+            <label class="fld"><span>Membership is</span><select id="acm_mode"><option value="donation">A donation, from a minimum</option><option value="fixed">A fixed price</option></select></label>
+            <label class="fld" data-acm="donation"><span>Minimum donation ($ a year)</span><input id="acm_min" inputmode="numeric" maxlength="5"></label>
+            <label class="fld" data-acm="donation"><span>Naira to one dollar</span><input id="acm_rate" inputmode="numeric" maxlength="6"></label>
+            <label class="fld" data-acm="fixed"><span>Price (₦ a year)</span><input id="acm_fixed" inputmode="numeric" maxlength="8"></label>
+            <label class="fld"><span>Headline (optional)</span><input id="acm_headline" maxlength="300" placeholder="From ${min_usd} / yr"></label>
+            <label class="fld"><span>Note under it (optional)</span><input id="acm_note" maxlength="300"></label>
+            <p class="muted tiny" id="acm_preview" aria-live="polite"></p>
+            <div class="mem-errors" id="acm_errors" role="alert" hidden></div>
+            <div class="editor-actions"><button type="submit" class="btn btn-primary btn-sm" id="acm_save">Save</button></div>
+          </form>
+        </div>
+        <div class="side-card">
           <h3>Behind on dues</h3>
           <div class="ov-grid mem-tiles" id="duesTotals" aria-live="polite"></div>
           <div class="mem-tools"><button class="btn btn-outline btn-sm" id="duesOpenRoster">Open them in the roster</button></div>

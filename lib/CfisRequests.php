@@ -112,6 +112,12 @@ final class CfisRequests
     /** How long the bank list CFIS publishes is kept here before it is asked for again. */
     private const BANKS_TTL = 86400;
 
+    /** How far back "you asked for something similar" looks, in days. */
+    public const SIMILAR_DAYS = 30;
+
+    /** Titles at least this alike (similar_text, percent, after tidying) count as the same thing. */
+    public const SIMILAR_TITLE_PERCENT = 85;
+
     /**
      * The wire, replaceable. Null is curl to CFIS; the suite puts a function
      * here — fn (string $path, array $claims, array $extra): array{0:int, 1:?array}
@@ -249,10 +255,22 @@ final class CfisRequests
             'account_name'   => trim((string) ($in['account_name'] ?? '')) ?: $name,
         ];
 
+        $minor = (int) round($amount * 100);
+
+        /* Asked already? Before anything is written: a member who meant it
+           says so (confirm_similar) and it goes; one who forgot they asked
+           last week is spared a second claim finance has to untangle. */
+        if (empty($in['confirm_similar'])) {
+            $like = self::similarTo($userId, $minor, $title);
+            if ($like !== null) {
+                return ['ok' => false, 'needs_confirm' => true, 'similar' => $like,
+                        'error' => 'You asked for something similar on ' . $like['asked_on_words'] . ' (ref ' . $like['reference'] . '), still send?'];
+            }
+        }
+
         /* OURS, written down before anything is sent. */
         $ref = 'AVG-REQ-' . $userId . '-' . bin2hex(random_bytes(6));
         $now = gmdate('c');
-        $minor = (int) round($amount * 100);
 
         $evidence = self::keep($ref, $receipts['files']);
 
@@ -529,7 +547,171 @@ final class CfisRequests
            details on it, kept for no reason. The names and hashes stay. */
         foreach ($evidence as $e) if (is_file((string) ($e['path'] ?? ''))) @unlink((string) $e['path']);
 
-        return ['ok' => true, 'reference' => (string) ($r['reference'] ?? ''), 'ref' => $ref];
+        /* Finance's own duplicate check (CFIS ADR 45), in the words it wrote
+           for the member: sent, and finance will check it is not the same claim. */
+        $similar = is_array($r['similar'] ?? null) ? trim((string) ($r['similar']['message'] ?? '')) : '';
+
+        return ['ok' => true, 'reference' => (string) ($r['reference'] ?? ''), 'ref' => $ref]
+            + ($similar !== '' ? ['similar' => $similar] : []);
+    }
+
+    /**
+     * This member's request from the last SIMILAR_DAYS days for the same
+     * amount, or with a title that says nearly the same thing, that was not
+     * withdrawn or refused. Checked here, on our own records, so it works
+     * while finance is not answering too.
+     *
+     * @return null|array{id:int, reference:string, title:string, asked_on:string, asked_on_words:string}
+     */
+    public static function similarTo(int $userId, int $minor, string $title): ?array
+    {
+        self::table();
+        $st = Database::pdo()->prepare("SELECT id, ref, cfis_reference, title, amount_minor, created_at FROM cfis_member_requests
+            WHERE user_id = ? AND created_at >= ? AND status NOT IN ('withdrawn', 'cancelled', 'rejected') ORDER BY id DESC LIMIT 100");
+        $st->execute([$userId, gmdate('c', time() - self::SIMILAR_DAYS * 86400)]);
+        $mine = self::tidy($title);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $theirs = self::tidy((string) $r['title']);
+            $alike = $mine !== '' && $theirs !== '' && ($mine === $theirs
+                || (similar_text($mine, $theirs, $pct) > 0 && $pct >= self::SIMILAR_TITLE_PERCENT));
+            if ((int) $r['amount_minor'] !== $minor && !$alike) continue;
+            $on = substr((string) $r['created_at'], 0, 10);
+            $d = DateTime::createFromFormat('!Y-m-d', $on);
+            return ['id' => (int) $r['id'], 'reference' => (string) ($r['cfis_reference'] ?: $r['ref']), 'title' => (string) $r['title'],
+                    'asked_on' => $on, 'asked_on_words' => $d ? $d->format('j M Y') : $on];
+        }
+        return null;
+    }
+
+    /** A title reduced to its words: lower case, no punctuation, single spaces. */
+    private static function tidy(string $t): string
+    {
+        return trim((string) preg_replace('/\s+/u', ' ', (string) preg_replace('/[^\p{L}\p{N}]+/u', ' ', mb_strtolower($t))));
+    }
+
+    /**
+     * One of this member's requests that finance holds, or an error to show.
+     *
+     * @return array{row?: array<string,mixed>, error?: string}
+     */
+    private static function sentRow(int $userId, int $id): array
+    {
+        self::table();
+        $st = Database::pdo()->prepare("SELECT * FROM cfis_member_requests WHERE id = ? AND user_id = ?");
+        $st->execute([$id, $userId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return ['error' => 'No such request.'];
+        if ((string) $row['cfis_reference'] === '') return ['error' => 'This request has not reached finance yet. It goes by itself; add this once it has.'];
+        if (!self::configured()) return ['error' => 'Finance is not connected just now. Try again later.'];
+        return ['row' => $row];
+    }
+
+    /**
+     * Files to send beside a token, checked as receipts are, and the claims
+     * that name each by its hash.
+     *
+     * @return array{evidence: list<array{name:string, sha256:string, kind?:string}>, files: list<array{name:string, data:string}>, error?: string}
+     */
+    private static function inline(array $files, ?string $kind = null): array
+    {
+        $checked = self::receipts($files);
+        if (isset($checked['error'])) return ['evidence' => [], 'files' => [], 'error' => $checked['error']];
+        $evidence = []; $out = [];
+        foreach ($checked['files'] as $f) {
+            $bytes = (string) file_get_contents($f['tmp']);
+            $evidence[] = ['name' => $f['name'], 'sha256' => hash('sha256', $bytes)] + ($kind !== null ? ['kind' => $kind] : []);
+            $out[] = ['name' => $f['name'], 'data' => base64_encode($bytes)];
+        }
+        return ['evidence' => $evidence, 'files' => $out];
+    }
+
+    /**
+     * Answer a question finance asked about a request, with optional photos
+     * or PDFs. Finance's approver is told, exactly as when somebody at a
+     * finance desk answers.
+     *
+     * @return array{ok: bool, error?: string, message?: string}
+     */
+    public static function answerAsk(int $userId, int $id, string $email, int $askId, string $text, array $files = []): array
+    {
+        $text = trim($text);
+        if ($text === '') return ['ok' => false, 'error' => 'Write your answer.'];
+        if (mb_strlen($text) > 2000) return ['ok' => false, 'error' => 'Keep the answer under 2,000 characters. Add a photo or PDF for the rest.'];
+        $found = self::sentRow($userId, $id);
+        if (isset($found['error'])) return ['ok' => false, 'error' => $found['error']];
+        $row = $found['row'];
+        $up = self::inline($files);
+        if (isset($up['error'])) return ['ok' => false, 'error' => $up['error']];
+
+        $claims = ['ref' => (string) $row['ref'], 'email' => strtolower(trim((string) ($row['asker_email'] ?? '') ?: $email)),
+                   'ask' => $askId, 'answer' => $text, 'typ' => 'cfis.requests.answer']
+            + ($up['evidence'] !== [] ? ['evidence' => $up['evidence']] : []);
+        $r = self::post(self::v1('/answer'), $claims, $up['files'] !== [] ? ['files' => $up['files']] : []);
+        if (!empty($r['missing'])) return ['ok' => false, 'error' => 'Finance cannot take answers from here yet. Reply to finance\'s email instead.'];
+        if (empty($r['ok'])) return ['ok' => false, 'error' => (string) ($r['error'] ?? 'Finance could not be reached. Try again in a moment.')];
+        return ['ok' => true, 'message' => 'Sent. Finance has your answer.'];
+    }
+
+    /**
+     * Add a receipt to a request finance holds. After finance has decided,
+     * a receipt is the only thing that can be added (an advance is settled
+     * with one); CFIS says so if anything else is tried.
+     *
+     * @return array{ok: bool, error?: string, message?: string}
+     */
+    public static function addReceipt(int $userId, int $id, string $email, array $files): array
+    {
+        $found = self::sentRow($userId, $id);
+        if (isset($found['error'])) return ['ok' => false, 'error' => $found['error']];
+        $row = $found['row'];
+        $up = self::inline($files, 'receipt');
+        if (isset($up['error'])) return ['ok' => false, 'error' => $up['error']];
+        if ($up['files'] === []) return ['ok' => false, 'error' => 'Choose a photo or PDF of the receipt.'];
+
+        $r = self::post(self::v1('/evidence'), ['ref' => (string) $row['ref'],
+            'email' => strtolower(trim((string) ($row['asker_email'] ?? '') ?: $email)),
+            'evidence' => $up['evidence'], 'typ' => 'cfis.requests.evidence'], ['files' => $up['files']]);
+        if (!empty($r['missing'])) return ['ok' => false, 'error' => 'Finance cannot take receipts from here yet. Email it to finance instead.'];
+        if (empty($r['ok'])) return ['ok' => false, 'error' => (string) ($r['error'] ?? 'Finance could not be reached. Try again in a moment.')];
+
+        /* The names and hashes, so the count on the page includes it. The
+           file itself is not kept here: finance holds it. */
+        $kept = self::evidenceOf($row);
+        foreach ($up['evidence'] as $e) $kept[] = ['name' => $e['name'], 'sha256' => $e['sha256'], 'path' => ''];
+        Database::pdo()->prepare("UPDATE cfis_member_requests SET evidence = ?, updated_at = ? WHERE id = ?")
+            ->execute([(string) json_encode($kept), gmdate('c'), $id]);
+        return ['ok' => true, 'message' => count($up['files']) === 1 ? 'Receipt added. Finance has it.' : 'Receipts added. Finance has them.'];
+    }
+
+    /**
+     * Read a photo or PDF of a receipt, so the form can fill itself in for
+     * the member to check. Anything short of a reading — finance not
+     * connected, reading switched off, a blurred photo, an older CFIS — is
+     * `read: null`, and the page then says nothing and changes nothing.
+     *
+     * @return array{ok: true, available: bool, read: ?array<string, ?string>}|array{ok: false, error: string}
+     */
+    public static function readReceipt(string $email, array $files): array
+    {
+        $none = ['ok' => true, 'available' => false, 'read' => null];
+        if (!self::configured() || !filter_var($email, FILTER_VALIDATE_EMAIL)) return $none;
+        $up = self::inline(array_slice($files, 0, 1));
+        if (isset($up['error'])) return ['ok' => false, 'error' => $up['error']];
+        if ($up['files'] === []) return ['ok' => false, 'error' => 'Choose a photo or PDF of the receipt.'];
+
+        $r = self::post(self::v1('/read-receipt'), ['email' => strtolower(trim($email)), 'evidence' => $up['evidence'],
+            'typ' => 'cfis.requests.read_receipt'], ['files' => $up['files']]);
+        if (empty($r['ok']) || !is_array($r['read'] ?? null)) {
+            return ['ok' => true, 'available' => !empty($r['available']), 'read' => null];
+        }
+        $text = fn ($v) => ($t = trim(mb_substr((string) $v, 0, 160))) === '' ? null : $t;
+        $amount = preg_match('/^\d{1,12}(\.\d{1,2})?$/', (string) ($r['read']['amount'] ?? '')) ? (string) $r['read']['amount'] : null;
+        $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($r['read']['date'] ?? '')) ? (string) $r['read']['date'] : null;
+        $category = preg_match('/^[a-z0-9_-]{1,40}$/', (string) ($r['read']['category'] ?? '')) ? (string) $r['read']['category'] : null;
+        return ['ok' => true, 'available' => true, 'read' => [
+            'amount' => $amount, 'date' => $date, 'vendor' => $text($r['read']['vendor'] ?? ''),
+            'category' => $category, 'description' => $text($r['read']['description'] ?? ''),
+        ]];
     }
 
     /** Send again one that never reached finance. The reference does not change. */
@@ -675,6 +857,7 @@ final class CfisRequests
 
         $out = [];
         $mine = [];
+        $past = [];
         foreach ($rows as $row) {
             $mine[(string) $row['ref']] = true;
             $state = $states[(string) $row['ref']] ?? null;
@@ -712,7 +895,29 @@ final class CfisRequests
                    sent, or in finance and undecided by finance's own word.
                    An older CFIS says nothing, so nothing is offered. */
                 'can_withdraw' => $sent ? (bool) ($state['can_withdraw'] ?? false) : $local === 'unsent',
+                /* One line in plain words from finance (where, who next, what is
+                   needed, how long), and finance's open questions to the member.
+                   An older CFIS sends neither and the stage stands alone. */
+                'plain' => (string) ($state['plain'] ?? ''),
+                'on_hold' => (bool) ($state['on_hold'] ?? false),
+                'asks' => self::asksFrom($state['asks'] ?? []),
+                'needs' => (string) ($state['needs'] ?? ''),
+                'can_add_receipt' => $sent && (bool) ($state['can_add_receipt'] ?? false),
+                'can_add_evidence' => $sent && (bool) ($state['can_add_evidence'] ?? false),
+                /* For "Ask again like this": what it said, never its receipts or dates. */
+                'again' => [
+                    'title' => (string) $row['title'], 'purpose' => (string) ($row['purpose'] ?? ''),
+                    'category' => (string) $row['category'], 'claim_kind' => (string) ($row['claim_kind'] ?? 'advance'),
+                    'amount' => number_format(((int) $row['amount_minor']) / 100, 2, '.', ''),
+                    'lines' => is_array($lines) ? array_values(array_map(fn ($l) => [
+                        'description' => (string) ($l['description'] ?? ''), 'category' => (string) ($l['category'] ?? ''),
+                        'amount' => number_format(((int) ($l['minor'] ?? 0)) / 100, 2, '.', ''),
+                    ], array_filter($lines, 'is_array'))) : [],
+                ],
             ];
+            if ($local !== 'withdrawn' && trim((string) $row['title']) !== '') {
+                $past[] = ['words' => (string) $row['title'] . ' ' . (string) ($row['purpose'] ?? ''), 'category' => (string) $row['category']];
+            }
         }
 
         /* What this member asked for from anywhere — another device, an
@@ -734,6 +939,7 @@ final class CfisRequests
                     'own_reference' => $own,
                     'status' => (string) ($r['status'] ?? ''),
                     'stage' => (string) ($r['stage'] ?? ''),
+                    'plain' => (string) ($r['plain'] ?? ''),
                     'reason' => (string) ($r['reason'] ?? ''),
                     'amount' => (string) ($r['amount'] ?? ''),
                     'paid' => (bool) ($r['paid'] ?? false),
@@ -764,7 +970,24 @@ final class CfisRequests
             'finance_configured' => self::configured(),
             /* Asking is always open: what finance cannot take yet is kept. */
             'accepting' => true,
+            /* Whether a photo of a receipt can fill the form; false hides the control. */
+            'reads_receipts' => $reachable && !empty($live['reads_receipts']),
+            /* This member's own earlier words and the heading each went under,
+               for suggesting a heading as they type. Their own, nobody else's. */
+            'past' => array_slice($past, 0, 50),
         ];
+    }
+
+    /** @return list<array{id:int, question:string, asked_on:string, due_on:string}> */
+    private static function asksFrom(mixed $raw): array
+    {
+        $out = [];
+        foreach (is_array($raw) ? $raw : [] as $a) {
+            if (!is_array($a) || (int) ($a['id'] ?? 0) <= 0 || trim((string) ($a['question'] ?? '')) === '') continue;
+            $out[] = ['id' => (int) $a['id'], 'question' => mb_substr((string) $a['question'], 0, 1000),
+                      'asked_on' => (string) ($a['asked_on'] ?? ''), 'due_on' => (string) ($a['due_on'] ?? '')];
+        }
+        return $out;
     }
 
     /** @return null|list<array{name:string, code:string}> null when the copy here is missing or a day old */

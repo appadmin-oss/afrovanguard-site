@@ -219,6 +219,14 @@ html:has(body.avac){color-scheme:light}
 .avac-foot-legal span{margin-right:8px}
 @media (max-width:719px){.avac-foot-in{flex-direction:column;align-items:flex-start}}
 
+/* Membership by donation (lib/AcademyDonation.php): the amount field on a "Become a member" card. */
+.avac-give{display:grid;gap:6px;margin:4px 0 12px;text-align:left}
+.avac-give-l{font:600 14px/1.3 var(--av-sans);color:var(--av-ink)}
+.avac-give-row{display:flex;align-items:center;gap:6px;border:1px solid var(--av-line-2);border-radius:var(--av-r-8);background:var(--av-white);padding:0 12px}
+.avac-give-row:focus-within{outline:2px solid var(--av-ink);outline-offset:2px}
+.avac-give-cur{font:600 18px var(--av-sans);color:var(--av-ink)}
+.avac-give-in{flex:1;min-width:0;height:46px;border:0;background:transparent;color:var(--av-ink);font:600 18px var(--av-sans);outline:none}
+.avac-give-ngn{margin:0;font-size:13.5px;line-height:1.45;color:var(--av-copy-3)}
 /* ── Stretched links (owner, 2026-11-11: accessibility) ──────────────────────
    A card is a box; its TITLE is the link; the link's ::after covers the box so
    the whole card still opens it with a click or a tap. Screen readers get one

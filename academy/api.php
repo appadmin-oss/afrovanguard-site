@@ -397,8 +397,19 @@ try {
             $stream = $kind === 'membership' ? 'membership' : 'tuition';
             if ($kind === 'membership') {
                 if ($lms->isMember((int) $u['id']) || LmsAuth::isOrgMember($u)) json_out(['ok' => true, 'already' => true, 'message' => 'You are already a member.']);
-                $amountNgn = AcademyPricing::membershipNgn();
-                $meta['purpose'] = 'Afrovanguard Academy — annual membership';
+                /* A donation the learner chooses, from the minimum (lib/AcademyDonation.php).
+                   The figure charged is what is recorded, so the payment check grants access
+                   only when that whole amount arrives. */
+                $gift = AcademyDonation::check($body['amount_usd'] ?? '');
+                if (!$gift['ok']) json_out(['ok' => false, 'error' => $gift['error']], 400);
+                $amountNgn = (int) $gift['ngn'];
+                if ($gift['usd'] !== null) {
+                    $meta['purpose'] = 'Afrovanguard Academy — membership donation (' . AcademyDonation::usdText($gift['usd']) . ')';
+                    $meta['donation_usd'] = $gift['usd'];
+                    $meta['usd_ngn_rate'] = AcademyDonation::rate();
+                } else {
+                    $meta['purpose'] = 'Afrovanguard Academy — annual membership';
+                }
             } else {
                 $c = $slug ? $ac->bySlug($slug) : null;
                 if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
