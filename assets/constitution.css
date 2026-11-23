@@ -69,3 +69,26 @@
   .const-doc > h2.const-part:first-child { page-break-before: auto; }
   .const-doc h3.const-article { page-break-after: avoid; }
 }
+
+/* ---- Hero: motto and download actions -------------------- */
+.const-hero .const-motto {
+  font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic;
+  font-size: clamp(1.2rem, 2vw, 1.45rem); color: var(--legal-link); margin: -2px 0 14px;
+}
+.const-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 18px; }
+.const-btn {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 20px;
+  border-radius: 10px; background: var(--legal-ink); color: #fff; text-decoration: none;
+  font: 600 .98rem/1 'Source Sans 3', sans-serif; border: 1px solid var(--legal-ink);
+  transition: transform .15s ease, background .15s ease;
+}
+.const-btn:hover { transform: translateY(-1px); }
+.const-btn--line { background: transparent; color: var(--legal-ink); border-color: var(--legal-border); }
+.const-btn--line:hover { border-color: var(--legal-accent); }
+.const-btn:focus-visible { outline: 3px solid var(--legal-accent); outline-offset: 2px; }
+@media (max-width: 480px) { .const-btn { flex: 1 1 100%; justify-content: center; } }
+@media print { .const-actions { display: none; } }
+@media (prefers-reduced-motion: reduce) { .const-btn { transition: none; } .const-btn:hover { transform: none; } }
+
+/* Preamble reads as an opening declaration. */
+#part-preamble + p { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.5rem; }

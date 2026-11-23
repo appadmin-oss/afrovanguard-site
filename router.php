@@ -123,6 +123,7 @@ if ($uri === '/events/calendar.ics') { require __DIR__ . '/events/ics.php'; retu
 if (preg_match('~^/events/([a-z0-9-]+)/?$~', $uri, $m)) { $_GET['slug'] = $m[1]; require __DIR__ . '/events/view.php'; return true; }
 if (preg_match('~^/ethos/?$~', $uri)) { require __DIR__ . '/ethos/index.php'; return true; }
 if (preg_match('~^/constitution/?$~', $uri)) { require __DIR__ . '/constitution/index.php'; return true; }
+if (preg_match('~^/constitution/download/?$~', $uri)) { require __DIR__ . '/constitution/download.php'; return true; }
 
 // Standalone sign-in page (a real /login/ folder in prod; routed here for dev).
 if (preg_match('~^/login/?$~', $uri)) { require __DIR__ . '/login/index.php'; return true; }

@@ -1,0 +1,10 @@
+# The Constitution — pretty URLs
+#   /constitution/            -> index.php
+#   /constitution/download/   -> download.php (PDF, built server-side)
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /constitution/
+  RewriteRule ^download/?$ download.php [L,QSA]
+</IfModule>
