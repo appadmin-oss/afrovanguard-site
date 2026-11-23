@@ -1,0 +1,71 @@
+/* ============================================================
+   assets/constitution.css — /constitution/ only.
+   Layered on assets/legal.css; uses its --legal-* tokens, so light,
+   dark and the Home-chrome (.avpg) look all follow automatically.
+   ============================================================ */
+
+/* Parts: a quiet band above each group of Articles. */
+.const-doc h2.const-part {
+  display: block; margin: 56px 0 6px; padding: 0 0 8px;
+  font: 700 12px/1.4 'Source Sans 3', sans-serif; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--legal-link);
+  border-bottom: 1px solid var(--legal-rule);
+  scroll-margin-top: 100px;
+}
+.const-doc > h2.const-part:first-child { margin-top: 0; }
+
+/* Articles carry the page's display type. */
+.const-doc h3.const-article {
+  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600;
+  font-size: clamp(1.45rem, 2.4vw, 1.85rem); line-height: 1.2;
+  color: var(--legal-ink); margin: 34px 0 12px;
+  scroll-margin-top: 100px;
+}
+.const-doc h4 {
+  font: 700 1.02rem/1.4 'Source Sans 3', sans-serif; color: var(--legal-ink);
+  margin: 24px 0 8px; scroll-margin-top: 100px;
+}
+
+/* Lettered clauses — "(a) …" — already carry their marker. */
+.const-doc ul.const-clauses { margin-left: 1.2em; }
+.const-doc ul.const-clauses li { padding-left: 0; margin-bottom: 6px; }
+.const-doc ul.const-clauses li::before { content: none; }
+
+.const-doc ol { margin: 0 0 18px; padding-left: 1.4em; }
+.const-doc ol li { margin: 0 0 8px; }
+
+.const-doc blockquote {
+  margin: 0 0 20px; padding: 14px 20px;
+  border-left: 3px solid var(--legal-accent); background: var(--legal-toc-bg);
+  border-radius: 0 10px 10px 0;
+}
+.const-doc blockquote p { margin: 0 0 10px; font-style: italic; }
+.const-doc blockquote p:last-child { margin-bottom: 0; }
+
+.const-doc hr { border: 0; border-top: 1px solid var(--legal-rule); margin: 40px 0; }
+.const-doc .legal-table td:last-child { white-space: normal; }
+
+.const-status { margin-bottom: 32px; }
+
+/* Contents: Parts with their Articles nested beneath. */
+/* Article titles carry their own numbers, so no TOC counters here. */
+.const-toc a::before { content: none; }
+.const-toc > ol { columns: 1; }
+.const-toc > ol > li.const-toc-part { margin-bottom: 10px; }
+.const-toc > ol > li.const-toc-part > a { font-weight: 700; }
+.const-toc ol ol { list-style: none; margin: 2px 0 0 10px; padding: 0; columns: 1; }
+.const-toc ol ol a { font-size: .86rem; font-weight: 400; padding: 4px 8px; }
+/* Narrow screens: Parts only, so the reader reaches the text quickly. */
+@media (max-width: 1039px) {
+  .const-toc ol ol { display: none; }
+  .const-toc > ol { columns: 2; }
+}
+@media (max-width: 560px) {
+  .const-toc > ol { columns: 1; }
+}
+
+@media print {
+  .const-doc h2.const-part { page-break-before: always; }
+  .const-doc > h2.const-part:first-child { page-break-before: auto; }
+  .const-doc h3.const-article { page-break-after: avoid; }
+}
