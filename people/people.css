@@ -5,7 +5,15 @@
 .ppl{display:block;background:var(--av-paper);color:var(--av-body)}
 .ppl [hidden]{display:none!important}
 .ppl img{display:block;max-width:100%;color:transparent}
+/* The content column. From 900px it also keeps clear of the two floating launchers (the
+   Accessibility button bottom-left, 48px, and Chioma bottom-right, 56px, both 16px in): the
+   side padding grows so the content edge is never nearer the viewport edge than --ppl-fab-gutter,
+   whatever the window width. 100% is the containing block, so a scrollbar is allowed for. */
+.ppl{--ppl-fab-gutter:96px}
 .ppl-wrap{max-width:1240px;margin:0 auto;padding-left:clamp(16px,3vw,40px);padding-right:clamp(16px,3vw,40px)}
+@media (min-width:900px){
+  .ppl-wrap{--ppl-side:max(clamp(16px,3vw,40px),calc(var(--ppl-fab-gutter) - max(0px,(100% - 1240px) / 2)));padding-left:var(--ppl-side);padding-right:var(--ppl-side)}
+}
 .ppl-eyebrow{font-family:var(--av-sans);font-size:0.75rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--av-gold-text);margin:0 0 14px}
 .ppl h1,.ppl h2,.ppl h3{font-family:var(--av-serif);color:var(--av-ink)}
 
@@ -56,22 +64,38 @@
 .ppl-votm-q{margin:0 0 0 auto;max-width:46ch;padding:0 0 0 16px;border-left:2px solid var(--av-gold-light)}
 .ppl-votm-q p{margin:0;font-family:var(--av-serif);font-style:italic;font-size:1.0625rem;line-height:1.4;color:var(--av-copy-2)}
 
+/* ── How we are organised: the groups in order, as in-page links ──── */
+.ppl-org-in{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding-top:18px;padding-bottom:2px}
+.ppl-org-h{margin:0;font-family:var(--av-sans)!important;font-size:0.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--av-muted)}
+.ppl-org-list{list-style:none;margin:0 0 0 -6px;padding:0;display:flex;flex-wrap:wrap;align-items:center;gap:2px 0}
+.ppl-org-list li{display:flex;align-items:center}
+.ppl-org-list li+li::before{content:"\203A" / "";padding:0 4px;color:var(--av-sep);font-size:1rem;line-height:1}
+.ppl-org-list a{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:2px 6px;border-radius:var(--av-r-8);font-size:0.875rem;font-weight:500;color:var(--av-copy-2);text-decoration:none;white-space:nowrap}
+.avh .ppl-org-list a:hover{color:var(--av-ink);text-decoration:underline;text-underline-offset:3px}
+.ppl-org-c{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:var(--av-r-pill);background:var(--av-stone-3);color:var(--av-ink);font-size:0.75rem;font-weight:700;font-variant-numeric:tabular-nums}
+
 /* ── Toolbar ──────────────────────────────────────────────────────── */
 .ppl-tools-band{border-bottom:1px solid var(--av-line);background:var(--av-paper)}
 .ppl-tools-band:has(.ppl-tools[hidden]){border-bottom:0}
 .ppl-tools-row{display:flex;flex-wrap:wrap;align-items:center;gap:0 16px}
 .ppl-tools{flex:1 1 auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 0}
-.ppl-search{position:relative;flex:0 1 260px}
+.ppl-search{position:relative;flex:0 1 240px}
 .ppl-search svg{position:absolute;left:14px;top:50%;width:17px;height:17px;transform:translateY(-50%);color:var(--av-muted);pointer-events:none}
 .ppl-search input{width:100%;min-height:40px;padding:8px 14px 8px 40px;border:1px solid var(--av-line-2);border-radius:var(--av-r-pill);background:var(--av-white);color:var(--av-ink);font-family:var(--av-sans);font-size:0.9375rem}
 .ppl-search input::placeholder{color:var(--av-faint-text);opacity:1}
 .ppl-search input:focus{border-color:var(--av-ink)}
 .ppl-chips{display:flex;flex-wrap:wrap;gap:2px;flex:1 1 0;min-width:min(100%,320px)}
-.ppl-chip{display:inline-flex;align-items:center;min-height:36px;padding:4px 12px;border:1px solid transparent;border-radius:var(--av-r-pill);background:transparent;color:var(--av-copy-2);font-family:var(--av-sans);font-size:0.875rem;font-weight:500;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.ppl-chip{display:inline-flex;align-items:center;min-height:36px;padding:4px 11px;border:1px solid transparent;border-radius:var(--av-r-pill);background:transparent;color:var(--av-copy-2);font-family:var(--av-sans);font-size:0.875rem;font-weight:500;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
 .avh .ppl-chip:hover{border-color:var(--av-line-2);color:var(--av-ink)}
 .ppl-chip[aria-pressed="true"]{background:var(--av-ink);border-color:var(--av-ink);color:var(--av-white)}
-.ppl-count{margin:0 0 0 auto;font-size:0.8438rem;color:var(--av-muted)}
-.ppl-count:not(:empty){padding:0 0 12px}
+.ppl-status{display:flex;align-items:center;gap:12px;margin-left:auto}
+.ppl-count{margin:0;font-size:0.8438rem;color:var(--av-muted)}
+.ppl-status:has(.ppl-count:not(:empty)){padding:0 0 12px}
+.ppl-tools-row:has(.ppl-clear:not([hidden])) .ppl-status{padding:0 0 12px}
+.ppl-clear{display:inline-flex;align-items:center;min-height:36px;padding:4px 14px;border:1px solid var(--av-line-3);border-radius:var(--av-r-pill);background:var(--av-white);color:var(--av-ink);font-family:var(--av-sans);font-size:0.875rem;font-weight:600;cursor:pointer}
+.avh .ppl-clear:hover{border-color:var(--av-ink)}
+.ppl mark{padding:0 1px;border-radius:3px;background:var(--av-gold-soft);color:inherit;box-shadow:inset 0 -2px 0 var(--av-gold-light)}
+html.a11y-hc .ppl mark{outline:1px solid currentColor;text-decoration:underline}
 /* Sticky under the header on roomy screens only: never with larger text or a short or
    narrow window, where a taller bar would crowd the content. Keyboard focus scrolled into
    view stops below both bars (WCAG 2.4.11). */
@@ -80,46 +104,51 @@
   html:not([class*="a11y-t"]):not(.a11y-spacing):has(.ppl-tools-band){scroll-padding-top:164px}
 }
 
-/* ── Sections: the name and one line on the left, the people on the right ── */
-.ppl-sec{padding:clamp(32px,4vw,48px) 0 0}
-.ppl-sec-in{display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
+/* ── Sections: a full-width header (name, then its one line beside it), the people below.
+   Scans top to bottom with no empty left column, so a section of one or two people stays short. */
+.ppl-sec{padding:clamp(28px,3.5vw,40px) 0 0}
 /* One hairline between sections, the width of the content */
-.ppl-sec+.ppl-sec .ppl-sec-in::before{content:"";grid-column:1/-1;border-top:1px solid var(--av-line);margin-bottom:clamp(4px,1vw,8px)}
-.ppl-sec-side h2{font-weight:400;font-size:clamp(1.625rem,2.4vw,2rem);line-height:1.1;margin:0;text-wrap:balance}
-.ppl-sec-d{margin:8px 0 0;max-width:46ch;font-size:0.9375rem;line-height:1.55;color:var(--av-copy-3)}
+.ppl-sec+.ppl-sec .ppl-sec-in{border-top:1px solid var(--av-line);padding-top:clamp(24px,3vw,32px)}
+.ppl-sec.is-first .ppl-sec-in{border-top:0;padding-top:0}
+.ppl-sec-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px;margin:0 0 16px}
+.ppl-sec-head h2{font-weight:400;font-size:clamp(1.625rem,2.4vw,2rem);line-height:1.1;margin:0;text-wrap:balance}
+.ppl-sec-d{margin:0;max-width:62ch;flex:1 1 320px;font-size:0.9375rem;line-height:1.55;color:var(--av-copy-3)}
 .ppl-sec-h{display:flex;align-items:baseline;gap:14px;margin:0 0 20px}
 .ppl-sec-h h2{font-weight:400;font-size:clamp(1.625rem,2.4vw,2rem);line-height:1.1;margin:0}
 .ppl-more{margin-left:auto;font-size:0.9063rem;font-weight:600;color:var(--av-gold-text);text-decoration:none;white-space:nowrap}
 .avh .ppl-more:hover{text-decoration:underline;text-underline-offset:3px}
-@media (min-width:960px){
-  .ppl-sec-in{grid-template-columns:minmax(0,248px) minmax(0,1fr);column-gap:clamp(40px,5vw,72px);row-gap:clamp(24px,3vw,36px)}
-  .ppl-sec-side{padding-top:6px}
-}
 
 /* Avatars: the initials always, the photo laid over them when there is one */
-.ppl-av{position:relative;overflow:hidden;flex:none;display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;font-family:var(--av-sans);font-size:1.0625rem;font-weight:700;letter-spacing:.02em}
+.ppl-av{position:relative;overflow:hidden;flex:none;display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:50%;font-family:var(--av-sans);font-size:1.0625rem;font-weight:700;letter-spacing:.02em}
 .ppl-av img{position:absolute;inset:0;width:100%;height:100%;border-radius:inherit;object-fit:cover;object-position:50% 22%}
 /* A photo that fails to load: a broken <img> draws ::before (a loaded one never does), so the
    tint and the initials cover the browser's broken-image icon. CSS only: the CSP allows no inline handlers. */
 .ppl-av img::before,.ppl-pphoto img::before{content:attr(data-ini);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:inherit;color:inherit;border-radius:inherit}
 .ppl-pphoto img::before{font-family:var(--av-serif);font-size:clamp(4rem,8vw,6rem);font-weight:500}
 .ppl-av--sm{width:48px;height:48px;font-size:0.9375rem}
-.ppl-av--xl{width:96px;height:96px;font-family:var(--av-serif);font-size:2rem;font-weight:500}
+.ppl-av--xl{width:112px;height:112px;font-family:var(--av-serif);font-size:2.25rem;font-weight:500}
 
-/* Leadership */
-.ppl-lead-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,256px),1fr));gap:12px 24px}
-.ppl-lead{position:relative;display:flex;align-items:flex-start;gap:18px;padding:12px;margin:-12px;border-radius:var(--av-r-12);transition:background .15s}
-.ppl-lead-b{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;padding-top:8px}
-.ppl-lead-n{margin:0;font-family:var(--av-serif)!important;font-size:1.375rem;font-weight:500;line-height:1.15}
+/* Leadership: full width, three roomy cards */
+.ppl-lead-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px}
+.ppl-lead{position:relative;display:flex;align-items:flex-start;gap:20px;padding:20px;border:1px solid var(--av-line);border-radius:var(--av-r-12);background:var(--av-white);transition:border-color .15s,box-shadow .15s}
+.ppl-lead-b{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;padding-top:6px}
+.ppl-lead-n{margin:0;font-family:var(--av-serif)!important;font-size:1.5rem;font-weight:500;line-height:1.15;overflow-wrap:normal;word-break:keep-all;hyphens:none}
+.ppl-lead-f{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;margin-top:auto;padding-top:12px}
+.ppl-lead-f .ppl-soc{padding:0}
+.ppl-lead-go{margin-left:auto;font-size:0.875rem;font-weight:600;color:var(--av-gold-text);white-space:nowrap}
 .ppl-lead-n a{color:var(--av-ink);text-decoration:none}
 .ppl-lead-n a::after,.ppl-card-n a::after{content:"";position:absolute;inset:0;border-radius:inherit}
 .ppl-lead-r{margin:2px 0 0;font-size:0.9063rem;line-height:1.4;color:var(--av-copy-2)}
 .ppl-lead-t{margin:6px 0 0;font-size:0.875rem;line-height:1.45;font-style:italic;color:var(--av-copy-3)}
-.ppl-lead:hover,.ppl-card:hover{background:var(--av-white)}
+.ppl-lead:hover{border-color:var(--av-line-3);box-shadow:0 6px 20px -12px rgba(17,24,39,.25)}
+.ppl-card:hover{background:var(--av-white)}
 .avh .ppl-lead:hover .ppl-lead-n a,.avh .ppl-card:hover .ppl-card-n a{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
 .ppl .ppl-lead-n a:focus-visible,.ppl .ppl-card-n a:focus-visible{outline:none}
 .ppl-lead:has(.ppl-lead-n a:focus-visible),.ppl-card:has(.ppl-card-n a:focus-visible){outline:3px solid var(--av-focus);outline-offset:2px;background:var(--av-white)}
-@media (min-width:1100px){.ppl-lead-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (min-width:960px){.ppl-lead-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* Names never break mid-name at desktop widths: the photo gives way first. */
+@media (min-width:960px) and (max-width:1199px){.ppl-lead{flex-direction:column;gap:14px}.ppl-lead-b{padding-top:0}}
+@media (min-width:960px){.ppl-lead-n{white-space:nowrap}}
 
 /* Socials (above the stretched card link) */
 .ppl-soc{list-style:none;margin:0;padding:10px 0 0;display:flex;flex-wrap:wrap;gap:6px}
@@ -131,16 +160,39 @@
 .ppl-soc--lg a{width:44px;height:44px;border-color:var(--av-line-2);color:var(--av-slate);background:var(--av-white)}
 .ppl-soc--lg a svg{width:18px;height:18px}
 
-/* The bodies inside the larger groups */
-.ppl-body+.ppl-body{margin-top:28px}
-.ppl-body-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;margin:0 0 10px}
+/* The people area of a section: one column grid (4 on desktop, 2 on tablet, 1 on phone). A
+   single-body group's cards fill it; in a larger group each body (directorate, institution…)
+   takes as many columns as it has people, up to the row, so small bodies sit side by side. */
+.ppl-sec-c{display:grid;grid-template-columns:minmax(0,1fr);gap:20px 12px;margin:0 -12px}
+.ppl-sec-c>.ppl-grid{grid-column:1/-1;margin:0}
+.ppl-body .ppl-grid{margin:0}
+@media (min-width:700px){
+  .ppl-sec-c{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ppl-sec-c>.ppl-grid,.ppl-body .ppl-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ppl-body--n1{grid-column:span 1}.ppl-body--n1 .ppl-grid{grid-template-columns:minmax(0,1fr)}
+  .ppl-body:not(.ppl-body--n1){grid-column:span 2}
+}
+@media (min-width:1100px){
+  .ppl-sec-c{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .ppl-sec-c>.ppl-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .ppl-body--n2{grid-column:span 2}.ppl-body--n2 .ppl-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ppl-body--n3{grid-column:span 3}.ppl-body--n3 .ppl-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .ppl-body--n4{grid-column:span 4}.ppl-body--n4 .ppl-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+.ppl-body-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;margin:0 0 6px;padding:0 12px}
 .ppl-body-h h3{margin:0;font-family:var(--av-sans)!important;font-size:0.875rem;font-weight:600;color:var(--av-ink)}
 .ppl-body-d{margin:0;font-size:0.875rem;color:var(--av-copy-3)}
 
-/* Cards: no box; avatar, name, role */
-.ppl-grid{list-style:none;margin:0 -12px;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:4px 16px}
+/* Cards: no box until hover/focus; avatar, name, role, an arrow that says "this opens" */
+.ppl-grid{list-style:none;margin:0 -12px;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,232px),1fr));gap:4px 12px}
 .ppl-card{position:relative;display:flex;align-items:center;gap:14px;padding:12px;border-radius:var(--av-r-10);transition:background .15s}
 .ppl-card-b{min-width:0;flex:1}
+.ppl-card-d{margin:2px 0 0;font-size:0.8125rem;font-weight:600;line-height:1.35;color:var(--av-muted)}
+/* Under its own directorate heading the directorate line would repeat it: shown while searching. */
+.ppl-group .ppl-card-d{display:none}
+.ppl-dir[data-ppl-searching] .ppl-group .ppl-card-d{display:block}
+.ppl-go{flex:none;align-self:center;font-size:1rem;color:var(--av-faint-text);transition:color .15s,transform .15s}
+.ppl-card:hover .ppl-go,.ppl-card:has(a:focus-visible) .ppl-go{color:var(--av-gold-text);transform:translateX(2px)}
 .ppl-card-n{margin:0;font-family:var(--av-sans)!important;font-size:1rem;font-weight:600;line-height:1.3}
 .ppl-card-n a{color:var(--av-ink);text-decoration:none}
 .ppl-card-r{margin:2px 0 0;font-size:0.875rem;line-height:1.4;color:var(--av-copy-3)}
@@ -169,7 +221,15 @@
 .ppl-pquote{margin:28px 0 0;padding:2px 0 2px 20px;border-left:3px solid var(--av-gold)}
 .ppl-pquote p{margin:0;font-family:var(--av-serif);font-style:italic;font-size:clamp(1.375rem,2.4vw,1.75rem);line-height:1.35;color:var(--av-ink)}
 .ppl-pbio{margin:24px 0 0;max-width:62ch;font-size:1.0625rem;line-height:1.75;color:var(--av-copy-0)}
-.ppl-back{display:inline-flex;align-items:center;gap:6px;min-height:44px;margin-top:24px;font-weight:600;color:var(--av-ink);text-decoration:none}
+/* The profile's next step */
+.ppl-next{margin:28px 0 0;padding:20px 22px;border:1px solid var(--av-line);border-radius:var(--av-r-12);background:var(--av-white);max-width:62ch}
+.ppl-next-h{margin:0;font-family:var(--av-serif);font-weight:500;font-size:1.375rem;line-height:1.2}
+.ppl-next-p{margin:6px 0 0;font-size:0.9688rem;line-height:1.55;color:var(--av-copy-2)}
+.ppl-next-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:14px}
+.ppl-soc--named{margin:0;padding:0;gap:8px}
+.ppl-soc--named a{width:auto;height:auto;min-height:44px;gap:8px;padding:0 16px 0 14px;border-radius:var(--av-r-pill);border-color:var(--av-line-2);background:var(--av-white);color:var(--av-ink);font-size:0.9375rem;font-weight:600;text-decoration:none}
+.ppl-soc--named a svg{width:16px;height:16px;color:var(--av-slate)}
+.ppl-back{display:inline-flex;align-items:center;gap:6px;min-height:44px;margin-top:20px;font-weight:600;color:var(--av-ink);text-decoration:none}
 .avh .ppl-back:hover{color:var(--av-gold-text);text-decoration:underline;text-underline-offset:3px}
 
 /* ── Tablet / phone ───────────────────────────────────────────────── */
@@ -181,11 +241,27 @@
   .ppl-crumbs{align-items:center;margin-bottom:20px}
   .ppl-crumbs a{display:inline-flex;align-items:center;min-height:44px}
   .ppl-search{flex-basis:100%}
+  /* The chips scroll sideways in one thumb-height row, with a fade where more are waiting. */
+  .ppl-tools{gap:8px;flex:1 1 100%;min-width:0}
+  .ppl-chips{flex:1 1 100%;min-width:0;flex-wrap:nowrap;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;
+    margin:-4px -16px;padding:6px 16px;gap:6px;scroll-padding:0 16px;
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 32px),transparent);mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 32px),transparent)}
+  .ppl-chips::-webkit-scrollbar{display:none}
+  .ppl-chip{flex:none;min-height:44px;padding:4px 14px;border-color:var(--av-line-2);background:var(--av-white);scroll-snap-align:start}
+  /* The overview as a tidy two-column list: no separators wrapping onto new lines. */
+  .ppl-org-in{padding-top:14px;gap:4px;align-items:stretch}
+  .ppl-org-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px;margin:0 -6px}
+  .ppl-org-list li+li::before{content:none}
+  .ppl-org-list a{display:flex;justify-content:space-between;min-height:40px;white-space:normal}
+  .ppl-lead{padding:16px;gap:16px}
+  .ppl-lead-go{white-space:normal}
+  html[class*="a11y-t"] .ppl-lead{flex-direction:column}
+  .ppl-next{padding:18px}
   .ppl-votm-q{display:none}
   .ppl-votm-m{flex-basis:100%;padding-left:20px}
   .ppl-votm-m>[aria-hidden]{display:none}
   .ppl-lead-grid{gap:8px}
-  .ppl-av--xl{width:72px;height:72px;font-size:1.5rem}
+  .ppl-av--xl{width:80px;height:80px;font-size:1.625rem}
   .ppl-lead-n{font-size:1.25rem}
   .ppl-lead-b{padding-top:4px}
   .ppl-pgrid{grid-template-columns:minmax(0,1fr)}

@@ -1,16 +1,20 @@
 <?php
 /**
  * people/index.php — the team directory and individual profiles.
- *   /people/              → directory: a plain hero, a slim Volunteer of the Month strip, one
- *                           toolbar, a spotlight, then one section per constitutional body
- *                           (AV_TEAM_STRUCTURE), then a call to action
+ *   /people/              → directory: a plain hero, a slim Volunteer of the Month strip, a
+ *                           small "How we are organised" overview (in-page navigation that
+ *                           works without script), one toolbar, Leadership full width, then
+ *                           one section per constitutional body (AV_TEAM_STRUCTURE), each a
+ *                           full-width header over a grid of cards, then a call to action
  *   /people/<id>-<slug>/  → a single member's profile (see .htaccess; ?id=N)
  *
  * Server-rendered from the native team data (lib/people.php). Only rows that
  * pass av_team_listable() are ever shown here: curated by hand, or auto-synced
  * AND opted in, and never a system or organisation account. Everything is in
  * the markup, so the page works without script; people/people.js only adds
- * the search and filter (the toolbar stays hidden until it runs).
+ * the search and filter (the toolbar stays hidden until it runs), keeps them in
+ * the URL (?q=, ?g=), and on a profile points "All our people" back at the
+ * filtered directory the visitor came from.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
@@ -36,8 +40,9 @@ $socIcon = [
 $socName = ['li' => 'LinkedIn', 'tw' => 'X', 'ig' => 'Instagram', 'web' => 'website', 'email' => 'Email'];
 $ext = '<span class="av-sr"> (opens in a new tab)</span>';
 
-/** The social links row for one person ($cls: the row's class). */
-$socials = function (array $m, string $cls) use ($socIcon, $socName, $ext): string {
+/** The social links row for one person ($cls: the row's class). $named: the network's name shows
+    beside the icon (the profile's "Get in touch"); the accessible name still starts with the person's. */
+$socials = function (array $m, string $cls, bool $named = false) use ($socIcon, $socName, $ext): string {
     $out = '';
     foreach ($m['socials'] as $k => $v) {
         if (!isset($socIcon[$k])) continue;
@@ -45,7 +50,8 @@ $socials = function (array $m, string $cls) use ($socIcon, $socName, $ext): stri
         if ($isMail ? !filter_var($v, FILTER_VALIDATE_EMAIL) : !preg_match('~^https?://~i', $v)) continue;
         $label = $isMail ? ('Email ' . $m['name']) : ($m['name'] . ' on ' . $socName[$k]);
         $out .= '<li><a href="' . e($isMail ? 'mailto:' . $v : $v) . '"' . ($isMail ? '' : ' target="_blank" rel="noopener"')
-              . '>' . $socIcon[$k] . '<span class="av-sr">' . e($label) . '</span>' . ($isMail ? '' : $ext) . '</a></li>';
+              . '>' . $socIcon[$k] . ($named && !$isMail ? '<span class="av-sr">' . e($m['name']) . ' on </span>' . e(ucfirst($socName[$k]))
+                                                  : '<span class="av-sr">' . e($label) . '</span>') . ($isMail ? '' : $ext) . '</a></li>';
     }
     return $out === '' ? '' : '<ul class="' . $cls . '">' . $out . '</ul>';
 };
@@ -59,26 +65,41 @@ $avatar = function (array $m, string $cls, int $size) : string {
     return '<span class="' . $cls . ' ' . $tint . ($img ? ' ppl-av--ph' : '') . '" aria-hidden="true">' . $ini . $img . '</span>';
 };
 
-/** The text a search matches against. */
+/** The text a search matches against: name, role, office, body (directorate, institution…),
+    group and place. people.js folds accents and allows a one-letter typo in longer words. */
 $haystack = function (array $m): string {
-    $p = av_team_placement($m);
-    return mb_strtolower(implode(' ', [$m['name'], av_person_role_line($m), av_team_body_label($p['body']),
-        av_team_office_label($p['body'], $p['office']), $m['location']]));
+    $p = av_team_placement($m); $G = AV_TEAM_STRUCTURE[$p['group']];
+    return mb_strtolower(implode(' ', array_unique(array_filter([$m['name'], av_person_role_line($m), av_team_body_label($p['body']),
+        av_team_office_label($p['body'], $p['office']), $G['label'], $G['short'], $m['location']]))));
 };
 /** The data attributes the filter reads: the person (counted once however often shown), their group, the search text. */
 $dataAttrs = fn(array $m) => 'data-id="' . (int) $m['id'] . '" data-group="' . e(av_team_placement($m)['group']) . '" data-q="' . e($haystack($m)) . '"';
 
-/** One compact directory card: avatar, name, role (the tagline lives on the profile). */
-$card = function (array $m, string $hLevel = 'h4') use ($avatar, $dataAttrs): string {
-    $role = av_person_role_line($m);
+/** Where a directorate or institution person works ("TECHOME"), unless their role already says so.
+    Under a directorate heading the CSS hides it; in search results and "More from" it shows. */
+$cardMeta = function (array $m, string $role): string {
+    $p = av_team_placement($m);
+    if (!in_array($p['group'], ['directorates', 'institutions'], true)) return '';
+    $label = av_team_body_label($p['body']);
+    $core = trim((string) preg_replace('~\s*\(.*\)$~', '', $label));
+    return ($core === '' || mb_stripos($role, $core) !== false) ? '' : $label;
+};
+
+/** One directory card: avatar, name, role (and directorate). The name's link stretches over the
+    whole card, so the card is one link; the arrow is a visual hint only. */
+$card = function (array $m, string $hLevel = 'h4') use ($avatar, $dataAttrs, $cardMeta): string {
+    $role = av_person_role_line($m); $meta = $cardMeta($m, $role);
     ob_start(); ?>
           <li class="ppl-card" <?= $dataAttrs($m) ?>>
-            <?= $avatar($m, 'ppl-av', 112) ?>
+            <?= $avatar($m, 'ppl-av', 128) ?>
 
             <div class="ppl-card-b">
               <<?= $hLevel ?> class="ppl-card-n"><a href="<?= e(av_person_url($m)) ?>"><?= e($m['name']) ?></a></<?= $hLevel ?>>
               <p class="ppl-card-r"><?= e($role) ?></p>
+<?php if ($meta !== ''): ?>              <p class="ppl-card-d"><?= e($meta) ?></p>
+<?php endif; ?>
             </div>
+            <span class="ppl-go" aria-hidden="true">→</span>
           </li>
 <?php return (string) ob_get_clean();
 };
@@ -125,6 +146,12 @@ if ($id) {
     $relLabel = count($grpDef['bodies']) > 1 ? av_team_body_label($place['body']) : $grpDef['label'];
     if (!$related) { $related = array_values(array_filter($others, fn($p) => av_team_placement($p)['group'] === $place['group'])); $relLabel = $grpDef['label']; }
     $related = array_slice($related, 0, 4);
+    // How to reach them: only what they chose to list (socials), checked the same way as the icons.
+    $mail = (string) ($m['socials']['email'] ?? '');
+    $mail = filter_var($mail, FILTER_VALIDATE_EMAIL) ? $mail : '';
+    $links = $socials(['socials' => array_diff_key($m['socials'], ['email' => 1])] + $m, 'ppl-soc ppl-soc--named', true);
+    $contact = ['mail' => $mail, 'links' => $links, 'any' => $mail !== '' || $links !== ''];
+    $first = explode(' ', trim($m['name']))[0] ?: $m['name'];
 
     render_head([
         'title' => $m['name'] . ' — ' . $role . ' · Afrovanguard',
@@ -164,9 +191,25 @@ if ($id) {
 <?php endif; ?>
 <?php if ($m['bio'] !== ''): ?>            <div class="ppl-pbio"><?= nl2br(e($m['bio'])) ?></div>
 <?php endif; ?>
-            <?= $socials($m, 'ppl-soc ppl-soc--lg') ?>
+<?php /* The next step. "Get in touch" only when the person chose to list an email or a
+         social link; otherwise the way to reach them is through Afrovanguard. */ ?>
+            <section class="ppl-next" aria-labelledby="ppl-next-h">
+<?php if ($contact['any']): ?>
+              <h2 class="ppl-next-h" id="ppl-next-h">Get in touch</h2>
+              <div class="ppl-next-row">
+<?php if ($contact['mail'] !== ''): ?>                <a class="ppl-btn" href="mailto:<?= e($contact['mail']) ?>">Email <?= e($first) ?></a>
+<?php endif; ?>
+                <?= $contact['links'] ?>
 
-            <a class="ppl-back" href="/people/"><span aria-hidden="true">←</span> All our people</a>
+              </div>
+<?php else: ?>
+              <h2 class="ppl-next-h" id="ppl-next-h">Want to reach <?= e($first) ?>?</h2>
+              <p class="ppl-next-p">Write to Afrovanguard and our team will get back to you.</p>
+              <div class="ppl-next-row"><a class="ppl-btn" href="/contact.html">Contact Afrovanguard</a></div>
+<?php endif; ?>
+            </section>
+
+            <a class="ppl-back" href="/people/" data-ppl-back><span aria-hidden="true">←</span> All our people</a>
           </div>
         </div>
       </div>
@@ -187,6 +230,7 @@ if ($id) {
 <?php endif; ?>
 <?php $cta(); ?>
   </main>
+  <script src="<?= e(av_asset('/people/people.js')) ?>" defer></script>
 <?php
     render_footer();
     return;
@@ -230,6 +274,15 @@ foreach ($tree as $g => $bodies) {   // bodies in map order
 
 $votm = av_votm($pdo)['votm'] ?? null;
 $total = count($people);
+
+/* "How we are organised": the groups in constitutional order, only those with listable
+   people, each with how many (everyone once, leaders included) and a link to its section.
+   A group whose only people are in Leadership links there. */
+$overview = [];
+foreach ($chipCount as $g => $n) {
+    $overview[$g] = ['label' => $g === 'council' ? AV_TEAM_STRUCTURE[$g]['label'] : AV_TEAM_STRUCTURE[$g]['short'], 'n' => $n,
+                     'href' => isset($tree[$g]) ? '#ppl-g-' . $g : '#ppl-leadership'];
+}
 
 render_head([
     'title' => 'Our People — The Vanguard Behind the Movement · Afrovanguard',
@@ -278,53 +331,68 @@ render_nav('people');
       <div class="ppl-wrap"><p class="ppl-none">Our directory is being prepared — check back soon.</p></div>
     </section>
 <?php else: ?>
+    <nav class="ppl-org" aria-labelledby="ppl-org-h">
+      <div class="ppl-wrap ppl-org-in">
+        <h2 class="ppl-org-h" id="ppl-org-h">How we are organised</h2>
+        <ol class="ppl-org-list">
+<?php foreach ($overview as $g => $o): ?>          <li><a href="<?= e($o['href']) ?>" data-ppl-jump="<?= e($g) ?>"><span class="ppl-org-l"><?= e($o['label']) ?></span> <span class="ppl-org-c"><?= (int) $o['n'] ?><span class="av-sr"> <?= $o['n'] === 1 ? 'person' : 'people' ?></span></span></a></li>
+<?php endforeach; ?>        </ol>
+      </div>
+    </nav>
+
     <div class="ppl-tools-band">
       <div class="ppl-wrap ppl-tools-row">
         <div class="ppl-tools" id="ppl-tools" hidden>
           <div class="ppl-search">
             <label class="av-sr" for="ppl-q">Search people</label>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-            <input type="search" id="ppl-q" placeholder="Search by name, role or place" autocomplete="off" spellcheck="false" />
+            <input type="search" id="ppl-q" placeholder="Search name, role, directorate or place" autocomplete="off" spellcheck="false" />
           </div>
           <div class="ppl-chips" role="group" aria-label="Show people from">
             <button type="button" class="ppl-chip" data-group="all" aria-pressed="true">Everyone</button>
 <?php foreach (array_keys($chipCount) as $g): ?>            <button type="button" class="ppl-chip" data-group="<?= e($g) ?>" aria-pressed="false"><?= e(AV_TEAM_STRUCTURE[$g]['short']) ?></button>
 <?php endforeach; ?>          </div>
         </div>
-        <p class="ppl-count" id="ppl-count" role="status" aria-live="polite" aria-atomic="true"></p>
+        <div class="ppl-status">
+          <p class="ppl-count" id="ppl-count" role="status" aria-live="polite" aria-atomic="true"></p>
+          <button type="button" class="ppl-clear" data-ppl-clear hidden>Clear<span class="av-sr"> search and filters</span></button>
+        </div>
       </div>
     </div>
 
 <?php if ($spot): ?>
     <section class="ppl-sec ppl-leaders" id="ppl-leadership" aria-labelledby="ppl-lead-h" data-ppl-section>
-      <div class="ppl-wrap ppl-sec-in">
-        <div class="ppl-sec-side">
+      <div class="ppl-wrap"><div class="ppl-sec-in">
+        <div class="ppl-sec-head">
           <h2 id="ppl-lead-h">Leadership</h2>
         </div>
         <ul class="ppl-lead-grid">
 <?php foreach ($spot as $m): $role = av_person_role_line($m); ?>
           <li class="ppl-lead" <?= $dataAttrs($m) ?>>
-            <?= $avatar($m, 'ppl-av ppl-av--xl', 192) ?>
+            <?= $avatar($m, 'ppl-av ppl-av--xl', 240) ?>
 
             <div class="ppl-lead-b">
               <h3 class="ppl-lead-n"><a href="<?= e(av_person_url($m)) ?>"><?= e($m['name']) ?></a></h3>
               <p class="ppl-lead-r"><?= e($role) ?></p>
 <?php if ($m['tagline'] !== ''): ?>              <p class="ppl-lead-t"><?= e($m['tagline']) ?></p>
 <?php endif; ?>
-              <?= $socials($m, 'ppl-soc') ?>
+              <div class="ppl-lead-f">
+                <?= $socials($m, 'ppl-soc') ?>
 
+                <span class="ppl-lead-go" aria-hidden="true">View profile →</span>
+              </div>
             </div>
           </li>
 <?php endforeach; ?>
         </ul>
-      </div>
+      </div></div>
     </section>
 <?php endif; ?>
 
 <?php foreach ($tree as $g => $bodies): $G = AV_TEAM_STRUCTURE[$g]; $multi = count($G['bodies']) > 1; ?>
     <section class="ppl-sec ppl-group" id="ppl-g-<?= e($g) ?>" aria-labelledby="ppl-g-<?= e($g) ?>-h" data-ppl-section>
-      <div class="ppl-wrap ppl-sec-in">
-        <div class="ppl-sec-side">
+      <div class="ppl-wrap"><div class="ppl-sec-in">
+        <div class="ppl-sec-head">
           <h2 id="ppl-g-<?= e($g) ?>-h"><?= e($G['label']) ?></h2>
           <p class="ppl-sec-d"><?= e($G['desc']) ?></p>
         </div>
@@ -335,8 +403,10 @@ render_nav('people');
         </ul>
 <?php else: foreach ($bodies as $b => $list): $B = $G['bodies'][$b]; ?>
         <?php /* A div, not a section: a sub-group is not a landmark of its own (and
-                 "Registered Trustees" inside "Registered Trustees" would name two alike). */ ?>
-        <div class="ppl-body" id="ppl-b-<?= e($b) ?>" data-ppl-section>
+                 "Registered Trustees" inside "Registered Trustees" would name two alike).
+                 ppl-body--nN: it takes N of the section's columns, so small sub-groups sit
+                 side by side instead of each starting a new row. */ ?>
+        <div class="ppl-body ppl-body--n<?= min(4, count($list)) ?>" id="ppl-b-<?= e($b) ?>" data-ppl-section>
           <div class="ppl-body-h">
             <h3 id="ppl-b-<?= e($b) ?>-h"><?= e($B['label']) ?></h3>
 <?php if (!empty($B['desc'])): ?>            <p class="ppl-body-d"><?= e($B['desc']) ?></p>
@@ -348,7 +418,7 @@ render_nav('people');
         </div>
 <?php endforeach; endif; ?>
         </div>
-      </div>
+      </div></div>
     </section>
 <?php endforeach; ?>
 

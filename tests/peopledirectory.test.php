@@ -206,6 +206,49 @@ ck('people page: an unsafe social URL is dropped, a real one kept with a name',
 ck('people page: breadcrumb uses the site pattern (› separators, aria-current)', str_contains($html, '<nav class="ppl-crumbs" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="/">Home</a><span aria-hidden="true">›</span>')
    && str_contains($html, '<span aria-current="page">Our people</span>'));
 
+/* ══ How we are organised ══════════════════════════════════════════════ */
+preg_match('~<nav class="ppl-org" aria-labelledby="ppl-org-h">(.*?)</nav>~s', $html, $om);
+$org = $om[1] ?? '';
+preg_match_all('~<li><a href="(#[a-z-]+)" data-ppl-jump="([a-z]+)"><span class="ppl-org-l">([^<]+)</span> <span class="ppl-org-c">(\d+)<span class="av-sr"> (person|people)</span>~', $org, $ov, PREG_SET_ORDER);
+ck('people overview: a labelled nav with a heading, after the Volunteer of the Month strip and before the toolbar and Leadership',
+   $org !== '' && str_contains($org, '<h2 class="ppl-org-h" id="ppl-org-h">How we are organised</h2>') && str_contains($org, '<ol class="ppl-org-list">')
+   && strpos($html, 'class="ppl-votm"') < strpos($html, 'class="ppl-org"') && strpos($html, 'class="ppl-org"') < strpos($html, 'class="ppl-tools-band"')
+   && strpos($html, 'class="ppl-org"') < strpos($html, 'id="ppl-leadership"'));
+ck('people overview: only the groups with listable people, in constitutional order',
+   array_column($ov, 2) === ['council', 'executive', 'volunteers', 'honorary']);
+ck('people overview: counts everybody once, leaders included (Council 1: its Chair is in Leadership)',
+   array_combine(array_column($ov, 2), array_map('intval', array_column($ov, 4))) === ['council' => 1, 'executive' => 1, 'volunteers' => 3, 'honorary' => 1]
+   && $ov[0][5] === 'person' && $ov[2][5] === 'people');
+ck('people overview: links to each group\'s section, or to Leadership when all its people are there',
+   array_column($ov, 1) === ['#ppl-leadership', '#ppl-leadership', '#ppl-g-volunteers', '#ppl-g-honorary']
+   && str_contains($html, 'id="ppl-g-volunteers"') && str_contains($html, 'id="ppl-leadership"'));
+ck('people overview: the Council keeps its full name, the rest their short one', $ov[0][3] === 'Governing Council' && $ov[3][3] === 'Patrons &amp; advisers');
+
+/* ══ Layout: full-width sections, cards, launcher-safe column ═════════ */
+ck('people layout: sections are a full-width header (name, then its line) over the people, no side column',
+   !str_contains($html, 'ppl-sec-side') && str_contains($html, '<div class="ppl-sec-head">'));
+ck('people layout: Leadership cards carry the tagline, socials and a "View profile" hint (visual only)',
+   str_contains($html, 'class="ppl-lead-t">Systems, not heroes.</p>') && str_contains($html, '<span class="ppl-lead-go" aria-hidden="true">View profile →</span>'));
+ck('people layout: cards are one link with an arrow hint, avatars 60px', str_contains($html, '<span class="ppl-go" aria-hidden="true">→</span>')
+   && substr_count($html, '<span class="ppl-go"') === substr_count($html, '<li class="ppl-card"'));
+ck('people layout: small sub-groups take as many columns as they have people', (bool) preg_match('~class="ppl-body ppl-body--n[1-4]" id="ppl-b-official-volunteers"~', $html));
+$css = (string) file_get_contents(AV_ROOT . '/people/people.css');
+ck('people layout: from 900px the content column keeps a gutter clear of both floating launchers',
+   str_contains($css, '--ppl-fab-gutter:96px') && str_contains($css, 'calc(var(--ppl-fab-gutter) - max(0px,(100% - 1240px) / 2))')
+   && (bool) preg_match('~@media \(min-width:900px\)\{\s*\.ppl-wrap\{--ppl-side:~', $css));
+ck('people layout: Leadership names do not wrap at desktop widths', str_contains($css, '@media (min-width:960px){.ppl-lead-n{white-space:nowrap}}'));
+ck('people layout: the chips scroll sideways on phones with a fade edge', str_contains($css, 'overflow-x:auto') && str_contains($css, 'mask-image:linear-gradient'));
+ck('people toolbar: a Clear button, hidden until a search or filter is on', str_contains($html, '<button type="button" class="ppl-clear" data-ppl-clear hidden>Clear<span class="av-sr"> search and filters</span></button>'));
+
+/* The directorate line on a card: shown when the role does not already name it. */
+$dirP = $mk(['name' => 'Test Dir Officer', 'role' => 'Media officer', 'tier' => 'volunteer', 'body' => 'mediapro', 'office' => 'officer']);
+$dirQ = $mk(['name' => 'Test Dir Named', 'role' => 'Deputy Director, MEDIAPRO', 'tier' => 'director', 'body' => 'mediapro', 'office' => 'deputy-director']);
+$htmlD = render_page(AV_ROOT . '/people/index.php');
+ck('people cards: a directorate person shows their directorate', (bool) preg_match('~Test Dir Officer</a></h4>\s*<p class="ppl-card-r">Media officer</p>\s*<p class="ppl-card-d">MEDIAPRO</p>~', $htmlD));
+ck('people cards: not when the role already names it', (bool) preg_match('~Test Dir Named</a></h4>\s*<p class="ppl-card-r">Deputy Director, MEDIAPRO</p>\s*</div>~', $htmlD));
+ck('people search: the search text includes the directorate and group', (bool) preg_match('~data-q="[^"]*mediapro[^"]*community advancement directorates~', $htmlD));
+$pdo->prepare('DELETE FROM team WHERE id IN (?, ?)')->execute([$dirP, $dirQ]);
+
 /* No President / Chair / COO → whoever is featured; nobody featured → no spotlight. */
 $pdo->exec("UPDATE team SET body = '', office = ''");
 $html2 = render_page(AV_ROOT . '/people/index.php');
@@ -221,7 +264,24 @@ ck('people profile: renders the person', str_contains($prof, '<h1>Test Patron Ez
 ck('people profile: says where they sit', str_contains($prof, '<p class="ppl-eyebrow">Honorary Patrons and advisers</p>'));
 ck('people profile: the breadcrumb is a list with › separators, not " · "', str_contains($prof, '<li><a href="/people/">Our people</a><span aria-hidden="true">›</span></li><li><span aria-current="page">Test Patron Eze</span>')
    && !str_contains($prof, '<span aria-hidden="true"> · </span>'));
-ck('people profile: a link back to the directory', str_contains($prof, 'class="ppl-back" href="/people/"'));
+ck('people profile: a link back to the directory (the script points it at the filtered view)', str_contains($prof, 'class="ppl-back" href="/people/" data-ppl-back'));
+ck('people profile: loads the people script', (bool) preg_match('~<script src="/people/people\.js\?v=[0-9a-f]{10}" defer></script>~', $prof));
+ck('people profile: nothing listed → the next step is Contact Afrovanguard, not "Get in touch"',
+   str_contains($prof, 'id="ppl-next-h">Want to reach Test?</h2>') && str_contains($prof, '<a class="ppl-btn" href="/contact.html">Contact Afrovanguard</a>') && !str_contains($prof, '>Get in touch<'));
+$next = static fn(string $h) => preg_match('~<section class="ppl-next".*?</section>~s', $h, $nm) ? $nm[0] : '';
+$profL = $next(render_page(AV_ROOT . '/people/index.php', ['id' => (string) $lead]));
+ck('people profile: a listed social → "Get in touch" with the named link, no Contact Afrovanguard',
+   str_contains($profL, 'id="ppl-next-h">Get in touch</h2>') && str_contains($profL, '<span class="av-sr">Test Leader Okafor on </span>LinkedIn')
+   && !str_contains($profL, 'Contact Afrovanguard') && !str_contains($profL, 'mailto:') && !str_contains($profL, 'javascript:alert'));
+$mailer = $mk(['name' => 'Test Mailer Ade', 'role' => 'Patron', 'tier' => 'patron', 'socials' => json_encode(['email' => 'ade@x.example'])]);
+$profM = render_page(AV_ROOT . '/people/index.php', ['id' => (string) $mailer]);
+ck('people profile: a listed email → an "Email <first name>" button, and the icon is not repeated',
+   str_contains($profM, '<a class="ppl-btn" href="mailto:ade@x.example">Email Test</a>') && substr_count($profM, 'mailto:ade@x.example') === 1 && str_contains($profM, '>Get in touch</h2>'));
+$bad = $mk(['name' => 'Test Badmail Ade', 'role' => 'Patron', 'tier' => 'patron', 'email' => 'account@x.example', 'socials' => json_encode(['email' => 'not-an-email'])]);
+$profB = $next(render_page(AV_ROOT . '/people/index.php', ['id' => (string) $bad]));
+ck('people profile: an invalid listed email, or only an account email, never offers "Get in touch"',
+   str_contains($profB, 'Contact Afrovanguard') && !str_contains($profB, 'mailto:') && !str_contains($profB, 'account@x.example'));
+$pdo->prepare('DELETE FROM team WHERE id IN (?, ?)')->execute([$mailer, $bad]);
 $profV = render_page(AV_ROOT . '/people/index.php', ['id' => (string) $curated]);
 ck('people profile: related people are from the same body and listable only',
    str_contains($profV, 'More from Official Volunteers') && str_contains($profV, 'Test Second Volunteer') && str_contains($profV, 'Test Consented Synced')
@@ -242,5 +302,17 @@ ck('people js: toggles aria-pressed and hides with the hidden attribute (no inli
 ck('people js: whole sections with nobody left are hidden', str_contains($js, 'sec.hidden = n === 0'));
 ck('people js: people are counted by id', str_contains($js, "getAttribute('data-id')"));
 ck('people js: the toolbar is revealed by the script', str_contains($js, 'tools.hidden = false'));
+ck('people js: the search and chip are kept in the URL (?q=, ?g=) with replaceState and read back on load',
+   str_contains($js, 'history.replaceState(') && str_contains($js, "p.set('q', raw)") && str_contains($js, "p.set('g', group)")
+   && str_contains($js, "params.get('q')") && str_contains($js, "setGroup(params.get('g') || 'all', true)"));
+ck('people js: an unknown ?g= falls back to Everyone', str_contains($js, "groups.indexOf(g) !== -1 ? g : 'all'"));
+ck('people js: accent-insensitive, typo-tolerant (one edit, words of 5+ letters)', str_contains($js, "normalize('NFD')") && str_contains($js, 'function within1(') && str_contains($js, 'w.length < 5'));
+ck('people js: matches are marked with <mark>, built as nodes (no innerHTML)', str_contains($js, "createElement('mark')") && !str_contains($js, 'innerHTML'));
+ck('people js: Clear shows whenever a search or filter is on', str_contains($js, 'clear.hidden = !active'));
+ck('people js: the way back from a profile is same-origin /people/ only, rebuilt from q and g',
+   str_contains($js, 'r.origin === location.origin && r.pathname === \'/people/\'') && str_contains($js, "['q', 'g'].forEach") && str_contains($js, "'/people/?' + qs"));
+ck('people js: storage is guarded (private windows)', str_contains($js, 'try { if (v === undefined) return sessionStorage'));
 
 $pdo->exec('DELETE FROM team');
+$htmlE = render_page(AV_ROOT . '/people/index.php');
+ck('people overview: an empty directory shows no overview and no toolbar', !str_contains($htmlE, 'class="ppl-org"') && !str_contains($htmlE, 'id="ppl-tools"'));
