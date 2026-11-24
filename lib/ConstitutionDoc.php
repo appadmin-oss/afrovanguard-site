@@ -25,7 +25,7 @@ final class ConstitutionDoc
 
     public const TITLE    = 'The Constitution of Afrovanguard';
     public const EDITION  = '2026 Revised Edition';
-    public const VERSION  = '23 November 2026';
+    public const VERSION  = '24 November 2026';
     public const FILENAME = 'Afrovanguard-Constitution-2026.pdf';
 
     public static function source(): string

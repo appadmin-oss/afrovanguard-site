@@ -12,7 +12,7 @@ Founded as Okun Alimosho on 9 November 2017, to raise incorruptible African lead
 | Title | The Constitution of Afrovanguard |
 | Edition | 2026 Revised Edition |
 | Classification | Internal — Afrovanguard members only |
-| Version date | 23 November 2026 |
+| Version date | 24 November 2026 |
 | Document owner | Governance, Nominations and Succession Committee (interim owner: the President and Chief Servant until the Committee is constituted) |
 | Review cycle | At least once every 12 months, and on any material change |
 | Governing law | Laws of the Federal Republic of Nigeria, including the Companies and Allied Matters Act 2020 (Part F, Incorporated Trustees) |
@@ -105,21 +105,28 @@ Afrovanguard shall pursue its vision by:
 In this Constitution, unless the context requires otherwise:
 
 - **"Academy"** means Afrovanguard Academy established under Article XII.
+- **"Adopting Party"** means a community, school, faith or traditional institution, company, local government, partner organisation or other eligible body that has adopted a CACENTRE under an Adoption Agreement in accordance with Article XIII.
+- **"Adoption Agreement"** means the written agreement under which a CACENTRE Adoption is made, in accordance with Article XIII and Schedule H.
 - **"Approved Trainer"** means a person certified by the Academy to conduct formation under the Rank and Formation Schedule.
 - **"Board"** means the Board of Directors established under Article IX.
-- **"Bylaws"** means the subsidiary instruments made under Article XXII.
-- **"CACENTRE"** means a community centre established under Article XII, Section 3.
+- **"Bylaws"** means the subsidiary instruments made under Article XXIII.
+- **"CACENTRE"** means a Community Advancement Centre established under Article XII, Section 3, whether operated directly by Afrovanguard or through a Social Franchise under Article XIII.
+- **"CACENTRE Adoption"** means the formal taking-on of a CACENTRE by an Adopting Party, or the admission of an existing local initiative into the CACENTRE Network, under Article XIII.
+- **"CACENTRE Network"** means all CACENTREs taken together, operating as one Afrovanguard network under Article XIII.
 - **"Chief Officer"** means any officer established under Article X, Sections 4 to 13.
 - **"Council"** means the Governing Council established under Article VII.
 - **"Directorate"** means one of the seven Community Advancement Directorates established under Article XI.
 - **"Evaluated Academy Session"** means a teaching or facilitation session delivered in the Academy and assessed under Academy rules.
 - **"Founder"** means the person or persons who founded Afrovanguard as Okun Alimosho.
+- **"Franchise Agreement"** means the written agreement under which a Social Franchise is granted, in accordance with Article XIII and Schedule H.
+- **"Franchise Holder"** means a qualified person or organisation granted a Social Franchise under Article XIII.
 - **"General Assembly"** means the assembly of voting Members established under Article VI.
 - **"Member"** means a person admitted to any membership class under Article IV.
 - **"President"** means the President and Chief Servant under Article X.
-- **"Project Director"** means the head of a Directorate, the Academy, or another approved project under Article XIII.
+- **"Project Director"** means the head of a Directorate, the Academy, or another approved project under Article XIV.
 - **"Rank"** means a level of the O–G formation system under Article V.
 - **"Registered Constitution"** means the constitution of Afrovanguard as filed with the Corporate Affairs Commission.
+- **"Social Franchise"** means the right, granted under Article XIII, to establish and operate a CACENTRE and to implement approved Afrovanguard programmes using Afrovanguard's approved systems, curricula, branding and operational standards.
 - **"Trustees"** means the registered Trustees of Afrovanguard under Article VIII.
 - **"Two-Trainer Formation"** means supervised formation completed under at least two independent Approved Trainers.
 - **"Verified Active Membership"** means continuous, documented participation in an approved Afrovanguard project, verified under the Membership Bylaws.
@@ -245,7 +252,7 @@ Every Member shall:
 - (d) demonstrate a satisfactory record of service and accountability; and
 - (e) complete conflict-of-interest and eligibility declarations.
 
-(2) These requirements are mandatory for every new appointment made after this Constitution is lawfully adopted. Existing appointments are governed by Article XXV, Section 2.
+(2) These requirements are mandatory for every new appointment made after this Constitution is lawfully adopted. Existing appointments are governed by Article XXVI, Section 2.
 
 ### Article V — The O–G Formation System
 
@@ -516,7 +523,7 @@ The Board shall:
 
 (2) The President shall not independently amend this Constitution, appoint registered Trustees, transfer institutional property, override financial controls, or designate a successor.
 
-(3) The President serves a four-year term, renewable once consecutively, and is subject to annual performance review. Transitional arrangements for the incumbent Founder are set in Article XXV, Section 3.
+(3) The President serves a four-year term, renewable once consecutively, and is subject to annual performance review. Transitional arrangements for the incumbent Founder are set in Article XXVI, Section 3.
 
 #### Section 3. Common provisions for Chief Officers
 
@@ -700,7 +707,7 @@ The CRSO is responsible for institutional research, long-term planning, policy a
 
 (2) Every Directorate shares one duty: **to preserve, project, or protect the values of the community while developing the capacities of its people.**
 
-(3) Every Directorate shall operate under an approved charter, annual budget, performance framework, safeguarding policy, and succession plan, and is led under Article XIII.
+(3) Every Directorate shall operate under an approved charter, annual budget, performance framework, safeguarding policy, and succession plan, and is led under Article XIV.
 
 (4) Attendance or reach figures alone do not constitute proof of impact for any Directorate.
 
@@ -872,7 +879,7 @@ The CRSO is responsible for institutional research, long-term planning, policy a
 - (g) develop teaching materials and institutional publications; and
 - (h) support leadership succession across all Directorates.
 
-(3) The Academy shall have a Director and a Deputy Director, appointed under the same qualifications and procedures as Project Directors under Article XIII.
+(3) The Academy shall have a Director and a Deputy Director, appointed under the same qualifications and procedures as Project Directors under Article XIV.
 
 #### Section 2. Next Generation Genius Club (NGGC)
 
@@ -898,7 +905,204 @@ The CRSO is responsible for institutional research, long-term planning, policy a
 
 (3) No affiliated entity is owned or controlled by Afrovanguard solely because it shares founders, staff, facilities, or programme objectives.
 
-### Article XIII — Project Directors and the Succession System
+### Article XIII — The Social Franchise and CACENTRE Adoption
+
+#### Section 1. Purpose and principle
+
+(1) Afrovanguard extends its mission into new communities, in Nigeria and internationally, through the Social Franchise and through CACENTRE Adoption, by which competent leaders and committed institutions establish, host, sponsor, or join CACENTREs that implement standardised Afrovanguard programmes.
+
+(2) Every CACENTRE, however it is established, operates as an extension of Afrovanguard under **one vision, one governance, one standard, and one culture**, adapting to its local community without departing from that shared foundation.
+
+(3) Expansion shall prioritise quality, sustainability, accountability, and transformational impact over numerical growth, so that every community receives the same standard of excellence while its own cultural identity is respected.
+
+(4) The operational standards, checklists, and cycles that give effect to this Article are set in Schedule H. Fees, contributions, thresholds, notice periods, and agreement templates are set in the Social Franchise and Adoption Bylaws.
+
+#### Section 2. The Social Franchise
+
+(1) All Afrovanguard flagship programmes delivered outside centres operated directly by Afrovanguard shall be implemented through the Social Franchise.
+
+(2) A Social Franchise grants a qualified person or organisation the right, for the term and on the conditions of its Franchise Agreement, to:
+
+- (a) establish and operate a CACENTRE in a defined community;
+- (b) implement approved Afrovanguard programmes; and
+- (c) use Afrovanguard's approved systems, curricula, branding, and operational standards.
+
+(3) No person, institution, or organisation may operate, replicate, or represent any Afrovanguard programme, or present any centre as a CACENTRE, without a Social Franchise, a CACENTRE Adoption, or other written authority granted under this Article.
+
+#### Section 3. Eligibility of Franchise Holders
+
+(1) An applicant may be considered for a Social Franchise only where the applicant, or in the case of an organisation its nominated lead, has:
+
+- (a) attained at least Rank C, or such equivalent standing as the Rank and Formation Schedule recognises for this purpose;
+- (b) completed the Academy foundation courses designated in Schedule H;
+- (c) demonstrated proven leadership, integrity, accountability, and consistency;
+- (d) met all leadership requirements before the annual qualification deadline;
+- (e) completed a supervised pilot implementation, physical or virtual, with seamless execution and full alignment with Afrovanguard's vision;
+- (f) established a functional local leadership team;
+- (g) committed in writing to Afrovanguard's governance, safeguarding, financial, data, and quality-assurance requirements; and
+- (h) signed the Franchise Agreement.
+
+(2) Rank C and any equivalent standing shall be attained under Article V. The leadership-multiplication pathway described in Schedule H is evidence of mentorship capacity; it does not replace the documented evidence and independent assessment required by Article V, Section 3.
+
+(3) No donation, sponsorship, family relationship, traditional title, or political office may substitute for these requirements.
+
+#### Section 4. Grant of a Social Franchise
+
+(1) A Social Franchise is granted by the Board, or by an officer to whom the Board has delegated that authority in writing under the Delegated Authority Bylaws, on the recommendation of the COO after verification of eligibility.
+
+(2) Final approval rests with Afrovanguard alone. Meeting the eligibility requirements creates no entitlement to a franchise.
+
+(3) Every Franchise Agreement shall be reviewed under Article XVII, Section 2 and by the General Counsel and Compliance Officer before it is signed.
+
+#### Section 5. Responsibilities of Franchise Holders
+
+Every Franchise Holder shall:
+
+- (a) operate according to Afrovanguard's Standard Operating Procedures and the standards in Schedule H;
+- (b) protect the integrity of the Afrovanguard name, brand, and reputation;
+- (c) submit operational and financial reports and take part in leadership reviews;
+- (d) take part in quality-assurance audits;
+- (e) maintain safeguarding standards and financial accountability under Section 11;
+- (f) take part in continuous leadership development; and
+- (g) develop successors for the centre's leadership, consistent with the Two-Successor Obligation in Article XIV, Section 4.
+
+#### Section 6. Division of responsibilities
+
+(1) Every CACENTRE shall operate as a financially sustainable community centre.
+
+(2) Unless the Franchise Agreement or Adoption Agreement provides otherwise:
+
+| The Franchise Holder or Adopting Party provides | Afrovanguard provides |
+|---|---|
+| Local fundraising, sponsorship, and donor engagement, under Section 11 | Vision, curriculum, and training |
+| Community partnerships | Branding and governance |
+| The venue | Standard Operating Procedures |
+| Operational expenses and utilities | Monitoring and evaluation |
+| Equipment and routine facility maintenance | Leadership coaching |
+| Volunteer support | Strategic partnerships where applicable, and national and international representation |
+
+(3) Where Afrovanguard owns the facility, major structural repairs remain Afrovanguard's responsibility, and routine maintenance, cleaning, utilities, and minor repairs remain the responsibility of the Franchise Holder or Adopting Party.
+
+#### Section 7. CACENTRE Adoption
+
+(1) A CACENTRE may be adopted by a community, a school, a faith or traditional institution, a company, a local government, a partner organisation, or another body that Afrovanguard considers eligible under Schedule H.
+
+(2) Adoption may take any of the following forms, alone or in combination:
+
+- (a) **hosting** — providing or making available a facility in which a CACENTRE operates;
+- (b) **sponsorship** — providing funding or in-kind support for the establishment or running of a CACENTRE;
+- (c) **partnership** — co-delivering CACENTRE programmes under a written partnership with Afrovanguard; or
+- (d) **conversion** — bringing an existing local initiative or centre into the CACENTRE Network, where it meets the standards of this Article.
+
+(3) An adopted CACENTRE shall be operated by Afrovanguard directly or by a Franchise Holder. An Adopting Party that wishes to operate the centre itself shall also qualify as, or nominate, a Franchise Holder under Sections 3 and 4.
+
+#### Section 8. The adoption process
+
+(1) Every CACENTRE Adoption shall follow these stages, set out in Schedule H:
+
+- (a) expression of interest;
+- (b) assessment and due diligence, including review under Article XVII, Section 2;
+- (c) approval and signature of an Adoption Agreement;
+- (d) launch; and
+- (e) a probationary period followed by a formal review.
+
+(2) An Adoption Agreement is approved in the same manner as a Social Franchise under Section 4. Any agreement that acquires, disposes of, or encumbers an interest in land or a major asset of Afrovanguard also requires the approval of the registered Trustees under Article VIII.
+
+(3) No CACENTRE Adoption takes effect, and no adopted centre may use the Afrovanguard name, until the Adoption Agreement is signed by both parties.
+
+#### Section 9. Obligations of the Adopting Party and of Afrovanguard
+
+(1) Every Adopting Party shall:
+
+- (a) provide the facility, funding, in-kind support, or partnership commitment stated in the Adoption Agreement;
+- (b) respect the governance, safeguarding, financial, data, and quality standards of this Constitution and Schedule H;
+- (c) refrain from directing programme content, appointments, or beneficiary selection except as the Adoption Agreement expressly permits; and
+- (d) disclose any conflict of interest and any material change in its circumstances.
+
+(2) Afrovanguard shall:
+
+- (a) provide the support listed in Section 6 and in the Adoption Agreement;
+- (b) maintain the CACENTRE's programme quality, safeguarding oversight, and monitoring and evaluation;
+- (c) account to the Adopting Party for the use of any restricted contribution under Article XVI, Section 7; and
+- (d) recognise the Adopting Party under Section 13.
+
+#### Section 10. What a franchise or adoption does not confer
+
+(1) A Social Franchise or CACENTRE Adoption does not confer:
+
+- (a) ownership of, or any proprietary interest in, Afrovanguard, its property, name, brand, curricula, programmes, intellectual property, or data;
+- (b) any right to appoint or remove Trustees, Directors, Chief Officers, or Project Directors, or any other governance right beyond those stated in the agreement;
+- (c) membership, Rank, or voting rights in Afrovanguard; or
+- (d) any right to transfer, sell, sub-license, or bequeath the franchise or adoption.
+
+(2) No CACENTRE is the private property of its Franchise Holder, Adopting Party, local Director, donor, host, or any other individual, as Article XII, Section 3(3) provides. Article I, Section 6, Article VIII, Section 5, and Article XVI, Section 1 apply to every CACENTRE.
+
+(3) Providing a facility does not transfer its ownership to Afrovanguard, and Afrovanguard's use of a facility gives no other party rights over Afrovanguard property kept there, unless the parties expressly agree otherwise in writing with the approvals required by Section 8(2).
+
+(4) No Social Franchise or CACENTRE Adoption shall be used to establish personal, family, or hereditary control of any centre. Article XV applies to every franchise and adoption.
+
+#### Section 11. Finance, safeguarding and data
+
+(1) Funds raised in the name of Afrovanguard or of a CACENTRE are institutional funds and are subject to Article XVI, including the rules on approved accounts, separation of duties, procurement, and restricted funds. Schedule H sets the minimum financial controls for every CACENTRE.
+
+(2) A contribution given for a specific CACENTRE or purpose is a restricted fund under Article XVI, Section 7.
+
+(3) Every CACENTRE shall maintain an asset register, recording which assets belong to Afrovanguard, to the Franchise Holder, and to the Adopting Party.
+
+(4) Every CACENTRE shall implement the safeguarding policies required by Article XVIII, Section 3 under the oversight of the Chief Safeguarding and Welfare Officer. No Franchise Holder or Adopting Party, whatever its contribution, is exempt from safeguarding procedures.
+
+(5) Personal data collected at or for a CACENTRE belongs to Afrovanguard's records, shall be held in Afrovanguard's approved systems, and is governed by Article XIX, Section 2. Programme intellectual property is governed by Article XIX, Section 3.
+
+#### Section 12. One network and local identity
+
+(1) Every CACENTRE adopts an indigenous community name, reflecting the local language and culture, that expresses strength, excellence, hope, resilience, or advancement, and remains part of the CACENTRE Network.
+
+(2) Every CACENTRE shall be equipped to deliver the flagship programmes designated in Schedule H and shall run the standardised systems listed in Schedule H. No centre may establish an independent operating model that contradicts Afrovanguard's standards.
+
+(3) Every Member in good standing may take part in programmes at any CACENTRE. Membership records, attendance history, leadership progression, and certifications are recognised across the CACENTRE Network.
+
+(4) A CACENTRE may adapt its local language, cultural expression, programme scheduling, community partnerships, and compliance with local legal requirements. It shall not alter Afrovanguard's vision and core values, governance and leadership structure, safeguarding standards, quality-assurance systems, or operational standards.
+
+(5) A CACENTRE may form local partnerships with government, schools, non-governmental and faith-based organisations, businesses, community associations, and international organisations, subject to Article XVII. No CACENTRE may bind Afrovanguard to a partnership without the authority required by that Article.
+
+#### Section 13. Naming and recognition
+
+(1) An Adopting Party may be publicly recognised as the host, sponsor, or partner of a CACENTRE in the form set in the Adoption Agreement and Afrovanguard's brand policy, maintained by the CCO.
+
+(2) Recognition shall not state or imply that the Adopting Party owns or controls the CACENTRE or Afrovanguard.
+
+(3) No CACENTRE shall bear the name or emblem of a political party or candidate, consistent with Afrovanguard's non-partisan character under Article I, Section 2.
+
+#### Section 14. Review, suspension, withdrawal and transfer
+
+(1) Every Social Franchise and CACENTRE Adoption shall be reviewed at least once every twelve months and on any material change, against the standards in Schedule H.
+
+(2) A Social Franchise or CACENTRE Adoption may be suspended, with immediate effect where necessary, for a safeguarding concern, financial impropriety, serious misconduct under Article XVIII, Section 2, misuse of the Afrovanguard name, or persistent failure to meet the standards of this Article.
+
+(3) A Social Franchise or CACENTRE Adoption may be withdrawn after due process under Article XVIII, Section 6, or ended by either party in accordance with its agreement.
+
+(4) On suspension, withdrawal, or ending, the procedure in Schedule H applies, and in particular:
+
+- (a) use of the Afrovanguard name and brand ceases;
+- (b) Afrovanguard records, data, materials, and property are returned under a documented handover consistent with Article XXII, Section 4;
+- (c) restricted funds are applied or returned in accordance with their restriction; and
+- (d) participants are offered continuity at the nearest CACENTRE.
+
+(5) A Social Franchise or CACENTRE Adoption is personal to its holder or Adopting Party. It may be transferred only with fresh approval under Section 4, and never passes by inheritance, family designation, or sale.
+
+#### Section 15. Disputes
+
+(1) A dispute arising under a Franchise Agreement or Adoption Agreement shall first be referred to the COO for resolution by discussion, then, if unresolved, to mediation, and finally to the dispute-resolution procedure stated in the agreement, consistent with applicable law.
+
+(2) Safeguarding concerns, allegations of serious misconduct, and suspected financial impropriety are not subject to this procedure and are dealt with under Article XVIII.
+
+#### Section 16. Existing centres
+
+(1) CACENTREs and franchise arrangements in operation when this Article takes effect continue under Article XXVI, Section 5.
+
+(2) Each shall be brought into conformity with this Article and Schedule H within the period set in the Social Franchise and Adoption Bylaws.
+
+### Article XIV — Project Directors and the Succession System
 
 #### Section 1. Project Directorate
 
@@ -970,7 +1174,7 @@ Every Project Director shall execute an annual performance covenant in the form 
 
 ## Part Six — Integrity, Resources and Accountability
 
-### Article XIV — Non-Hereditary Leadership and Founder Independence
+### Article XV — Non-Hereditary Leadership and Founder Independence
 
 #### Section 1. Foundational declaration
 
@@ -1006,7 +1210,7 @@ Afrovanguard shall maintain safeguards against direct or indirect family dominat
 
 (2) Historical recognition confers no permanent executive power and no immunity from accountability.
 
-### Article XV — Finance and Property
+### Article XVI — Finance and Property
 
 #### Section 1. Financial principles
 
@@ -1083,7 +1287,7 @@ Afrovanguard may receive income from:
 
 (4) Financial capacity shall never replace merit, institutional service, or the mandatory qualification pathway.
 
-### Article XVI — Partnerships and Affiliations
+### Article XVII — Partnerships and Affiliations
 
 #### Section 1. Authority
 
@@ -1114,7 +1318,7 @@ Every material partnership shall be reviewed for:
 
 International engagements shall comply with applicable Nigerian and foreign law, including rules on grants, employment, taxation, data transfers, research, and charitable activities.
 
-### Article XVII — Ethics, Safeguarding and Discipline
+### Article XVIII — Ethics, Safeguarding and Discipline
 
 #### Section 1. General duty
 
@@ -1159,7 +1363,7 @@ The following constitute serious misconduct:
 
 (2) Every disciplinary procedure shall provide notice, a fair opportunity to respond, impartial consideration, and an appropriate right of appeal.
 
-### Article XVIII — Research, Data and Intellectual Property
+### Article XIX — Research, Data and Intellectual Property
 
 #### Section 1. Research integrity
 
@@ -1189,7 +1393,7 @@ Research involving indigenous cultural knowledge shall respect community custodi
 
 (2) No technology shall be deployed solely because it is technically possible.
 
-### Article XIX — Performance and Public Accountability
+### Article XX — Performance and Public Accountability
 
 #### Section 1. Annual institutional report
 
@@ -1227,7 +1431,7 @@ The President, through the COO, CFO, and CPIO, shall present an annual report co
 
 ## Part Seven — Appointments and Continuity
 
-### Article XX — Elections, Appointments and Removal
+### Article XXI — Elections, Appointments and Removal
 
 #### Section 1. Nominations
 
@@ -1263,7 +1467,7 @@ No person shall take part in deciding their own appointment, remuneration, disci
 
 (3) Registered Trustees shall be removed or replaced only through legally valid procedures.
 
-### Article XXI — Tenure, Succession and Handover
+### Article XXII — Tenure, Succession and Handover
 
 #### Section 1. Terms of office
 
@@ -1275,7 +1479,7 @@ Terms of office and consecutive-term limits are consolidated in Schedule D. Wher
 
 (2) The President and every Chief Officer shall maintain succession and continuity plans appropriate to their responsibilities.
 
-(3) The Two-Successor Obligation for Project Directors is set in Article XIII, Section 4.
+(3) The Two-Successor Obligation for Project Directors is set in Article XIV, Section 4.
 
 #### Section 3. Emergency continuity
 
@@ -1291,7 +1495,7 @@ Every outgoing officer shall deliver all institutional property, records, accoun
 
 ## Part Eight — Final Provisions
 
-### Article XXII — Bylaws and Subsidiary Instruments
+### Article XXIII — Bylaws and Subsidiary Instruments
 
 #### Section 1. Required instruments
 
@@ -1305,12 +1509,13 @@ The following instruments shall be made under this Constitution:
 | Financial Schedule | Dues, contributions, spending thresholds | Board |
 | Delegated Authority Bylaws | Detailed allocation of powers (see Schedule A) | Board, reconciled with Trustees |
 | Directorate Charters | Mandate and operations of each Directorate | Board |
+| Social Franchise and Adoption Bylaws | Fees and contributions, thresholds, notice periods, agreement templates, and transition periods for franchised and adopted CACENTREs (Article XIII, Schedule H) | Board |
 
 #### Section 2. Consistency
 
 No Bylaw or subsidiary instrument may contradict this Constitution. To the extent of any inconsistency, this Constitution prevails.
 
-### Article XXIII — Amendment
+### Article XXIV — Amendment
 
 #### Section 1. Power of amendment
 
@@ -1343,7 +1548,7 @@ An amendment may be proposed by:
 
 (2) Any amendment affecting Afrovanguard's non-profit character, trustee powers, or asset-distribution restrictions requires legal review before it is considered.
 
-### Article XXIV — Dissolution
+### Article XXV — Dissolution
 
 #### Section 1. Procedure
 
@@ -1359,7 +1564,7 @@ On dissolution, lawful debts and liabilities shall be settled before any remaini
 
 (2) No remaining assets shall be distributed as private property among the Founder, relatives, Members, Trustees, Directors, or Patrons.
 
-### Article XXV — Ratification and Transitional Provisions
+### Article XXVI — Ratification and Transitional Provisions
 
 #### Section 1. Ratification
 
@@ -1412,6 +1617,7 @@ This matrix guides the Delegated Authority Bylaws and shall be reconciled with t
 | Financial controls | CFO | Audit, Finance and Risk Committee |
 | Technology strategy | CTO | Technology, Research and Data Ethics Committee |
 | Programme implementation | Project Directors | COO and CPIO |
+| Social Franchise grants and CACENTRE Adoption agreements | Board or delegated officer, on COO recommendation (Article XIII) | Partnerships review, General Counsel, safeguarding; Trustees where land or major assets are involved |
 | Project leadership appointments | Authorised executive or Board process | Nominations and eligibility verification |
 | Safeguarding investigations | Independent safeguarding process | Programmes, Impact and Safeguarding Committee |
 | Major asset disposal | Constitutionally authorised body | Trustees, Board and legal review |
@@ -1458,7 +1664,7 @@ No performance score overrides a safeguarding, legal, or ethical disqualificatio
 
 ### Schedule E — Proposed Annual Dues and Contributions
 
-For approval through the Financial Schedule. Subject to Article XV, Section 9.
+For approval through the Financial Schedule. Subject to Article XVI, Section 9.
 
 | Category | Proposed annual amount |
 |---|---|
@@ -1509,6 +1715,132 @@ Adopted by the General Assembly of Afrovanguard.
 
 The legally required signatories and resolutions shall be confirmed against the Registered Constitution and applicable law.
 
+### Schedule H — Social Franchise and CACENTRE Adoption Standards
+
+Made under Article XIII. Where this Schedule and Article XIII differ, the Article prevails. Fees, contributions, thresholds, notice periods, and agreement templates are set in the Social Franchise and Adoption Bylaws, not in this Schedule.
+
+#### Section 1. Qualification for a Social Franchise
+
+(1) **Academy foundation courses.** The courses required by Article XIII, Section 3(1)(b) are CIMC Levels 1 and 2, or any successor courses the Academy designates.
+
+(2) **Leadership-multiplication pathway.** Leadership and mentorship capacity is shown by developing others:
+
+- (a) the member introduces two committed members; and
+- (b) the member mentors those two until each of them has developed two further committed members.
+
+(3) In addition, the member shall show consistent commitment, integrity, and accountability, and meet all annual leadership-assessment requirements. Promotion to any Rank remains subject to Article V, Section 3.
+
+#### Section 2. Franchise checklist
+
+| Stage | Requirement | Evidence |
+|---|---|---|
+| Eligibility | Rank C or recognised equivalent; CIMC Levels 1 and 2 | Academy and formation records |
+| Character | Leadership, integrity, accountability, consistency | Service record and leadership assessment |
+| Deadline | All requirements met before the annual qualification deadline | Verification by the COO |
+| Pilot | Supervised pilot implementation, physical or virtual, completed with seamless execution | Pilot report and supervisor's assessment |
+| Team | Functional local leadership team in place | Named team and assigned responsibilities |
+| Commitment | Governance, safeguarding, financial, data, and quality-assurance policies accepted | Signed declarations |
+| Agreement | Franchise Agreement reviewed and signed | Legal review under Article XIII, Section 4(3) |
+
+#### Section 3. The adoption process
+
+| Stage | What happens | Output |
+|---|---|---|
+| 1. Expression of interest | The prospective Adopting Party states the community, the proposed form of adoption, and what it offers | Registered expression of interest |
+| 2. Assessment and due diligence | Review of mission alignment, legal and reputational risk, financial obligations, safeguarding, data protection, intellectual property, conflicts of interest, and community benefit (Article XVII, Section 2); site visit; for a conversion, review of the existing initiative's records, finances, and safeguarding | Written assessment and recommendation by the COO |
+| 3. Agreement | Adoption Agreement settled, reviewed by the General Counsel and Compliance Officer, and approved under Article XIII, Section 8(2) | Signed Adoption Agreement |
+| 4. Launch | Leadership established, responsibilities defined, Standard Operating Procedures implemented, leaders trained, safeguarding in place, community introduction held | Launch report |
+| 5. Probation and review | The centre operates for a probationary period of one full implementation cycle (Section 8), then is formally reviewed | Review decision: confirm, extend probation, or end |
+
+#### Section 4. Contents of a Franchise Agreement or Adoption Agreement
+
+Every agreement shall state at least:
+
+- (a) the parties, the community served, and the form of franchise or adoption;
+- (b) the term, the review dates, and the conditions for renewal;
+- (c) each party's contributions and responsibilities, including those in Article XIII, Section 6;
+- (d) ownership of the facility and of every asset, by reference to the asset register;
+- (e) financial arrangements, reporting, and audit rights;
+- (f) safeguarding, data protection, and intellectual property obligations;
+- (g) the permitted use of the Afrovanguard name and brand, and the form of recognition;
+- (h) the grounds and procedure for suspension, withdrawal, and ending; and
+- (i) the dispute-resolution procedure under Article XIII, Section 15.
+
+#### Section 5. The CACENTRE facility
+
+(1) Every CACENTRE serves as the operational base for all Afrovanguard programmes in its community.
+
+(2) The minimum facility is a three-bedroom apartment, or a hall or commercial facility that can be professionally partitioned.
+
+(3) The centre should accommodate:
+
+- (a) training rooms and a digital learning space;
+- (b) co-working space;
+- (c) an administrative office and meeting room;
+- (d) a counselling and mentorship room; and
+- (e) a creative or media workspace where applicable.
+
+#### Section 6. Flagship programmes and standard systems
+
+(1) Every CACENTRE shall be equipped to deliver:
+
+| Programme | Directorate | Focus |
+|---|---|---|
+| BEC | Business and Enterprise Centre | Ethical business practice, collaboration and networking, measurable business value, mentorship and business education |
+| Africa GATES | Africa GATES | Artists, musicians, content creators, media and event professionals, and creative entrepreneurs; positive values through arts and culture |
+| Street-to-Stardom | STS | Character development and leadership, academic support, talent discovery and mentorship for children, within the age range set in the STS charter |
+
+(2) Every CACENTRE shall run Afrovanguard's standard systems for: attendance; the accountability framework; membership management; the leadership pathway; volunteer management; the training curriculum; certification; financial accountability; reporting; monitoring and evaluation; communication; and branding standards.
+
+#### Section 7. Minimum financial and safeguarding controls
+
+Every CACENTRE shall:
+
+- (a) receive and hold funds raised in the name of Afrovanguard or of the centre only in accounts approved under Article XVI, Section 4;
+- (b) keep at least two persons involved in every payment, consistent with Article XVI, Section 5;
+- (c) record every receipt and payment in Afrovanguard's approved financial system;
+- (d) keep restricted contributions separately identified;
+- (e) maintain and update the asset register required by Article XIII, Section 11(3);
+- (f) submit periodic financial reports in the form and at the frequency the CFO prescribes;
+- (g) designate a trained safeguarding lead and apply Afrovanguard's screening, code of conduct, consent, and reporting procedures; and
+- (h) hold participant and volunteer data only in Afrovanguard's approved systems.
+
+#### Section 8. The annual implementation cycle
+
+(1) Every CACENTRE runs its flagship youth programme on a continuous twelve-month implementation cycle, modelled on LCASP (the Lagos Community Advancement School Project, a Street-to-Stardom programme), with the same milestones and quality standard in every community.
+
+| Element | Standard |
+|---|---|
+| Stakeholder engagement | Partnership and approval letters to the relevant government authorities, local councils, schools, sponsors, partners, donors, and community leaders, following each locality's own approval calendar |
+| School engagement | Project introduction, student counselling, leadership sessions, parent engagement, and holiday-programme preparation; at least three official follow-up visits to each school after approval |
+| Outreach drive | A first visit to each participating school (introduction) and a second visit (follow-up and holiday-programme preparation) |
+| Volunteer standards | Recruitment completed before school engagement; weekly service; at least five volunteers for each school engagement; removal after two consecutive missed assignments without approval |
+| Holiday-programme readiness | Before commencement: venue secured, learning packs ready, donor commitments confirmed, at least ten committed volunteers and ten trained instructors, and an overall deployment of thirty to forty people |
+| Community Concert | Before entering a community, a Community Concert under a culturally relevant local name, keeping Afrovanguard branding |
+| Community expansion | Before launch: leadership established, responsibilities defined, Standard Operating Procedures implemented, and leaders trained |
+| Meetings | Compulsory weekly virtual meetings and monthly physical meetings; missing three without approval results in removal from the active implementation team |
+
+#### Section 9. Project administrators
+
+(1) A person may be appointed to administer a CACENTRE project only where they:
+
+- (a) have completed CIMC Levels 1 and 2;
+- (b) have shown consistency and reliability, with at least 70% meeting attendance;
+- (c) have shown accountability, responsibility, integrity, and professionalism;
+- (d) hold at least Rank C, or Rank B with advanced standing approved under the Rank and Formation Schedule;
+- (e) have successfully taught at least one CIMC Level 1 class; and
+- (f) have shown competence in Afrovanguard systems and project operations.
+
+(2) Every appointment is subject to final approval by Afrovanguard leadership under the Delegated Authority Bylaws.
+
+#### Section 10. Annual review, suspension and withdrawal
+
+(1) The annual review under Article XIII, Section 14(1) covers at least: programme delivery and outcomes; adherence to the implementation cycle; financial reports and the asset register; safeguarding compliance; data handling; brand use; leadership development and succession; and the obligations of each party.
+
+(2) Each review ends in one of the following decisions: confirm; confirm with corrective actions and deadlines; suspend; or withdraw.
+
+(3) On suspension, withdrawal, or ending, the COO shall ensure a documented handover within the period set in the agreement, covering: brand removal; return of records, data, materials, and Afrovanguard property; settlement of restricted funds; notice to participants, parents, schools, and partners; and continuity arrangements at the nearest CACENTRE.
+
 ---
 
 ## Explanatory Note — Implementation Matters
@@ -1522,21 +1854,23 @@ This Constitution shall be read together with the Registered Constitution filed 
 1. **Allocation of supreme authority.** The Governing Council, registered Trustees, and Board cannot each hold unrestricted authority. The Delegated Authority Bylaws must allocate their powers without conflict (see Schedule A and the Delegated Authority Bylaws).
 2. **Office of Secretary.** Schedule G calls for a Secretary's signature, but no secretarial office is established. Decide whether to create a Company Secretary / General Secretary office (statutory filings, minutes, registers) and where it reports.
 3. **Body that removes Council members and appoints Trustees.** Article VII, Section 7 and Schedule A refer to a "competent" body. The Election Bylaws must name it.
-4. **Notice period for amendments.** Article XXIII, Section 3 requires "sufficient notice". A fixed period (for example, 30 days) is recommended.
+4. **Notice period for amendments.** Article XXIV, Section 3 requires "sufficient notice". A fixed period (for example, 30 days) is recommended.
 5. **Restriction on Founder's relatives.** A proposed further restriction would make the Founder's relatives ineligible for the Presidency and the chair of the principal governing bodies. It has been left out of the operative text pending legal review of its enforceability and fairness.
-6. **Governance contributions.** Schedule E lists contributions for offices (Project Director, Director, Trustee, Council) alongside membership classes. Counsel should confirm these cannot operate as a pay-to-serve condition, consistent with Article IV, Section 4(2) and Article XV, Section 9(4).
+6. **Governance contributions.** Schedule E lists contributions for offices (Project Director, Director, Trustee, Council) alongside membership classes. Counsel should confirm these cannot operate as a pay-to-serve condition, consistent with Article IV, Section 4(2) and Article XVI, Section 9(4).
 7. **Affordability of executive offices.** Article X, Section 3(4) now lets one person hold more than one Chief Officer role until separate appointments are affordable, with independence kept for finance, compliance, and safeguarding.
+8. **Social Franchise and CACENTRE Adoption.** Article XIII and Schedule H are drawn from the public Social Franchise and Governance Framework, and the adoption provisions are a new draft. Before adoption, confirm: how the framework's "Level C" and "Level B" map to Ranks C and B; whether CIMC Levels 1 and 2 should be named in the Constitution; how funds a Franchise Holder raises locally are held under Article XVI, Section 4; the length of probation; and the fees, thresholds, and notice periods to be set in the Social Franchise and Adoption Bylaws.
 
 ### Changes made in this edition
 
 - Introduced Parts, a definitions article (Article II), and a uniform numbering scheme: Article → Section → numbered clause (1) → lettered paragraph (a).
 - Gave every Directorate the same structure: Mandate, Functions, Safeguards, Performance indicators.
 - Removed duplication: Board/Trustee eligibility now refers back to Article IV; Rank requirements for office are in one place (Article V, Section 2); terms of office are consolidated in Schedule D.
-- Moved the President's transitional provision to Article XXV, the dues table to Schedule E, and the ecosystem commentary and constitutional doctrine into Article XI, Section 9.
-- Added Article XXII (Bylaws and Subsidiary Instruments), listing every instrument the text relies on.
+- Moved the President's transitional provision to Article XXVI, the dues table to Schedule E, and the ecosystem commentary and constitutional doctrine into Article XI, Section 9.
+- Added Article XXIII (Bylaws and Subsidiary Instruments), listing every instrument the text relies on.
+- Added Article XIII (The Social Franchise and CACENTRE Adoption) and Schedule H (Social Franchise and CACENTRE Adoption Standards), bringing the Social Franchise and Governance Framework into the Constitution and adding a CACENTRE Adoption process; renumbered former Articles XIII to XXV as XIV to XXVI, and added the related definitions, the Schedule A row, and the Social Franchise and Adoption Bylaws.
 - Turned the review commentary into this Explanatory Note, outside the operative text.
 - Standardised terms ("President" for "Chief Executive or President"; "Chief Officers" for "Chief Executive Officers"; "Verified Active Membership"; "Two-Trainer Formation") and drafting voice ("shall" for duties, "may" for powers).
-- Added the Nigeria Data Protection Act 2023 reference in Article XVIII and the CAMA 2020 reference in Article VIII.
+- Added the Nigeria Data Protection Act 2023 reference in Article XIX and the CAMA 2020 reference in Article VIII.
 
 ### Article concordance (original → this edition)
 
@@ -1554,17 +1888,19 @@ This Constitution shall be read together with the Registered Constitution filed 
 | IX President and Executive | X |
 | X Seven Directorates | XI |
 | XI Academy, NGGC, CACENTREs | XII |
-| XII Project Directors and Succession | XIII |
-| XIII Non-Hereditary Leadership | XIV |
-| XIV Finance and Property | XV |
-| XV Partnerships | XVI |
-| XVI Ethics and Safeguarding | XVII |
-| XVII Research, Data and IP | XVIII |
-| XVIII Performance and Accountability | XIX |
-| XIX Elections, Appointments and Removal | XX |
-| XX Tenure and Continuity | XXI |
-| — | XXII Bylaws and Subsidiary Instruments (new) |
-| XXI Amendments | XXIII |
-| XXII Dissolution | XXIV |
-| XXIII Ratification and Transition | XXV |
+| — | XIII The Social Franchise and CACENTRE Adoption (new) |
+| XII Project Directors and Succession | XIV |
+| XIII Non-Hereditary Leadership | XV |
+| XIV Finance and Property | XVI |
+| XV Partnerships | XVII |
+| XVI Ethics and Safeguarding | XVIII |
+| XVII Research, Data and IP | XIX |
+| XVIII Performance and Accountability | XX |
+| XIX Elections, Appointments and Removal | XXI |
+| XX Tenure and Continuity | XXII |
+| — | XXIII Bylaws and Subsidiary Instruments (new) |
+| XXI Amendments | XXIV |
+| XXII Dissolution | XXV |
+| XXIII Ratification and Transition | XXVI |
 | Schedules A–E | Schedules A, B, C, F, G (terms → D, dues → E) |
+| — | Schedule H Social Franchise and CACENTRE Adoption Standards (new) |

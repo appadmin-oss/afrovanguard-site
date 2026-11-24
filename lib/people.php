@@ -36,7 +36,7 @@ function av_tier_label(string $t): string { return AV_TIER_LABELS[$t] ?? ucfirst
  *       offices — the posts within a body, in order; unknown/blank sorts last
  *
  * Source: the Constitution (docs/governance/constitution.md) — Art. IV §1,
- * VII–XIII and Schedule B. The constitution is members-only
+ * VII–XII, XIV and Schedule B. The constitution is members-only
  * (ConstitutionDoc::PUBLIC = false), so the public page uses only the names
  * of the bodies and offices; every description here is our own plain line,
  * not constitutional text. A row's body and office are stored in
