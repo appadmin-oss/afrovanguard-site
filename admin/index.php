@@ -1,3 +1,4 @@
+<?php require_once dirname(__DIR__) . '/lib/StudioSections.php'; /* the one list of sections: the sidebar below and the roles in app.js */ ?>
 <!DOCTYPE html>
 <html lang="en-NG" data-theme="light">
 <head>
@@ -29,60 +30,16 @@
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
         <svg class="moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       </button>
-      <a class="btn btn-outline btn-sm" href="/diary/" target="_blank" rel="noopener">View site <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a>
-      <button class="btn btn-outline btn-sm" id="logoutBtn" hidden>Log out</button>
+      <button class="btn btn-outline btn-sm find-open" id="findOpen" type="button" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K" aria-label="Find a screen" hidden><svg class="hdr-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><span class="hdr-label">Find</span> <kbd class="hdr-label">Ctrl K</kbd></button>
+      <a class="btn btn-outline btn-sm view-site" href="/diary/" target="_blank" rel="noopener" aria-label="View site (opens in a new tab)"><span class="hdr-label">View site</span> <span aria-hidden="true">↗</span></a>
+      <button class="btn btn-outline btn-sm" id="logoutBtn" aria-label="Log out" hidden><svg class="hdr-ico hdr-ico-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span class="hdr-label">Log out</span></button>
     </div>
   </header>
 
   <!-- Left sidebar — grouped sections (data-tab preserved; driven by app.js) -->
   <aside class="studio-side" id="studioSide">
     <nav class="studio-nav" id="tabs" aria-label="Studio sections" hidden>
-      <div class="nav-group">
-        <button class="tab active" data-tab="overview" aria-current="page"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Overview</span></button>
-      </div>
-      <div class="nav-group">
-        <p class="nav-group-h">Content</p>
-        <button class="tab" data-tab="entries"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h10a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V4z"/><path d="M16 6h4v12a2 2 0 0 1-2 2"/><path d="M8 8h4M8 12h4"/></svg><span>Diary</span></button>
-        <button class="tab" data-tab="site"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M7 13h6M7 16h9"/></svg><span>Site</span><span class="tab-badge" id="siteBadge" hidden></span></button>
-        <button class="tab" data-tab="media"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></svg><span>Media</span></button>
-        <button class="tab" data-tab="moderation"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.2-2.9 7.3-7 8-4.1-.7-7-3.8-7-8V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg><span>Moderation</span><span class="tab-badge" id="modBadge" hidden></span></button>
-        <button class="tab" data-tab="inbox"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h5l2 3h4l2-3h5"/><path d="M5 5h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg><span>Inbox</span></button>
-      </div>
-      <div class="nav-group">
-        <p class="nav-group-h">Academy</p>
-        <button class="tab" data-tab="academy"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4L2 9l10 5 10-5-10-5z"/><path d="M6 11v5c0 1.3 2.7 2.5 6 2.5s6-1.2 6-2.5v-5"/><path d="M22 9v5"/></svg><span>Academy</span></button>
-        <button class="tab" data-tab="summit"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M10 20v-5h4v5"/></svg><span>Summit</span><span class="tab-badge" id="sumBadge" hidden></span></button>
-      </div>
-      <div class="nav-group">
-        <p class="nav-group-h">People</p>
-        <button class="tab" data-tab="members"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.6 2.7-5.5 6-5.5"/><path d="M15 12l2 2 4-4"/></svg><span>Members</span></button>
-        <button class="tab" data-tab="people"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5.2 6.5-5.2s6.5 1.9 6.5 5.2"/><path d="M17 8.2a3 3 0 0 1 0 5.6"/><path d="M19 20c0-2.2-1-3.7-2.6-4.6"/></svg><span>People</span></button>
-        <button class="tab" data-tab="mentorship"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="9" r="2.6"/><circle cx="16.5" cy="8" r="2.2"/><path d="M3.5 19c0-2.8 2.1-4.3 4.5-4.3s4.5 1.5 4.5 4.3"/><path d="M14.5 14.4c2-.3 4 .9 4 3.1"/><path d="M12 13l2.5-2.4"/></svg><span>Mentorship</span></button>
-        <button class="tab" data-tab="celebrations"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="9" width="18" height="12" rx="1.5"/><path d="M3 13h18M12 9v12"/><path d="M12 9c-1.5-2.5-5-2.5-5-.5 0 1 .8 1.5 2 1.5h3zM12 9c1.5-2.5 5-2.5 5-.5 0 1-.8 1.5-2 1.5h-3z"/></svg><span>Celebrations</span></button>
-        <button class="tab" data-tab="sessions"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M7 13h4v4H7z"/></svg><span>Sessions</span><span class="tab-badge tab-badge--live" id="psLiveBadge" hidden>Live</span></button>
-        <button class="tab" data-tab="events"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M12 12.5l1.1 2.2 2.4.3-1.8 1.7.5 2.4-2.2-1.2-2.2 1.2.5-2.4-1.8-1.7 2.4-.3z"/></svg><span>Events</span></button>
-      </div>
-      <div class="nav-group">
-        <p class="nav-group-h">Community</p>
-        <button class="tab" data-tab="communities"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 12h5"/></svg><span>Communities</span></button>
-      </div>
-      <div class="nav-group">
-        <p class="nav-group-h">System</p>
-        <button class="tab" data-tab="webhooks"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 13.5a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14.5 10.5a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>Webhooks</span></button>
-        <button class="tab" data-tab="signin"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3"/><path d="M16 5l3 3M18.5 7.5l1.5 1.5"/></svg><span>Sign-in</span></button>
-        <button class="tab" data-tab="system"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 7 19.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.7 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6V4a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9z"/></svg><span>System</span></button>
-        <button class="tab" data-tab="rules"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"/><path d="M5 7h14"/><path d="M7 7l-3 6h6L7 7z"/><path d="M17 7l-3 6h6l-3-6z"/></svg><span>Rules &amp; AI</span></button>
-        <button class="tab" data-tab="aiops"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13h3l2.5-6 3 12 2.5-9 2 3h5"/><circle cx="19" cy="6" r="2"/></svg><span>AI Ops</span><span class="tab-badge" id="opsBadge" hidden></span></button>
-        <button class="tab" data-tab="activity"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg><span>Activity</span></button>
-        <button class="tab" data-tab="database"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span>Database</span></button>
-        <button class="tab" data-tab="design"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1 .8-1.5 1.7-1.5H17a5 5 0 0 0 5-5c0-5-4.5-9-10-9z"/></svg><span>Design</span></button>
-        <button class="tab" data-tab="admins"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3.2"/><path d="M22 11l-2.5 2.5L18 12"/></svg><span>Team &amp; roles</span></button>
-      </div>
-      <div class="nav-group">
-        <p class="nav-group-h">Help</p>
-        <button class="tab" data-tab="guide"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3"/><line x1="12" y1="17" x2="12" y2="17"/></svg><span>Guide</span></button>
-      </div>
-    </nav>
+<?= StudioSections::navHtml() ?>    </nav>
   </aside>
   <div class="studio-scrim" id="studioScrim" hidden></div>
 
@@ -153,11 +110,18 @@
   <!-- OVERVIEW (landing dashboard) -->
   <main class="studio-main" id="overviewView" hidden>
     <div class="studio-head">
-      <div><h1>Overview</h1><p class="muted">A snapshot of the site — content, people and delivery health at a glance.</p></div>
+      <div><h1>Overview</h1><p class="muted">What is waiting on you first, then the site at a glance — content, people and delivery health.</p></div>
       <button class="btn btn-outline btn-sm" id="ovRefreshBtn">Refresh</button>
     </div>
 
     <div class="ov-alert" id="ovMailAlert" hidden></div>
+
+    <!-- Waiting on you (lib/StudioToday.php): every queue that needs a person, first. -->
+    <section class="ov-today" id="ovToday" aria-labelledby="ovTodayH">
+      <h2 id="ovTodayH">Waiting on you</h2>
+      <p class="sr-only" id="ovTodayCount" role="status" aria-live="polite"></p>
+      <ul class="ov-today-list" id="ovTodayList"><li class="muted">Loading…</li></ul>
+    </section>
 
     <!-- Report §21: what needs a decision, above what merely happened. -->
     <section class="brief" id="ovBrief" aria-labelledby="ovBriefH" hidden>
@@ -488,6 +452,7 @@
     <div class="studio-subtabs" role="tablist" aria-label="Member sections">
       <button class="subtab active" data-mv="dash" role="tab">Dashboard</button>
       <button class="subtab" data-mv="roster" role="tab">Roster</button>
+      <button class="subtab subtab-go" data-ngv-open="members" type="button">NextGen Vanguard <span aria-hidden="true">→</span></button>
       <button class="subtab" data-mv="roles" role="tab">Roles</button>
       <button class="subtab" data-mv="verify" role="tab">To verify <span class="badge draft" id="mvBadge" hidden></span></button>
       <button class="subtab" data-mv="centres" role="tab">Centres</button>
@@ -739,6 +704,9 @@
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="mdTitle">
       <div class="modal-top"><h2 id="mdTitle">Member</h2><button class="btn btn-outline btn-sm" id="mdClose" aria-label="Close">✕</button></div>
       <div class="modal-body">
+        <section class="mem-eval" id="mdEval" aria-labelledby="mdEvalH" aria-live="polite"><h3 class="mem-card-h" id="mdEvalH">How they are doing</h3><p class="muted">…</p></section>
+        <section class="mem-eval mem-eval-ngv" id="mdNgv" aria-labelledby="mdNgvH" hidden></section>
+        <h3 class="mem-card-h">Details</h3>
         <div class="mem-create-grid">
           <label class="fld"><span>Name</span><input id="md_name" /></label>
           <label class="fld"><span>Email</span><input id="md_email" type="email" /></label>
@@ -1313,6 +1281,124 @@
   </main>
 
   <!-- ACTIVITY (per-area admin audit trail + undo) -->
+  <!-- ═══ Money → Donations (lib/Donations.php): the ledger and the donors ═══ -->
+  <main class="studio-main" id="donationsView" hidden>
+    <div class="studio-head">
+      <div><h1>Donations</h1><p class="muted">Every gift, kept for good with the donor's real name — the public wall shows only those who asked to be on it.</p></div>
+      <a class="btn btn-outline btn-sm" id="donExport" href="#" download>Export CSV</a>
+    </div>
+    <div class="att-counts" id="donSummary" aria-live="polite"></div>
+    <div class="studio-subtabs" role="tablist" aria-label="Donations">
+      <button class="subtab active" role="tab" aria-selected="true" data-don-tab="gifts">Gifts</button>
+      <button class="subtab" role="tab" aria-selected="false" data-don-tab="donors">Donors</button>
+    </div>
+    <section class="don-pane" data-don-pane="gifts">
+      <form class="don-filters" id="donFilters" role="search" autocomplete="off">
+        <label class="fld"><span>Search</span><input type="search" id="donQ" placeholder="Name, email or reference"></label>
+        <label class="fld"><span>Appeal</span><select id="donCampaign"><option value="">All appeals</option></select></label>
+        <label class="fld"><span>Kind</span><select id="donType"><option value="">All kinds</option><option value="card">Card</option><option value="bank_static">Bank transfer</option><option value="bank_va">Virtual account</option><option value="inkind">In kind</option></select></label>
+        <label class="fld"><span>From</span><input type="date" id="donFrom"></label>
+        <label class="fld"><span>To</span><input type="date" id="donTo"></label>
+        <input type="hidden" id="donEmail">
+      </form>
+      <p class="muted tiny" id="donCount" role="status" aria-live="polite"></p>
+      <div class="att-table-wrap">
+        <table class="att-table">
+          <caption class="sr-only">Gifts</caption>
+          <thead><tr><th scope="col">Date</th><th scope="col">Donor</th><th scope="col">Amount</th><th scope="col">Appeal</th><th scope="col">Kind</th><th scope="col">Reference</th></tr></thead>
+          <tbody id="donRows"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="don-pager"><button type="button" class="btn btn-outline btn-sm" id="donPrev">← Newer</button><button type="button" class="btn btn-outline btn-sm" id="donNext">Older →</button></div>
+    </section>
+    <section class="don-pane" data-don-pane="donors" hidden>
+      <div class="don-segs" role="group" aria-label="Which donors">
+        <button type="button" class="btn btn-outline btn-sm is-on" data-don-seg="all" aria-pressed="true">Everyone</button>
+        <button type="button" class="btn btn-outline btn-sm" data-don-seg="lybunt" aria-pressed="false">Gave last year, not yet this year</button>
+        <button type="button" class="btn btn-outline btn-sm" data-don-seg="new" aria-pressed="false">New this year</button>
+        <button type="button" class="btn btn-outline btn-sm" data-don-seg="recurring" aria-pressed="false">Give regularly</button>
+      </div>
+      <div class="don-filters" role="search"><label class="fld"><span>Search donors</span><input type="search" id="donorQ" placeholder="Name or email"></label></div>
+      <p class="muted tiny" id="donorCount" role="status" aria-live="polite"></p>
+      <div class="att-table-wrap">
+        <table class="att-table">
+          <caption class="sr-only">Donors</caption>
+          <thead><tr><th scope="col">Donor</th><th scope="col">Gifts</th><th scope="col">Given in all</th><th scope="col">First gift</th><th scope="col">Latest gift</th><th scope="col"><span class="sr-only">Their gifts</span></th></tr></thead>
+          <tbody id="donorRows"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- ═══ People → Attendance (lib/GateAttendance.php): a day's register, and the settings in their groups ═══ -->
+  <main class="studio-main" id="attendanceView" hidden>
+    <div class="studio-head">
+      <div><h1>Attendance</h1><p class="muted">Who came in through the CACENTRE gate, and the rules it is judged by. NextGen Vanguard's own desk is under Members → NextGen Vanguard → Attendance.</p></div>
+    </div>
+    <div class="studio-subtabs" role="tablist" aria-label="Attendance">
+      <button class="subtab active" role="tab" aria-selected="true" data-att-tab="day">The day</button>
+      <button class="subtab" role="tab" aria-selected="false" data-att-tab="settings">Settings</button>
+    </div>
+    <section class="att-pane" data-att-pane="day">
+      <div class="att-day-bar">
+        <label class="fld att-day-pick"><span>Day</span><input type="date" id="attDay" /></label>
+        <p class="muted tiny" id="attRule"></p>
+      </div>
+      <div class="att-counts" id="attCounts" aria-live="polite"></div>
+      <div class="att-table-wrap">
+        <table class="att-table">
+          <caption class="sr-only">The day's register</caption>
+          <thead><tr><th scope="col">Name</th><th scope="col">Status</th><th scope="col">In</th><th scope="col">Late by</th><th scope="col">Out</th><th scope="col">Centre</th></tr></thead>
+          <tbody id="attRows"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <h2 class="att-h">Expected and not in yet</h2>
+      <p class="muted" id="attNotIn"></p>
+    </section>
+    <section class="att-pane" data-att-pane="settings" hidden>
+      <form id="attSettings" novalidate>
+        <div id="attGroups"><p class="muted">Loading…</p></div>
+        <div class="mem-errors" id="attErrors" role="alert" hidden></div>
+        <div class="editor-actions att-save"><button type="submit" class="btn btn-primary" id="attSave">Save attendance settings</button><span class="muted tiny" id="attSaved" role="status" aria-live="polite"></span></div>
+      </form>
+    </section>
+  </main>
+
+  <!-- Consoles of their own pages, one tab each (NextGen Vanguard, Appeals) — drawn from lib/StudioSections.php -->
+<?= StudioSections::frameViewsHtml() ?>
+  <!-- ═══ Money → Bank transfers (lib/BankGifts.php): one admin records, another verifies ═══ -->
+  <main class="studio-main" id="giftsView" hidden>
+    <div class="studio-head">
+      <div><h1>Bank transfers</h1><p class="muted">A gift paid into the bank account. Record what the statement shows; a different admin checks it against the statement, and only then is it counted and the donor receipted.</p></div>
+      <button class="btn btn-outline btn-sm" id="giftsRefresh">Refresh</button>
+    </div>
+    <div class="mem-dash">
+      <div class="side-card">
+        <h3>Record a transfer</h3>
+        <form id="giftForm" autocomplete="off" novalidate>
+          <label class="fld"><span>Donor's name (as on the statement)</span><input id="gf_name" maxlength="100" required></label>
+          <label class="fld"><span>Email for the receipt</span><input id="gf_email" type="email" maxlength="191" required></label>
+          <label class="fld"><span>Amount (₦)</span><input id="gf_amount" inputmode="decimal" maxlength="12" required></label>
+          <label class="fld"><span>Appeal</span><select id="gf_campaign"></select></label>
+          <label class="fld"><span>Bank reference</span><input id="gf_ref" maxlength="80" required></label>
+          <label class="fld"><span>Date it arrived</span><input id="gf_paid" type="date" required></label>
+          <label class="fld"><span>How often</span><select id="gf_freq"><option>One-time</option><option>Monthly</option><option>Annual</option></select></label>
+          <label class="mem-check"><input type="checkbox" id="gf_listed"> <span>The donor asked to be named on the donor wall</span></label>
+          <label class="fld"><span>Note for the checker (not sent to the donor)</span><input id="gf_note" maxlength="500"></label>
+          <div class="mem-errors" id="gf_errors" role="alert" hidden></div>
+          <div class="editor-actions"><button type="submit" class="btn btn-primary btn-sm" id="gf_save">Record — for another admin to verify</button></div>
+        </form>
+      </div>
+      <div class="side-card">
+        <h3>Transfers</h3>
+        <p class="muted tiny">You cannot verify a transfer you recorded. Check each against the bank statement before you press Verify: that is the moment it is counted and the donor is emailed a receipt.</p>
+        <div class="mem-filters"><select id="giftsStatus" aria-label="Which transfers"><option value="pending">Waiting to be verified</option><option value="verified">Verified</option><option value="rejected">Rejected</option><option value="all">All</option></select></div>
+        <p class="sr-only" id="giftsCount" role="status" aria-live="polite"></p>
+        <div class="entry-list" id="giftsList" aria-live="polite"></div>
+      </div>
+    </div>
+  </main>
+
   <main class="studio-main" id="activityView" hidden>
     <div class="studio-head">
       <div><h1>Activity</h1><p class="muted">Every admin action, by area — with one-click undo on reversible ones.</p></div>
@@ -1868,6 +1954,20 @@
        including the sign-in screen. admin/app.js loads it the first time an
        editor opens (initTiny); until then, and if it is missing, the field is a
        plain textarea. -->
+  <!-- The one search (Ctrl+K): every Studio screen, the member desk's panes, and the other staff consoles. -->
+  <div class="find-backdrop" id="findBox" hidden>
+    <div class="find-box" role="dialog" aria-modal="true" aria-labelledby="findTitle">
+      <h2 id="findTitle" class="sr-only">Find a screen</h2>
+      <div role="search">
+        <label class="sr-only" for="findInput">Find a screen or console</label>
+        <input id="findInput" type="search" autocomplete="off" spellcheck="false" placeholder="Find a screen… try bank, dues, appeals, roles" role="combobox" aria-expanded="true" aria-controls="findList" aria-autocomplete="list" />
+      </div>
+      <p class="sr-only" id="findCount" role="status" aria-live="polite"></p>
+      <ul class="find-list" id="findList" role="listbox" aria-label="Matches"></ul>
+      <p class="find-keys"><kbd>↑</kbd> <kbd>↓</kbd> to move · <kbd>Enter</kbd> to open · <kbd>Esc</kbd> to close</p>
+    </div>
+  </div>
+  <script type="application/json" id="studioSections"><?= json_encode(StudioSections::forPage(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
   <script src="/admin/app.js?v=<?= (int) @filemtime(__DIR__ . '/app.js') ?>" defer></script>
   <script src="/assets/site/avc-photo.js?v=<?= (int) @filemtime(dirname(__DIR__) . '/assets/site/avc-photo.js') ?>" defer></script>
   <script src="/admin/card-photo.js?v=<?= (int) @filemtime(__DIR__ . '/card-photo.js') ?>" defer></script>

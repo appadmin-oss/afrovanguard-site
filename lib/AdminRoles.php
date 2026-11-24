@@ -37,8 +37,60 @@ final class AdminRoles
                 added_by VARCHAR(191) NOT NULL DEFAULT '',
                 created_at VARCHAR(32) NOT NULL DEFAULT ''
             )");
+            /* Trusts granted per person, on top of the role (see CAPS). */
+            if (!Database::columnExists('admin_users', 'caps')) Database::pdo()->exec("ALTER TABLE admin_users ADD COLUMN caps VARCHAR(120) NOT NULL DEFAULT ''");
         } catch (Throwable $e) { error_log('[adminroles] ensure: ' . $e->getMessage()); }
         self::$ready = true;
+    }
+
+    /**
+     * Trusts that no role carries: granted to a person, by a Super Admin. NGG
+     * keeps money and the institutional record out of every bundle for the
+     * same reason — an admin runs the office; who may see donors and move
+     * money is a separate decision about a person. A Super Admin holds them all.
+     *
+     *   money  donations, donors, bank transfers to record and verify, appeals
+     */
+    public const CAPS = ['money' => 'Money — donations, donors, bank transfers, appeals'];
+
+    /** The trusts this address was granted (not counting a Super Admin's, who holds all). */
+    public static function capsForEmail(string $email): array
+    {
+        $email = strtolower(trim($email)); if ($email === '' || !self::orgEmail($email)) return [];
+        self::ensure();
+        try {
+            $st = Database::pdo()->prepare('SELECT caps FROM admin_users WHERE email = ?'); $st->execute([$email]);
+            return array_values(array_intersect(array_map('trim', explode(',', (string) $st->fetchColumn())), array_keys(self::CAPS)));
+        } catch (Throwable $e) { return []; }
+    }
+
+    /** Does the person acting now hold this trust? A Super Admin always does; a role alone never does. */
+    public static function hasCap(string $cap): bool
+    {
+        if (!isset(self::CAPS[$cap])) return false;
+        $role = self::effective();
+        if ($role === 'superadmin') return true;
+        if ($role === '') return false;
+        return in_array($cap, self::capsForEmail(self::email()), true);
+    }
+
+    /** What the acting person holds, for the Studio to show and hide by. */
+    public static function currentCaps(): array
+    {
+        return array_values(array_filter(array_keys(self::CAPS), [self::class, 'hasCap']));
+    }
+
+    /** Grant or withdraw a person's trusts. Only for an admin already on the team; a Super Admin's need no grant. */
+    public static function setCaps(string $email, array $caps): array
+    {
+        $email = strtolower(trim($email));
+        $role = self::roleForEmail($email);
+        if ($role === '') return ['ok' => false, 'code' => 'not_admin', 'error' => 'Add them to the team first.'];
+        if ($role === 'superadmin') return ['ok' => false, 'code' => 'superadmin', 'error' => 'A Super Admin already holds every trust.'];
+        $caps = array_values(array_intersect(array_map('strval', $caps), array_keys(self::CAPS)));
+        self::ensure();
+        try { Database::pdo()->prepare('UPDATE admin_users SET caps = ? WHERE email = ?')->execute([implode(',', $caps), $email]); return ['ok' => true, 'caps' => $caps]; }
+        catch (Throwable $e) { return ['ok' => false, 'error' => 'Could not save.']; }
     }
 
     public static function roleForEmail(string $email): string
@@ -164,7 +216,7 @@ final class AdminRoles
         self::ensure();
         /* `valid` says whether the row still grants anything: an off-domain entry is listed so it can be removed, never honoured. */
         try { return array_map(static fn($r) => $r + ['valid' => self::orgEmail((string) $r['email'])],
-                  Database::pdo()->query('SELECT email, role, added_by, created_at FROM admin_users ORDER BY role DESC, email ASC')->fetchAll(PDO::FETCH_ASSOC) ?: []); }
+                  Database::pdo()->query('SELECT email, role, caps, added_by, created_at FROM admin_users ORDER BY role DESC, email ASC')->fetchAll(PDO::FETCH_ASSOC) ?: []); }
         catch (Throwable $e) { return []; }
     }
 

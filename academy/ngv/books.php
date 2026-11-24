@@ -66,6 +66,7 @@ $csrf  = av_csrf_token();
 .s-on{background:var(--green-bg);color:var(--green)}.s-off{background:#eef0f3;color:var(--muted)}
 #b_title{min-width:16rem}
 </style>
+<?php require __DIR__ . '/_in-studio.php'; /* opened inside the Studio: drop the second navigation */ ?>
 </head>
 <body>
 <?php if (!$isAdmin): ?>

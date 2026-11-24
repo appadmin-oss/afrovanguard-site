@@ -636,6 +636,7 @@ details.sect>summary{margin-bottom:8px}
   .enroll input{min-width:100%}
 }
 </style>
+<?php require __DIR__ . '/_in-studio.php'; /* opened inside the Studio: drop the second navigation */ ?>
 </head>
 <body>
 <?php if (!$isAdmin): ?>

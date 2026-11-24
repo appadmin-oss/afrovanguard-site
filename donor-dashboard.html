@@ -407,89 +407,15 @@ main:focus{outline:none}
   </div>
 </section>
 
-<!-- Admin Section -->
+<!-- Staff: bank transfers are recorded in the Studio, by a named admin, and
+     counted when a second admin verifies them (lib/BankGifts.php). This page
+     used to ask for the master admin token; it never will again. -->
 <section class="admin-sec" id="adminSection">
   <div class="container">
-    <div class="sec-label" style="color:rgba(243,180,22,.7);">Admin Access</div>
-    <h2 class="sec-title">Confirm Bank Transfers</h2>
-    <p class="sec-sub">Use this panel to record and confirm donations made via the static Zenith Bank account. The donor will be emailed a receipt and their gift will appear on the donor wall.</p>
-
-    <div class="admin-gate" id="adminGate">
-      <label for="adminToken">Admin Token</label>
-      <input type="password" class="admin-input" id="adminToken" placeholder="Enter your admin token" autocomplete="off">
-      <button class="admin-btn" id="adminLoginBtn" onclick="adminLogin()">Unlock Admin Panel</button>
-      <p style="font-size:11.5px;color:rgba(255,255,255,.3);margin-top:12px;">Token is defined in config.php as ADMIN_TOKEN.</p>
-    </div>
-
-    <div class="admin-panel" id="adminPanel">
-
-      <div class="admin-form">
-        <h3>Record Bank Transfer</h3>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="bt_name">Full Name *</label>
-            <input type="text" class="admin-input" id="bt_name" placeholder="Tunde Johnson">
-          </div>
-          <div class="form-group">
-            <label for="bt_email">Email Address *</label>
-            <input type="email" class="admin-input" id="bt_email" placeholder="tunde@example.com">
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="bt_amount">Amount (NGN) *</label>
-            <input type="number" class="admin-input" id="bt_amount" placeholder="50000" min="1000" oninput="updateTierPreview(this.value)">
-            <div class="tier-preview" id="tierPreview"></div>
-          </div>
-          <div class="form-group">
-            <label for="bt_campaign">Campaign *</label>
-            <select class="admin-input" id="bt_campaign">
-              <option value="general">General Fund — Where It's Needed Most</option>
-              <!-- The campaigns running now are added from /give/feed.json (loadCampaigns). -->
-            </select>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="bt_frequency">Frequency</label>
-            <select class="admin-input" id="bt_frequency">
-              <option value="One-time">One-time</option>
-              <option value="Monthly">Monthly</option>
-              <option value="Annual">Annual</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="bt_anon" style="margin-bottom:14px;">Anonymous?</label>
-            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-              <input type="checkbox" id="bt_anon" style="width:16px;height:16px;accent-color:var(--gold);">
-              <span style="font-size:13px;color:rgba(255,255,255,.55);">Hide name on donor wall</span>
-            </label>
-          </div>
-        </div>
-        <div class="form-row full">
-          <div class="form-group">
-            <label for="bt_note">Internal Note (not sent to donor)</label>
-            <input type="text" class="admin-input" id="bt_note" placeholder="e.g. Transfer on 12 Mar 2026, ref: ABC123">
-          </div>
-        </div>
-        <button class="admin-btn" id="confirmBtn" onclick="confirmTransfer()">
-          <span id="confirmBtnText">Confirm &amp; Record Transfer</span>
-        </button>
-        <div class="confirm-success" id="confirmSuccess">
-          <p>✅ Transfer recorded. A receipt has been sent to the donor, and the donation is now live on the donor wall.</p>
-          <p id="confirmRef" style="font-size:11px;color:rgba(255,255,255,.4);margin-top:6px;font-family:monospace;"></p>
-        </div>
-      </div>
-
-      <div class="confirmed-list">
-        <h3>Recently Confirmed Transfers</h3>
-        <p class="recent-header">Latest 10 bank transfers confirmed via admin</p>
-        <div id="confirmedList">
-          <p style="font-size:13px;color:rgba(255,255,255,.35);">No confirmed transfers yet.</p>
-        </div>
-      </div>
-
-    </div>
+    <div class="sec-label">For staff</div>
+    <h2 class="sec-title">Recording a bank transfer</h2>
+    <p class="sec-sub">Gifts paid into the bank account are recorded in the Studio under <strong>Money → Bank transfers</strong>. One admin enters what the statement shows; a second admin checks it and the donor is then receipted and counted.</p>
+    <p><a class="admin-btn" href="/admin/#gifts">Open the Studio</a></p>
   </div>
 </section>
 
@@ -509,7 +435,6 @@ main:focus{outline:none}
 let donorPage     = 0;
 let donorTotal    = 0;
 let currentFilter = 'all';
-let adminToken    = '';
 
 /* The general fund, and the colours campaign cards take in turn. The campaigns
    themselves are the appeals running now (/give/feed.json), never a list
@@ -798,174 +723,7 @@ function loadDonors(reset) {
 
 function loadMore() { loadDonors(false); }
 
-/* ════════════════════════════════════════════════════════════
-   ADMIN
-   ════════════════════════════════════════════════════════════ */
-async function adminLogin() {
-  const token = document.getElementById('adminToken').value.trim();
-  if (!token) { showToast('Please enter your admin token', 'error'); return; }
-  const btn = document.getElementById('adminLoginBtn');
-  btn.disabled = true; btn.textContent = 'Verifying…';
-  try {
-    const r = await fetch('process-donation.php', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'verify_admin_token', admin_token: token })
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const data = await r.json();
-    if (!data.success) {
-      showToast('Incorrect token. Access denied.', 'error');
-      document.getElementById('adminToken').value = '';
-      btn.disabled = false; btn.textContent = 'Unlock Admin Panel'; return;
-    }
-  } catch(e) {
-    showToast('Network error. Please try again.', 'error');
-    btn.disabled = false; btn.textContent = 'Unlock Admin Panel'; return;
-  }
-  adminToken = token;
-  document.getElementById('adminToken').value = '';
-  document.getElementById('adminGate').style.display = 'none';
-  document.getElementById('adminPanel').classList.add('open');
-  loadConfirmedTransfers();
-  btn.disabled = false; btn.textContent = 'Unlock Admin Panel';
-  showToast('Admin panel unlocked', 'success');
-}
 
-function confirmTransfer() {
-  const name     = document.getElementById('bt_name').value.trim();
-  const email    = document.getElementById('bt_email').value.trim();
-  const amount   = parseFloat(document.getElementById('bt_amount').value);
-  const campaign = document.getElementById('bt_campaign').value;
-  const freq     = document.getElementById('bt_frequency').value;
-  const anon     = document.getElementById('bt_anon').checked;
-
-  if (!name)                { showToast('Please enter the donor\'s full name', 'error'); return; }
-  if (!email || !/\S+@\S+\.\S+/.test(email)) { showToast('Please enter a valid email address', 'error'); return; }
-  if (!amount || amount < 1000) { showToast('Minimum transfer amount is ₦1,000', 'error'); return; }
-
-  const btn = document.getElementById('confirmBtn');
-  btn.disabled = true;
-  document.getElementById('confirmBtnText').textContent = 'Recording…';
-
-  fetch('process-donation.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action:       'record_bank_transfer',
-      admin_token:  adminToken,
-      name,
-      email,
-      amount,
-      campaign,
-      frequency:    freq,
-      anonymous:    anon,
-    })
-  })
-  .then(r => r.json())
-  .then(data => {
-    btn.disabled = false;
-    document.getElementById('confirmBtnText').innerHTML = 'Confirm &amp; Record Transfer';
-    if (data.success) {
-      const tier = dbGetTier(amount);
-      document.getElementById('confirmSuccess').style.display = 'block';
-      document.getElementById('confirmRef').textContent = 'Reference: ' + (data.reference||'—') + '  ·  ' + tier.icon + ' ' + tier.name + ' Donor';
-      // Clear form
-      ['bt_name','bt_email','bt_amount','bt_note'].forEach(id => {
-        const el = document.getElementById(id); if(el) el.value = '';
-      });
-      document.getElementById('bt_anon').checked = false;
-      const preview = document.getElementById('tierPreview'); if(preview) preview.className = 'tier-preview';
-      showToast('✅ Transfer confirmed — receipt emailed. ' + tier.icon + ' ' + tier.name + ' donor added.', 'success');
-      // Refresh lists
-      loadDonors(true);
-      loadCampaigns();
-      loadConfirmedTransfers();
-      setTimeout(() => { document.getElementById('confirmSuccess').style.display = 'none'; }, 6000);
-    } else {
-      if (data.message && data.message.includes('Unauthorized')) {
-        showToast('Incorrect admin token — please refresh and try again.', 'error');
-        document.getElementById('adminPanel').classList.remove('open');
-        document.getElementById('adminGate').style.display = 'block';
-      } else {
-        showToast(data.message || 'Failed to record transfer. Please try again.', 'error');
-      }
-    }
-  })
-  .catch(() => {
-    btn.disabled = false;
-    document.getElementById('confirmBtnText').innerHTML = 'Confirm &amp; Record Transfer';
-    showToast('Network error. Please check your connection.', 'error');
-  });
-}
-
-/* ════════════════════════════════════════════════════════════
-   TIER HELPERS (mirrors donate.html logic)
-   ════════════════════════════════════════════════════════════ */
-const DB_TIERS = [
-  { key:'platinum', name:'Platinum', icon:'💎', min:50000000, pillBg:'rgba(154,165,180,.18)', pillColor:'#9aa5b4' },
-  { key:'gold',     name:'Gold',     icon:'🥇', min:20000000, pillBg:'rgba(243,180,22,.15)',  pillColor:'var(--gold)' },
-  { key:'silver',   name:'Silver',   icon:'🥈', min:5000000,  pillBg:'rgba(156,163,175,.15)', pillColor:'#9ca3af' },
-  { key:'bronze',   name:'Bronze',   icon:'🥉', min:1000000,  pillBg:'rgba(180,83,9,.12)',    pillColor:'#b45309' },
-  { key:'patron',   name:'Patron',   icon:'⭐', min:100000,   pillBg:'rgba(99,102,241,.12)',  pillColor:'#818cf8' },
-  { key:'friend',   name:'Friend',   icon:'💛', min:0,        pillBg:'rgba(34,197,94,.10)',   pillColor:'#4ade80' },
-];
-
-function dbGetTier(ngn) {
-  for (const t of DB_TIERS) { if (ngn >= t.min) return t; }
-  return DB_TIERS[DB_TIERS.length - 1];
-}
-
-function dbParseAmount(d) {
-  if (d.amount_raw) return parseFloat(d.amount_raw);
-  if (d.amount_ngn) return parseFloat(d.amount_ngn);
-  const s = (d.amount_display || '').replace(/,/g,'');
-  const m = s.match(/[\d.]+/);
-  if (!m) return 0;
-  let n = parseFloat(m[0]);
-  if (s.includes('M')) n *= 1e6;
-  else if (/k/i.test(s)) n *= 1e3;
-  return n;
-}
-
-function updateTierPreview(val) {
-  const preview = document.getElementById('tierPreview');
-  if (!preview) return;
-  const amt = parseFloat(val) || 0;
-  if (amt < 100) { preview.className = 'tier-preview'; return; }
-  const tier = dbGetTier(amt);
-  preview.className = 'tier-preview visible';
-  preview.style.background = tier.pillBg;
-  preview.style.borderColor = tier.pillColor;
-  preview.style.color = tier.pillColor;
-  preview.innerHTML = `${tier.icon} This donor will receive <strong style="margin-left:3px;">${tier.name} status</strong>`;
-}
-
-function loadConfirmedTransfers() {
-  fetch('process-donation.php?action=get_donors&limit=10&type=monetary')
-    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-    .then(function(data){
-      var list=document.getElementById('confirmedList'); if(!list) return;
-      var bank=(data.donors||[]).filter(function(d){return d.type==='bank_static'||d.type==='bank_va';});
-      if(!bank.length){list.innerHTML='<p style="font-size:13px;color:rgba(255,255,255,.35);">No bank transfers confirmed yet.</p>';return;}
-      list.innerHTML='';
-      bank.forEach(function(d){
-        var amt = dbParseAmount(d);
-        var tier = dbGetTier(amt);
-        var item=document.createElement('div'); item.className='confirmed-item';
-        var left=document.createElement('div'); left.className='ci-left';
-        var nm=document.createElement('div'); nm.className='ci-name'; nm.textContent=d.name||'Anonymous';
-        var det=document.createElement('div'); det.className='ci-detail'; det.textContent=(d.campaign||'general')+' · '+(d.time_ago||'—');
-        var tp=document.createElement('span'); tp.className='ci-tier-pill';
-        tp.style.background=tier.pillBg; tp.style.color=tier.pillColor;
-        tp.textContent=tier.icon+' '+tier.name;
-        left.append(nm,det,tp);
-        var right=document.createElement('div'); right.style.textAlign='right';
-        var am=document.createElement('div'); am.className='ci-amount'; am.textContent=d.amount_display||'—';
-        right.appendChild(am); item.append(left,right); list.appendChild(item);
-      });
-    })
-    .catch(function(err){console.error('[Dashboard] loadConfirmedTransfers:',err.message);});
-}
 
 
 /* ════════════════════════════════════════════════════════════
@@ -974,14 +732,6 @@ function loadConfirmedTransfers() {
 document.getElementById('yr').textContent = new Date().getFullYear();
 loadCampaigns();
 loadDonors(true);
-
-// Allow Enter key in admin token field
-var tokenInput = document.getElementById('adminToken');
-if (tokenInput) {
-  tokenInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') adminLogin();
-  });
-}
 
 </script>
 </body>

@@ -327,6 +327,8 @@ require_once __DIR__ . '/GateAttendance.php';   /* what the gate reports back ab
 require_once __DIR__ . '/MemberCards.php';      /* the secure and printed cards the gate reads */
 require_once __DIR__ . '/NgvCard.php';          /* the NGV ID card and the one standing it prints */
 require_once __DIR__ . '/MemberRoster.php';     /* the member desk: create, manage, import */
+require_once __DIR__ . '/MemberEvaluation.php'; /* how one member is doing: attendance, commitments, growth, money, NGV */
+require_once __DIR__ . '/MemberFollowUps.php';  /* who follows up on a member who needs attention, by when, and what happened */
 require_once __DIR__ . '/Csv.php';              /* a CSV a spreadsheet will not execute — every export goes through it */
 require_once __DIR__ . '/MemberDesk.php';       /* notes, activity, export and messages on the member desk */
 require_once __DIR__ . '/Centres.php';
@@ -338,6 +340,7 @@ require_once __DIR__ . '/Membership.php';
 require_once __DIR__ . '/AcademyPricing.php';  /* the Academy membership price, set in the Studio */       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/AcademyDonation.php';  /* Academy membership by donation, from $20 a year */       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/MemberVerification.php'; /* being a member is an act with a record, not an email domain */
+require_once __DIR__ . '/BankGifts.php';        /* bank-transfer gifts: one admin records, another verifies */
 require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited once the receipt is verified */
 require_once __DIR__ . '/MemberStatement.php';  /* the wallet: every ledger's money on one statement, read only */
 require_once __DIR__ . '/NgvIntake.php';        /* NGG promotions to NGV become NGV accounts here */
@@ -447,6 +450,7 @@ require_once __DIR__ . '/AvPrompts.php';
 require_once __DIR__ . '/Commitments.php';
 require_once __DIR__ . '/AvWeb.php';
 require_once __DIR__ . '/AvTools.php';
+require_once __DIR__ . '/StudioToday.php';     /* the Overview's "waiting on you": every queue that needs a person */
 require_once __DIR__ . '/AvAgent.php';
 require_once __DIR__ . '/AvLab.php';
 // The engine that acts on the rules: meeting cadence, the escalation ladder and

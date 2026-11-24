@@ -435,8 +435,33 @@ final class AvRules
             'label' => 'Programme days',
             'help'  => 'The days an NGV participant is expected in. Only these can be marked absent. Three-letter days, comma-separated.',
         ],
+        /* Lateness: Afrovanguard's own time, the way NGG has its own. The gate
+           asks the issuer how to judge each person (GateAttendance::
+           punctualityFor) and grades the scan by that, so the desk shows what
+           Afrovanguard records — not the location's opening hours. */
+        'gate.lateness_on' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Attendance',
+            'label' => 'Record lateness',
+            'help'  => 'On: a member who checks in after their resumption time plus the grace minutes is recorded late, by how many minutes. Off: everybody who comes in is on time.',
+        ],
+        'gate.resumption_ngv' => [
+            'type' => 'time', 'default' => '07:00', 'group' => 'Attendance',
+            'label' => 'Resumption time — NextGen Vanguard',
+            'help'  => 'When an active NGV participant is due in on a programme day. The spreadsheet system used 07:00.',
+        ],
+        'gate.resumption_member' => [
+            'type' => 'time', 'default' => '09:00', 'group' => 'Attendance',
+            'label' => 'Resumption time — other members',
+            'help'  => 'When every other member is due in, on a day their centre meets.',
+        ],
+        'gate.grace_minutes' => [
+            'type' => 'int', 'default' => 10, 'min' => 0, 'max' => 180, 'group' => 'Attendance',
+            'label' => 'Grace (minutes)',
+            'help'  => 'How long after the resumption time somebody is still on time. Late is measured from the resumption time itself, as NGG measures it.',
+        ],
         'gate.holidays' => [
-            'type' => 'csv', 'default' => '', 'group' => 'Attendance',
+            // No holidays is a real answer: without this, a list set once could never be emptied again.
+            'type' => 'csv', 'default' => '', 'group' => 'Attendance', 'allow_empty' => true,
             'item_pattern' => '/^\d{4}-\d{2}-\d{2}$/',
             'label' => 'Holidays',
             'help'  => 'Dates (YYYY-MM-DD) nobody is expected in. Nobody is marked absent or fined on them.',
@@ -694,6 +719,9 @@ final class AvRules
             case 'enum':
                 return in_array($raw, (array) ($def['options'] ?? []), true) ? $raw : null;
 
+            case 'time':
+                return preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $raw) ? $raw : null;
+
             case 'csv':
                 $parts = array_values(array_filter(array_map('trim', explode(',', $raw)), static fn($p) => $p !== ''));
                 // A csv rule whose meaning includes "none" has to be able to say
@@ -939,6 +967,7 @@ final class AvRules
                 if ($lo !== null && $hi !== null) return 'A whole number between ' . $lo . ' and ' . $hi . '.';
                 return 'A whole number.';
             case 'bool': return 'On or off.';
+            case 'time': return 'A time, HH:MM on the 24-hour clock (e.g. 07:00).';
             case 'enum': return 'One of: ' . implode(', ', (array) ($def['options'] ?? [])) . '.';
             case 'csv':
                 $hint = (string) ($def['item_hint'] ?? '');

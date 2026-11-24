@@ -221,8 +221,11 @@ ck('team api: both public reads go through the public shape', substr_count($secA
 /* ══ 8. Donations: the public wall, the admin token, the mail relay ═══════ */
 $secDon = (string) file_get_contents(AV_ROOT . '/process-donation.php');
 ck('donations: the webhook never publishes the payer\'s email as their name', !str_contains($secDon, 'trim("$fn $ln") ?: $email'));
-ck('donations: the token endpoints use the length-checked, rate-limited compare',
-    substr_count($secDon, 'av_admin_token_matches($token)') === 2 && !str_contains($secDon, 'hash_equals(ADMIN_TOKEN'));
+/* The two token endpoints (record a bank transfer, probe the token) are gone:
+   money is recorded in the Studio by a named admin and verified by another
+   (lib/BankGifts.php). Nothing here may take the master token any more. */
+ck('donations: no endpoint takes the admin token (bank transfers are two-person in the Studio)',
+    !str_contains($secDon, 'av_admin_token_matches(') && !str_contains($secDon, "\$input['admin_token']") && !str_contains($secDon, 'hash_equals(ADMIN_TOKEN'));
 ck('donations: the mail-sending actions have their own tight limit', str_contains($secDon, "['submit_contribute','bank_transfer_copy'], true) && !rateLimit('mail_'"));
 ck('contact: the inbox uses the same token check', str_contains((string) file_get_contents(AV_ROOT . '/process-contact.php'), 'av_admin_token_matches($token)'));
 ck('donor dashboard: no donor field reaches innerHTML', !preg_match('/innerHTML = `[^`]*\$\{d\./', (string) file_get_contents(AV_ROOT . '/donor-dashboard.html')));

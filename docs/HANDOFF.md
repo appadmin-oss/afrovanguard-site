@@ -1275,3 +1275,216 @@ would have vanished on every phone.
 attempt, the average's denominator, the promotion rule, removal-keeps-the-row,
 and the history relabelling. Driven in a browser throughout, including the
 coach end to end against a stub speaking the real provider wire format.
+
+---
+
+## Bank transfers are two-person, in the Studio (2026-11-18)
+
+From the administration audit (`docs/audits/2026-11-18-administration.md`).
+A bank-transfer donation was recorded from a form on the donor dashboard that
+took the master `ADMIN_TOKEN`: nobody named, no second factor, nobody else
+looking. It is now `lib/BankGifts.php` and Studio → Money → Bank transfers:
+one admin records what the statement shows (held: nothing counted, no
+receipt), a different admin verifies it (then stored through
+`Donations::storeIfNew()` and receipted through `Donations::sendReceipt()`, the
+one receipt helper). The recorder cannot verify; the token cannot do either
+(`no_actor`). `record_bank_transfer` and `verify_admin_token` answer 410.
+Tests: `tests/bankgifts.test.php`; `security.test.php` now asserts nothing in
+process-donation.php takes the token. Driven in Chromium with two real admins
+and real second factors.
+
+Found alongside, not yet fixed: the Studio API's role gate is a deny-list
+(an action not in `$managementOnly` is open to editors). Next in the plan.
+
+## One list of Studio sections; the server gate is closed by default (2026-11-18)
+
+`lib/StudioSections.php` is the only list of the Studio's sections: the
+sidebar is drawn from it (`StudioSections::navHtml()`, byte-identical to the
+old hand-written markup), and admin/app.js reads each screen's least role from
+the JSON the page carries — its own `TAB_MIN` table is gone. A section missing
+from it needs a Super Admin. An unknown screen name now lands on the Overview
+(it fell through to the Inbox).
+
+The API's gate was a deny-list: an action not in `$managementOnly` was an
+editor's. `$editorAllowed` now names what editors may do; an action in none
+of the three lists is refused below Super Admin and logged. That found real
+drift — `cel_*`, `comm_*` and `art_*` were open to editors on the server while
+their screens were hidden from them; they are management now.
+`tests/studioregistry.test.php` holds all of it (mutation-tested: an unlisted
+action and an editor-open hidden section both fail it). Add a section to the
+registry and nowhere else in the nav; add an action to exactly one list.
+
+## The Overview opens on "Waiting on you" (2026-11-18)
+
+`lib/StudioToday.php` + `?action=today`: every queue in the Studio that needs a
+person, counted, each opening the screen (and member-desk pane) that resolves
+it. Shown only where the viewer's role may open that screen (read from
+`StudioSections`), so an editor never sees money or the member desk. A queue
+whose count throws is listed as "could not be counted", never as nothing
+waiting — which is why `BankGifts::pendingCount()` no longer swallows errors.
+Four states on screen: loading, nothing waiting, could-not-count, could-not-load
+with Retry. Tests: `tests/studiotoday.test.php`; driven in Chromium across an
+admin, a second admin and an editor. To add a queue, add one row to
+`StudioToday::sources()`.
+
+## The Studio's screen is in the address; one search (Ctrl+K) (2026-11-18)
+
+`#gifts`, `#members/offline`: opening a screen writes it to the address
+(pushState), Back and Forward reopen it (popstate), a refresh stays on it, and
+a link can be sent. A screen the viewer's role may not open is dropped from the
+address. Ctrl+K (or Find in the header) searches every Studio screen the viewer
+may open, the member desk's panes, and the other staff consoles listed in
+`StudioSections::CONSOLES` — a labelled dialog, arrow keys, Enter, Escape
+returns focus. Driven in Chromium (16 checks, admin and editor).
+
+## The Studio, in NGG's Control Room style; NGV and Appeals inside it (2026-11-18)
+
+- **Sidebar by job**, from `StudioSections` alone: People (Members, NextGen
+  Vanguard, Mentorship, Team directory, Celebrations), Money (Bank transfers,
+  Appeals), Content, Programmes, Settings (nine system screens, **folded** by
+  default and unfolding when one of them is opened), Help.
+- **NextGen Vanguard and Appeals are Studio sections now.** A registry entry
+  with `frames` is a console of its own pages, opened inside the Studio one tab
+  each (`#ngv/fines`), with "Open on its own". Each page includes
+  `academy/ngv/_in-studio.php`, which — only when framed by the Studio — hides
+  the page's title and its links to the other console pages, keeps its own
+  buttons and status line, and hides the public cookie notice. Opened alone,
+  every page is unchanged. The Quest desk stays a separate console in Ctrl+K.
+- **The Control Room skin** (end of admin/admin.css): Geist (self-hosted,
+  SIL OFL in `assets/site/fonts/licenses/`), neutral greys, ink for the live
+  state and the primary button, gold kept for money and focus, 8/10/14 radii,
+  compact rows, a light top bar; dark theme to match. Tokens are scoped to
+  `body.studio`, so the public site keeps its look. No `!important`.
+- Phone header: Find, View site and Log out become icons (named for screen
+  readers) so the bar is one row; the Overview's six cards sit three, two or
+  one to a row by the panel's own width.
+Verified in Chromium: bank transfers (13), editor (7), Today (7), links and
+search (17), NGV and the sidebar (14); full suite 10,211.
+
+## Afrovanguard members have a lateness time; Attendance is one organised screen (2026-11-19)
+
+The owner: "Afrovanguard attendance and settings needs to be more structured
+and organized. Afrovanguard members should have a lateness time just like NGG
+has."
+
+- **Lateness, NGG's way.** New rules `gate.lateness_on`, `gate.resumption_ngv`
+  (07:00, the spreadsheet's), `gate.resumption_member` (09:00),
+  `gate.grace_minutes` (10), and a `time` rule type (HH:MM, refused
+  otherwise). `GateAttendance::punctualityFor()` answers the gate's lookup with
+  the member's own rule — the contract NGG answers (`gate_person_punctuality`),
+  which gate.ts already grades by — so the desk records what Afrovanguard will,
+  not the location's hours. `null` (no lateness) on a day not theirs, a holiday,
+  or with lateness off; always sent, so the gate never falls back to the
+  location for an Afrovanguard member. Late minutes count from the resumption
+  time, as NGG's do.
+- **People → Attendance** in the Studio: *The day* (any date: counts, each
+  arrival with its time and minutes late, who is expected and not in) and
+  *Settings* in `GateAttendance::SETTING_GROUPS` — When people are expected,
+  Lateness, Absence (an admin's), Fines and the gate pass, Points (a Super
+  Admin's, read-only to an admin). Programme days are day toggles; holidays a
+  list of dates. Saves go through `rules_save`, so audit and undo are the same;
+  an admin's save passes only if every key is theirs to set.
+- **Two defects fixed on the way.** `gate.holidays` could never be emptied once
+  set (csv without `allow_empty`). And Undo replayed any rule change for any
+  admin, so an admin could reverse a Super Admin's fine or promotion rule; an
+  admin may now undo only the attendance keys they could have set.
+Tests: `tests/attendancesettings.test.php`; `gateattendance.test.php` now
+expects `punctuality` in what the gate is told. Driven in Chromium (12 checks).
+
+## The money desk, and Money as a trust granted per person (2026-11-19)
+
+The last two items of the administration audit.
+
+- **Money is a trust, not a role** (`AdminRoles::CAPS`, `admin_users.caps`),
+  as NGG keeps fees out of every bundle. A Super Admin holds it; any other admin
+  must be granted it by name in Team & roles ("Money access", logged). Every
+  money action is behind one list and one refusal in admin/api.php
+  (`$moneyOnly`, `needs_money`); the Money screens carry `cap: money` in
+  `StudioSections`, so the sidebar, search and links hide them; the Today
+  queue's bank-transfer row and the Appeals console need it too.
+  **On deploy, existing admins lose the Money screens until a Super Admin
+  grants them** — deliberate.
+- **The ledger** (`donations_ledger`, `Donations::ledgerAdd/ledger/donors/
+  summary`): every gift kept for good with the donor's real name, passed
+  privately (`storeIfNew(..., $private)`) so the display file — which the
+  public wall reads — still says "Anonymous" for anyone off the wall. No public
+  page reads the ledger. Gifts from before are carried over from the file once
+  (`ledgerBackfill`). In-kind gifts are recorded too.
+- **Money → Donations**: Gifts (search, appeal, kind, dates; true total and sum
+  for the filter; paged; who recorded and confirmed a bank gift) and Donors
+  (one row per email; segments: gave last year and not yet this year — LYBUNT,
+  new this year, give regularly; retention = last year's donors who gave
+  again). Export CSV of the filter, logged, formula-safe.
+Tests: `tests/moneydesk.test.php`; the Today test covers the trust. Driven in
+Chromium: record → verify → ledger with the real name, wall still silent,
+donors, export, an admin without Money refused everywhere until a Super Admin
+grants it (18 checks); every earlier browser check rerun and passing.
+
+## Member evaluation, and NextGen Vanguard as part of Members (2026-11-19)
+
+Asked for: "focus more on effective member management and evaluation;
+NextGen Vanguards are members — merge them".
+
+- **How they are doing** (`lib/MemberEvaluation.php`, read by `roster_get`):
+  opening a member now starts with their record side by side — attendance at
+  the gate over 90 days (came, on time, late and by how many minutes, absent,
+  streak), commitments kept, their level and what stands between them and the
+  next, fines owing and months behind on dues — and one standing (Doing well /
+  Steady / Needs attention) **with its reasons written out**. Records only, no
+  AI. A judgement needs evidence: attendance is judged on 5+ counted days,
+  commitments on 3+ settled; too little is said, not scored. A part that fails
+  to read is named (`unavailable`), never shown as zero.
+- **A vanguard's programme is a block of their member record**: status,
+  track, cohort, months in and end date, points, probation, programme account,
+  NGV card, and buttons straight to their NGV record, the fines desk and NGV
+  attendance. Probation counts as a concern on the member's standing.
+- **Attendance tiles** on the Members dashboard: attendance under 70%
+  (90 days), late 3+ times (30 days), attending and on time (90%+, on time
+  85%+). They are roster segments, so each is a list, a filter and an export.
+  The thresholds are `MemberEvaluation`'s constants, used by both, so a tile
+  and the drawer cannot disagree. (The day minimum is inlined in the SQL: a
+  bound value arrives as text, and SQLite ranks every number below every text,
+  so `>= '5'` was never true.)
+- **NextGen Vanguard is part of Members** in the Studio: `parent: members` in
+  `StudioSections`. It has no sidebar entry of its own; it opens from the
+  Members tab row ("NextGen Vanguard →") and from a vanguard's record, Members
+  stays lit, and its screen says "← Members". `#ngv/...` links still land —
+  the address parser now resolves a section from the registry, not from the
+  presence of a sidebar tab (which had silently dropped every NGV deep link).
+Tests: `tests/memberevaluation.test.php` (18), the registry test (parent).
+Driven in Chromium: tiles → list → drawer with reasons, vanguard block,
+programme record opened inside the Studio, Members lit, back link, deep link
+(16 checks); the NGV console check rerun through Members (14 checks).
+
+## Following up, and seeing it early (2026-11-19)
+
+"Research and improve" on member management and evaluation. What the research
+said, and what changed for it:
+
+- **A flag nobody owns changes nothing.** Harvard CEPR found one district's
+  attendance early-warning system had no measurable effect; the systems that
+  worked kept a shared log of who intervened and what happened. So
+  **follow-ups** (`lib/MemberFollowUps.php`, table `member_followups`): from a
+  member's record, an admin starts one — what for (filled in from the first
+  concern), who (an admin; editors cannot open the member desk), by when
+  (today to 60 days). One open per member, so two people do not call the same
+  family. It is closed as done or cancelled **with what happened**, and that
+  outcome is written into the member's notes, dated and signed. Opens and
+  closes are audited. Due or late follow-ups are a roster list and a
+  dashboard tile ("Follow-ups due", "Being followed up") and a line on the
+  Overview's Today queue; a late one is a concern on the member's standing.
+- **Tardiness and a falling rate come before chronic absence**, and the
+  first weeks are when to act. So the evaluation has a **trend**: the last 30
+  days against the 60 before (each on 3+ counted days; a shift of 15 points
+  or more). "Slipping" is a concern even while the 90-day rate is still fine
+  (100% → 25% with 70% overall); "improving" is a strength.
+- **Being a first-year member is the main predictor of leaving** (4-H
+  retention study). The record says "First year" (from the joined date, else
+  the account's), and a first-year member with any concern gets "follow up
+  early".
+Also: `tests/ngvcourses.test.php` built "tomorrow" in UTC, which after 23:00
+UTC is already today in Lagos, so it failed every night; it now uses the
+programme's clock.
+Tests: `tests/memberfollowups.test.php` (22). Driven in Chromium: tiles,
+trend, first-year flag, start and close a follow-up, outcome in the notes
+(22 checks in the members run).

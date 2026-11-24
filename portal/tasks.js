@@ -1,5 +1,49 @@
 /* portal/tasks.js — moved verbatim from the inline script of portal/index.php v1
    (row 14 shell rebuild). Its logic is unchanged; it reads the same ids and data-* hooks. */
+/* AvTaskKit — the two pieces of the Tasks page that are rules rather than
+   drawing, kept outside the page's closure so tests/taskflow.test.php can run
+   them in node:
+     oweGroups   "Everything you owe": Overdue / Today / This week / Waiting on you
+     tickQueue   a tick made on a bad connection is kept on this device and sent
+                 when the connection is back — it used to be posted with no
+                 .catch, so a tick on a dropped connection looked done and was lost. */
+(function (g) {
+  function addDays(ymd, n){ var d=new Date(ymd+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+  /* items: {title, due 'YYYY-MM-DD'|'' , waiting?, …}. Waiting on you comes from the
+     answer it needs, whatever its date; beyond a week, or with no date, it is not owed yet. */
+  function oweGroups(items, today){
+    var end=addDays(today,7), by={over:[],today:[],week:[],wait:[]};
+    (items||[]).forEach(function(it){
+      if(it.waiting){ by.wait.push(it); return; }
+      var d=String(it.due||'').slice(0,10); if(!d) return;
+      if(d<today) by.over.push(it); else if(d===today) by.today.push(it); else if(d<=end) by.week.push(it);
+    });
+    ['over','today','week'].forEach(function(k){ by[k].sort(function(a,b){ return String(a.due).localeCompare(String(b.due)); }); });
+    return [['over','Overdue'],['today','Today'],['week','This week'],['wait','Waiting on you']]
+      .filter(function(x){ return by[x[0]].length; }).map(function(x){ return {key:x[0], label:x[1], items:by[x[0]]}; });
+  }
+  /* The tick is a STATE ({id, done}) sent to an idempotent door (task_done), so a
+     retry after a response that was lost on the way back cannot flip it again. */
+  function tickQueue(storage, send, say){
+    var KEY='av.task.ticks';
+    function read(){ try{ return JSON.parse((storage&&storage.getItem(KEY))||'[]')||[]; }catch(e){ return []; } }
+    function write(l){ try{ if(l.length) storage.setItem(KEY, JSON.stringify(l)); else storage.removeItem(KEY); }catch(e){} }
+    function keep(it){ var l=read().filter(function(x){ return x.id!==it.id; }); l.push(it); write(l); }
+    function drop(id){ write(read().filter(function(x){ return x.id!==id; })); }
+    return {
+      pending: read,
+      tick: function(id, done){ var it={id:id, done:!!done};
+        return send(it).then(function(r){ drop(id); return r; }, function(){
+          keep(it); say('No connection — your tick is kept on this device, and we will send it when you are back online.');
+          return {ok:false, queued:true, id:id, done:!!done}; }); },
+      flush: function(){ var l=read(); if(!l.length) return Promise.resolve([]);
+        return Promise.all(l.map(function(it){ return send(it).then(function(r){ drop(it.id); return r; }, function(){ return null; }); }))
+          .then(function(rs){ var n=rs.filter(function(r){ return r && r.ok; }).length; if(n) say(n===1?'Your saved tick was sent.':'Your '+n+' saved ticks were sent.'); return rs; }); }
+    };
+  }
+  g.AvTaskKit = { oweGroups: oweGroups, tickQueue: tickQueue, addDays: addDays };
+})(typeof window !== 'undefined' ? window : globalThis);
+
   /* Collaboration — presence, activity, tasks (with the filter chips). */
   (function () {
     var root = document.getElementById('tasks'); if (!root) return;
@@ -19,11 +63,13 @@
         poolChk=document.getElementById('taskToPool'),
         focusWrap=document.getElementById('taskFocus'), ringEl=document.getElementById('taskRing'),
         ringNEl=document.getElementById('taskRingN'), focusTxt=document.getElementById('taskFocusTxt');
+    var ROSTER=[], OWE={}, oweEl=document.getElementById('oweList'), oweN=document.getElementById('oweCount');
     var CG=null, TASKS=[], POOL=[], GOALS=[], FILTER='all', SHOW_DONE=false, ALLOCATES=false, SUGGESTED={}, REASONS={}, AWAY='';
     function ymd(off){ var d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+(off||0)); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
     var TODAY=ymd(0), TOMORROW=ymd(1), WEEK_END=ymd(7);
     function isOverdue(t){ return !t.done && t.due && (t.overdue || t.due < TODAY); }
-    function counts(){ var open=TASKS.filter(function(t){return !t.done;}).length, done=TASKS.length-open,
+    /* Waiting for your yes is not yet your work: not counted until accepted (Collab::acceptTask). */
+    function counts(){ var open=TASKS.filter(function(t){return !t.done && !t.waiting;}).length, done=TASKS.filter(function(t){return t.done;}).length,
         over=TASKS.filter(isOverdue).length, mine=TASKS.filter(function(t){return t.mine && !t.done;}).length;
       if(fcAll)fcAll.textContent=TASKS.length; if(fcOpen)fcOpen.textContent=open; if(fcDone)fcDone.textContent=done;
       if(fcOver)fcOver.textContent=over; if(fcMine)fcMine.textContent=mine;
@@ -62,10 +108,34 @@
         var sk = t.stuck || {};
         if(sk.flag) note += '<span class="task-stuck">'+({blocked:'Blocked',stalled:'In progress',ageing:'Untouched'}[sk.flag]||'Waiting')+' '+(+sk.days||0)+' days</span>';
       }
-      return '<li class="task task--pri-'+esc(t.priority||'normal')+(t.done?' is-done':'')+' task--'+esc(st)+'" data-id="'+t.id+'">'
+      if(t.outcome) note += '<span class="task-outcome-line">Done when: '+esc(t.outcome)+'</span>';
+      if(t.moved && !t.done) note += '<span class="task-moved">Agreed for '+esc(t.agreed_due)+'</span>';
+      if(t.review_state==='sent_back' && !t.done && t.review_note) note += '<span class="task-blocked">Sent back: '+esc(t.review_note)+'</span>';
+      var ask = flowHtml(t);
+      return '<li class="task task--pri-'+esc(t.priority||'normal')+(t.done?' is-done':'')+(t.waiting?' is-waiting':'')+' task--'+esc(st)+'" data-id="'+t.id+'">'
       +'<button type="button" class="task-check" aria-label="Toggle done">'+(t.done?'✓':'')+'</button>'
       +'<span class="task-title">'+esc(t.title)+(who?' <span class="task-who">'+who+'</span>':'')+goal+(note?'<span class="task-notes">'+note+'</span>':'')+'</span>'
-      +ctl+priTag(t)+due+rel+'<button type="button" class="task-del" aria-label="Delete task">✕</button></li>'; }
+      +ctl+priTag(t)+due+rel+(t.mine&&!t.done?'<button type="button" class="task-move" aria-label="Move the date: '+esc(t.title)+'">Move date</button>':'')
+      +'<button type="button" class="task-del" aria-label="Delete task">✕</button>'+ask+'</li>'; }
+    /* What a task asks of the person looking at it, as buttons on the row:
+       given to you → Accept · Propose a date · Can't, because…;
+       a date proposed to you → Agree · Keep mine; finished for you → Thanks · Send back;
+       given by you and three days late → Reassign · New date · Drop. */
+    function flowHtml(t){
+      var lab=' <span class="sr-only">: '+esc(t.title)+'</span>';
+      if(t.waiting && t.accept_state==='counter') return '<div class="task-ask" role="group" aria-label="Your proposed date"><span class="task-ask-q">You proposed '+esc(t.proposed_due)+' — waiting for '+esc(t.assigned_by_name)+'.</span></div>';
+      if(t.waiting) return '<div class="task-ask" role="group" aria-label="Answer this task"><span class="task-ask-q">'+(t.accept_state==='proposed'?'Suggested for you by the planner.':esc(t.assigned_by_name)+' asks you to take this on.')+'</span>'
+        +'<button type="button" class="pbtn pbtn-sm pbtn-gold" data-flow="accept">Accept'+lab+'</button>'
+        +'<button type="button" class="pbtn pbtn-sm" data-flow="propose">Propose a date'+lab+'</button>'
+        +'<button type="button" class="pbtn pbtn-sm pbtn-ghost" data-flow="decline">Can’t, because…'+lab+'</button></div>';
+      if(t.needs_me==='date') return '<div class="task-ask" role="group" aria-label="A new date to answer"><span class="task-ask-q">'+esc(t.assignee_name)+' can do it by <b>'+esc(t.proposed_due)+'</b>'+(t.proposed_why?': '+esc(t.proposed_why):'')+'.</span>'
+        +'<button type="button" class="pbtn pbtn-sm pbtn-gold" data-flow="agree">Agree'+lab+'</button><button type="button" class="pbtn pbtn-sm" data-flow="keep">Keep '+esc(t.due||'my date')+lab+'</button></div>';
+      if(t.needs_me==='review') return '<div class="task-ask" role="group" aria-label="Finished for you"><span class="task-ask-q">'+esc(t.assignee_name)+' finished this.</span>'
+        +'<button type="button" class="pbtn pbtn-sm pbtn-gold" data-flow="thanks">Thanks'+lab+'</button><button type="button" class="pbtn pbtn-sm" data-flow="sendback">Send back'+lab+'</button></div>';
+      if(t.i_gave && !t.done && t.late_days>=3) return '<div class="task-ask task-ask--late" role="group" aria-label="Three days late"><span class="task-ask-q">'+t.late_days+' days late with '+esc(t.assignee_name)+'.</span>'
+        +'<button type="button" class="pbtn pbtn-sm" data-flow="reassign">Reassign'+lab+'</button><button type="button" class="pbtn pbtn-sm" data-flow="redate">New date'+lab+'</button><button type="button" class="pbtn pbtn-sm pbtn-ghost" data-flow="drop">Drop'+lab+'</button></div>';
+      return '';
+    }
     function poolHtml(t){
       var dm = t.due ? dueMeta(t) : null;
       var due = dm ? '<span class="task-due'+(dm.tone?' is-'+dm.tone:'')+'">'+esc(dm.label)+'</span>' : '';
@@ -119,11 +189,13 @@
         return;
       }
       // Default: group open tasks by urgency; completed folds into a collapsible tail.
-      var open=TASKS.filter(function(t){return !t.done;}), done=TASKS.filter(function(t){return t.done;});
-      if(!open.length && !(FILTER==='all'&&done.length)){
+      var open=TASKS.filter(function(t){return !t.done && !t.waiting && t.needs_me!=='date';}), done=TASKS.filter(function(t){return t.done;}),
+          ask=TASKS.filter(function(t){ return t.waiting || t.needs_me; });
+      if(!open.length && !ask.length && !(FILTER==='all'&&done.length)){
         listEl.innerHTML='<li class="pc-empty task-empty">✳ Inbox zero. Nothing on your plate — grab one from the pool or plan a goal.</li>'; return; }
       var byB={}; open.forEach(function(t){ var b=bucketOf(t); (byB[b]=byB[b]||[]).push(t); });
-      var html='';
+      /* What waits on your answer comes first: until you answer it, it is nobody's. */
+      var html=ask.length ? groupHtml('Waiting on you',ask.length,' is-today')+ask.map(taskHtml).join('') : '';
       BUCKETS.forEach(function(bk){ var arr=byB[bk[0]]; if(!arr||!arr.length) return;
         html+=groupHtml(bk[1],arr.length,(bk[0]==='over'?' is-over':(bk[0]==='today'?' is-today':'')))+arr.map(taskHtml).join(''); });
       if(FILTER==='all'&&done.length){
@@ -152,6 +224,30 @@
       users=users||[]; onlineEl.innerHTML = users.length ? users.map(function(u){ return '<div class="online-row"><span class="online-ava is-'+esc(u.status)+'">'+esc(u.initials)+'</span><span class="online-name">'+esc(u.name)+'</span></div>'; }).join('') : '<p class="pc-empty">Just you so far.</p>'; }
     function renderActivity(items){ if(!actEl) return; items=items||[]; actEl.innerHTML = items.length ? items.map(function(a){ var obj=a.object?' <b>'+esc(a.object)+'</b>':''; var inner='<span class="act-ava" aria-hidden="true">'+esc(a.initials)+'</span><span class="act-body"><span class="act-line"><b>'+esc(a.actor)+'</b> '+esc(a.verb)+obj+'</span><span class="act-ago">'+esc(a.ago)+'</span></span>'; return '<li class="act">'+(a.url?'<a href="'+esc(a.url)+'">'+inner+'</a>':inner)+'</li>'; }).join('') : '<li class="pc-empty">No activity yet.</li>'; }
 
+    /* Everything you owe: what the page has already loaded, from every card
+       (the commitments, Goalspace and the CACENTRE week hand theirs over as
+       'av:owe'; the console's tasks are in the page), in one list by when. */
+    document.addEventListener('av:owe', function(e){ var d=e.detail||{}; if(d.source){ OWE[d.source]=d.items||[]; renderOwe(); } });
+    function consoleOwe(){ var out=[]; document.querySelectorAll('#cacTasks li[data-cac-task]').forEach(function(li){
+        var t=li.querySelector('.task-title'), d=li.querySelector('[data-cac-due]'); out.push({title:t?t.textContent:'', due:d?d.value:'', src:'CACENTRE'}); }); return out; }
+    function renderOwe(){
+      if(!oweEl) return;
+      OWE.console = consoleOwe();
+      OWE.week = (WEEK&&WEEK.ok&&WEEK.commitments||[]).filter(function(c){ return c.status==='open'; }).map(function(c){ return {title:c.statement, due:c.end, src:'CACENTRE week'}; });
+      var all=[]; Object.keys(OWE).forEach(function(k){ all=all.concat(OWE[k]||[]); });
+      var groups=window.AvTaskKit.oweGroups(all, TODAY), n=groups.reduce(function(a,g){ return a+g.items.length; },0);
+      if(oweN) oweN.textContent = n ? n+' to do' : 'All clear';
+      oweEl.innerHTML = n ? groups.map(function(g){ return '<h3 class="owe-h'+(g.key==='over'?' is-over':'')+'">'+esc(g.label)+' <span class="owe-n">'+g.items.length+'</span></h3><ul class="owe-list">'
+          + g.items.map(function(it){ return '<li><span class="owe-t">'+esc(it.title)+'</span><span class="owe-m">'+esc(it.src||'')+(it.due?' · '+esc(it.due):'')+'</span></li>'; }).join('')+'</ul>'; }).join('')
+        : '<p class="pc-empty">Nothing owed this week. Your later work is in My tasks below.</p>';
+    }
+    var TICKS = window.AvTaskKit.tickQueue((function(){ try{ return window.localStorage; }catch(e){ return null; } })(),
+      function(it){ return fetch('/portal/collab.php?action=task_done',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(it)})
+        .then(function(r){ return r.json().catch(function(){ return {ok:false, error:'Something went wrong on our side (error '+r.status+'). Try again.'}; }); }); },
+      function(msg){ say(msg); var el=document.getElementById('taskTickMsg'); if(!el&&listEl){ el=document.createElement('p'); el.id='taskTickMsg'; el.className='task-ai-msg'; el.setAttribute('role','status'); listEl.parentNode.insertBefore(el,listEl); } if(el){ el.hidden=false; el.textContent=msg; } });
+    window.addEventListener('online', function(){ TICKS.flush().then(function(){ load(); }); });
+    setInterval(function(){ if(TICKS.pending().length) TICKS.flush(); }, 30000);
+
     /* Today's report: done, undone, unclaimed — for whoever hands out work. */
     var TR = null, TR_TAB = 'done', trEl = document.getElementById('taskReport');
     function trLoad(){ if(!trEl) return; if(!ALLOCATES){ trEl.hidden = true; return; }
@@ -173,7 +269,7 @@
     /* A task taken or ticked elsewhere on the page (the to-do pop-up) shows here at once. */
     document.addEventListener('av:tasks-changed', function(){ setTimeout(load, 200); });
     function load(){ fetch('/portal/collab.php?action=bootstrap',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok){ loadErr((d&&d.error)||'Your tasks could not be loaded.'); return; }
-        TASKS=d.tasks||[]; GOALS=d.goals||[]; ALLOCATES=!!d.allocates; CG=d.cac_goals||null; REASONS=d.handback_reasons||{}; AWAY=d.away_until||''; drawAway();
+        ROSTER=d.roster||[]; TASKS=d.tasks||[]; GOALS=d.goals||[]; ALLOCATES=!!d.allocates; CG=d.cac_goals||null; REASONS=d.handback_reasons||{}; AWAY=d.away_until||''; drawAway();
         POOL=(d.pool||[]).map(function(t){ return SUGGESTED[t.id]?Object.assign({},t,{suggest:SUGGESTED[t.id]}):t; });
         var aw=document.getElementById('aiAssignWrap'); if(aw) aw.hidden=!ALLOCATES;
         /* Posting to the pool is for organisation members (task_add_pool); don't offer what will be refused. */
@@ -185,7 +281,9 @@
            day's report never loaded. The error was swallowed, so nobody saw why. */
         [function(){ render(); }, function(){ renderPool(); }, function(){ renderActivity(d.activity); }, function(){ renderOnline(d.online,d.count); },
          function(){ fillRoster(d.roster); }, function(){ fillGoals(); }, function(){ trLoad(); },
-         function(){ if(aiCard) aiCard.hidden = !d.ai; }   // only show the AI planner when Claude is wired up
+         function(){ if(aiCard) aiCard.hidden = !d.ai; },  // only show the AI planner when Claude is wired up
+         function(){ OWE.tasks = TASKS.filter(function(t){ return (t.mine||t.waiting) && !t.done || t.needs_me; }).map(function(t){
+             return {title:t.title, due:t.due, waiting:!!(t.waiting||t.needs_me), src: t.needs_me==='date'?'Agree a date':(t.needs_me==='review'?'Finished for you':(t.waiting?'Accept or decline':'Task'))}; }); renderOwe(); }
         ].forEach(function(step){ try{ step(); }catch(e){ if(window.console) console.error('[tasks]', e); } });
         loadErr('');
       }).catch(function(){ loadErr('Your tasks could not be loaded. Check your connection.'); }); }
@@ -204,6 +302,9 @@
       var dsel=document.getElementById('taskDue'); var due=dsel?dsel.value:'';
       var psel=document.getElementById('taskPriority'); var priority=psel?psel.value:'normal';
       var toPool = !!(poolChk && poolChk.checked);
+      var ssel=document.getElementById('taskSize'), size=ssel?ssel.value:'';
+      var osel=document.getElementById('taskOutcome'), outcome=osel?(osel.value||'').trim():'';
+      if(askOutcome(assignee, size, outcome)) return;
       /* The title stays in the box until the task exists. A refusal (a rule,
          the rate limit, a dropped connection) used to clear it and say nothing:
          the task simply vanished. */
@@ -211,10 +312,10 @@
       var done=function(d, ok){
         input.disabled=false;
         if(!ok){ addErr((d&&d.error)||'The task was not added. Check your connection and try again.'); input.focus(); return; }
-        input.value=''; input.focus(); if(asel)asel.value='0'; if(dsel)dsel.value=''; if(psel)psel.value='normal'; if(poolChk)poolChk.checked=false;
+        input.value=''; input.focus(); if(osel)osel.value=''; if(ssel)ssel.value=''; ASKED=false; outcomeHint(''); if(asel)asel.value='0'; if(dsel)dsel.value=''; if(psel)psel.value='normal'; if(poolChk)poolChk.checked=false;
         addErr(''); say(toPool?'Posted to the pool.':(assignee?'Task given to '+((d.task&&d.task.assignee_name)||'them')+'.':'Task added.'));
       };
-      post(toPool?'task_add_pool':'task_add', toPool?{title:title, due:due, priority:priority}:{title:title, assignee:assignee, due:due, priority:priority})
+      post(toPool?'task_add_pool':'task_add', toPool?{title:title, due:due, priority:priority}:{title:title, assignee:assignee, due:due, priority:priority, size:size, outcome:outcome})
         .then(function(d){ var ok=!!(d&&d.ok&&d.task); if(ok){ if(toPool){ POOL.unshift(d.task); renderPool(); } else { TASKS.unshift(d.task); render(); } } done(d, ok); })
         .catch(function(){ done(null, false); });
     });
@@ -223,6 +324,16 @@
     var aselEl=document.getElementById('taskAssignee');
     if(aselEl&&poolChk){ aselEl.addEventListener('change', function(){ if(+aselEl.value) poolChk.checked=false; });
       poolChk.addEventListener('change', function(){ if(poolChk.checked) aselEl.value='0'; }); }
+    /* "Done when" is asked for — once, never forced — when the task goes to somebody
+       else or is sized L: the two cases where "finished" is most often read two ways.
+       A second press of Add sends it as it is. */
+    var ASKED=false;
+    function outcomeHint(msg){ var h=document.getElementById('taskOutcomeHint'); if(h){ h.textContent=msg; h.hidden=!msg; } }
+    function askOutcome(assignee, size, outcome){
+      if(outcome || ASKED || !(assignee || size==='L')) return false;
+      ASKED=true; outcomeHint((assignee?'They will read this to know when it is finished':'A big task')+' — add a "done when" line? Press Add again to send it without one.');
+      var o=document.getElementById('taskOutcome'); if(o) o.focus(); return true;
+    }
     function addErr(msg){ var el=document.getElementById('taskAddErr'); if(!el) return; el.textContent=msg; el.hidden=!msg; input.setAttribute('aria-invalid', msg?'true':'false'); }
     var liveEl=null; function say(msg){ if(!liveEl){ liveEl=document.createElement('p'); liveEl.className='av-sr'; liveEl.setAttribute('role','status'); liveEl.setAttribute('aria-live','polite'); form.appendChild(liveEl); } liveEl.textContent=''; setTimeout(function(){ liveEl.textContent=msg; }, 30); }
     // Who it fits, while the title is typed (people who hand out work only)
@@ -253,11 +364,43 @@
     listEl.addEventListener('click', function(e){
       if(e.target.closest('#doneToggle')){ SHOW_DONE=!SHOW_DONE; render(); return; }
       var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
-      if(e.target.closest('.task-check')){ post('task_toggle',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.map(function(t){return t.id===id?Object.assign({},t,{done:d.done,state:d.done?'done':(t.started_at?'doing':'todo'),stuck:{flag:'',days:0}}):t;}); render(); if(ATTACHED[id]) loadWeek(); } }); }
+      if(e.target.closest('.task-check')){
+        /* Shown at once, sent as a state; on a dropped connection it is kept and
+           sent later (TICKS), and the person is told — never silently lost. */
+        var was=TASKS.filter(function(t){return t.id===id;})[0], want=!(was&&was.done);
+        var show=function(v){ TASKS=TASKS.map(function(t){return t.id===id?Object.assign({},t,{done:v,state:v?'done':(t.started_at?'doing':'todo'),stuck:{flag:'',days:0}}):t;}); render(); };
+        show(want);
+        TICKS.tick(id, want).then(function(d){ if(d&&d.ok){ show(d.done); if(ATTACHED[id]) loadWeek(); } else if(d&&!d.queued){ show(!want); alert((d&&d.error)||'That tick did not save.'); } }); }
+      else if(e.target.closest('[data-flow]')){ flow(li, id, e.target.closest('[data-flow]').getAttribute('data-flow')); }
+      else if(e.target.closest('.task-move')){ var nd=prompt('New date (YYYY-MM-DD):'); if(!nd) return; var why=prompt('Why does it need a new date? Whoever gave it to you is told.')||'';
+        post('task_update',{id:id, due:nd.trim(), reason:why}).then(function(d){ if(d&&d.ok&&d.task){ TASKS=TASKS.map(function(t){return t.id===id?d.task:t;}); render(); } else alert((d&&d.error)||'The date was not changed.'); }); }
       else if(e.target.closest('.task-release')){ askWhy(li, id); }
       else if(e.target.closest('.task-why-pick')){ var b=e.target.closest('.task-why-pick'); release(id, b.getAttribute('data-reason')||''); }
       else if(e.target.closest('.task-why-cancel')){ var w=li.querySelector('.task-why'); if(w) w.remove(); }
       else if(e.target.closest('.task-del')){ post('task_delete',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); } }); } });
+
+    function flow(li, id, what){
+      var t=TASKS.filter(function(x){return x.id===id;})[0]||{}, body={id:id}, act='';
+      var put=function(d){ if(d&&d.ok){ if(d.task && (d.task.mine||d.task.waiting||d.task.i_gave||d.task.creator_id===t.creator_id)) TASKS=TASKS.map(function(x){return x.id===id?d.task:x;}); else TASKS=TASKS.filter(function(x){return x.id!==id;}); render(); load(); } else alert((d&&d.error)||'That did not work.'); };
+      if(what==='accept') act='task_accept';
+      else if(what==='propose'){ var dt=prompt('The date you can do it by (YYYY-MM-DD):'); if(!dt) return; body.date=dt.trim(); body.why=prompt('Anything to add? (optional)')||''; act='task_propose'; }
+      else if(what==='decline'){ var old=li.querySelector('.task-why'); if(old){ old.remove(); return; }
+        var keys=Object.keys(REASONS), w=document.createElement('div'); w.className='task-why'; w.setAttribute('role','group'); w.setAttribute('aria-label','Why can’t you take it on?');
+        w.innerHTML='<span class="task-why-q">Can’t, because…</span>'+keys.map(function(k){ return '<button type="button" class="task-why-pick" data-decline="'+esc(k)+'">'+esc(REASONS[k])+'</button>'; }).join('')+'<button type="button" class="task-why-cancel">Keep it</button>';
+        li.appendChild(w); w.addEventListener('click', function(ev){ var b=ev.target.closest('[data-decline]'); if(!b) return; ev.stopPropagation();
+          post('task_decline',{id:id, reason:b.getAttribute('data-decline'), note:prompt('Anything they should know? (optional)')||''}).then(put); });
+        var f=w.querySelector('button'); if(f) f.focus(); return; }
+      else if(what==='agree'||what==='keep'){ body.agree = what==='agree'; act='task_answer'; }
+      else if(what==='thanks') act='task_thanks';
+      else if(what==='sendback'){ var r=prompt('What is missing? '+(t.assignee_name||'They')+' is told.'); if(!r||!r.trim()) return; body.reason=r; act='task_sendback'; }
+      else if(what==='redate'){ var nd=prompt('New date (YYYY-MM-DD):'); if(!nd) return; body.due=nd.trim(); act='task_update'; }
+      else if(what==='drop'){ if(!confirm('Drop this task? '+(t.assignee_name||'They')+' is told.')) return; post('task_delete',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(x){return x.id!==id;}); render(); } else alert((d&&d.error)||'Not dropped.'); }); return; }
+      else if(what==='reassign'){ var old2=li.querySelector('.task-reassign'); if(old2){ old2.remove(); return; }
+        var box=document.createElement('div'); box.className='task-why task-reassign';
+        box.innerHTML='<label>Give it to <select>'+ROSTER.filter(function(m){return m.id!==t.assignee_id;}).map(function(m){ return '<option value="'+m.id+'">'+esc(m.name)+'</option>'; }).join('')+'</select></label> <button type="button" class="pbtn pbtn-sm pbtn-gold">Reassign</button>';
+        li.appendChild(box); box.querySelector('button').addEventListener('click', function(ev){ ev.stopPropagation(); post('task_assign',{id:id, assignee:+box.querySelector('select').value}).then(put); }); box.querySelector('select').focus(); return; }
+      if(act) post(act, body).then(put);
+    }
 
     /* Handing a task back asks why, in one tap: "not my kind of work" keeps the
        like of it from them next time; "no time" only for a while (lib/TaskLedger.php). */
@@ -301,7 +444,10 @@
         if(v==='blocked'){ reason=prompt('What is it blocked on? Whoever gave it to you is told.')||''; if(!reason.trim()){ render(); return; } }
         post('task_state',{id:id,state:v,reason:reason}).then(put);
       } else if(e.target.classList.contains('task-size-sel')){
-        post('task_size',{id:id,size:e.target.value}).then(put);
+        var sz=e.target.value, tt=TASKS.filter(function(x){return x.id===id;})[0]||{};
+        post('task_size',{id:id,size:sz}).then(function(d){ put(d);
+          /* Sized L with no "done when": asked, once, not forced. */
+          if(d&&d.ok&&sz==='L'&&!tt.outcome){ var o=prompt('A big one. What does done look like? (optional)'); if(o&&o.trim()) post('task_update',{id:id,outcome:o.trim()}).then(put); } });
       }
     });
 
@@ -371,7 +517,7 @@
           +'</li>'; }).join('');
     }
     function loadWeek(){ if(!weekEl) return;
-      fetch('/portal/collab.php?action=cac_week',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ WEEK=d||{ok:false}; ATTACHED=(d&&d.attached)||{}; renderWeek(); }).catch(function(){}); }
+      fetch('/portal/collab.php?action=cac_week',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ WEEK=d||{ok:false}; ATTACHED=(d&&d.attached)||{}; renderWeek(); renderOwe(); }).catch(function(){}); }
     function countTask(taskId, cid){
       post('cac_count',{id:taskId, commitment_id:cid}).then(function(d){
         if(d&&d.ok){ ATTACHED=d.attached||{}; if(d.week&&d.week.ok){ WEEK=d.week; } renderWeek(); render(); weekSay(cid?'Counted. Ticking it here now counts on CACENTRE.':'It no longer counts toward that commitment.','ok'); }
@@ -383,6 +529,7 @@
 
     load();
     loadWeek();
+    TICKS.flush();   /* ticks kept from a bad connection last time */
     setInterval(function(){ post('heartbeat',{}).then(function(d){ if(d&&typeof d.count==='number'){ if(onlineCountEl)onlineCountEl.textContent=d.count; if(tbCount)tbCount.textContent=d.count; if(kpiOnline)kpiOnline.textContent=d.count; if(topOnline)topOnline.hidden=!(d.count>0); } }).catch(function(){}); }, 45000);
     setInterval(load, 90000);
   })();

@@ -61,7 +61,7 @@ try {
         $role = av_admin_role();
         $mfa = AdminMfa::status(AdminRoles::email(), $held, AdminRoles::mfaPassed());
         json_out(['ok' => $role !== '', 'csrf' => $held !== '' ? av_csrf_token() : '',
-                  'cloudinary' => Cloudinary::configured(), 'role' => $role, 'held' => $held, 'mfa' => $mfa]);
+                  'cloudinary' => Cloudinary::configured(), 'role' => $role, 'held' => $held, 'mfa' => $mfa, 'caps' => AdminRoles::currentCaps()]);
     }
 
     /* ── The second factor (lib/AdminMfa) ──
@@ -114,7 +114,7 @@ try {
        superadmin: everything. admin: management + content + undo, but not roles,
        destructive purge or the security policy. editor: content only. */
     $role = function_exists('av_admin_role') ? av_admin_role() : 'superadmin';
-    $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'superadmin_reveal', 'auth_policy_save', 'auth_policy_get',
+    $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'admin_caps_save', 'superadmin_reveal', 'auth_policy_save', 'auth_policy_get',
         'db_status', 'db_test', 'db_migrate', 'brand_get', 'brand_save',
         'db_job_state', 'db_job_cancel', 'db_job_plan', 'db_job_begin', 'db_job_step', 'db_job_verify', 'db_switch', 'db_switch_back',
         // The rules ARE the organisation's constitution — they decide promotions
@@ -157,10 +157,16 @@ try {
         'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke',
         // Events: ours are written here; Africa GATES events are read from there.
         'sev_list', 'sev_refresh', 'sev_save', 'sev_delete',
-        'roster_export', 'roster_centres', 'member_notes', 'member_note_add', 'member_note_delete', 'member_activity', 'member_message',
+        'roster_export', 'roster_centres', 'member_notes', 'member_note_add', 'member_note_delete', 'member_activity', 'member_message', 'member_followup_open', 'member_followup_close',
         'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
         'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
+        // Bank-transfer gifts: donors' names and money, recorded by one admin, verified by another.
+        'gifts_list', 'gifts_submit', 'gifts_decide',
+        // The donations ledger and donors: names, emails and what they gave.
+        'donations_list', 'donations_donors', 'donations_export',
+        // Attendance: the register names members; the settings are the office's times and days.
+        'attendance_get',
         'card_formats', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_get', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake', 'ngv_intake_email', 'ngv_intake_consent',
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
@@ -197,12 +203,62 @@ try {
         // Running the bench and talking to the assistant are management-level:
         // both can FILE a proposal, which is harmless until someone approves it.
         'ai_status', 'ai_run', 'ai_chat', 'ai_proposals',
+        /* These three were open to editors only because nobody listed them: the
+           Studio hides Celebrations and Communities from editors, and the
+           sign-in art sits on the Super Admin's Sign-in screen, but the server
+           let an editor save and delete all three. Management, matching the screens. */
+        'cel_list', 'cel_save', 'cel_delete', 'comm_list', 'comm_save', 'comm_delete', 'art_list', 'art_save', 'art_delete',
     ];
-    if (in_array($action, $superadminOnly, true) && $role !== 'superadmin') {
+    /* What an editor may do, said out loud. This used to be "whatever is not in
+       the two lists above", so every new action was open to editors until
+       somebody remembered to list it — which is how the three above stayed open.
+       Now an action in none of the three lists is refused to everybody but a
+       Super Admin (and logged), and tests/studioregistry.test.php fails the
+       build when an action is in none of them. */
+    $editorAllowed = [
+        // `today` lists only what the viewer's own role may act on (lib/StudioToday.php).
+        'ping', 'dashboard', 'today', 'guide_ask',
+        // The Diary: entries, categories, series, comments to publish or remove.
+        'list', 'get', 'save', 'delete', 'upload', 'articles', 'categories', 'diary_series', 'diary_import_wp', 'dc_queue', 'dc_publish', 'dc_remove',
+        // Site content: editors draft and submit; publishing is an admin's.
+        'cms_overview', 'cms_get', 'cms_save', 'cms_discard', 'cms_submit', 'cms_restore', 'cms_compare',
+        // Media.
+        'media_list', 'media_start', 'media_chunk', 'media_finish', 'media_describe', 'media_edit', 'media_revert',
+        // Moderation of what members wrote.
+        'mod_queue', 'mod_approve', 'mod_reject', 'mod_save', 'mod_delete', 'mod_reorder',
+        // The Academy: courses, curriculum, lessons, programmes — content, not people.
+        'ac_list', 'ac_get', 'ac_save', 'ac_delete', 'ac_duplicate', 'ac_status', 'ac_categories', 'ac_curriculum', 'ac_overview', 'ac_search', 'ac_readiness', 'ac_a11y', 'ac_a11y_csv', 'ac_pricing',
+        'outline_save', 'lesson_get', 'lesson_save', 'lesson_delete', 'lesson_duplicate', 'lesson_reorder',
+        'prog_list', 'prog_get', 'prog_save', 'prog_delete',
+        'ngv_get',
+    ];
+    $needs = in_array($action, $superadminOnly, true) ? 'superadmin'
+           : (in_array($action, $editorAllowed, true) ? 'editor'
+           : (in_array($action, $managementOnly, true) ? 'admin' : ''));
+    /* The attendance times and days are an office's to set, from the Attendance
+       screen, through the same save (so audit and undo are the same). Only those
+       keys: one fine, point or other rule in the request and it needs a Super
+       Admin, as every rule did. */
+    if ($action === 'rules_save' && $role === 'admin') {
+        $askKeys = array_keys(is_array($body['rules'] ?? null) ? $body['rules'] : []);
+        if ($askKeys && !array_diff($askKeys, GateAttendance::settableBy('admin'))) $needs = 'admin';
+    }
+    if ($needs === '') {
+        error_log('[studio] unlisted action "' . $action . '" — refused below Super Admin until it is listed');
+        $needs = 'superadmin';
+    }
+    if ($needs === 'superadmin' && $role !== 'superadmin') {
         json_out(['ok' => false, 'error' => 'That action needs a Super Admin.'], 403);
     }
-    if ($role === 'editor' && in_array($action, $managementOnly, true)) {
+    if ($role === 'editor' && $needs !== 'editor') {
         json_out(['ok' => false, 'error' => 'Editors can manage content only.'], 403);
+    }
+    /* Money is a trust granted to a person, not a role (AdminRoles::CAPS): an
+       admin without it sees no donor and moves no money, however senior. A
+       Super Admin holds it. One list, one refusal, for every money action. */
+    $moneyOnly = ['gifts_list', 'gifts_submit', 'gifts_decide', 'donations_list', 'donations_donors', 'donations_export'];
+    if (in_array($action, $moneyOnly, true) && !AdminRoles::hasCap('money')) {
+        json_out(['ok' => false, 'code' => 'needs_money', 'error' => 'This needs Money access, which a Super Admin grants in Team & roles.'], 403);
     }
     /* An editor moderates what people wrote, not who they are: their addresses stay out of the queues. */
     $noEmails = static fn(array $rows): array => $role !== 'editor' ? $rows
@@ -371,6 +427,9 @@ try {
         // ---- System / configuration health ----
         case 'sys_health':
             json_out(['ok' => true, 'groups' => Config::diagnostics()]);
+        /* What is waiting on somebody — only what this viewer may act on. */
+        case 'today':
+            json_out(['ok' => true] + StudioToday::for($role, AdminRoles::currentCaps()));
         case 'dashboard': {
             // At-a-glance overview for the Studio landing view. Every count is
             // best-effort (try/catch → 0) so a missing table never 500s the page.
@@ -957,14 +1016,31 @@ try {
 
         /* ════ Activity trail (per-area) + undo ════ */
         case 'activity':       json_out(['ok' => true, 'entries' => AdminAudit::recent((string) ($_GET['area'] ?? ''), (int) ($_GET['limit'] ?? 80)), 'areas' => AdminAudit::areas()]);
-        case 'activity_undo':
+        case 'activity_undo': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            json_out(AdminAudit::undo((int) ($body['id'] ?? 0)));
+            $uid = (int) ($body['id'] ?? 0);
+            /* Undoing a rules change IS a rules change: an admin may undo only the
+               attendance times and days they could have set themselves. (Undo
+               used to replay any rule, so an admin could reverse a Super Admin's
+               fine or promotion rule.) */
+            if ($role !== 'superadmin') {
+                try {
+                    $ust = Database::pdo()->prepare('SELECT undo FROM lms_audit WHERE id = ?'); $ust->execute([$uid]);
+                    $u = json_decode((string) $ust->fetchColumn(), true);
+                    if (is_array($u) && ($u['class'] ?? '') === 'AvRules') {
+                        $uk = array_keys((array) (($u['args'] ?? [])['values'] ?? []));
+                        if (!$uk || array_diff($uk, GateAttendance::settableBy($role))) json_out(['ok' => false, 'error' => 'Undoing that rule change needs a Super Admin.'], 403);
+                    }
+                } catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Could not check that change.'], 500); }
+            }
+            json_out(AdminAudit::undo($uid));
+        }
 
         /* ════ Admin team & roles (Super Admin only — gated above) ════ */
         case 'admins_list':
             json_out(['ok' => true,
                 'admins' => array_map(static fn($a) => $a + ['mfa' => AdminMfa::isEnrolled((string) $a['email'])], AdminRoles::list()),
+                'caps' => AdminRoles::CAPS,
                 'me' => $role, 'me_email' => AdminRoles::email(), 'roles' => array_keys(AdminRoles::RANK),
                 'default_superadmin'   => class_exists('SuperAdmin') ? SuperAdmin::defaultEmail() : '',
                 'has_initial_password' => class_exists('SuperAdmin') && SuperAdmin::pendingPassword() !== '']);
@@ -980,6 +1056,14 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $res = AdminRoles::add((string) ($body['email'] ?? ''), (string) ($body['role'] ?? 'editor'), 'token');
             if (!empty($res['ok'])) AdminAudit::log('admins', 'admin_added', (string) ($body['email'] ?? ''), 'Granted ' . ($body['role'] ?? '') . ' access');
+            json_out($res, !empty($res['ok']) ? 200 : 422);
+        }
+        /* Trusts granted per person (AdminRoles::CAPS) — Super Admin only, gated above. */
+        case 'admin_caps_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $em = (string) ($body['email'] ?? '');
+            $res = AdminRoles::setCaps($em, (array) ($body['caps'] ?? []));
+            if (!empty($res['ok'])) AdminAudit::log('admins', 'admin_caps', $em, 'Trusts: ' . ($res['caps'] ? implode(', ', $res['caps']) : 'none'));
             json_out($res, !empty($res['ok']) ? 200 : 422);
         }
         case 'admin_remove': {
@@ -1347,6 +1431,16 @@ try {
         /* ---- The rules engine: Afrovanguard's constitution, as data ----
            Every threshold the accountability engine obeys. Superadmin-only:
            these govern promotions and escalations across the whole movement. */
+        /* ── Attendance (lib/GateAttendance.php): a day's register, and the settings in their groups ── */
+        case 'attendance_get': {
+            $day = (string) ($_GET['day'] ?? '');
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) $day = function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d');
+            $reg = GateAttendance::register($day);
+            $reg['rows'] = array_map(static fn($r) => ['member_id' => (int) $r['member_id'], 'name' => (string) ($r['name'] ?? ''), 'status' => (string) $r['status'],
+                'late_minutes' => (int) $r['late_minutes'], 'in_at' => (string) $r['in_at'], 'out_at' => (string) $r['out_at'], 'centre' => (string) $r['centre']], $reg['rows']);
+            json_out(['ok' => true, 'register' => $reg, 'settings' => GateAttendance::settingsFor($role), 'excuses' => count(GateAttendance::pendingExcuses()),
+                      'times' => GateAttendance::resumptionTimes(), 'grace' => GateAttendance::graceMinutes(), 'lateness_on' => GateAttendance::latenessOn()]);
+        }
         case 'rules_get':
             json_out(['ok' => true] + AvRules::describe());
         case 'rules_save': {
@@ -1518,6 +1612,15 @@ try {
             exit;
         case 'member_notes':
             json_out(['ok' => true, 'notes' => MemberDesk::notes((int) ($_GET['id'] ?? 0)), 'activity' => MemberDesk::activity((int) ($_GET['id'] ?? 0)), 'me' => av_admin_actor()]);
+        /* Following up on a member who needs attention (lib/MemberFollowUps.php). */
+        case 'member_followup_open':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberFollowUps::open((int) ($body['id'] ?? 0), (string) ($body['reason'] ?? ''), (string) ($body['owner'] ?? ''), (string) ($body['due_on'] ?? ''), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : ($r['code'] === 'already_open' ? 409 : 422));
+        case 'member_followup_close':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberFollowUps::close((int) ($body['followup_id'] ?? 0), (string) ($body['outcome'] ?? ''), (string) ($body['status'] ?? 'done'), av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : ($r['code'] === 'not_found' ? 404 : 422));
         case 'member_activity':
             json_out(['ok' => true, 'activity' => MemberDesk::activity((int) ($_GET['id'] ?? 0))]);
         case 'member_note_add':
@@ -1626,6 +1729,11 @@ try {
             if ($m) {
                 $m['verified'] = ['state' => MemberVerification::state((int) $m['id']),
                                   'history' => MemberVerification::historyFor((int) $m['id'])];
+
+                /* How they are doing, beside who they are (lib/MemberEvaluation.php). */
+                $m['followup_team'] = MemberFollowUps::team(); $m['followup_me'] = av_admin_actor();
+                try { $m['evaluation'] = MemberEvaluation::evaluate((int) $m['id']); }
+                catch (Throwable $e) { error_log('[roster_get] evaluation: ' . $e->getMessage()); $m['evaluation'] = ['ok' => false]; }
             }
             json_out($m ? ['ok' => true, 'member' => $m] : ['ok' => false, 'error' => 'No such member.'], $m ? 200 : 404);
         case 'ngv_intake':
@@ -1763,6 +1871,48 @@ try {
                 default    => ['ok' => false, 'error' => 'Unknown decision.'],
             };
             json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['superadmin_only', 'admin_only'], true) ? 403 : 422));
+        /* ── The donations ledger and donors (lib/Donations.php) — Money access, gated above ── */
+        case 'donations_list': {
+            $f = array_intersect_key($_GET, array_flip(['q', 'campaign', 'type', 'from', 'to', 'email', 'page', 'page_size']));
+            $d = Donations::read();
+            json_out(['ok' => true] + Donations::ledger($f) + ['campaigns' => array_keys((array) ($d['campaigns'] ?? [])), 'summary' => Donations::summary()]);
+        }
+        case 'donations_donors':
+            json_out(['ok' => true] + Donations::donors((string) ($_GET['segment'] ?? 'all'), (string) ($_GET['q'] ?? '')));
+        case 'donations_export': {
+            $f = array_intersect_key($_GET, array_flip(['q', 'campaign', 'type', 'from', 'to', 'email']));
+            $rows = Donations::ledgerAll($f);
+            /* A list of donors with their emails leaves the building: who took it, and how many, is kept. */
+            AdminAudit::log('money', 'donations_export', count($rows) . ' gifts', 'Exported ' . count($rows) . ' gifts to CSV');
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="donations-' . date('Y-m-d') . '.csv"');
+            header('Cache-Control: no-store, private');
+            $out = fopen('php://output', 'w');
+            /* Through Csv:: like every export: a donor typed their own name, and a cell starting = + - @ (or a tab) must not run in a spreadsheet. */
+            Csv::put($out, ['Date', 'Reference', 'Donor', 'Email', 'Amount', 'Currency', 'Appeal', 'Kind', 'How often', 'On the wall', 'Recorded by', 'Confirmed by']);
+            foreach ($rows as $r) Csv::put($out, [substr($r['given_at'], 0, 10), $r['reference'], $r['name'], $r['email'], number_format($r['amount'], 2, '.', ''), $r['currency'],
+                $r['campaign'], $r['type'], $r['frequency'], $r['listed'] ? 'yes' : 'no', $r['recorded_by'], $r['confirmed_by']]);
+            fclose($out);
+            exit;
+        }
+        /* ── Bank-transfer gifts (lib/BankGifts.php): recorded by one admin, counted when another verifies ── */
+        case 'gifts_list':
+            json_out(['ok' => true, 'gifts' => BankGifts::list((string) ($_GET['status'] ?? 'pending')), 'pending' => BankGifts::pendingCount(),
+                      'me' => strtolower(av_admin_actor()), 'campaigns' => array_keys((array) (Donations::read()['campaigns'] ?? []))]);
+        case 'gifts_submit':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = BankGifts::submit($body, av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : (($r['code'] ?? '') === 'no_actor' ? 403 : 422));
+        case 'gifts_decide':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $gid = (int) ($body['id'] ?? 0);
+            $r = match ((string) ($body['do'] ?? '')) {
+                'verify'   => BankGifts::verify($gid, av_admin_actor()),
+                'reject'   => BankGifts::reject($gid, (string) ($body['note'] ?? ''), av_admin_actor()),
+                'withdraw' => BankGifts::withdraw($gid, av_admin_actor()),
+                default    => ['ok' => false, 'error' => 'Unknown decision.'],
+            };
+            json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['no_actor', 'own_submission', 'not_yours'], true) ? 403 : 422));
         /* ── Many members, one declared action ── */
         /* ── Volunteer projects (lib/VolunteerProjects.php) ── */
         case 'vol_projects':

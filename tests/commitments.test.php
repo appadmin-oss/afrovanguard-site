@@ -180,8 +180,11 @@ AvRules::save(['commitments.overdue_grace_days' => '30'], 'test');
 ck('commitments: a long grace period suppresses the chase', count(Commitments::overdue()) === 0);
 AvRules::resetAll('test');
 
+/* The chase is the escalation ladder (TaskLedger::ladder): the owner hears on the
+   due day and the day after, not every day. Ten days late on an ordinary day is quiet. */
+$db->prepare('UPDATE commitments SET due = ? WHERE id = ?')->execute([gmdate('Y-m-d', strtotime(TaskReport::today() . ' 12:00 UTC') - 86400), $late]);
 $sent = Commitments::sweepOverdue();
-ck('commitments: the sweep nudges the owner', $sent === 1);
+ck('commitments: the sweep nudges the owner the day after the due date', $sent === 1);
 ck('commitments: a second sweep the same day does not nudge again', Commitments::sweepOverdue() === 0);
 Commitments::complete($late, 1);
 ck('commitments: a completed commitment stops being overdue', count(Commitments::overdue()) === 0);

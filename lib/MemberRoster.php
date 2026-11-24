@@ -500,7 +500,14 @@ final class MemberRoster
         'fined' => 'Have been fined', 'fines_owed' => 'Owe a fine', 'fines_cleared' => 'Fined, nothing owing',
         'level_raised' => 'Level raised in the last 12 months', 'review_open' => 'Promotion awaiting a decision',
         'dormant' => 'Active, not signed in for 60 days',
+        /* Attendance at the CACENTRE gate (lib/GateAttendance.php), last 90 / 30
+           days, judged only where there were at least ATT_MIN_DAYS counted days —
+           two absences out of two is not a pattern. */
+        'att_low' => 'Attendance under 70% (90 days)', 'often_late' => 'Late 3 or more times (30 days)',
+        'att_strong' => 'Attendance 90%+ and on time (90 days)',
+        'followup_due' => 'Follow-up due or late', 'followup_open' => 'Being followed up',
     ];
+    public const ATT_MIN_DAYS = 5;
     private static ?array $fineCache = null;
 
     /** Per member: fines (not voided) and what is owing on them. */
@@ -541,6 +548,25 @@ final class MemberRoster
             case 'level_raised':
                 if (class_exists('Levels')) Levels::ensure();
                 return ["u.level_at >= ? AND COALESCE(u.level, '') <> ?", [gmdate('c', strtotime('-365 days')), class_exists('Levels') ? Levels::base() : 'O']];
+            case 'att_low':
+            case 'att_strong':
+            case 'often_late': {
+                if (class_exists('GateAttendance')) GateAttendance::ensure();
+                $since90 = gmdate('Y-m-d', strtotime('-90 days')); $since30 = gmdate('Y-m-d', strtotime('-30 days'));
+                $counted = "SUM(CASE WHEN status IN ('present', 'late', 'absent') THEN 1 ELSE 0 END)";
+                $came = "SUM(CASE WHEN status IN ('present', 'late') THEN 1 ELSE 0 END)";
+                $onTime = "SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END)";
+                /* Inlined, not bound: a bound value arrives as text, and SQLite
+                   ranks every number below every text, so ">= '5'" is never true. */
+                $min = (int) self::ATT_MIN_DAYS;
+                /* The thresholds are the evaluation's (lib/MemberEvaluation.php), so a tile and the drawer agree. */
+                $low = (int) MemberEvaluation::ATT_LOW; $hi = (int) MemberEvaluation::ATT_STRONG; $pu = (int) MemberEvaluation::PUNCT_STRONG; $lm = (int) MemberEvaluation::LATE_MANY;
+                if ($seg === 'often_late') return ["u.id IN (SELECT member_id FROM gate_attendance WHERE day >= ? GROUP BY member_id HAVING SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) >= $lm)", [$since30]];
+                if ($seg === 'att_low') return ["u.id IN (SELECT member_id FROM gate_attendance WHERE day >= ? GROUP BY member_id HAVING $counted >= $min AND 100 * $came < $low * $counted)", [$since90]];
+                return ["u.id IN (SELECT member_id FROM gate_attendance WHERE day >= ? GROUP BY member_id HAVING $counted >= $min AND 100 * $came >= $hi * $counted AND 100 * $onTime >= $pu * $counted)", [$since90]];
+            }
+            case 'followup_due':  return MemberFollowUps::segmentSql(true);
+            case 'followup_open': return MemberFollowUps::segmentSql(false);
             case 'review_open':
                 if (class_exists('Promotion')) Promotion::ensure();
                 /* Open, and for a level not yet reached: a review for a level the

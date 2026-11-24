@@ -22,7 +22,8 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 
 $role    = function_exists('av_admin_role') ? av_admin_role() : '';
-$isAdmin = $role !== '';
+/* Appeals are money: a Studio role is not enough without the Money trust (AdminRoles::CAPS), which a Super Admin holds. */
+$isAdmin = $role !== '' && class_exists('AdminRoles') && AdminRoles::hasCap('money');
 $canMoney = in_array($role, ['admin', 'superadmin'], true);
 $giveMoneyActions = ['fund_item', 'meet_need', 'allocate_ngv', 'stop_recurring', 'mail_update', 'save_tiers', 'delete_appeal'];
 $method  = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -157,12 +158,17 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
   <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
 <link href="<?= e(av_asset('/assets/site/tokens.css')) ?>" rel="stylesheet">
 <link href="<?= e(av_asset('/give/manage.css')) ?>" rel="stylesheet">
+<?php require dirname(__DIR__) . '/academy/ngv/_in-studio.php'; /* opened inside the Studio: drop the second navigation */ ?>
 </head>
 <body>
 <?php if (!$isAdmin): ?>
   <main class="gm-gate">
     <h1>Appeals</h1>
+    <?php if ($role !== ''): ?>
+    <p>Appeals are part of Money. Your Studio role does not include it: a Super Admin grants Money access in Studio → Team &amp; roles.</p>
+    <?php else: ?>
     <p>This page is for Afrovanguard staff. Sign in to the Studio to manage appeals.</p>
+    <?php endif; ?>
     <p><a class="gm-btn gm-primary" href="/admin/">Go to the Studio</a></p>
   </main>
 <?php else: ?>

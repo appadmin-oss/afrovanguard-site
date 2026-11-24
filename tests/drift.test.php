@@ -243,6 +243,11 @@ $knownMetaKeys = [
     // When the daily backup last ran (lib/Backups). Reviewed: gates no
     // migration. Lost, the next cron tick takes one more backup that day.
     'backup_last',
+    // The donations ledger's one-off carry-over from the display file
+    // (Donations::ledgerBackfill). Reviewed: gates no migration of its own —
+    // the ledger's rows are keyed by reference and inserted with INSERT
+    // IGNORE, so losing the flag only re-reads the file once, adding nothing.
+    'donations_ledger_backfilled',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {

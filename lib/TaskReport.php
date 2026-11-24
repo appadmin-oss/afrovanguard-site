@@ -45,7 +45,7 @@ final class TaskReport
      * The report for one day (today by default):
      * ['day','counts'=>['done','undone','overdue','blocked','unclaimed'],'done'=>[…],'undone'=>[…],'unclaimed'=>[…],'people'=>[…]].
      */
-    public static function build(?string $day = null, ?int $now = null): array
+    public static function build(?string $day = null, ?int $now = null, int $giver = 0): array
     {
         $now = $now ?? time();
         $day = $day ?? self::today($now);
@@ -65,16 +65,24 @@ final class TaskReport
 
         $st = $pdo->prepare('SELECT * FROM collab_tasks WHERE done = 1 AND done_at >= ? AND done_at < ? ORDER BY done_at DESC');
         $st->execute([$from, $to]);
+        /* $giver: only the work that person gave out — the report each giver is sent. */
+        $mine = static fn(array $t): bool => $giver <= 0 || Collab::giverOf($t) === $giver;
+        /* Late is against the AGREED date (TaskLedger::agreedDue): a date moved by
+           the person holding it, with a reason, is still late against what was
+           agreed — the report must not read a moved deadline as a kept one. */
         $done = array_map(static fn($t) => ['id' => (int) $t['id'], 'title' => (string) $t['title'], 'by' => $name((int) $t['assignee_id']), 'by_id' => (int) $t['assignee_id'],
-            'at' => (string) $t['done_at'], 'late' => (string) $t['due'] !== '' && substr(self::local((string) $t['done_at']), 0, 10) > (string) $t['due'], 'goal' => $goal((int) ($t['goal_id'] ?? 0))], $st->fetchAll(PDO::FETCH_ASSOC));
+            'at' => (string) $t['done_at'], 'late' => ($ag = TaskLedger::agreedDue($t)) !== '' && substr(self::local((string) $t['done_at']), 0, 10) > $ag, 'goal' => $goal((int) ($t['goal_id'] ?? 0))], array_filter($st->fetchAll(PDO::FETCH_ASSOC), $mine));
 
         $undone = [];
         foreach ($pdo->query('SELECT * FROM collab_tasks WHERE done = 0 AND assignee_id > 0')->fetchAll(PDO::FETCH_ASSOC) as $t) {
-            $due = (string) $t['due']; $state = (string) ($t['state'] ?? '') ?: 'todo';
+            if (!$mine($t)) continue;
+            $due = TaskLedger::agreedDue($t); $state = (string) ($t['state'] ?? '') ?: 'todo';
             $late = $due !== '' && $due < $day ? (int) round((strtotime($day) - strtotime($due)) / 86400) : 0;
             $undone[] = ['id' => (int) $t['id'], 'title' => (string) $t['title'], 'who' => $name((int) $t['assignee_id']), 'who_id' => (int) $t['assignee_id'],
                 'due' => $due, 'late_days' => $late, 'due_today' => $due === $day, 'state' => $state, 'blocked' => $state === 'blocked' ? (string) ($t['blocked_reason'] ?? '') : '',
-                'goal' => $goal((int) ($t['goal_id'] ?? 0)), 'priority' => (string) ($t['priority'] ?? 'normal')];
+                'goal' => $goal((int) ($t['goal_id'] ?? 0)), 'priority' => (string) ($t['priority'] ?? 'normal'),
+                'moved_to' => (string) $t['due'] !== $due ? (string) $t['due'] : '', 'giver_id' => Collab::giverOf($t),
+                'waiting' => in_array((string) ($t['accept_state'] ?? ''), Collab::WAITING, true)];
         }
         /* Overdue (latest first), due today, blocked, then the rest by date. */
         $rank = static fn($x) => $x['late_days'] > 0 ? 0 : ($x['due_today'] ? 1 : ($x['state'] === 'blocked' ? 2 : 3));
@@ -82,6 +90,7 @@ final class TaskReport
 
         $unclaimed = [];
         foreach ($pdo->query('SELECT * FROM collab_tasks WHERE done = 0 AND assignee_id = 0 ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC) as $t) {
+            if ($giver > 0 && (int) $t['creator_id'] !== $giver) continue;
             $age = (string) $t['created_at'] !== '' ? max(0, (int) floor(($now - (strtotime((string) $t['created_at'] . ' UTC') ?: $now)) / 86400)) : 0;
             $unclaimed[] = ['id' => (int) $t['id'], 'title' => (string) $t['title'], 'age_days' => $age, 'due' => (string) $t['due'],
                 'priority' => (string) ($t['priority'] ?? 'normal'), 'posted_by' => $name((int) $t['creator_id']), 'goal' => $goal((int) ($t['goal_id'] ?? 0))];
@@ -136,13 +145,23 @@ final class TaskReport
         ];
     }
 
-    /** Whoever hands out work: coordinators and above (Volunteers::canRunTeams). */
-    public static function recipients(): array
+    /**
+     * Who the evening report goes to: the people who GAVE OUT work that is now
+     * late — each about their own. It used to go to every coordinator and
+     * admin, about everybody's work, every evening: most of them had given
+     * none of it, so it read as noise, and the one person who had asked for
+     * the late work learned nothing they could act on. A day with no late
+     * work given out sends nothing at all.
+     */
+    public static function recipients(array $report): array
     {
+        $ids = [];
+        foreach ($report['undone'] ?? [] as $u) if ($u['late_days'] > 0 && $u['giver_id'] > 0 && $u['giver_id'] !== $u['who_id']) $ids[$u['giver_id']] = true;
+        if (!$ids) return [];
         $out = [];
         try {
-            foreach (Database::pdo()->query("SELECT id, name, email, role FROM lms_users WHERE status = 'active'")->fetchAll(PDO::FETCH_ASSOC) as $u) {
-                if (LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['coordinator']) $out[] = ['id' => (int) $u['id'], 'email' => (string) $u['email'], 'name' => (string) $u['name']];
+            foreach (Database::pdo()->query("SELECT id, name, email FROM lms_users WHERE status = 'active' AND id IN (" . implode(',', array_map('intval', array_keys($ids))) . ')')->fetchAll(PDO::FETCH_ASSOC) as $u) {
+                $out[] = ['id' => (int) $u['id'], 'email' => (string) $u['email'], 'name' => (string) $u['name']];
             }
         } catch (Throwable $e) {}
         return $out;
@@ -150,8 +169,8 @@ final class TaskReport
 
     /**
      * From the cron: once a day, from tasks.daily_report_hour (Lagos time),
-     * the report to each recipient — in the portal and by email. A day with
-     * no tasks at all sends nothing.
+     * to each person who gave out late work, the report of the work THEY gave
+     * — in the portal and by email.
      */
     public static function sendIfDue(?int $now = null): ?array
     {
@@ -163,15 +182,15 @@ final class TaskReport
         $day = $local->format('Y-m-d');
         if ((string) (Database::metaGet('task_report_day') ?? '') === $day) return null;
         Database::metaSet('task_report_day', $day);
-        $r = self::build($day, $now);
-        $c = $r['counts'];
-        if ($c['done'] + $c['undone'] + $c['unclaimed'] === 0) return ['sent' => 0, 'empty' => true];
-        $title = 'Tasks today: ' . self::headline($r);
+        $all = self::build($day, $now);
+        $c = $all['counts'];
         $sent = 0;
-        foreach (self::recipients() as $p) {
-            if (class_exists('Notifications')) Notifications::push($p['id'], 'report', $title, 'Done, undone and unclaimed — the day on the Tasks page.', '/portal/#tasks', 'taskreport:' . $day . ':' . $p['id']);
+        foreach (self::recipients($all) as $p) {
+            $r = self::build($day, $now, $p['id']);
+            $title = 'Tasks today: ' . self::headline($r);
+            if (class_exists('Notifications')) Notifications::push($p['id'], 'report', $title, 'The work you gave out: done, undone (' . $r['counts']['overdue'] . ' late) and unclaimed — on the Tasks page.', '/portal/#tasks', 'taskreport:' . $day . ':' . $p['id']);
             if (class_exists('Mailer') && $p['email'] !== '') {
-                try { Mailer::send($p['email'], $title, Mailer::shell('Tasks — ' . $local->format('l j F'), self::htmlLines($r), ['text' => 'Open Tasks', 'url' => (defined('SITE_URL') ? rtrim(SITE_URL, '/') : '') . '/portal/#tasks'])); }
+                try { Mailer::send($p['email'], $title, Mailer::shell('The work you gave out — ' . $local->format('l j F'), self::htmlLines($r), ['text' => 'Open Tasks', 'url' => (defined('SITE_URL') ? rtrim(SITE_URL, '/') : '') . '/portal/#tasks'])); }
                 catch (Throwable $e) { error_log('[task-report] mail: ' . $e->getMessage()); }
             }
             $sent++;

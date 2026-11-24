@@ -8,25 +8,20 @@
   var API = '/admin/api.php';
   var csrf = '';            // CSRF token kept in memory only
   var currentRole = 'superadmin';   // editor | admin | superadmin (from session)
+  var currentCaps = [];             // trusts granted to this person (AdminRoles::CAPS); a Super Admin holds them all
   var ROLE_RANK = { editor: 1, admin: 2, superadmin: 3 };
-  var TAB_MIN = { overview: 'editor', entries: 'editor', moderation: 'editor', academy: 'editor', guide: 'editor',
-    // Content: editors draft the site and manage media; publishing checks admin at the API.
-    site: 'editor', homepage: 'editor', pages: 'editor', media: 'editor',
-    inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
-    // Session notes are the office's; the dates and themes are public anyway.
-    sessions: 'admin',
-    // Events go public; the API keeps them with management, like the homepage's publishing.
-    events: 'admin',
-    // Seat claims carry names, emails and phone numbers — admin, like the rest of the PII.
-    summit: 'admin',
-    mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin',
-    // Ops reports which providers this deployment pays for and what they cost.
-    // Infrastructure state — admin, matching the API's own gate.
-    aiops: 'admin',
-    // The rules decide promotions and escalations movement-wide, and the prompts
-    // steer every AI reply — Super Admin only, matching the API's own gate.
-    rules: 'superadmin' };
-  function roleAllows(tab) { var need = TAB_MIN[tab] || 'admin'; return (ROLE_RANK[currentRole] || 0) >= (ROLE_RANK[need] || 99); }
+  /* Which role each screen needs comes from the ONE list of sections
+     (lib/StudioSections.php), which the page carries as JSON. It was a second
+     table here, and a third list drifted against it on the server. Missing or
+     unreadable, every screen needs a Super Admin — closed, not open. */
+  var SECTIONS = (function () { try { return JSON.parse(document.getElementById('studioSections').textContent) || {}; } catch (e) { return {}; } })();
+  var TAB_MIN = SECTIONS.min || {};
+  function roleAllows(tab) {
+    var need = TAB_MIN[tab] || 'superadmin';
+    if ((ROLE_RANK[currentRole] || 0) < (ROLE_RANK[need] || 99)) return false;
+    var cap = (SECTIONS.caps || {})[tab];   // money is a trust granted per person, not a role
+    return !cap || currentRole === 'superadmin' || currentCaps.indexOf(cap) >= 0;
+  }
   function applyRoleVisibility() {
     document.querySelectorAll('.tab[data-tab]').forEach(function (t) {
       var tab = t.getAttribute('data-tab'); t.hidden = !roleAllows(tab);
@@ -47,8 +42,11 @@
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
     celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), sessions: $('#sessionsView'), psEdit: $('#psEditView'), events: $('#eventsView'), evEdit: $('#evEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
-    site: $('#siteView'), media: $('#mediaView')
+    site: $('#siteView'), media: $('#mediaView'), gifts: $('#giftsView'), attendance: $('#attendanceView'), donations: $('#donationsView')
   };
+  /* Consoles of their own pages (NextGen Vanguard, Appeals): one screen each, from the registry. */
+  var FRAMES = SECTIONS.frames || {};
+  Object.keys(FRAMES).forEach(function (id) { views[id] = $('#' + id + 'View'); });
   function show(v) {
     /* The sign-in field is autofocused in the markup; when a live session hides that
        screen at once, the browser's Tab starting point stayed where it was and the
@@ -56,7 +54,7 @@
     var ae = document.activeElement, fromLogin = v !== 'login' && v !== 'mfa' && ae && ((views.login && views.login.contains(ae)) || (views.mfa && views.mfa.contains(ae)));
     Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     if (fromLogin) { document.body.setAttribute('tabindex', '-1'); document.body.focus({ preventScroll: true }); document.body.removeAttribute('tabindex'); }
-    $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
+    $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login'); var fo = $('#findOpen'); if (fo) fo.hidden = (v === 'login' || v === 'mfa');
     document.body.classList.toggle('studio-authed', v !== 'login');
     var burger = $('#studioBurger'); if (burger) burger.hidden = (v === 'login');
     if (typeof closeSide === 'function') closeSide(); }
@@ -121,12 +119,19 @@
     var siteRef = which === 'homepage' ? 'hero' : '';
     if (which === 'homepage' || which === 'pages') which = 'site';
     // The section you are in is said in words too (aria-current), not only by the highlight.
+    /* A section that is part of another (NextGen Vanguard, part of Members)
+       has no sidebar entry: its parent stays lit. */
+    var lit = (((SECTIONS.sections || []).filter(function (x) { return x.id === which; })[0]) || {}).parent || which;
     document.querySelectorAll('.tab').forEach(function (t) {
-      var on = t.getAttribute('data-tab') === which;
+      var on = t.getAttribute('data-tab') === lit;
       t.classList.toggle('active', on);
       if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
     });
     try { localStorage.setItem('av.studio.tab', which); } catch (e) {}
+    /* The screen is in the address, so Back moves between screens and a link
+       to one can be sent. (It lived only in localStorage.) A return to a
+       screen via Back must not push it again. */
+    if (!routing && (which !== 'overview' || location.hash)) setHash(which);
     if (which === 'overview') { show('overview'); loadOverview(); }
     else if (which === 'entries') { show('entries'); loadList(); }
     else if (which === 'academy') { show('academy'); loadCourses(); }
@@ -141,6 +146,9 @@
     else if (which === 'moderation') { show('moderation'); loadModeration(); }
     else if (which === 'signin') { show('signin'); loadAuthPolicy(); loadArt(); }
     else if (which === 'members') { show('members'); loadMembers(); }
+    else if (which === 'gifts') { show('gifts'); loadGifts(); }
+    else if (which === 'attendance') { show('attendance'); loadAttendance(); }
+    else if (which === 'donations') { show('donations'); loadDonations(); }
     else if (which === 'guide') { show('guide'); }
     else if (which === 'mentorship') { show('mentorship'); loadMentorship(); }
     else if (which === 'activity') { show('activity'); loadActivity(); }
@@ -151,8 +159,14 @@
     else if (which === 'aiops') { show('aiops'); loadAiOps(); }
     else if (which === 'site') { show('site'); if (window.AvSite) window.AvSite.open('site', siteRef); }
     else if (which === 'media') { show('media'); if (window.AvSite) window.AvSite.open('media'); }
-    else { show('inbox'); loadInbox(); }
+    else if (FRAMES[which]) { show(which); loadFrame(which, takeFrameKey()); }
+    else if (which === 'inbox') { show('inbox'); loadInbox(); }
+    /* A name that is not a section (a stale bookmark, a retired screen) lands on
+       the Overview — it used to fall through to the Inbox. */
+    else { show('overview'); loadOverview(); }
     var on = document.querySelector('.tab.active');
+    var fold = on && on.closest('.nav-group-items');
+    if (fold && fold.hidden) setFold(fold, true);
     /* Keep the active section in view by scrolling its container, not with
        scrollIntoView(): that moves Chrome's Tab starting point to the button, so on
        load the first Tab skipped the skip link and the header and landed on Diary. */
@@ -1450,8 +1464,35 @@
     });
   });
 
+  /* ── Waiting on you: every queue that needs a person (lib/StudioToday.php) ──
+     Loading, nothing waiting, a queue that could not be counted, and an error
+     with a retry are four different screens — never one silent empty list. */
+  function loadToday() {
+    var list = $('#ovTodayList'), count = $('#ovTodayCount'); if (!list) return;
+    list.innerHTML = '<li class="muted">Loading…</li>';
+    api('today').then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { list.innerHTML = '<li class="muted">Could not see what is waiting. <button class="btn btn-outline btn-sm" id="ovTodayRetry">Retry</button></li>'; count.textContent = ''; return; }
+      var items = d.items || [], errs = d.errors || [];
+      var rows = items.map(function (it) {
+        return '<li><button type="button" class="ov-today-item' + (it.tone === 'money' ? ' is-money' : it.tone === 'warn' ? ' is-warn' : '') + '" data-today-go="' + escapeHtml(it.go) + '" data-today-tab="' + escapeHtml(it.tab || '') + '">'
+          + '<span class="ov-today-n">' + (it.tone === 'warn' ? '!' : Number(it.n).toLocaleString('en-NG')) + '</span>'
+          + '<span class="ov-today-txt"><strong>' + escapeHtml(it.label) + '</strong><span>' + escapeHtml(it.sub) + '</span></span>'
+          + '<span class="ov-today-go" aria-hidden="true">Open →</span></button></li>';
+      });
+      errs.forEach(function (e) {
+        rows.push('<li><button type="button" class="ov-today-item is-warn" data-today-go="' + escapeHtml(e.go) + '" data-today-tab="' + escapeHtml(e.tab || '') + '"><span class="ov-today-n">?</span>'
+          + '<span class="ov-today-txt"><strong>' + escapeHtml(e.label) + '</strong><span>Could not be counted just now — open it to check.</span></span><span class="ov-today-go" aria-hidden="true">Open →</span></button></li>');
+      });
+      list.innerHTML = rows.length ? rows.join('') : '<li class="ov-today-clear">Nothing is waiting on you. Everything that needs a person has been dealt with.</li>';
+      var n = items.length;
+      count.textContent = n ? n + ' thing' + (n === 1 ? '' : 's') + ' waiting on you' : 'Nothing is waiting on you';
+    }).catch(function () { list.innerHTML = '<li class="muted">Could not see what is waiting. <button class="btn btn-outline btn-sm" id="ovTodayRetry">Retry</button></li>'; });
+  }
+
   function loadOverview() {
     loadBrief();
+    loadToday();
     var grid = $('#ovGrid'), health = $('#ovHealth'), alert = $('#ovMailAlert');
     if (grid) grid.innerHTML = '<p class="muted" style="grid-column:1/-1">Loading…</p>';
     return api('dashboard').then(function (r) {
@@ -1919,6 +1960,10 @@
             ? ' <span class="muted tiny" title="Resetting your own would make the second step optional">another Super Admin resets yours</span>'
             : ' <button class="btn btn-outline btn-sm" data-mfa-reset="' + escapeHtml(a.email) + '">Reset 2-step</button>';
         }
+        /* Money is granted to a person, not carried by a role (AdminRoles::CAPS). */
+        var hasMoney = String(a.caps || '').split(',').indexOf('money') >= 0;
+        if (a.role === 'superadmin') tag += ' <span class="badge published" title="A Super Admin holds every trust">money</span>';
+        else if (a.valid !== false) act = '<label class="mt-cap"><input type="checkbox" data-admin-cap="money" data-email="' + escapeHtml(a.email) + '"' + (hasMoney ? ' checked' : '') + '> Money access</label> ' + act;
         return '<div class="mt-row"><div class="mt-row-main"><div class="mt-pair"><b>' + escapeHtml(a.email) + '</b> <span class="badge ' + (a.valid === false ? 'draft' : 'published') + '" style="text-transform:capitalize">' + escapeHtml(a.role) + '</span>' + tag + '</div>'
           + '<div class="mt-meta">added ' + escapeHtml(a.created_at || '') + (a.added_by ? ' · by ' + escapeHtml(a.added_by) : '') + '</div></div>'
           + '<div class="mt-acts">' + act + '</div></div>';
@@ -1964,6 +2009,19 @@
         msg.textContent = d.ok ? ('Granted ' + role + ' access to ' + email + '.') : (d.error || 'Could not grant access.');
         if (d.ok) { $('#adEmail').value = ''; loadAdmins(); }
       }).finally(function () { btn.disabled = false; });
+    });
+    /* Money access: granted or withdrawn at once, by a Super Admin, and logged. */
+    $('#adList').addEventListener('change', function (e) {
+      var c = e.target.closest('[data-admin-cap]'); if (!c) return;
+      var em = c.getAttribute('data-email'), give = c.checked;
+      if (!confirm((give ? 'Give ' : 'Withdraw ') + em + (give ? ' Money access? They will see donors, and record and verify money.' : '’s Money access?'))) { c.checked = !give; return; }
+      c.disabled = true;
+      post('admin_caps_save', { email: em, caps: give ? ['money'] : [] }).then(function (r) {
+        var x = r.data || {};
+        if (!x.ok) { c.checked = !give; toast(x.error || 'Not saved.'); return; }
+        toast(give ? 'Money access given.' : 'Money access withdrawn.');
+      }).catch(function () { c.checked = !give; toast('The Studio could not be reached. Nothing changed.'); })
+        .finally(function () { c.disabled = false; });
     });
     $('#adList').addEventListener('click', function (e) {
       var b = e.target.closest('[data-admin-remove]');
@@ -2509,6 +2567,8 @@
         (r.options || []).map(function (o) {
           return '<option value="' + escapeHtml(o) + '"' + (String(o) === String(r.value) ? ' selected' : '') + '>' + escapeHtml(o) + '</option>';
         }).join('') + '</select>';
+    } else if (r.type === 'time') {
+      input = '<input type="time" id="' + id + '" data-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(r.value) + '" step="60" />';
     } else if (r.type === 'int') {
       input = '<input type="number" id="' + id + '" data-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(r.value) + '"' +
         (r.min !== null && r.min !== undefined ? ' min="' + escapeHtml(r.min) + '"' : '') +
@@ -3601,6 +3661,7 @@
   }
   function memChip(n, label) { return '<span class="mem-chip"><b>' + (n || 0) + '</b> ' + escapeHtml(label) + '</span>'; }
   function memTab(which) {
+    if (!routing && views.members && !views.members.hidden) setHash('members', which, true);
     document.querySelectorAll('.subtab[data-mv]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-mv') === which); });
     document.querySelectorAll('.mem-pane').forEach(function (p) { p.hidden = p.getAttribute('data-pane') !== which; });
     if (which === 'dash') loadMemDash();
@@ -3619,7 +3680,9 @@
 
   /* The member dashboard, like NGG's: four rows of tiles, each one a list. */
   var MEM_SEGMENTS = { active: 'Active', suspended: 'Suspended', dormant: 'Active, not signed in for 60 days', joined30: 'Joined in the last 30 days', joined365: 'Joined in the last 12 months',
-    fined: 'Have been fined', fines_owed: 'Owe a fine', fines_cleared: 'Fined, nothing owing', level_raised: 'Level raised in the last 12 months', review_open: 'Promotion awaiting a decision' };
+    fined: 'Have been fined', fines_owed: 'Owe a fine', fines_cleared: 'Fined, nothing owing', level_raised: 'Level raised in the last 12 months', review_open: 'Promotion awaiting a decision',
+    att_low: 'Attendance under 70% (90 days)', often_late: 'Late 3 or more times (30 days)', att_strong: 'Attendance 90%+ and on time (90 days)',
+    followup_due: 'Follow-up due or late', followup_open: 'Being followed up' };
   function memTile(n, label, attrs, sub) {
     return '<button class="ov-card" ' + (attrs || 'disabled') + '><span class="ov-card-num">' + n + '</span><span class="ov-card-label">' + escapeHtml(label) + '</span>'
       + (sub ? '<span class="ov-card-sub">' + escapeHtml(sub) + '</span>' : '') + '</button>';
@@ -3636,6 +3699,12 @@
       + memTile(b.vanguards || 0, 'NextGen Vanguards', 'data-kind="ngv"')
       + memTile(d.learners || 0, 'Academy learners', 'data-kind="learner"', 'not members')
       + '</div>'
+      /* Evaluation: who to call, who to commend — from the gate, judged only on 5+ counted days. */
+      + '<h2 class="mem-tiles-h">Attendance and follow-up</h2><div class="ov-grid mem-tiles">'
+      + seg('att_low', 'Attendance under 70%', 'last 90 days') + seg('often_late', 'Late 3+ times', 'last 30 days')
+      + seg('att_strong', 'Attending and on time', '90%+ · last 90 days')
+      + seg('followup_due', 'Follow-ups due', 'due today or late') + seg('followup_open', 'Being followed up', 'an admin is on it')
+      + '</div><p class="mem-tiles-note">Judged only for somebody with at least 5 counted days at the gate. Open a member for their whole record: attendance, commitments, level, fines and dues, and their NextGen Vanguard programme if they are on it.</p>'
       + '<h2 class="mem-tiles-h">Fines</h2><div class="ov-grid mem-tiles">'
       + seg('fined', 'Fined', (f.count || 0) + ' fine' + (f.count === 1 ? '' : 's') + ' in all')
       + seg('fines_owed', 'Owe a fine', naira(f.owing_ngn) + ' outstanding')
@@ -4118,6 +4187,184 @@
   var OFF_LABEL = { verified: 'Confirmed and credited', checked: 'Receipt checked — confirm the money arrived', held: 'Held — not credited', rejected: 'Rejected', pending: 'Being checked' };
   var OFF_CHECK = { evidence: 'Is a payment receipt', amount: 'Amount', payee: 'Paid to Afrovanguard', date: 'Date', reference: 'Reference', reused: 'Not used before', tampering: 'No sign of editing', confidence: 'Legible', reader: 'Reader', credit: 'Credit' };
   var offCanOverride = false, offMe = '';
+  /* ── Money → Bank transfers (lib/BankGifts.php) ──
+     One admin records what the statement shows; another verifies it. The
+     server refuses a verify by the recorder; the button says so first. */
+  var GIFT_LABEL = { pending: 'Waiting to be verified', verified: 'Verified', rejected: 'Rejected' };
+  var giftsMe = '', giftsCampaigns = false;
+  function giftsError(box) { box.innerHTML = '<p class="muted">Could not load the transfers. <button class="btn btn-outline btn-sm" id="giftsRetry">Retry</button></p>'; }
+  function loadGifts() {
+    var box = $('#giftsList'); box.innerHTML = '<p class="muted">Loading…</p>';
+    if (!$('#gf_paid').value) $('#gf_paid').value = new Date().toISOString().slice(0, 10);
+    api('gifts_list&status=' + encodeURIComponent($('#giftsStatus').value)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { giftsError(box); return; }
+      giftsMe = String(d.me || '').trim().toLowerCase();
+      $('#giftsBadge').hidden = !d.pending; $('#giftsBadge').textContent = d.pending || '';
+      if (!giftsCampaigns) {
+        var sel = $('#gf_campaign'), names = d.campaigns || [];
+        if (names.indexOf('general') < 0) names.unshift('general');
+        sel.innerHTML = names.map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c.replace(/[-_]/g, ' ')) + '</option>'; }).join('');
+        giftsCampaigns = true;
+      }
+      var rows = d.gifts || [];
+      $('#giftsCount').textContent = rows.length + ' transfer' + (rows.length === 1 ? '' : 's') + ' shown';
+      box.innerHTML = rows.length ? rows.map(function (g) {
+        var mine = giftsMe && giftsMe === String(g.submitted_by || '').toLowerCase();
+        var acts = g.status !== 'pending' ? '' : (mine
+          ? '<button class="btn btn-outline btn-sm" data-gift="withdraw" data-id="' + g.id + '">Withdraw</button><span class="tiny muted">Another admin verifies this.</span>'
+          : '<button class="btn btn-primary btn-sm" data-gift="verify" data-id="' + g.id + '">Verify against the statement…</button><button class="btn btn-outline btn-sm" data-gift="reject" data-id="' + g.id + '">Reject</button>');
+        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(g.name) + ' — ₦' + Number(g.amount).toLocaleString('en-NG', { minimumFractionDigits: 2 })
+          + ' <span class="badge ' + (g.status === 'verified' ? 'published' : 'draft') + '">' + escapeHtml(GIFT_LABEL[g.status] || g.status) + '</span></div>'
+          + '<div class="entry-meta">' + escapeHtml([g.campaign.replace(/[-_]/g, ' '), 'ref ' + g.bank_ref, 'arrived ' + g.paid_on, g.frequency, g.listed ? 'on the donor wall' : 'not on the wall'].join(' · ')) + '</div>'
+          + '<div class="tiny muted">' + escapeHtml('Recorded by ' + g.submitted_by + ' on ' + String(g.created_at).slice(0, 10) + (g.decided_by ? ' · ' + (GIFT_LABEL[g.status] || g.status).toLowerCase() + ' by ' + g.decided_by : '')) + '</div>'
+          + (g.note ? '<div class="tiny">' + escapeHtml('Note: ' + g.note) + '</div>' : '') + (g.decision_note ? '<div class="tiny">' + escapeHtml('Why: ' + g.decision_note) + '</div>' : '')
+          + '</div><div class="entry-ops">' + acts + '</div></div>';
+      }).join('') : '<p class="muted">' + ($('#giftsStatus').value === 'pending' ? 'Nothing is waiting to be verified.' : 'No transfers in this state yet.') + '</p>';
+    }).catch(function () { giftsError(box); });
+  }
+
+  /* ── People → Attendance (lib/GateAttendance.php) ──
+     The day's register, and the settings grouped as they are set up: when
+     people are expected, lateness, absence, then fines and points (a Super
+     Admin's). Saving sends only what changed, through the rules' own save. */
+  var ATT_DAYS = [['mon', 'Mon'], ['tue', 'Tue'], ['wed', 'Wed'], ['thu', 'Thu'], ['fri', 'Fri'], ['sat', 'Sat'], ['sun', 'Sun']];
+  var ATT_LABEL = { present: 'On time', late: 'Late', absent: 'Absent', excused: 'Excused' };
+  var attLoaded = {}, attSettings = [];
+  function attTab(which) {
+    document.querySelectorAll('[data-att-tab]').forEach(function (b) { var on = b.getAttribute('data-att-tab') === which; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    document.querySelectorAll('[data-att-pane]').forEach(function (p) { p.hidden = p.getAttribute('data-att-pane') !== which; });
+    if (!routing && views.attendance && !views.attendance.hidden) setHash('attendance', which === 'day' ? '' : which, true);
+  }
+  function addMins(hhmm, m) { var p = String(hhmm).split(':'), t = (+p[0]) * 60 + (+p[1]) + m; return String(Math.floor(t / 60) % 24).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); }
+  function attTime(iso) { if (!iso) return '—'; var d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Lagos' }); }
+  function loadAttendance() {
+    var day = $('#attDay'); if (!day.value) day.value = new Date().toISOString().slice(0, 10);
+    var rows = $('#attRows'); rows.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
+    api('attendance_get&day=' + encodeURIComponent(day.value)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { rows.innerHTML = '<tr><td colspan="6" class="muted">Could not load the register. <button type="button" class="btn btn-outline btn-sm" id="attRetry">Retry</button></td></tr>'; return; }
+      var reg = d.register || {}, n = reg.counts || {}, notIn = reg.not_in || [];
+      $('#attRule').textContent = d.lateness_on
+        ? 'Late after ' + addMins(d.times.ngv, d.grace) + ' for NextGen Vanguard and ' + addMins(d.times.member, d.grace) + ' for other members (' + d.grace + ' minutes’ grace), on their programme days.'
+        : 'Lateness is not recorded: everybody who comes in is on time.';
+      $('#attCounts').innerHTML = [['present', 'On time'], ['late', 'Late'], ['absent', 'Absent'], ['excused', 'Excused']].map(function (c) {
+        return '<div class="att-count is-' + c[0] + '"><span class="att-count-n">' + (n[c[0]] || 0) + '</span><span>' + c[1] + '</span></div>';
+      }).join('') + '<div class="att-count"><span class="att-count-n">' + notIn.length + '</span><span>Not in yet</span></div>';
+      var list = reg.rows || [];
+      rows.innerHTML = list.length ? list.map(function (x) {
+        return '<tr><td>' + escapeHtml(x.name || ('#' + x.member_id)) + '</td><td><span class="att-pill is-' + escapeHtml(x.status) + '">' + escapeHtml(ATT_LABEL[x.status] || x.status) + '</span></td>'
+          + '<td>' + attTime(x.in_at) + '</td><td>' + (x.status === 'late' ? x.late_minutes + ' min' : '—') + '</td><td>' + attTime(x.out_at) + '</td><td>' + escapeHtml(x.centre || '—') + '</td></tr>';
+      }).join('') : '<tr><td colspan="6" class="muted">' + (reg.programme_day ? 'Nobody has come through the gate on this day.' : 'Not a programme day: nobody is expected.') + '</td></tr>';
+      $('#attNotIn').textContent = notIn.length ? notIn.map(function (p) { return p.name; }).join(', ') : 'Nobody — everybody expected has come in, or nobody is expected.';
+      $('#attBadge').hidden = !d.excuses; $('#attBadge').textContent = d.excuses || '';
+      attSettings = d.settings || []; attRenderSettings();
+    }).catch(function () { rows.innerHTML = '<tr><td colspan="6" class="muted">Could not load the register. <button type="button" class="btn btn-outline btn-sm" id="attRetry">Retry</button></td></tr>'; });
+  }
+  function attField(r, editable) {
+    var id = 'att_' + r.key.replace(/\./g, '_'), dis = editable ? '' : ' disabled', v = r.value;
+    attLoaded[r.key] = typeof v === 'boolean' ? v : String(v);
+    if (r.key === 'gate.programme_days') {
+      var on = String(v).split(',');
+      return '<fieldset class="att-field"><legend>' + escapeHtml(r.label) + '</legend><div class="att-days">' + ATT_DAYS.map(function (d) {
+        return '<label class="att-day"><input type="checkbox" data-att-day="' + d[0] + '"' + (on.indexOf(d[0]) >= 0 ? ' checked' : '') + dis + '> ' + d[1] + '</label>';
+      }).join('') + '</div><p class="muted tiny">' + escapeHtml(r.help) + '</p></fieldset>';
+    }
+    if (r.key === 'gate.holidays') {
+      var days = String(v).split(',').filter(Boolean).sort();
+      return '<fieldset class="att-field" data-att-holidays><legend>' + escapeHtml(r.label) + '</legend><ul class="att-hols">' + days.map(function (d) {
+        return '<li><span>' + escapeHtml(d) + '</span>' + (editable ? '<button type="button" class="att-hol-x" data-att-hol-x="' + escapeHtml(d) + '" aria-label="Remove ' + escapeHtml(d) + '">×</button>' : '') + '</li>';
+      }).join('') + (days.length ? '' : '<li class="muted att-hol-none">No holidays set.</li>') + '</ul>'
+        + (editable ? '<div class="att-hol-add"><label class="sr-only" for="attHolNew">Add a holiday</label><input type="date" id="attHolNew"><button type="button" class="btn btn-outline btn-sm" id="attHolAdd">Add</button></div>' : '')
+        + '<p class="muted tiny">' + escapeHtml(r.help) + '</p><p class="att-err" id="' + id + '_err" hidden></p></fieldset>';
+    }
+    var input;
+    if (r.type === 'bool') input = '<input type="checkbox" id="' + id + '" data-att-key="' + escapeHtml(r.key) + '"' + (v ? ' checked' : '') + dis + '>';
+    else if (r.type === 'time') input = '<input type="time" id="' + id + '" data-att-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(v) + '" step="60"' + dis + '>';
+    else if (r.type === 'int') input = '<input type="number" id="' + id + '" data-att-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(v) + '" min="' + escapeHtml(r.min) + '" max="' + escapeHtml(r.max) + '" step="1"' + dis + '>';
+    else input = '<input type="text" id="' + id + '" data-att-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(v) + '"' + dis + '>';
+    return '<div class="att-field' + (r.type === 'bool' ? ' is-check' : '') + '"><label for="' + id + '">' + (r.type === 'bool' ? input + ' ' : '') + escapeHtml(r.label) + '</label>'
+      + (r.type === 'bool' ? '' : input) + '<p class="muted tiny">' + escapeHtml(r.help) + '</p><p class="att-err" id="' + id + '_err" hidden></p></div>';
+  }
+  function attRenderSettings() {
+    attLoaded = {};
+    $('#attGroups').innerHTML = attSettings.map(function (g) {
+      return '<section class="side-card att-group" data-att-group="' + escapeHtml(g.key) + '"><h3>' + escapeHtml(g.title) + '</h3>'
+        + (g.editable ? '' : '<p class="muted tiny att-locked">Set by a Super Admin — money and points are the organisation’s rules.</p>')
+        + '<div class="att-fields">' + g.rules.map(function (r) { return attField(r, g.editable); }).join('') + '</div></section>';
+    }).join('');
+    $('#attSave').hidden = !attSettings.some(function (g) { return g.editable; });
+  }
+  function attCollect() {
+    var out = {};
+    attSettings.forEach(function (g) {
+      if (!g.editable) return;
+      var box = document.querySelector('[data-att-group="' + g.key + '"]');
+      g.rules.forEach(function (r) {
+        var val;
+        if (r.key === 'gate.holidays') val = Array.prototype.map.call(box.querySelectorAll('[data-att-hol-x]'), function (b) { return b.getAttribute('data-att-hol-x'); }).sort().join(',');
+        else if (r.key === 'gate.programme_days') val = Array.prototype.map.call(box.querySelectorAll('[data-att-day]:checked'), function (c) { return c.getAttribute('data-att-day'); }).join(',');
+        else { var el = box.querySelector('[data-att-key="' + r.key + '"]'); if (!el) return; val = r.type === 'bool' ? el.checked : el.value.trim(); }
+        if (String(val) !== String(attLoaded[r.key])) out[r.key] = val;
+      });
+    });
+    return out;
+  }
+
+  /* ── Money → Donations (lib/Donations.php): the ledger and the donors ── */
+  var DON_KIND = { card: 'Card', bank_static: 'Bank transfer', bank_va: 'Virtual account', inkind: 'In kind' };
+  var donPage = 0, donSeg = 'all', donCampaigns = false, donTimer = null;
+  function naira(n) { return '₦' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 }); }
+  function donTab(which) {
+    document.querySelectorAll('[data-don-tab]').forEach(function (b) { var on = b.getAttribute('data-don-tab') === which; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    document.querySelectorAll('[data-don-pane]').forEach(function (p) { p.hidden = p.getAttribute('data-don-pane') !== which; });
+    if (which === 'donors') loadDonors();
+    if (!routing && views.donations && !views.donations.hidden) setHash('donations', which === 'gifts' ? '' : which, true);
+  }
+  function donQuery() {
+    var q = { q: $('#donQ').value.trim(), campaign: $('#donCampaign').value, type: $('#donType').value, from: $('#donFrom').value, to: $('#donTo').value, email: $('#donEmail').value };
+    return Object.keys(q).filter(function (k) { return q[k]; }).map(function (k) { return k + '=' + encodeURIComponent(q[k]); }).join('&');
+  }
+  function loadDonations() {
+    var rows = $('#donRows'); rows.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
+    var qs = donQuery();
+    $('#donExport').setAttribute('href', API + '?action=donations_export' + (qs ? '&' + qs : ''));
+    api('donations_list&page=' + donPage + (qs ? '&' + qs : '')).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { rows.innerHTML = '<tr><td colspan="6" class="muted">' + escapeHtml(d.error || 'Could not load the gifts.') + ' <button type="button" class="btn btn-outline btn-sm" id="donRetry">Retry</button></td></tr>'; return; }
+      var sm = d.summary || {};
+      $('#donSummary').innerHTML = [[naira(sm.month_ngn), 'This month'], [naira(sm.year_ngn), 'This year'], [sm.donors_year || 0, 'Donors this year']].map(function (c) {
+        return '<div class="att-count"><span class="att-count-n">' + escapeHtml(String(c[0])) + '</span><span>' + c[1] + '</span></div>'; }).join('');
+      if (!donCampaigns) { $('#donCampaign').innerHTML = '<option value="">All appeals</option>' + (d.campaigns || []).map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c.replace(/[-_]/g, ' ')) + '</option>'; }).join(''); donCampaigns = true; }
+      var list = d.rows || [], from = d.page * d.page_size;
+      var who = $('#donEmail').value;
+      $('#donCount').innerHTML = escapeHtml(d.total ? (from + 1) + '–' + (from + list.length) + ' of ' + d.total + ' gifts · ' + naira(d.sum_ngn) + ' in all' + (who ? ' · from ' + who : '') : 'No gifts match.')
+        + (who ? ' <button type="button" class="btn btn-outline btn-sm" id="donClearEmail">Show everyone</button>' : '');
+      rows.innerHTML = list.length ? list.map(function (g) {
+        return '<tr><td>' + escapeHtml(String(g.given_at).slice(0, 10)) + '</td><td>' + escapeHtml(g.name || '—') + (g.email ? '<div class="tiny muted">' + escapeHtml(g.email) + '</div>' : '') + '</td>'
+          + '<td>' + (g.type === 'inkind' ? 'In kind' : escapeHtml((g.currency === 'NGN' ? '₦' : g.currency + ' ') + Number(g.amount).toLocaleString('en-NG', { minimumFractionDigits: 2 }))) + '</td>'
+          + '<td>' + escapeHtml(String(g.campaign).replace(/[-_]/g, ' ')) + '</td><td>' + escapeHtml(DON_KIND[g.type] || g.type) + (g.frequency && g.frequency !== 'One-time' ? ' · ' + escapeHtml(g.frequency) : '') + '</td>'
+          + '<td class="tiny">' + escapeHtml(g.reference) + (g.confirmed_by ? '<div class="muted">recorded by ' + escapeHtml(g.recorded_by) + ', confirmed by ' + escapeHtml(g.confirmed_by) + '</div>' : '') + '</td></tr>';
+      }).join('') : '<tr><td colspan="6" class="muted">' + (qs ? 'No gifts match these filters.' : 'No gifts recorded yet.') + '</td></tr>';
+      $('#donPrev').disabled = d.page <= 0; $('#donNext').disabled = from + list.length >= d.total;
+    }).catch(function () { rows.innerHTML = '<tr><td colspan="6" class="muted">Could not load the gifts. <button type="button" class="btn btn-outline btn-sm" id="donRetry">Retry</button></td></tr>'; });
+  }
+  function loadDonors() {
+    var rows = $('#donorRows'); rows.innerHTML = '<tr><td colspan="6" class="muted">Loading…</td></tr>';
+    api('donations_donors&segment=' + donSeg + '&q=' + encodeURIComponent($('#donorQ').value.trim())).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { rows.innerHTML = '<tr><td colspan="6" class="muted">' + escapeHtml(d.error || 'Could not load the donors.') + '</td></tr>'; return; }
+      var c = d.counts || {};
+      document.querySelectorAll('[data-don-seg]').forEach(function (b) { var k = b.getAttribute('data-don-seg'); b.dataset.label = b.dataset.label || b.textContent; b.textContent = b.dataset.label + ' (' + (c[k] || 0) + ')'; });
+      $('#donorCount').textContent = d.total + ' donor' + (d.total === 1 ? '' : 's') + (d.retention !== null ? ' · ' + d.retention + '% of last year’s donors have given again this year (' + d.retained + ' of ' + d.last_year_donors + ')' : '');
+      rows.innerHTML = (d.donors || []).length ? d.donors.map(function (x) {
+        return '<tr><td>' + escapeHtml(x.name || '—') + '<div class="tiny muted">' + escapeHtml(x.email) + '</div></td><td>' + x.gifts + (x.recurring ? ' <span class="att-pill">regular</span>' : '') + '</td>'
+          + '<td>' + naira(x.total) + '</td><td>' + escapeHtml(String(x.first_at).slice(0, 10)) + '</td><td>' + escapeHtml(String(x.last_at).slice(0, 10)) + '</td>'
+          + '<td><button type="button" class="btn btn-outline btn-sm" data-don-donor="' + escapeHtml(x.email) + '">Their gifts</button></td></tr>';
+      }).join('') : '<tr><td colspan="6" class="muted">' + (donSeg === 'lybunt' ? 'Nobody who gave last year is still to give this year.' : 'No donors here.') + '</td></tr>';
+    }).catch(function () { rows.innerHTML = '<tr><td colspan="6" class="muted">Could not load the donors.</td></tr>'; });
+  }
+
   function loadOffline() {
     var box = $('#offList'); box.innerHTML = '<p class="muted">Loading…</p>';
     api('offline_list&status=' + $('#offStatus').value).then(function (r) {
@@ -4264,11 +4511,121 @@
       memMember = m; $('#mdMsForm').hidden = true;
       $('#mdMembership').innerHTML = msHTML(m.membership); loadMemMembership();
       memVolDraw(m);
+      memEvalDraw(m);
       memErrors('#md_errors', null);
       $('#memDrawer').hidden = false; $('#md_name').focus();
     });
   }
   function closeMember() { $('#memDrawer').hidden = true; memOpen = 0; }
+
+  /* How they are doing (lib/MemberEvaluation.php): the records side by side,
+     one standing, and its reasons written out — never a label alone. A part
+     that could not be read is said, not shown as nothing. */
+  function memEvalDraw(m) {
+    var e = m.evaluation || {}, box = $('#mdEval'), nb = $('#mdNgv');
+    if (!e.ok) { box.innerHTML = '<h3 class="mem-card-h" id="mdEvalH">How they are doing</h3><p class="muted">Could not read their records just now. Close and open again to retry.</p>'; nb.hidden = true; return; }
+    var pct = function (v) { return v === null || v === undefined ? '—' : v + '%'; };
+    var stat = function (n, label, sub, tone) { return '<div class="mem-eval-stat' + (tone ? ' is-' + tone : '') + '"><span class="mem-eval-n">' + n + '</span><span class="mem-eval-l">' + escapeHtml(label) + '</span>' + (sub ? '<span class="mem-eval-s">' + escapeHtml(sub) + '</span>' : '') + '</div>'; };
+    var gone = function (k) { return (e.unavailable || []).indexOf(k) >= 0; };
+    var a = e.attendance, c = e.commitments, g = e.growth, mo = e.money;
+    var ten = e.tenure || {};
+    var h = '<div class="mem-eval-top"><h3 class="mem-card-h" id="mdEvalH">How they are doing</h3><span class="mem-eval-tags">'
+      + (ten.first_year ? '<span class="mem-eval-badge" title="Joined ' + escapeHtml(ten.since || '') + '">First year</span>' : '')
+      + '<span class="mem-eval-badge is-' + e.standing + '">' + escapeHtml(e.standing_label) + '</span></span></div>';
+    var why = (e.concerns || []).map(function (t) { return '<li class="is-concern">' + escapeHtml(t) + '</li>'; }).join('')
+      + (e.strengths || []).map(function (t) { return '<li class="is-strength">' + escapeHtml(t) + '</li>'; }).join('')
+      + (e.notes || []).map(function (t) { return '<li class="is-note">' + escapeHtml(t) + '</li>'; }).join('');
+    h += why ? '<ul class="mem-eval-why">' + why + '</ul>' : '<p class="muted tiny">Nothing stands out in their records either way.</p>';
+    h += '<div class="mem-eval-grid">';
+    var tr = a && a.trend, arrow = tr ? ({ slipping: '↓ ', improving: '↑ ', level: '' })[tr.direction] : '';
+    if (a) h += stat(pct(a.rate), 'Attendance', (tr ? arrow + tr.recent + '% last 30 days · was ' + tr.before + '%' : a.counted + ' day' + (a.counted === 1 ? '' : 's') + ' counted · ' + e.days + ' days'), (a.enough && a.rate < 70) || (tr && tr.direction === 'slipping') ? 'low' : '')
+      + stat(pct(a.punctuality), 'On time', a.grade ? 'grade ' + a.grade : 'no grade yet')
+      + stat(a.late, 'Late', a.late_minutes + ' min in all · ' + a.late_30 + ' in 30 days', a.late_30 >= 3 ? 'low' : '')
+      + stat(a.absent, 'Absent', a.excused ? a.excused + ' excused' : '')
+      + stat(a.streak, 'On-time streak', 'days in a row');
+    else if (gone('attendance')) h += stat('?', 'Attendance', 'could not be read');
+    if (c) h += stat(pct(c.rate), 'Commitments kept', c.done + ' kept · ' + c.missed + ' missed' + (c.overdue ? ' · ' + c.overdue + ' overdue' : ''), c.overdue ? 'low' : '');
+    else if (gone('commitments')) h += stat('?', 'Commitments', 'could not be read');
+    if (mo) h += stat(naira(mo.fines_owing_ngn), 'Fines owing', mo.fines_open + ' open', mo.fines_owing_ngn > 0 ? 'low' : '')
+      + stat(mo.dues_owes ? mo.dues_months : '—', 'Months behind on dues', mo.dues_owes ? naira(mo.dues_ngn) + ' owed' : 'no dues owed', mo.dues_owes && mo.dues_months >= 2 ? 'low' : '');
+    else if (gone('money')) h += stat('?', 'Fines and dues', 'could not be read');
+    h += '</div>';
+    if (g) h += '<div class="mem-eval-growth"><p><b>Level ' + escapeHtml(g.level) + '</b> ' + escapeHtml(g.level_label || '')
+      + (g.next ? ' · next: <b>' + escapeHtml(g.next) + '</b> ' + escapeHtml(g.next_label || '') + (g.ready ? ' — <span class="mem-eval-ok">meets the bar</span>' : '') : '')
+      + (g.mentees ? ' · ' + g.mentees + ' active mentee' + (g.mentees === 1 ? '' : 's') : '') + '</p>'
+      + (!g.ready && (g.gaps || []).length ? '<details class="mem-eval-gaps"><summary>What stands between them and ' + escapeHtml(g.next || 'the next level') + ' (' + g.gaps.length + ')</summary><ul>' + g.gaps.map(function (t) { return '<li>' + escapeHtml(t) + '</li>'; }).join('') + '</ul></details>' : '')
+      + (g.review ? '<p class="muted tiny">Latest promotion review: ' + escapeHtml(g.review.status || 'open') + (g.review.to ? ' (to ' + escapeHtml(g.review.to) + ')' : '') + '.</p>' : '') + '</div>';
+    h += memFollowHTML(m, e);
+    box.innerHTML = h;
+
+    /* A vanguard is a member: their programme is part of their record, here. */
+    var v = e.vanguard;
+    if (!v) { nb.hidden = true; nb.innerHTML = ''; return; }
+    nb.hidden = false;
+    nb.innerHTML = '<div class="mem-eval-top"><h3 class="mem-card-h" id="mdNgvH">NextGen Vanguard</h3><span class="mem-eval-badge">' + escapeHtml(({ active: 'On the programme', paused: 'On a break', completed: 'Completed' })[v.status] || v.status) + '</span></div>'
+      + (v.probation ? '<p class="mem-eval-warn">On probation since ' + escapeHtml(v.probation.since) + (v.probation.until ? ' until ' + escapeHtml(v.probation.until) : '') + ': ' + escapeHtml(v.probation.reason) + '</p>' : '')
+      + '<div class="mem-eval-grid">'
+      + stat(escapeHtml(v.track || '—'), 'Track', v.cohort ? 'cohort ' + v.cohort : '')
+      + stat(v.months_in, 'Months in', v.start ? 'from ' + v.start + (v.end ? ' · ends ' + v.end : '') : 'no start date')
+      + stat(v.points, 'Points', v.points_month + ' this month')
+      + stat(naira(v.owing_ngn), 'Programme account', v.owing_ngn > 0 ? 'owing' : 'nothing owing', v.owing_ngn > 0 ? 'low' : '')
+      + stat(escapeHtml(v.card || '—'), 'NGV card', v.card ? 'active' : 'none issued')
+      + '</div>'
+      + (v.recorded ? '<p class="mem-eval-links"><button type="button" class="btn btn-outline btn-sm" data-ngv-record="' + m.id + '">Open their programme record</button>'
+        + ' <button type="button" class="btn btn-outline btn-sm" data-ngv-page="fines">Fines desk</button> <button type="button" class="btn btn-outline btn-sm" data-ngv-page="attendance">NGV attendance</button></p>'
+        : '<p class="muted tiny">Known by their NGV card only: there is no programme record for them yet. Enrol them from the registration desk.</p>');
+  }
+  /* Following up (lib/MemberFollowUps.php): one open at a time, an owner and
+     a day; closed with what happened, which goes into the notes as well. */
+  function memFollowHTML(m, e) {
+    var open = e.followup_open, past = (e.followups || []).filter(function (f) { return f.status !== 'open'; }).slice(0, 3);
+    var h = '<div class="mem-follow" id="mdFollow">';
+    if (open) {
+      h += '<p class="mem-follow-now' + (open.overdue ? ' is-late' : '') + '"><b>Follow-up</b> · ' + escapeHtml(open.owner) + ', due ' + escapeHtml(open.due_on) + (open.overdue ? ' — <b>late</b>' : open.due ? ' — <b>today</b>' : '') + '<br><span>' + escapeHtml(open.reason) + '</span></p>'
+        + '<form class="mem-follow-close" data-fu-close="' + open.id + '" autocomplete="off"><label class="fld"><span>What happened</span><textarea name="outcome" rows="2" maxlength="1000" required placeholder="Spoke to her mother; transport problem until January. Back on Saturday."></textarea></label>'
+        + '<div class="mem-follow-btns"><button type="submit" class="btn btn-primary btn-sm" value="done">Done</button><button type="submit" class="btn btn-outline btn-sm" value="cancelled">Cancel the follow-up</button></div>'
+        + '<p class="mem-errors" role="alert" hidden></p></form>';
+    } else {
+      var due = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+      var team = m.followup_team || [], me = String(m.followup_me || '').toLowerCase();
+      h += '<details class="mem-follow-new"' + (e.standing === 'attention' ? ' open' : '') + '><summary>' + (e.standing === 'attention' ? 'Follow up on this' : 'Follow up') + '</summary>'
+        + '<form data-fu-open="' + m.id + '" autocomplete="off"><label class="fld"><span>What for</span><input name="reason" maxlength="500" required value="' + escapeHtml((e.concerns || [])[0] || '') + '"></label>'
+        + '<div class="mem-create-grid"><label class="fld"><span>Who follows up</span><select name="owner">' + team.map(function (t) { return '<option' + (t.toLowerCase() === me ? ' selected' : '') + '>' + escapeHtml(t) + '</option>'; }).join('') + '</select></label>'
+        + '<label class="fld"><span>By</span><input name="due_on" type="date" required value="' + due + '"></label></div>'
+        + '<button type="submit" class="btn btn-primary btn-sm">Start the follow-up</button><p class="mem-errors" role="alert" hidden></p></form></details>';
+    }
+    if (past.length) h += '<ul class="mem-follow-past">' + past.map(function (f) { return '<li><b>' + escapeHtml(f.status === 'done' ? 'Done' : 'Cancelled') + '</b> ' + escapeHtml(String(f.closed_at).slice(0, 10)) + ' · ' + escapeHtml(f.closed_by) + ': ' + escapeHtml(f.outcome) + '</li>'; }).join('') + '</ul>';
+    return h + '</div>';
+  }
+  document.addEventListener('submit', function (ev) {
+    var f = ev.target; if (!f.matches || !f.matches('[data-fu-open],[data-fu-close]')) return;
+    ev.preventDefault();
+    var err = f.querySelector('.mem-errors'), btn = ev.submitter, opening = f.hasAttribute('data-fu-open');
+    var body = opening ? { id: +f.getAttribute('data-fu-open'), reason: f.reason.value, owner: f.owner.value, due_on: f.due_on.value }
+                       : { followup_id: +f.getAttribute('data-fu-close'), outcome: f.outcome.value, status: (btn && btn.value) || 'done' };
+    f.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+    post(opening ? 'member_followup_open' : 'member_followup_close', body).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { err.hidden = false; err.textContent = d.error || 'Could not save. Try again.'; f.querySelectorAll('button').forEach(function (b) { b.disabled = false; }); return; }
+      toast(opening ? 'Follow-up started.' : 'Follow-up closed, and noted.');
+      openMember(memOpen);
+    });
+  });
+  /* The NGV console is part of Members: open it, at one page or one person. */
+  function openNgv(key, url) {
+    closeMember();
+    activateTab('ngv');
+    if (key) loadFrame('ngv', key);
+    if (url) { var f = document.querySelector('iframe[data-frame-for="ngv"]'); if (f) f.setAttribute('src', url); markFrameTab('ngv', 'members'); }
+  }
+  document.addEventListener('click', function (ev) {
+    var back = ev.target.closest && ev.target.closest('[data-tab-go]');
+    if (back) { activateTab(back.getAttribute('data-tab-go')); return; }
+    var t = ev.target.closest && ev.target.closest('[data-ngv-record],[data-ngv-page],[data-ngv-open]');
+    if (!t) return;
+    if (t.hasAttribute('data-ngv-record')) openNgv('', '/academy/ngv/members.php?m=' + encodeURIComponent(t.getAttribute('data-ngv-record')));
+    else openNgv(t.getAttribute('data-ngv-page') || t.getAttribute('data-ngv-open') || 'members');
+  });
 
   /* Volunteers by project — the office's view of who serves what. */
   function loadVolProjects() {
@@ -4519,6 +4876,130 @@
       }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
     });
     $('#offStatus').addEventListener('change', loadOffline);
+    document.querySelectorAll('.nav-fold').forEach(function (b) {
+      var box = document.getElementById(b.getAttribute('aria-controls'));
+      var saved = null; try { saved = localStorage.getItem('av.studio.fold.' + box.id); } catch (e) {}
+      if (saved === '1') setFold(box, true);
+      b.addEventListener('click', function () { setFold(box, box.hidden); });
+    });
+    document.querySelectorAll('[data-frame-tab]').forEach(function (b) {
+      b.addEventListener('click', function () { loadFrame(b.getAttribute('data-frame-tab'), b.getAttribute('data-frame-key')); });
+    });
+    /* A link followed inside the console moves its tab and the address with it. */
+    document.querySelectorAll('iframe[data-frame-for]').forEach(function (fr) {
+      fr.addEventListener('load', function () {
+        var id = fr.getAttribute('data-frame-for'), path = '';
+        try { path = fr.contentWindow.location.pathname; } catch (e) { return; }
+        var key = frameKeyFor(id, path); if (!key) return;
+        markFrameTab(id, key);
+        if (views[id] && !views[id].hidden && (FRAMES[id] || []).length > 1) setHash(id, key, true);
+      });
+    });
+    $('#findOpen').addEventListener('click', findOpen);
+    document.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); if ($('#findBox').hidden) findOpen(); else findClose(true); return; }
+      if ($('#findBox').hidden) return;
+      if (e.key === 'Escape') { e.preventDefault(); findClose(true); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); if (findHits.length) { findSel = (findSel + 1) % findHits.length; findRender(); } }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); if (findHits.length) { findSel = (findSel - 1 + findHits.length) % findHits.length; findRender(); } }
+      else if (e.key === 'Enter') { e.preventDefault(); findGo(findSel); }
+      else if (e.key === 'Tab') { e.preventDefault(); $('#findInput').focus(); }   // the dialog keeps focus
+    });
+    $('#findInput').addEventListener('input', function () { findSel = 0; findRender(); });
+    $('#findList').addEventListener('click', function (e) { var li = e.target.closest('[data-find]'); if (li) findGo(+li.getAttribute('data-find')); });
+    $('#findBox').addEventListener('click', function (e) { if (e.target === this) findClose(true); });
+    $('#ovTodayList').addEventListener('click', function (e) {
+      if (e.target.closest('#ovTodayRetry')) { loadToday(); return; }
+      var b = e.target.closest('[data-today-go]'); if (!b) return;
+      var go = b.getAttribute('data-today-go'), tab = b.getAttribute('data-today-tab');
+      if (!roleAllows(go)) return;
+      if (go === 'gifts') $('#giftsStatus').value = 'pending';
+      activateTab(go);
+      if (go === 'members' && tab) memTab(tab);
+    });
+    document.querySelectorAll('[data-att-tab]').forEach(function (b) { b.addEventListener('click', function () { attTab(b.getAttribute('data-att-tab')); }); });
+    $('#attDay').addEventListener('change', loadAttendance);
+    /* Holidays: a list of dates to add to and remove from, saved with the rest. */
+    $('#attGroups').addEventListener('click', function (e) {
+      var x = e.target.closest('[data-att-hol-x]');
+      if (x) { var li = x.closest('li'), ul = li.parentNode; li.remove(); if (!ul.querySelector('[data-att-hol-x]')) ul.innerHTML = '<li class="muted att-hol-none">No holidays set.</li>'; $('#attSaved').textContent = 'Not saved yet.'; return; }
+      if (e.target.closest('#attHolAdd')) {
+        var d = $('#attHolNew').value; if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { $('#attHolNew').focus(); return; }
+        var list = document.querySelector('[data-att-holidays] .att-hols');
+        if (list.querySelector('[data-att-hol-x="' + d + '"]')) return;
+        var none = list.querySelector('.att-hol-none'); if (none) none.remove();
+        var li = document.createElement('li'); li.innerHTML = '<span>' + escapeHtml(d) + '</span><button type="button" class="att-hol-x" data-att-hol-x="' + escapeHtml(d) + '" aria-label="Remove ' + escapeHtml(d) + '">×</button>';
+        list.appendChild(li); $('#attHolNew').value = ''; $('#attSaved').textContent = 'Not saved yet.';
+      }
+    });
+    $('#attRows').addEventListener('click', function (e) { if (e.target.closest('#attRetry')) loadAttendance(); });
+    $('#attSettings').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var vals = attCollect(), err = $('#attErrors'), btn = $('#attSave');
+      document.querySelectorAll('.att-err').forEach(function (x) { x.hidden = true; });
+      err.hidden = true;
+      if (!Object.keys(vals).length) { $('#attSaved').textContent = 'Nothing has changed.'; return; }
+      btn.disabled = true;
+      post('rules_save', { rules: vals }).then(function (r) {
+        var x = r.data || {};
+        if (!x.ok) {
+          Object.keys(x.errors || {}).forEach(function (k) { var el = document.getElementById('att_' + k.replace(/\./g, '_') + '_err'); if (el) { el.textContent = x.errors[k]; el.hidden = false; } });
+          err.textContent = x.error || 'Not saved.'; err.hidden = false; return;
+        }
+        $('#attSaved').textContent = 'Saved. The gate judges the next scan by these.';
+        loadAttendance();
+      }).catch(function () { err.textContent = 'The Studio could not be reached. Nothing was saved; try again.'; err.hidden = false; })
+        .finally(function () { btn.disabled = false; });
+    });
+    document.querySelectorAll('[data-don-tab]').forEach(function (b) { b.addEventListener('click', function () { donTab(b.getAttribute('data-don-tab')); }); });
+    ['#donCampaign', '#donType', '#donFrom', '#donTo'].forEach(function (k) { $(k).addEventListener('change', function () { donPage = 0; loadDonations(); }); });
+    $('#donQ').addEventListener('input', function () { clearTimeout(donTimer); donTimer = setTimeout(function () { donPage = 0; $('#donEmail').value = ''; loadDonations(); }, 300); });
+    $('#donFilters').addEventListener('submit', function (e) { e.preventDefault(); donPage = 0; loadDonations(); });
+    $('#donPrev').addEventListener('click', function () { if (donPage > 0) { donPage--; loadDonations(); } });
+    $('#donNext').addEventListener('click', function () { donPage++; loadDonations(); });
+    $('#donRows').addEventListener('click', function (e) { if (e.target.closest('#donRetry')) loadDonations(); });
+    $('#donCount').addEventListener('click', function (e) { if (e.target.closest('#donClearEmail')) { $('#donEmail').value = ''; donPage = 0; loadDonations(); } });
+    $('#donorQ').addEventListener('input', function () { clearTimeout(donTimer); donTimer = setTimeout(loadDonors, 300); });
+    document.querySelectorAll('[data-don-seg]').forEach(function (b) { b.addEventListener('click', function () {
+      donSeg = b.getAttribute('data-don-seg');
+      document.querySelectorAll('[data-don-seg]').forEach(function (x) { var on = x === b; x.classList.toggle('is-on', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+      loadDonors(); }); });
+    $('#donorRows').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-don-donor]'); if (!b) return;
+      $('#donEmail').value = b.getAttribute('data-don-donor'); $('#donQ').value = ''; donPage = 0; donTab('gifts'); loadDonations();
+    });
+    $('#giftsRefresh').addEventListener('click', loadGifts);
+    $('#giftsStatus').addEventListener('change', loadGifts);
+    $('#giftForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var err = $('#gf_errors'), btn = $('#gf_save');
+      var body = { name: $('#gf_name').value, email: $('#gf_email').value, amount: $('#gf_amount').value.replace(/[,\s₦]/g, ''), campaign: $('#gf_campaign').value,
+        bank_ref: $('#gf_ref').value, paid_on: $('#gf_paid').value, frequency: $('#gf_freq').value, listed: $('#gf_listed').checked, note: $('#gf_note').value };
+      err.hidden = true; btn.disabled = true;
+      post('gifts_submit', body).then(function (r) {
+        var x = r.data || {};
+        if (!x.ok) { err.textContent = x.error || 'Not recorded.'; err.hidden = false; return; }
+        ['#gf_name', '#gf_email', '#gf_amount', '#gf_ref', '#gf_note'].forEach(function (k) { $(k).value = ''; }); $('#gf_listed').checked = false;
+        toast('Recorded. Another admin verifies it against the statement.');
+        $('#giftsStatus').value = 'pending'; loadGifts();
+      }).catch(function () { err.textContent = 'The Studio could not be reached. Nothing was recorded; try again.'; err.hidden = false; })
+        .finally(function () { btn.disabled = false; });
+    });
+    $('#giftsList').addEventListener('click', function (e) {
+      if (e.target.closest('#giftsRetry')) { loadGifts(); return; }
+      var b = e.target.closest('[data-gift]'); if (!b) return;
+      var d = b.getAttribute('data-gift'), id = +b.getAttribute('data-id'), note = '';
+      if (d === 'verify' && !confirm('Have you seen this money on the bank statement? Verifying counts it and emails the donor a receipt.')) return;
+      if (d === 'reject') { note = prompt('Why is it rejected? (kept on the record)'); if (!note) return; }
+      if (d === 'withdraw' && !confirm('Withdraw your entry? Nothing was counted.')) return;
+      b.disabled = true;
+      post('gifts_decide', { id: id, do: d, note: note }).then(function (r) {
+        var x = r.data || {};
+        toast(x.ok ? (d === 'verify' ? (x.already ? 'Verified — it was already counted, so no second receipt.' : 'Verified and counted' + (x.receipted ? '; the receipt is on its way.' : '; the receipt could not be sent — check the mail settings.')) : d === 'reject' ? 'Rejected.' : 'Withdrawn.') : (x.error || 'Refused.'));
+        loadGifts();
+      }).catch(function () { toast('The Studio could not be reached. Nothing changed.'); })
+        .finally(function () { b.disabled = false; });
+    });
     $('#offList').addEventListener('click', function (e) {
       if (e.target.closest('#offRetry')) { loadOffline(); return; }
       var b = e.target.closest('[data-off]'); if (!b) return;
@@ -4866,14 +5347,123 @@
     });
   }
 
+  /* ── Consoles opened inside the Studio ── */
+  var pendingFrameKey = '';
+  function takeFrameKey() { var k = pendingFrameKey; pendingFrameKey = ''; return k; }
+  function frameKeyFor(id, path) {
+    var hit = (FRAMES[id] || []).filter(function (f) { return f.url.split('?')[0] === path; })[0];
+    return hit ? hit.key : '';
+  }
+  function loadFrame(id, key) {
+    var pages = FRAMES[id] || []; if (!pages.length) return;
+    var page = pages.filter(function (f) { return f.key === key; })[0] || pages[0];
+    var frame = document.querySelector('iframe[data-frame-for="' + id + '"]');
+    var here = '';
+    try { here = frame.contentWindow && frame.contentWindow.location.pathname; } catch (e) { here = ''; }
+    if (!frame.getAttribute('src') || here.split('?')[0] !== page.url.split('?')[0]) frame.setAttribute('src', page.url);
+    markFrameTab(id, page.key);
+    if (!routing) setHash(id, pages.length > 1 ? page.key : '', true);
+  }
+  function markFrameTab(id, key) {
+    document.querySelectorAll('[data-frame-tab="' + id + '"]').forEach(function (b) {
+      var on = b.getAttribute('data-frame-key') === key; b.classList.toggle('active', on); b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    var own = document.querySelector('[data-frame-own="' + id + '"]');
+    var page = (FRAMES[id] || []).filter(function (f) { return f.key === key; })[0];
+    if (own && page) own.setAttribute('href', page.url);
+  }
+  function setFold(box, open) {
+    box.hidden = !open;
+    var btn = document.querySelector('[aria-controls="' + box.id + '"]'); if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    try { localStorage.setItem('av.studio.fold.' + box.id, open ? '1' : '0'); } catch (e) {}
+  }
+
+  /* ── The screen in the address: #gifts, #members/offline ── */
+  var routing = false;
+  var MEM_PANES = ['dash', 'roster', 'roles', 'verify', 'centres', 'approvals', 'import', 'volunteers', 'dups', 'dues', 'offline'];
+  function setHash(id, sub, replace) {
+    var want = '#' + id + (sub ? '/' + sub : '');
+    if (location.hash === want) return;
+    try { if (replace || !location.hash) history.replaceState(null, '', want); else history.pushState(null, '', want); } catch (e) { /* a sandboxed frame: the screen still opens */ }
+  }
+  function readHash() {
+    var m = /^#([a-z]+)(?:\/([a-z]+))?$/.exec(location.hash || '');
+    if (!m) return null;
+    var id = (SECTIONS.aliases || {})[m[1]] || m[1];
+    /* A section, by the registry, not by a sidebar tab: a section that is part
+       of another (NextGen Vanguard, in Members) has no tab of its own. */
+    if (!(SECTIONS.sections || []).some(function (x) { return x.id === id; })) return null;
+    var sub = '';
+    if (id === 'members' && MEM_PANES.indexOf(m[2]) >= 0) sub = m[2];
+    if (FRAMES[id] && FRAMES[id].some(function (f) { return f.key === m[2]; })) sub = m[2];
+    if (id === 'attendance' && (m[2] === 'day' || m[2] === 'settings')) sub = m[2];
+    if (id === 'donations' && (m[2] === 'gifts' || m[2] === 'donors')) sub = m[2];
+    return { id: id, sub: sub };
+  }
+  function openFromHash() {
+    var h = readHash(); if (!h || !roleAllows(h.id)) return false;
+    routing = true;
+    try { if (FRAMES[h.id]) pendingFrameKey = h.sub; activateTab(h.id); if (h.sub && h.id === 'members') memTab(h.sub); if (h.sub && h.id === 'attendance') attTab(h.sub); if (h.sub && h.id === 'donations') donTab(h.sub); } finally { routing = false; }
+    return true;
+  }
+  window.addEventListener('popstate', function () { if (!views.login.hidden || !views.mfa.hidden) return; openFromHash(); });
+
+  /* ── The one search (Ctrl+K): screens, member-desk panes, other consoles ── */
+  var MEM_LABEL = { roster: 'Roster', roles: 'Roles', verify: 'To verify', centres: 'Centres', approvals: 'Approvals and member requests', import: 'Import',
+    volunteers: 'Volunteers', dups: 'Duplicates', dues: 'Dues', offline: 'Offline payments' };
+  var findSel = 0, findHits = [], findTrigger = null;
+  function findItems() {
+    var out = [];
+    (SECTIONS.sections || []).forEach(function (s) { if (roleAllows(s.id)) out.push({ kind: 'screen', id: s.id, label: s.label, where: s.group || 'Studio', words: s.group }); });
+    Object.keys(FRAMES).forEach(function (id) {
+      if (!roleAllows(id) || FRAMES[id].length < 2) return;
+      var sec = (SECTIONS.sections || []).filter(function (x) { return x.id === id; })[0] || { label: id };
+      FRAMES[id].forEach(function (f) { out.push({ kind: 'frame', id: id, sub: f.key, label: f.label, where: sec.label, words: '' }); });
+    });
+    if (roleAllows('members')) Object.keys(MEM_LABEL).forEach(function (k) { out.push({ kind: 'pane', id: 'members', sub: k, label: MEM_LABEL[k], where: 'Members', words: 'member desk' }); });
+    var rank = ROLE_RANK[currentRole] || 0;
+    (SECTIONS.consoles || []).forEach(function (c) { if (rank >= (ROLE_RANK[c.min] || 99)) out.push({ kind: 'console', url: c.url, label: c.label, where: 'Opens its own page', words: c.words || '' }); });
+    return out;
+  }
+  function findRender() {
+    var q = $('#findInput').value.trim().toLowerCase(), terms = q.split(/\s+/).filter(Boolean);
+    findHits = findItems().filter(function (it) { var hay = (it.label + ' ' + it.where + ' ' + it.words).toLowerCase(); return terms.every(function (t) { return hay.indexOf(t) >= 0; }); });
+    findSel = Math.min(findSel, Math.max(0, findHits.length - 1));
+    var list = $('#findList');
+    list.innerHTML = findHits.length ? findHits.map(function (it, i) {
+      return '<li role="option" id="findOpt' + i + '" data-find="' + i + '" aria-selected="' + (i === findSel) + '"><span>' + escapeHtml(it.label) + '</span><span class="find-where">' + escapeHtml(it.where) + '</span></li>';
+    }).join('') : '<li class="find-none" role="option" aria-disabled="true">Nothing matches “' + escapeHtml(q) + '”.</li>';
+    $('#findInput').setAttribute('aria-activedescendant', findHits.length ? 'findOpt' + findSel : '');
+    $('#findCount').textContent = findHits.length + ' match' + (findHits.length === 1 ? '' : 'es');
+    var on = list.querySelector('[aria-selected="true"]'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest' });
+  }
+  function findOpen() {
+    if (!views.login.hidden || !views.mfa.hidden) return;
+    findTrigger = document.activeElement;
+    $('#findBox').hidden = false; $('#findInput').value = ''; findSel = 0; findRender(); $('#findInput').focus();
+  }
+  function findClose(restore) {
+    $('#findBox').hidden = true;
+    if (restore && findTrigger && findTrigger.focus) findTrigger.focus();
+  }
+  function findGo(i) {
+    var it = findHits[i]; if (!it) return;
+    findClose(false);
+    if (it.kind === 'console') { location.href = it.url; return; }
+    if (it.kind === 'frame') pendingFrameKey = it.sub;
+    activateTab(it.id); if (it.sub && it.kind === 'pane') memTab(it.sub);
+    var t = document.querySelector('.tab[data-tab="' + it.id + '"]'); if (t) t.focus();
+  }
+
   function boot() {
     applyRoleVisibility();
     var saved = 'overview';
     try { saved = localStorage.getItem('av.studio.tab') || 'overview'; } catch (e) {}
     // A link into the Studio (the preview's "Back to the Studio") names its screen in the hash.
-    var asked = (location.hash || '').slice(1);
-    if (/^[a-z]+$/.test(asked) && (document.querySelector('.tab[data-tab="' + asked + '"]') || asked === 'homepage' || asked === 'pages')) saved = asked;
-    if (saved !== 'homepage' && saved !== 'pages' && !document.querySelector('.tab[data-tab="' + saved + '"]')) saved = 'overview';
+    if (openFromHash()) { refreshModBadge(); return; }
+    /* A screen this role may not open (or a stale name): drop it from the address rather than show one screen under another's name. */
+    if (location.hash) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+    if (saved !== 'homepage' && saved !== 'pages' && !(SECTIONS.sections || []).some(function (x) { return x.id === saved; })) saved = 'overview';
     if (!roleAllows(saved)) saved = 'overview';
     activateTab(saved);
     refreshModBadge();
@@ -4936,13 +5526,15 @@
       if (d.csrf) csrf = d.csrf;
       currentRole = d.role || currentRole;
       mfaSay(d.backup_used ? 'In. That was a backup code — ' + d.backup_remaining + ' left.' : '');
-      show('overview'); boot();
+      /* The trusts come with the session, which only now has the factor passed. */
+      api('session').then(function (s) { var x = s.data || {}; currentCaps = x.caps || []; if (x.role) currentRole = x.role; })
+        .finally(function () { show('overview'); boot(); });
     });
   });
 
   api('session').then(function (r) {
     var d = r.data || {};
-    if (d.ok) { csrf = d.csrf; cloudinary = !!d.cloudinary; currentRole = d.role || 'superadmin'; boot(); return; }
+    if (d.ok) { csrf = d.csrf; cloudinary = !!d.cloudinary; currentRole = d.role || 'superadmin'; currentCaps = d.caps || []; boot(); return; }
     if (d.held) { csrf = d.csrf; cloudinary = !!d.cloudinary; mfaGate(d); return; }
     show('login');
   }).catch(function () { show('login'); });

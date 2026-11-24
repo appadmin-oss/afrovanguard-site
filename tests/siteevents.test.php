@@ -9,6 +9,7 @@
  * that the Studio, the homepage, /events/ and the portal all read one list.
  */
 declare(strict_types=1);
+require_once AV_ROOT . '/lib/StudioSections.php';   // the Studio's one list of sections
 
 $cache = AV_ROOT . '/data/afg-events.json';
 $keep = is_file($cache) ? (string) file_get_contents($cache) : null;
@@ -132,7 +133,7 @@ ck('deleting removes it', SiteEvents::delete((int) $dft['event']['id'], 'test')[
 $api = (string) file_get_contents(AV_ROOT . '/admin/api.php');
 ck('the Studio\'s event actions are management-only', preg_match("~managementOnly = \\[.*'sev_list', 'sev_refresh', 'sev_save', 'sev_delete'~s", $api) === 1);
 $idx = (string) file_get_contents(AV_ROOT . '/admin/index.php');
-ck('the Studio has an Events tab and editor', str_contains($idx, 'data-tab="events"') && str_contains($idx, 'id="evEditView"') && str_contains($idx, 'id="evGatesList"'));
+ck('the Studio has an Events tab and editor', in_array('events', array_column(StudioSections::all(), 'id'), true) && str_contains($idx, 'id="evEditView"') && str_contains($idx, 'id="evGatesList"'));
 ck('the homepage rail is filled from the feed', str_contains((string) file_get_contents(AV_ROOT . '/index.html'), 'data-avh-events')
    && str_contains((string) file_get_contents(AV_ROOT . '/assets/site/avh.js'), "fetch('/events-feed.php'"));
 ck('the feed serves ours and Africa GATES\'', str_contains((string) file_get_contents(AV_ROOT . '/events-feed.php'), 'SiteEvents::listFor(null'));

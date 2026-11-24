@@ -28,7 +28,7 @@
   var qList = document.getElementById('cmtQueueList');
   var qCount = document.getElementById('cmtQueueCount');
 
-  var S = { open: [], settled: [], stats: null, requireReason: true, queue: [], members: [] };
+  var S = { open: [], settled: [], stats: null, requireReason: true, queue: [], members: [], late: [], lateMembers: [] };
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -177,6 +177,10 @@
       S.open = d.open || []; S.settled = d.settled || []; S.stats = d.stats || null;
       S.requireReason = d.require_reason !== false;
       render();
+      /* Handed to the Tasks page's "Everything you owe" (portal/tasks.js), which merges
+         what each card has already loaded rather than asking the server again. */
+      document.dispatchEvent(new CustomEvent('av:owe', { detail: { source: 'commitments',
+        items: S.open.map(function (c) { return { title: c.title, due: String(c.due || '').slice(0, 10), src: 'Commitment' }; }) } }));
     }).catch(function () {
       list.innerHTML = '<li class="pc-empty task-empty">Could not load your commitments.</li>';
     });
@@ -185,7 +189,33 @@
       S.queue = d.queue || []; S.members = d.members || [];
       renderQueue();
     }).catch(function () { /* the queue is optional furniture */ });
+    get('escalated').then(function (d) { if (d && d.ok) { S.late = d.items || []; S.lateMembers = d.members || []; renderLate(); } }).catch(function () {});
   }
+
+  /* ── three days late, in a room you chaired: reassign, a new date, or drop ── */
+  function renderLate() {
+    var box = document.getElementById('cmtLate');
+    if (!box) { box = document.createElement('div'); box.id = 'cmtLate'; box.className = 'cmt-late'; card.querySelector('.pcard-body').appendChild(box); }
+    if (!S.late.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    var opts = S.lateMembers.map(function (m) { return '<option value="' + m.id + '">' + esc(m.name) + '</option>'; }).join('');
+    box.innerHTML = '<h3>Late in meetings you chaired</h3><ul class="task-list">' + S.late.map(function (c) {
+      return '<li class="task" data-late="' + c.id + '"><span class="task-title">' + esc(c.title) + ' <span class="task-who">due ' + esc(String(c.due).slice(0, 10)) + '</span></span>'
+        + '<div class="task-ask" role="group" aria-label="What to do with: ' + esc(c.title) + '">'
+        + '<label class="sr-only" for="cl' + c.id + '">Give it to</label><select id="cl' + c.id + '">' + opts + '</select>'
+        + '<button type="button" class="pbtn pbtn-sm" data-late-do="assign">Reassign</button>'
+        + '<button type="button" class="pbtn pbtn-sm" data-late-do="redate">New date</button>'
+        + '<button type="button" class="pbtn pbtn-sm pbtn-ghost" data-late-do="cancel">Drop</button></div></li>';
+    }).join('') + '</ul>';
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-late-do]'); if (!b) return;
+    var li = b.closest('[data-late]'), id = Number(li.getAttribute('data-late')), what = b.getAttribute('data-late-do'), body = { id: id };
+    if (what === 'assign') body.member_id = Number(li.querySelector('select').value);
+    if (what === 'redate') { var d = prompt('New date (YYYY-MM-DD):'); if (!d) return; body.due = d.trim(); }
+    if (what === 'cancel' && !confirm('Drop this commitment?')) return;
+    post(what, body).then(function (r) { if (r && r.ok) load(); else say((r && r.error) || 'That did not work.'); });
+  });
 
   load();
 

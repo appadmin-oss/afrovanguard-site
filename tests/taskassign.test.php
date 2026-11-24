@@ -39,7 +39,9 @@ $id = Collab::addTask($boss, 'Call the caterer', $ada, gmdate('Y-m-d', time() + 
 $t = Collab::oneTask($boss, $id);
 ck('tasks: a member makes one for someone else', $id > 0 && $t['assignee_id'] === $ada && $t['assigned_out'] === true);
 ck('tasks: …and it records who gave it and when, as a later assignment does', $t['assigned_by'] === $boss && $t['assigned_at'] !== '');
-ck('tasks: the person given it sees it as theirs', (Collab::oneTask($ada, $id)['mine'] ?? false) === true);
+/* Given, it waits for their yes (Collab::acceptTask); accepted, it is theirs. */
+ck('tasks: the person given it sees it waiting for them, then as theirs once accepted', (Collab::oneTask($ada, $id)['waiting'] ?? false) === true
+   && (Collab::acceptTask($ada, $id)['mine'] ?? false) === true);
 ck('tasks: a task for yourself has no "given by"', ($own = Collab::addTask($ada, 'Read chapter two', 0, '', 'normal', 0, '', 'person', false)) > 0 && Collab::oneTask($ada, $own)['assigned_out'] === false);
 ck('tasks: an empty title is refused, saying so', Collab::addTask($boss, '   ', 0, '', 'normal', 0, '', 'person', true) === 0 && Collab::$lastError === 'Enter a task.');
 ck('tasks: callers with their own rules (the planner) still give work to active people', Collab::addTask($ada, 'Planner step', $boss, '', 'normal', 0, '', 'ai', null) > 0);
@@ -55,7 +57,7 @@ ck('tasks: a finished or missing task says so', Collab::assignTask($boss, 999999
 
 /* The routes pass the rule and the reason through. */
 $api = (string) file_get_contents("$r/portal/collab.php");
-ck('tasks route: task_add runs the checks and returns their reason', str_contains($api, "'person', \$allocates);") && str_contains($api, "Collab::\$lastError ?: 'Enter a task.'"));
+ck('tasks route: task_add runs the checks and returns their reason', str_contains($api, "'person', \$allocates, ") && str_contains($api, "Collab::\$lastError ?: 'Enter a task.'"));
 ck('tasks route: task_add answers with the task itself, not a search of my first 50', str_contains($api, "'task' => Collab::oneTask(\$uid, \$id) ?? ['id' => \$id]"));
 ck('tasks route: the page is told whether this person may post to the pool', str_contains($api, "'org'      => \$isOrg,"));
 ck('chat route: a task made from a message runs the same checks', str_contains((string) file_get_contents("$r/portal/chat.php"), "'person', \$allocates);"));

@@ -174,6 +174,43 @@ final class Collab
                   'started_at' => "VARCHAR(32) NOT NULL DEFAULT ''", 'state_at' => "VARCHAR(32) NOT NULL DEFAULT ''", 'done_at' => "VARCHAR(32) NOT NULL DEFAULT ''"] as $c => $decl) {
             try { if (!Database::columnExists('collab_tasks', $c)) $pdo->exec("ALTER TABLE collab_tasks ADD COLUMN $c $decl"); } catch (Throwable $e) {}
         }
+        /* What makes a task one people finish (after CACENTRE's Goalspace):
+             outcome       "done when" — what finished looks like, in a line
+             first_due     the first date it was ever given
+             agreed_due    the date giver and owner agreed; on time is measured
+                           against this (TaskLedger::agreedDue), not a moved date
+             accept_state  '' accepted (or never given to anyone) · 'pending'
+                           a person gave it, waiting for a yes · 'proposed' the
+                           planner suggested it · 'counter' the owner proposed
+                           another date and the giver has not answered
+             accepted_at   when they said yes (from assigned_at: how long it waited)
+             proposed_due / proposed_why   the owner's counter-proposal
+             review_state  after a given task is done: 'told' the giver was told,
+                           'thanked', or 'sent_back' (review_note says why)
+           Through execSchema, as db-portability.md asks, so a MySQL refusal is
+           logged rather than swallowed. */
+        foreach (['outcome' => "VARCHAR(300) NOT NULL DEFAULT ''", 'first_due' => "VARCHAR(10) NOT NULL DEFAULT ''", 'agreed_due' => "VARCHAR(10) NOT NULL DEFAULT ''",
+                  'accept_state' => "VARCHAR(12) NOT NULL DEFAULT ''", 'accepted_at' => "VARCHAR(32) NOT NULL DEFAULT ''", 'proposed_due' => "VARCHAR(10) NOT NULL DEFAULT ''",
+                  'proposed_why' => "VARCHAR(300) NOT NULL DEFAULT ''", 'review_state' => "VARCHAR(12) NOT NULL DEFAULT ''", 'review_note' => "VARCHAR(300) NOT NULL DEFAULT ''"] as $c => $decl) {
+            if (!Database::columnExists('collab_tasks', $c)) Database::execSchema($pdo, "ALTER TABLE collab_tasks ADD COLUMN $c $decl");
+        }
+        /* TaskMatch adds these too; who gave a task is read on every list now (giverOf), so they are made here first. */
+        foreach (['auto_assigned_at', 'assigned_at', 'assigned_by'] as $c) {
+            if (!Database::columnExists('collab_tasks', $c)) Database::execSchema($pdo, "ALTER TABLE collab_tasks ADD COLUMN $c VARCHAR(32) NOT NULL DEFAULT ''");
+        }
+    }
+
+    /** Accept states that are still waiting on somebody's answer. */
+    public const WAITING = ['pending', 'proposed', 'counter'];
+
+    /**
+     * Who gave this task out: whoever assigned it, else whoever made it. The
+     * person told when it is moved, declined, finished or late — one answer,
+     * read the same way by every one of those.
+     */
+    public static function giverOf(array $r): int
+    {
+        return (int) (($r['assigned_by'] ?? '') !== '' ? $r['assigned_by'] : ($r['creator_id'] ?? 0));
     }
 
     /** The states a task moves through. Done is also kept in `done`, which everything else reads. */
@@ -237,6 +274,194 @@ final class Collab
         return '';
     }
 
+    /** A "done when" line: one line, trimmed, at most 300 characters. */
+    private static function normOutcome(string $o): string
+    {
+        return trim(mb_substr(trim((string) preg_replace('/\s+/u', ' ', $o)), 0, 300));
+    }
+
+    /**
+     * Tell somebody they have been given a task — as a request to answer, not
+     * a fait accompli: accept, propose a date, or say why they can't. A
+     * planner's suggestion says it is one.
+     */
+    private static function tellGiven(int $taskId, int $to, int $from, string $title, string $due, string $accept, string $outcome, string $key, bool $email, string $why = ''): void
+    {
+        try {
+            $by = self::nameOf($from);
+            $ask = 'Accept it, propose another date, or say why you can’t.';
+            if ($accept === 'proposed') {
+                $head = 'Suggested for you: ' . $title;
+                $body = ($why !== '' ? $why . ' ' : 'The planner thinks this fits you. ') . $ask;
+            } else {
+                $head = 'New task: ' . $title;
+                $body = ($why !== '' ? $why : $by . ' asks you to take this on') . ($due !== '' ? ' (by ' . $due . ')' : '') . '. ' . $ask;
+            }
+            if ($outcome !== '') $body .= ' Done when: ' . $outcome;
+            Notifications::push($to, 'task', $head, $body, '/portal/#tasks', $key);
+            /* The same email a task given at creation sends: given later, it used to arrive as an app notice only. */
+            if ($email) Notifications::email($to, $accept === 'proposed' ? $head : 'You’ve been asked to take on a task: ' . $title,
+                $by . ' gave you a task' . ($due !== '' ? ' (due ' . $due . ')' : '') . '. ' . $ask . ($outcome !== '' ? ' Done when: ' . $outcome : ''), '/portal/#tasks');
+        } catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
+    }
+
+    /** One notice, never fatal: a lost notice is not worth a failed click. */
+    private static function tell(int $to, string $kind, string $title, string $body, string $key = '', bool $email = false): void
+    {
+        if ($to <= 0 || !class_exists('Notifications')) return;
+        try {
+            Notifications::push($to, $kind, $title, $body, '/portal/#tasks', $key);
+            if ($email) Notifications::email($to, $title, $body, '/portal/#tasks');
+        } catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
+    }
+
+    /* ── Accept · propose a date · can't, because… ──────────────────────
+       After Goalspace: work given to somebody is a request until they say
+       yes. Before this, a task given was simply theirs — counted in their
+       list, chased by the cron — whether or not they had seen it, agreed to
+       the date, or could do it at all; the first the giver heard of a "no"
+       was the date going by. */
+
+    /** The task, if $uid is who it was given to and it still waits on them. */
+    private static function waitingOn(int $uid, int $taskId): ?array
+    {
+        self::ensureTasks();
+        $st = Database::pdo()->prepare('SELECT * FROM collab_tasks WHERE id = ? AND assignee_id = ? AND done = 0');
+        $st->execute([$taskId, $uid]);
+        $t = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        return $t && in_array((string) $t['accept_state'], self::WAITING, true) ? $t : null;
+    }
+
+    /** Yes: it is theirs, by the date it carries. Returns the shaped task or null. */
+    public static function acceptTask(int $uid, int $taskId): ?array
+    {
+        self::$lastError = '';
+        $t = self::waitingOn($uid, $taskId);
+        if (!$t || (string) $t['accept_state'] === 'counter') { self::$lastError = 'There is nothing of yours to accept here.'; return null; }
+        $up = Database::pdo()->prepare("UPDATE collab_tasks SET accept_state = '', accepted_at = ?, agreed_due = CASE WHEN agreed_due = '' THEN due ELSE agreed_due END, first_due = CASE WHEN first_due = '' THEN due ELSE first_due END WHERE id = ? AND accept_state = ?");
+        $up->execute([gmdate('Y-m-d H:i:s'), $taskId, (string) $t['accept_state']]);
+        if ($up->rowCount() === 0) return self::oneTask($uid, $taskId);
+        if (class_exists('TaskLedger')) TaskLedger::record($taskId, $uid, 'accepted', (string) $t['title']);
+        $g = self::giverOf($t);
+        if ($g !== $uid) self::tell($g, 'task', 'Accepted: ' . $t['title'], self::nameOf($uid) . ' has taken it on' . ((string) $t['due'] !== '' ? ', by ' . $t['due'] : '') . '.', 'task-accepted:' . $taskId . ':' . $uid);
+        return self::oneTask($uid, $taskId);
+    }
+
+    /** "I can, by this date": the giver is asked to agree. */
+    public static function proposeDate(int $uid, int $taskId, string $date, string $why = ''): ?array
+    {
+        self::$lastError = '';
+        $date = trim($date);
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !checkdate((int) substr($date, 5, 2), (int) substr($date, 8, 2), (int) substr($date, 0, 4))) { self::$lastError = 'Pick the date you can do it by.'; return null; }
+        $t = self::waitingOn($uid, $taskId);
+        if (!$t) { self::$lastError = 'There is nothing of yours to answer here.'; return null; }
+        $why = self::normOutcome($why);
+        Database::pdo()->prepare("UPDATE collab_tasks SET accept_state = 'counter', proposed_due = ?, proposed_why = ? WHERE id = ?")->execute([$date, $why, $taskId]);
+        self::tell(self::giverOf($t), 'task', 'New date asked: ' . $t['title'],
+            self::nameOf($uid) . ' can do it by ' . $date . ((string) $t['due'] !== '' ? ' (you asked for ' . $t['due'] . ')' : '') . ($why !== '' ? ': ' . $why : '') . '. Agree, or keep your date.',
+            'task-counter:' . $taskId . ':' . $date, true);
+        return self::oneTask($uid, $taskId);
+    }
+
+    /** The giver answers a proposed date: agree (it is the new agreed date, and the task is accepted) or keep theirs. */
+    public static function answerDate(int $uid, int $taskId, bool $agree): ?array
+    {
+        self::$lastError = '';
+        self::ensureTasks();
+        $st = Database::pdo()->prepare("SELECT * FROM collab_tasks WHERE id = ? AND done = 0 AND accept_state = 'counter'");
+        $st->execute([$taskId]);
+        $t = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (!$t || self::giverOf($t) !== $uid) { self::$lastError = 'There is no date waiting on you here.'; return null; }
+        $owner = (int) $t['assignee_id']; $prop = (string) $t['proposed_due'];
+        if ($agree) {
+            Database::pdo()->prepare("UPDATE collab_tasks SET due = ?, agreed_due = ?, accept_state = '', accepted_at = ?, proposed_due = '', proposed_why = '', first_due = CASE WHEN first_due = '' THEN ? ELSE first_due END WHERE id = ?")
+                ->execute([$prop, $prop, gmdate('Y-m-d H:i:s'), $prop, $taskId]);
+            if (class_exists('TaskLedger')) { TaskLedger::logDueChange($taskId, $uid, (string) $t['due'], $prop, 'Agreed with ' . self::nameOf($owner)); TaskLedger::record($taskId, $owner, 'accepted', (string) $t['title']); }
+            self::tell($owner, 'task', 'Date agreed: ' . $t['title'], self::nameOf($uid) . ' agreed: ' . $prop . '. It is yours.', 'task-agreed:' . $taskId . ':' . $prop);
+        } else {
+            Database::pdo()->prepare("UPDATE collab_tasks SET accept_state = 'pending', proposed_due = '', proposed_why = '' WHERE id = ?")->execute([$taskId]);
+            self::tell($owner, 'task', 'Date kept: ' . $t['title'], self::nameOf($uid) . ' needs it by ' . ((string) $t['due'] !== '' ? $t['due'] : 'the date asked') . '. Accept it, or say why you can’t.', 'task-kept:' . $taskId . ':' . $prop);
+        }
+        return self::oneTask($uid, $taskId);
+    }
+
+    /**
+     * "Can't, because…" — with a reason from TaskLedger::REASONS, the same list
+     * a hand-back uses. A person's request goes back to the person who gave
+     * it, who is told why (and can give it to somebody else); a planner's
+     * suggestion goes back to the pool for somebody who fits better.
+     */
+    public static function declineTask(int $uid, int $taskId, string $reason, string $note = ''): ?array
+    {
+        self::$lastError = '';
+        if (!class_exists('TaskLedger') || !isset(TaskLedger::REASONS[$reason])) { self::$lastError = 'Say why you can’t take it on.'; return null; }
+        $t = self::waitingOn($uid, $taskId);
+        if (!$t) { self::$lastError = 'There is nothing of yours to answer here.'; return null; }
+        $note = self::normOutcome($note);
+        $g = self::giverOf($t);
+        $toPool = (string) $t['accept_state'] === 'proposed' || $g <= 0 || $g === $uid;
+        $now = gmdate('Y-m-d H:i:s');
+        if ($toPool) Database::pdo()->prepare("UPDATE collab_tasks SET assignee_id = 0, accept_state = '', proposed_due = '', proposed_why = '' WHERE id = ?")->execute([$taskId]);
+        else Database::pdo()->prepare("UPDATE collab_tasks SET assignee_id = ?, accept_state = '', accepted_at = ?, assigned_at = ?, assigned_by = ?, proposed_due = '', proposed_why = '' WHERE id = ?")->execute([$g, $now, $now, (string) $g, $taskId]);
+        TaskLedger::record($taskId, $uid, 'declined', (string) $t['title'], $reason);
+        $why = TaskLedger::REASONS[$reason] . ($note !== '' ? ' — ' . $note : '');
+        if ($g > 0 && $g !== $uid) self::tell($g, 'task', 'Can’t take it on: ' . $t['title'], self::nameOf($uid) . ': ' . $why . '. ' . ($toPool ? 'It is back in the pool.' : 'It is back with you — give it to someone else, or change it.'), 'task-declined:' . $taskId . ':' . $uid, true);
+        self::log($uid, self::nameOf($uid), 'could not take on a task', (string) $t['title'], '/portal/#tasks');
+        return self::oneTask($uid, $taskId) ?? [];
+    }
+
+    /** The giver, after a task they gave was finished: thanks. */
+    public static function thankTask(int $uid, int $taskId): ?array
+    {
+        $t = self::reviewable($uid, $taskId);
+        if (!$t) return null;
+        Database::pdo()->prepare("UPDATE collab_tasks SET review_state = 'thanked' WHERE id = ?")->execute([$taskId]);
+        self::tell((int) $t['assignee_id'], 'task', self::nameOf($uid) . ' says thanks', 'For: ' . $t['title'] . '.', 'task-thanks:' . $taskId);
+        return self::oneTask($uid, $taskId);
+    }
+
+    /** The giver, after a task they gave was finished: not done yet, and why. It is open again. */
+    public static function sendBack(int $uid, int $taskId, string $reason): ?array
+    {
+        self::$lastError = '';
+        $reason = self::normOutcome($reason);
+        if ($reason === '') { self::$lastError = 'Say what is missing, in a line.'; return null; }
+        $t = self::reviewable($uid, $taskId);
+        if (!$t) return null;
+        Database::pdo()->prepare("UPDATE collab_tasks SET done = 0, state = 'doing', state_at = ?, done_at = '', review_state = 'sent_back', review_note = ? WHERE id = ? AND done = 1")
+            ->execute([gmdate('Y-m-d H:i:s'), $reason, $taskId]);
+        if (class_exists('TaskLedger')) TaskLedger::record($taskId, (int) $t['assignee_id'], 'sent_back', (string) $t['title']);
+        self::tell((int) $t['assignee_id'], 'task', 'Sent back: ' . $t['title'], self::nameOf($uid) . ' says: ' . $reason, 'task-back:' . $taskId . ':' . substr(sha1($reason), 0, 8), true);
+        if ((int) ($t['goal_id'] ?? 0) > 0 && class_exists('GoalPlanner')) GoalPlanner::syncProgress((int) $t['goal_id']);
+        return self::oneTask($uid, $taskId);
+    }
+
+    /** A finished task $uid gave to somebody else. */
+    private static function reviewable(int $uid, int $taskId): ?array
+    {
+        self::ensureTasks();
+        $st = Database::pdo()->prepare('SELECT * FROM collab_tasks WHERE id = ? AND done = 1');
+        $st->execute([$taskId]);
+        $t = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        return $t && self::giverOf($t) === $uid && (int) $t['assignee_id'] !== $uid && (int) $t['assignee_id'] > 0 ? $t : null;
+    }
+
+    /**
+     * What the escalation ladder (TaskLedger::chaseAll) runs over: every open
+     * task somebody holds that has a date. The ladder reads the date they are
+     * working to; whether it was on time is the agreed date's question.
+     */
+    public static function ladderItems(): array
+    {
+        self::ensureTasks();
+        $out = [];
+        foreach (Database::pdo()->query("SELECT * FROM collab_tasks WHERE done = 0 AND assignee_id > 0 AND due <> ''")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $out[] = ['kind' => 'task', 'id' => (int) $r['id'], 'title' => (string) $r['title'], 'due' => (string) $r['due'], 'owner' => (int) $r['assignee_id'],
+                      'owner_name' => self::nameOf((int) $r['assignee_id']), 'giver' => self::giverOf($r), 'url' => '/portal/#tasks', 'giver_url' => '/portal/#tasks'];
+        }
+        return $out;
+    }
+
     /**
      * Create a task. Assignee defaults to the creator. Returns the new id or 0.
      *
@@ -245,7 +470,7 @@ final class Collab
      * the other end. Without it any signed-in learner could put a notification
      * and an email of their own wording in front of any user id they typed.
      */
-    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal', int $goalId = 0, string $size = '', string $via = 'person', ?bool $mayAllocate = false): int
+    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal', int $goalId = 0, string $size = '', string $via = 'person', ?bool $mayAllocate = false, string $outcome = ''): int
     {
         self::$lastError = '';
         $title = trim(mb_substr(trim($title), 0, 300));
@@ -269,19 +494,19 @@ final class Collab
         /* Given to somebody else: say who gave it and when, as a later assignment does. */
         $delegated = $assignee !== $creatorId;
         if (class_exists('TaskMatch')) TaskMatch::ensure();
-        Database::pdo()->prepare("INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, size, state, created_at, assigned_at, assigned_by) VALUES (?,?,?,0,?,?,?,?,'todo',?,?,?)")
-            ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), max(0, $goalId), self::normSize($size), $now, $delegated ? $now : '', $delegated ? (string) $creatorId : '']);
+        /* Given to somebody, it waits for their yes (accept_state): a person's
+           request is 'pending', the planner's or the sweep's suggestion is
+           'proposed' — a machine's guess is not an assignment until somebody
+           accepts it. Made for yourself, it is accepted as it is made. */
+        $accept = !$delegated ? '' : (in_array($via, ['ai', 'auto'], true) ? 'proposed' : 'pending');
+        $outcome = self::normOutcome($outcome);
+        Database::pdo()->prepare("INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, size, state, created_at, assigned_at, assigned_by, outcome, first_due, agreed_due, accept_state, accepted_at) VALUES (?,?,?,0,?,?,?,?,'todo',?,?,?,?,?,?,?,?)")
+            ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), max(0, $goalId), self::normSize($size), $now, $delegated ? $now : '', $delegated ? (string) $creatorId : '',
+                       $outcome, $due, $due, $accept, $delegated ? '' : $now]);
         $newId = (int) Database::pdo()->lastInsertId();
         if ($delegated) self::log($creatorId, self::nameOf($creatorId), 'gave a task to ' . self::nameOf($assignee), $title, '/portal/#tasks');
         // Notify + email the assignee when a task is delegated to them (not self-assigned).
-        if ($assignee !== $creatorId && class_exists('Notifications')) {
-            try {
-                Notifications::push($assignee, 'task', 'New task: ' . $title,
-                    'Assigned to you by ' . self::nameOf($creatorId) . '.', '/portal/#tasks', 'task:' . $newId);
-                Notifications::email($assignee, 'You’ve been assigned a task: ' . $title,
-                    self::nameOf($creatorId) . ' assigned you a task' . ($due !== '' ? ' (due ' . $due . ')' : '') . '. Open the portal to pick it up.', '/portal/#tasks');
-            } catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
-        }
+        if ($assignee !== $creatorId && class_exists('Notifications')) self::tellGiven($newId, $assignee, $creatorId, $title, $due, $accept, $outcome, 'task:' . $newId, true);
         /* Given to somebody else: kept, so what they do with it teaches the next assignment (TaskLedger). */
         if ($newId > 0 && $assignee !== $creatorId && class_exists('TaskLedger')) TaskLedger::record($newId, $assignee, 'assigned', $title, '', $via);
         return $newId;
@@ -316,8 +541,10 @@ final class Collab
         if ($uid <= 0 || $taskId <= 0) return null;
         if (class_exists('TaskMatch')) TaskMatch::ensure();
         /* Taken by themselves: not "assigned to you" in the to-do pop-up. */
-        $st = Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ?, assigned_at = ?, assigned_by = ? WHERE id = ? AND assignee_id = 0 AND done = 0');
-        $st->execute([$uid, gmdate('Y-m-d H:i:s'), (string) $uid, $taskId]);
+        /* Taken by themselves, so accepted as it is taken; its date as it stands is the one they took on. */
+        $now = gmdate('Y-m-d H:i:s');
+        $st = Database::pdo()->prepare("UPDATE collab_tasks SET assignee_id = ?, assigned_at = ?, assigned_by = ?, accept_state = '', accepted_at = ?, proposed_due = '', agreed_due = due, first_due = CASE WHEN first_due = '' THEN due ELSE first_due END WHERE id = ? AND assignee_id = 0 AND done = 0");
+        $st->execute([$uid, $now, (string) $uid, $now, $taskId]);
         if ($st->rowCount() === 0) return null;   // already claimed / done / gone
         $task = self::oneTask($uid, $taskId);
         if ($task) self::log($uid, self::nameOf($uid), 'claimed a task', $task['title'], '/portal/#tasks');
@@ -335,7 +562,7 @@ final class Collab
         $q = Database::pdo()->prepare('SELECT assignee_id, title FROM collab_tasks WHERE id = ?');
         $q->execute([$taskId]);
         $was = $q->fetch(PDO::FETCH_ASSOC) ?: null;
-        $st = Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = 0 WHERE id = ? AND done = 0 AND (assignee_id = ? OR creator_id = ?)');
+        $st = Database::pdo()->prepare("UPDATE collab_tasks SET assignee_id = 0, accept_state = '', proposed_due = '' WHERE id = ? AND done = 0 AND (assignee_id = ? OR creator_id = ?)");
         $st->execute([$taskId, $uid, $uid]);
         if ($st->rowCount() === 0) return false;
         /* Handed back by the person holding it, and why (TaskLedger::REASONS):
@@ -359,7 +586,8 @@ final class Collab
         $st->execute([$taskId]);
         $t = $st->fetch(PDO::FETCH_ASSOC);
         if (!$t) { self::$lastError = 'That task is finished or no longer exists.'; return null; }
-        if ((int) $t['creator_id'] !== $uid && !((int) $t['assignee_id'] === 0 && $mayAllocate)) { self::$lastError = 'Only whoever made this task can give it to someone.'; return null; }
+        /* Its maker, or whoever gave it out (the giver, offered "reassign" when it is three days late), or — from the pool — anybody who hands out work. */
+        if ((int) $t['creator_id'] !== $uid && self::giverOf($t) !== $uid && !((int) $t['assignee_id'] === 0 && $mayAllocate)) { self::$lastError = 'Only whoever made this task can give it to someone.'; return null; }
         $u = Database::pdo()->prepare("SELECT 1 FROM lms_users WHERE id = ? AND status = 'active'");
         $u->execute([$assigneeId]);
         if (!$u->fetchColumn()) { self::$lastError = 'That person is not an active member any more. Choose someone else.'; return null; }
@@ -371,17 +599,14 @@ final class Collab
            while the sweep was scoring keeps it: the UPDATE says so, and when
            it changes nothing there is no notice and no ledger row. */
         $auto = $via === 'auto';
-        $up = Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ?, assigned_at = ?, assigned_by = ? WHERE id = ?' . ($auto ? ' AND assignee_id = 0 AND done = 0' : ''));
-        $up->execute([$assigneeId, gmdate('Y-m-d H:i:s'), (string) $uid, $taskId]);
+        /* Given to somebody else, it waits for their yes, as a task given when
+           it is made does; its date as it stands is what they are asked to agree. */
+        $now = gmdate('Y-m-d H:i:s');
+        $accept = $assigneeId === $uid ? '' : (in_array($via, ['ai', 'auto'], true) ? 'proposed' : 'pending');
+        $up = Database::pdo()->prepare("UPDATE collab_tasks SET assignee_id = ?, assigned_at = ?, assigned_by = ?, accept_state = ?, accepted_at = ?, proposed_due = '', agreed_due = due, first_due = CASE WHEN first_due = '' THEN due ELSE first_due END WHERE id = ?" . ($auto ? ' AND assignee_id = 0 AND done = 0' : ''));
+        $up->execute([$assigneeId, $now, (string) $uid, $accept, $accept === '' ? $now : '', $taskId]);
         if ($auto && $up->rowCount() === 0) return null;
-        if ($assigneeId !== $uid && class_exists('Notifications')) {
-            try {
-                Notifications::push($assigneeId, 'task', 'New task: ' . $t['title'], ($why !== '' ? $why : 'Assigned to you by ' . self::nameOf($uid) . '.'), '/portal/#tasks', 'task:' . $taskId . ':' . $assigneeId);
-                /* The same email a task given at creation sends: given later, it used to arrive as an app notice only. */
-                if ($via === 'person') Notifications::email($assigneeId, 'You’ve been assigned a task: ' . $t['title'],
-                    self::nameOf($uid) . ' assigned you a task' . ((string) $t['due'] !== '' ? ' (due ' . $t['due'] . ')' : '') . '. Open the portal to pick it up.', '/portal/#tasks');
-            } catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
-        }
+        if ($assigneeId !== $uid && class_exists('Notifications')) self::tellGiven($taskId, $assigneeId, $uid, (string) $t['title'], (string) $t['due'], $accept, (string) ($t['outcome'] ?? ''), 'task:' . $taskId . ':' . $assigneeId, $via === 'person', $why);
         self::log($uid, self::nameOf($uid), 'assigned a task to ' . self::nameOf($assigneeId), (string) $t['title'], '/portal/#tasks');
         if (class_exists('TaskLedger')) TaskLedger::record($taskId, $assigneeId, 'assigned', (string) $t['title'], '', $via);
         return self::oneTask($uid, $taskId);
@@ -532,6 +757,16 @@ final class Collab
         return self::setDone($uid, $taskId, true);
     }
 
+    /**
+     * Set done or not done, idempotently — what the portal's tick sends, so a
+     * tick retried after a dropped connection (portal/tasks.js tickQueue)
+     * lands where the person left it instead of flipping it back.
+     */
+    public static function setTaskDone(int $uid, int $taskId, bool $done): ?bool
+    {
+        return self::setDone($uid, $taskId, $done);
+    }
+
     /** $to null flips; true marks done only if it is not, by compare-and-set,
      *  so two "done"s racing each other cannot flip it back. */
     private static function setDone(int $uid, int $taskId, ?bool $to): ?bool
@@ -549,6 +784,21 @@ final class Collab
         $up->execute(array_merge([$new, $new ? 'done' : ((string) ($t['started_at'] ?? '') !== '' ? 'doing' : 'todo'), $now, $new ? $now : '', '', $taskId], $to !== null ? [(int) $t['done']] : []));
         if ($to !== null && $up->rowCount() === 0) return $to;   /* another request finished it first */
         if ($new === 1) self::log($uid, self::nameOf($uid), 'completed a task', (string) $t['title'], '/portal/#tasks');
+        if ($new === 1) {
+            /* Finished while it still waited for a yes: doing it is the yes. */
+            if (in_array((string) ($t['accept_state'] ?? ''), self::WAITING, true)) {
+                Database::pdo()->prepare("UPDATE collab_tasks SET accept_state = '', accepted_at = ?, proposed_due = '' WHERE id = ?")->execute([$now, $taskId]);
+            }
+            /* Done is told: whoever gave it hears, and can say thanks or send it
+               back. Without this the giver found out by looking — or did not,
+               and asked again a week later about work long finished. */
+            $g = self::giverOf($t); $owner = (int) ($t['assignee_id'] ?? 0);
+            if ($owner > 0 && $g > 0 && $g !== $owner && $owner === $uid) {
+                Database::pdo()->prepare("UPDATE collab_tasks SET review_state = 'told', review_note = '' WHERE id = ?")->execute([$taskId]);
+                self::tell($g, 'task', 'Done: ' . $t['title'], self::nameOf($owner) . ' has finished it' . ((string) ($t['outcome'] ?? '') !== '' ? ' (done when: ' . $t['outcome'] . ')' : '') . '. Say thanks, or send it back with what is missing.',
+                    'task-done:' . $taskId . ':' . $now);
+            }
+        }
         if ($new === 1 && class_exists('TaskLedger')) TaskLedger::record($taskId, (int) (($t['assignee_id'] ?? 0) ?: $uid), 'done', (string) $t['title']);
         /* A step towards a goal: the goal's progress follows. */
         if ((int) ($t['goal_id'] ?? 0) > 0 && class_exists('GoalPlanner')) GoalPlanner::syncProgress((int) $t['goal_id']);
@@ -653,20 +903,41 @@ final class Collab
      */
     public static function updateTask(int $uid, int $taskId, array $in): ?array
     {
+        self::$lastError = '';
         self::ensureTasks();
         $t = self::ownedTask($uid, $taskId);
+        /* Whoever gave it out may re-date it too (offered when it is three days late), though they did not make it. */
+        if (!$t) { $st = Database::pdo()->prepare('SELECT * FROM collab_tasks WHERE id = ?'); $st->execute([$taskId]); $t = $st->fetch(PDO::FETCH_ASSOC) ?: null; if ($t && self::giverOf($t) !== $uid) $t = null; }
         if (!$t) return null;
+        $giver = self::giverOf($t); $owner = (int) $t['assignee_id'];
 
-        $set = []; $args = [];
+        $set = []; $args = []; $moved = null;
         if (array_key_exists('due', $in)) {
             $due = trim((string) $in['due']);
             /* An empty date means "no date", which is a real answer. Anything
                that is not a date at all is not stored as one. */
-            if ($due !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $due)) return null;
-            $set[] = 'due = ?'; $args[] = $due;
+            if ($due !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $due)) { self::$lastError = 'That is not a date.'; return null; }
+            if ($due !== (string) $t['due']) {
+                $why = self::normOutcome((string) ($in['reason'] ?? ''));
+                /* Somebody else's request, moved by the person holding it: the
+                   date was what they agreed to, so moving it says why, and the
+                   giver hears it — moved quietly, the first they knew was the
+                   old date going by. The agreed date stays (on time is against it). */
+                $byOwner = $uid === $owner && $giver > 0 && $giver !== $uid;
+                if ($byOwner && $why === '') { self::$lastError = 'Give a reason for the new date — ' . self::nameOf($giver) . ' is told.'; return null; }
+                $set[] = 'due = ?'; $args[] = $due;
+                $set[] = "first_due = CASE WHEN first_due = '' THEN ? ELSE first_due END"; $args[] = $due;
+                /* The giver (or the owner of their own task) setting the date is the agreement. */
+                if (!$byOwner) { $set[] = 'agreed_due = ?'; $args[] = $due; }
+                elseif ((string) ($t['agreed_due'] ?? '') === '') { $set[] = 'agreed_due = ?'; $args[] = (string) $t['due']; }
+                $moved = [$due, $why, $byOwner];
+            }
         }
         if (array_key_exists('priority', $in)) {
             $set[] = 'priority = ?'; $args[] = self::normPriority((string) $in['priority']);
+        }
+        if (array_key_exists('outcome', $in)) {
+            $set[] = 'outcome = ?'; $args[] = self::normOutcome((string) $in['outcome']);
         }
         if (!$set) return self::shapeTask($t, $uid);
 
@@ -674,6 +945,14 @@ final class Collab
         Database::pdo()->prepare('UPDATE collab_tasks SET ' . implode(', ', $set) . ' WHERE id = ?')
             ->execute($args);
 
+        if ($moved !== null) {
+            [$due, $why, $byOwner] = $moved;
+            if (class_exists('TaskLedger')) TaskLedger::logDueChange($taskId, $uid, (string) $t['due'], $due, $why);
+            $other = $byOwner ? $giver : ($uid === $giver && $owner > 0 && $owner !== $uid ? $owner : 0);
+            if ($other > 0) self::tell($other, 'task', 'New date: ' . $t['title'],
+                self::nameOf($uid) . ' moved it from ' . ((string) $t['due'] !== '' ? $t['due'] : 'no date') . ' to ' . ($due !== '' ? $due : 'no date') . ($why !== '' ? ': ' . $why : '') . '.',
+                'task-due:' . $taskId . ':' . $due, $byOwner);
+        }
         return self::oneTask($uid, $taskId);
     }
 
@@ -699,7 +978,11 @@ final class Collab
     {
         self::ensureTasks();
         $t = self::ownedTask($uid, $taskId);
+        /* "Drop it", offered to whoever gave it out when it is three days late. */
+        if (!$t) { $st = Database::pdo()->prepare('SELECT * FROM collab_tasks WHERE id = ? AND done = 0'); $st->execute([$taskId]); $t = $st->fetch(PDO::FETCH_ASSOC) ?: null; if ($t && self::giverOf($t) !== $uid) $t = null; }
         if (!$t) return false;
+        $owner = (int) $t['assignee_id'];
+        if ($owner > 0 && $owner !== $uid && !(int) $t['done']) self::tell($owner, 'task', 'Dropped: ' . $t['title'], self::nameOf($uid) . ' dropped it — it is off your list.', 'task-dropped:' . $taskId);
         if (self::deleteRefused($uid, $taskId) !== '') return false;
         if ((int) ($t['cac_commitment_id'] ?? 0) > 0 && class_exists('CacWeek')) CacWeek::changed($taskId, true);
         Database::pdo()->prepare('DELETE FROM collab_tasks WHERE id = ?')->execute([$taskId]);
@@ -715,10 +998,10 @@ final class Collab
         $limit = max(1, min(100, $limit));
         // Open first, then soonest due (undated last), newest first within.
         $st = Database::pdo()->prepare(
-            "SELECT * FROM collab_tasks WHERE assignee_id = ? OR creator_id = ?
+            "SELECT * FROM collab_tasks WHERE assignee_id = ? OR creator_id = ? OR assigned_by = ?
              ORDER BY done ASC, CASE WHEN due = '' THEN 1 ELSE 0 END ASC, due ASC, id DESC LIMIT " . $limit
         );
-        $st->execute([$uid, $uid]);
+        $st->execute([$uid, $uid, (string) $uid]);
         return array_map(fn($r) => self::shapeTask($r, $uid), $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
     }
 
@@ -759,6 +1042,10 @@ final class Collab
         $due = (string) $r['due'];
         $goalId = (int) ($r['goal_id'] ?? 0);
         $overdue = $due !== '' && !$r['done'] && $due < TaskReport::today();   /* Lagos's day, as the daily report and the reminders count it */
+        $accept = in_array((string) ($r['accept_state'] ?? ''), self::WAITING, true) ? (string) $r['accept_state'] : '';
+        $waiting = $accept !== '';
+        $giver = self::giverOf($r);
+        $agreed = class_exists('TaskLedger') ? TaskLedger::agreedDue($r) : $due;
         return [
             'id'       => (int) $r['id'],
             'title'    => (string) $r['title'],
@@ -767,7 +1054,26 @@ final class Collab
             'overdue'  => $overdue,
             'priority' => self::normPriority((string) ($r['priority'] ?? 'normal')),
             'open'     => $assignee === 0,                       // in the pool, unclaimed
-            'mine'     => $assignee === $uid && $assignee !== 0,
+            /* Theirs once they have said yes. Given and not yet accepted, it is
+               "waiting for you": not counted as their work, nor in "My tasks". */
+            'mine'     => $assignee === $uid && $assignee !== 0 && !$waiting,
+            'waiting'  => $assignee === $uid && $assignee !== 0 && $waiting && !$r['done'],
+            'accept_state' => $accept,
+            'accepted_at'  => (string) ($r['accepted_at'] ?? ''),
+            'proposed_due' => (string) ($r['proposed_due'] ?? ''),
+            'proposed_why' => (string) ($r['proposed_why'] ?? ''),
+            'outcome'      => (string) ($r['outcome'] ?? ''),
+            'first_due'    => (string) ($r['first_due'] ?? ''),
+            'agreed_due'   => $agreed,
+            'moved'        => $agreed !== '' && $due !== $agreed,
+            'review_state' => (string) ($r['review_state'] ?? ''),
+            'review_note'  => (string) ($r['review_note'] ?? ''),
+            /* I gave it to somebody else; and what, if anything, waits on my answer:
+               a date they proposed, or their finished work to thank or send back. */
+            'i_gave'       => $giver === $uid && $assignee !== $uid && $assignee !== 0,
+            'needs_me'     => $giver === $uid && $assignee !== $uid && $assignee !== 0
+                                ? ($accept === 'counter' ? 'date' : ($r['done'] && (string) ($r['review_state'] ?? '') === 'told' ? 'review' : '')) : '',
+            'late_days'    => $giver === $uid && $assignee !== $uid && $assignee !== 0 && $overdue ? (int) round((strtotime(TaskReport::today()) - strtotime($due)) / 86400) : 0,
             // Allocation context for the UI.
             'assignee_id'   => $assignee,
             'assignee_name' => $assignee === 0 ? 'Unclaimed' : ($assignee === $uid ? 'You' : self::nameOf($assignee)),

@@ -91,6 +91,7 @@ a{color:var(--red)}
 .gate p{color:var(--muted)}
 @media(max-width:820px){.shell{grid-template-columns:1fr}.nav{position:static;display:flex;flex-wrap:wrap;gap:6px}.row2,.rep .grid{grid-template-columns:1fr}}
 </style>
+<?php require __DIR__ . '/_in-studio.php'; /* opened inside the Studio: drop the second navigation */ ?>
 </head>
 <body>
 <?php if (!$isAdmin): ?>
