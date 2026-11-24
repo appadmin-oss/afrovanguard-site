@@ -15,7 +15,6 @@
   var people = [].slice.call(document.querySelectorAll('.ppl-dir [data-q]'));
   var sections = [].slice.call(document.querySelectorAll('[data-ppl-section]'));
   var ids = function (els) { var seen = {}; els.forEach(function (el) { seen[el.getAttribute('data-id')] = 1; }); return Object.keys(seen).length; };
-  // A spotlit leader also appears in their own section: people are counted once.
   var total = ids(people);
   var group = 'all';
   var timer = 0;

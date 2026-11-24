@@ -86,12 +86,14 @@ ck('people map: the seven Directorates in order', array_keys(AV_TEAM_STRUCTURE['
 ck('people map: directorate offices — Project Director, Deputy, Administrator, Finance, Volunteer Coordinator, officers',
    array_keys(AV_TEAM_STRUCTURE['directorates']['bodies']['kcap']['offices'])
    === ['project-director', 'deputy-director', 'administrator', 'finance', 'volunteer-coordinator', 'officer']);
-ck('people map: Institutions — Academy, NGGC, CACENTREs', array_keys(AV_TEAM_STRUCTURE['institutions']['bodies']) === ['academy', 'nggc', 'cacentre']);
+ck('people map: Institutions — Academy, CACENTREs (no NGG)', array_keys(AV_TEAM_STRUCTURE['institutions']['bodies']) === ['academy', 'cacentre']);
+ck('people tiers: NGG retired', !in_array('ngg', AV_TEAM_TIERS, true) && !isset(AV_TIER_LABELS['ngg']));
+ck('people tiers: NGV spelled out', av_tier_label('ngv') === 'NextGen Vanguard');
 ck('people map: Executive Volunteers before Official Volunteers',
    array_keys(AV_TEAM_STRUCTURE['volunteers']['bodies']) === ['executive-volunteers', 'official-volunteers']);
 ck('people map: the Governing Council has its Chairperson first', array_key_first(AV_TEAM_STRUCTURE['council']['bodies']['council']['offices']) === 'chair');
 $bk = array_keys(av_team_bodies());
-ck('people map: body keys are unique across groups (one flat index)', count($bk) === count(array_unique($bk)) && count($bk) === 18);
+ck('people map: body keys are unique across groups (one flat index)', count($bk) === count(array_unique($bk)) && count($bk) === 17);
 $allText = strtolower(json_encode(AV_TEAM_STRUCTURE));
 ck('people map: no constitutional text or link on the public page (members-only document)',
    !str_contains($allText, 'constitution') && !str_contains($allText, 'shall'));
@@ -114,7 +116,7 @@ ck('people fallback: director naming a directorate → that directorate', $pl(['
    && $pl(['tier' => 'director', 'role' => 'BEC director']) === 'bec/project-director');
 ck('people fallback: a director naming no directorate → the Executive', $pl(['tier' => 'director', 'role' => 'Director of Programmes']) === 'executive/');
 ck('people fallback: patron → Honorary Patrons', $pl(['tier' => 'patron', 'role' => 'Patron']) === 'honorary/patron' && $pl(['tier' => 'patron', 'role' => 'Grand Patron']) === 'honorary/grand-patron');
-ck('people fallback: ngv → Academy, ngg → NGGC', $pl(['tier' => 'ngv']) === 'academy/' && $pl(['tier' => 'ngg']) === 'nggc/');
+ck('people fallback: ngv → Academy, old ngg → Official Volunteers', $pl(['tier' => 'ngv']) === 'academy/' && str_starts_with($pl(['tier' => 'ngg']), 'official-volunteers/'));
 ck('people fallback: volunteer (and the sync\'s "Member") → Official Volunteers', $pl(['tier' => 'volunteer', 'role' => 'Member']) === 'official-volunteers/official-volunteer');
 ck('people fallback: a body set in the Studio wins over the tier', $pl(['tier' => 'volunteer', 'body' => 'board', 'office' => 'chair']) === 'board/chair');
 ck('people fallback: an office from another body is dropped', $pl(['tier' => 'volunteer', 'body' => 'board', 'office' => 'cfo']) === 'board/');
@@ -128,7 +130,7 @@ ck('people sort: constitutional order, named offices before unknown ones', $sort
 
 /* ══ Role line never contradicts the section ══════════════════════════ */
 ck('people role: the generic "Member" auto value shows the office instead', av_person_role_line(['role' => 'Member', 'tier' => 'volunteer']) === 'Official Volunteer');
-ck('people role: no office known → the tier', av_person_role_line(['role' => '', 'tier' => 'ngv']) === 'NGV');
+ck('people role: no office known → the tier', av_person_role_line(['role' => '', 'tier' => 'ngv']) === 'NextGen Vanguard');
 ck('people role: a real role is kept', av_person_role_line(['role' => 'NGV Coordinator', 'tier' => 'ngv']) === 'NGV Coordinator');
 ck('people avatar: initials and a stable tint', av_person_initials('Divine-Joy Godwin') === 'DG' && av_person_initials('Ada') === 'A'
    && av_person_tint('Ada Okonkwo') === av_person_tint('ada okonkwo ') && av_person_tint('x') >= 0 && av_person_tint('x') < 6);
@@ -168,10 +170,11 @@ ck('people page: hidden rows are not', !str_contains($html, 'Test Unconsented Sy
 preg_match_all('~<li class="ppl-lead"[^>]*>.*?class="ppl-lead-n"><a[^>]*>([^<]+)~s', $html, $lm);
 ck('people page: the spotlight is the President, then the Council Chairperson', $lm[1] === ['Test Leader Okafor', 'Test Director Bello']);
 preg_match_all('~<h2 id="ppl-g-([a-z]+)-h">~', $html, $gm);
-ck('people page: sections in constitutional order, only the non-empty ones', $gm[1] === ['council', 'executive', 'volunteers', 'honorary']);
+ck('people page: sections in constitutional order, only the non-empty ones (spotlit people leave theirs)', $gm[1] === ['volunteers', 'honorary']);
+ck('people page: a group emptied by the spotlight keeps its chip, so the filter still finds its leader', str_contains($html, 'class="ppl-chip" data-group="executive"') && str_contains($html, 'class="ppl-chip" data-group="council"'));
 preg_match_all('~<h3 id="ppl-b-([a-z-]+)-h">~', $html, $bm);
 ck('people page: multi-body groups show their bodies as sub-groups', $bm[1] === ['official-volunteers']);
-ck('people page: a spotlit leader is still in their own section', substr_count($html, '>Test Leader Okafor</a>') === 2);
+ck('people page: a spotlit leader appears once, not again in their section', substr_count($html, '>Test Leader Okafor</a>') === 1);
 ck('people page: sections carry a count and our own one-line description',
    (bool) preg_match('~id="ppl-g-volunteers-h">Volunteers</h2>\s*<p class="ppl-sec-n"><span data-ppl-n>3</span>~', $html)
    && str_contains($html, '<p class="ppl-sec-d">' . e(AV_TEAM_STRUCTURE['volunteers']['desc']) . '</p>'));
@@ -230,7 +233,7 @@ $js = (string) file_get_contents(AV_ROOT . '/people/people.js');
 ck('people js: toggles aria-pressed and hides with the hidden attribute (no inline styles)',
    str_contains($js, "setAttribute('aria-pressed'") && str_contains($js, '.hidden =') && !str_contains($js, 'style.display'));
 ck('people js: whole sections with nobody left are hidden', str_contains($js, 'sec.hidden = n === 0'));
-ck('people js: a person shown twice (spotlight + section) is counted once', str_contains($js, "getAttribute('data-id')"));
+ck('people js: people are counted by id', str_contains($js, "getAttribute('data-id')"));
 ck('people js: the toolbar is revealed by the script', str_contains($js, 'tools.hidden = false'));
 
 $pdo->exec('DELETE FROM team');

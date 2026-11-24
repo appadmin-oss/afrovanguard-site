@@ -7,9 +7,9 @@
  */
 declare(strict_types=1);
 
-const AV_TEAM_TIERS = ['management', 'director', 'patron', 'ngv', 'ngg', 'volunteer'];
+const AV_TEAM_TIERS = ['management', 'director', 'patron', 'ngv', 'volunteer'];
 const AV_TEAM_LEAD_TIERS = ['management', 'director'];
-const AV_TIER_LABELS = ['management' => 'Management', 'director' => 'Director', 'patron' => 'Patron', 'ngv' => 'NGV', 'ngg' => 'NGG', 'volunteer' => 'Volunteer'];
+const AV_TIER_LABELS = ['management' => 'Management', 'director' => 'Director', 'patron' => 'Patron', 'ngv' => 'NextGen Vanguard', 'volunteer' => 'Volunteer'];
 
 /** URL slug + canonical profile URL for a member dict. */
 function av_person_slug(array $m): string {
@@ -82,10 +82,9 @@ const AV_TEAM_STRUCTURE = [
             'bec' => ['label' => 'BEC', 'desc' => 'Enterprise, projects and analytics.', 'offices' => AV_TEAM_DIRECTORATE_OFFICES],
             'careerhub' => ['label' => 'Career Hub', 'desc' => 'Preparing people for professional life.', 'offices' => AV_TEAM_DIRECTORATE_OFFICES],
         ]],
-    'institutions' => ['short' => 'Institutions', 'label' => 'Institutions', 'desc' => 'The Academy, the Next Generation Genius Club and our community centres.',
+    'institutions' => ['short' => 'Institutions', 'label' => 'Institutions', 'desc' => 'The Academy and our community centres.',
         'bodies' => [
             'academy' => ['label' => 'Afrovanguard Academy', 'offices' => AV_TEAM_INSTITUTION_OFFICES],
-            'nggc' => ['label' => 'Next Generation Genius Club (NGGC)', 'offices' => AV_TEAM_INSTITUTION_OFFICES],
             'cacentre' => ['label' => 'CACENTREs', 'offices' => AV_TEAM_INSTITUTION_OFFICES],
         ]],
     'volunteers' => ['short' => 'Volunteers', 'label' => 'Volunteers', 'desc' => 'The people who give their time and lead the work on the ground.',
@@ -147,7 +146,7 @@ function av_team_exec_office_in(string $role): string
  *     role or group names (STS, Africa GATES, Techome, MediaPro, KCAP, BEC, Career Hub);
  *     else the Executive;
  *   - patron → Honorary Patrons and advisers;
- *   - ngv → Afrovanguard Academy; ngg → NGGC;
+ *   - ngv → Afrovanguard Academy (a retired 'ngg' tier counts as a volunteer);
  *   - volunteer → Official Volunteers (Executive Volunteers if the role says so).
  */
 function av_team_placement(array $m): array
@@ -184,7 +183,6 @@ function av_team_placement(array $m): array
         case 'patron':
             return $at('honorary', str_contains($role, 'grand') ? 'grand-patron' : (preg_match('/advis/', $role) ? 'adviser' : 'patron'));
         case 'ngv': return $at('academy');
-        case 'ngg': return $at('nggc');
         default:
             return str_contains($role, 'executive volunteer') ? $at('executive-volunteers', 'executive-volunteer') : $at('official-volunteers', 'official-volunteer');
     }

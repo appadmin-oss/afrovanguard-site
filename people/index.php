@@ -198,9 +198,28 @@ if ($id) {
 av_team_sync_org_members($pdo);
 $people = array_map('av_team_member_dict', av_team_public_rows($pdo));   // constitutional order
 
-/* Sorted into the constitutional structure: group → body → people. */
+/* The spotlight: the President and Chief Servant, the Governing Council
+   Chairperson and the COO, when the page has them. A directory with none of
+   them (every live row today) falls back to anybody the Studio featured, and
+   with nobody featured the section is left out. A spotlit person appears only
+   there: their section below leaves them out, and the filter chips still find
+   them (their card carries their group). */
+$spot = [];
+foreach ([['executive', 'president'], ['council', 'chair'], ['executive', 'coo']] as [$b, $o]) {
+    foreach ($people as $m) { $p = av_team_placement($m); if ($p['body'] === $b && $p['office'] === $o) { $spot[] = $m; break; } }
+}
+if (!$spot) $spot = array_slice(array_values(array_filter($people, fn($m) => $m['featured'])), 0, 3);
+$spotIds = array_flip(array_map(fn($m) => (int) $m['id'], $spot));
+
+/* Everybody counted once, per group, for the summary and the chips. */
+$chipCount = [];
+foreach (array_keys(AV_TEAM_STRUCTURE) as $g) $chipCount[$g] = 0;
+foreach ($people as $m) $chipCount[av_team_placement($m)['group']]++;
+$chipCount = array_filter($chipCount);
+
+/* Sorted into the constitutional structure: group → body → people (spotlit people excluded). */
 $tree = [];
-foreach ($people as $m) { $p = av_team_placement($m); $tree[$p['group']][$p['body']][] = $m; }
+foreach ($people as $m) { if (isset($spotIds[(int) $m['id']])) continue; $p = av_team_placement($m); $tree[$p['group']][$p['body']][] = $m; }
 $tree = array_filter(array_map(fn($g) => $tree[$g] ?? [], array_combine(array_keys(AV_TEAM_STRUCTURE), array_keys(AV_TEAM_STRUCTURE))));
 foreach ($tree as $g => $bodies) {   // bodies in map order
     $ordered = [];
@@ -209,16 +228,7 @@ foreach ($tree as $g => $bodies) {   // bodies in map order
 }
 $groupCount = array_map(fn($bodies) => array_sum(array_map('count', $bodies)), $tree);
 
-/* The spotlight: the President and Chief Servant, the Governing Council
-   Chairperson and the COO, when the page has them. A directory with none of
-   them (every live row today) falls back to anybody the Studio featured, and
-   with nobody featured the section is left out. Spotlit people stay in their
-   own section too, so the structure below is never missing its head. */
-$spot = [];
-foreach ([['executive', 'president'], ['council', 'chair'], ['executive', 'coo']] as [$b, $o]) {
-    foreach ($people as $m) { $p = av_team_placement($m); if ($p['body'] === $b && $p['office'] === $o) { $spot[] = $m; break; } }
-}
-if (!$spot) $spot = array_slice(array_values(array_filter($people, fn($m) => $m['featured'])), 0, 3);
+
 
 $votm = av_votm($pdo)['votm'] ?? null;
 $total = count($people);
@@ -248,7 +258,7 @@ render_nav('people');
             <h1>The <em>Vanguard</em> Behind the Movement</h1>
             <p class="ppl-intro">Every leader, coordinator and volunteer who gives their time and talent to raise a generation of incorruptible African leaders.</p>
 <?php if ($total): ?>
-            <p class="ppl-summary"><span class="av-sr">On this page: </span><b><?= $total ?> <?= $total === 1 ? 'person' : 'people' ?></b><?php foreach ($groupCount as $g => $n): ?><span class="ppl-dot" aria-hidden="true">·</span><span><?= e(AV_TEAM_STRUCTURE[$g]['short']) ?> <?= $n ?></span><?php endforeach; ?></p>
+            <p class="ppl-summary"><span class="av-sr">On this page: </span><b><?= $total ?> <?= $total === 1 ? 'person' : 'people' ?></b><?php foreach ($chipCount as $g => $n): ?><span class="ppl-dot" aria-hidden="true">·</span><span><?= e(AV_TEAM_STRUCTURE[$g]['short']) ?> <?= $n ?></span><?php endforeach; ?></p>
 <?php endif; ?>
             <div class="ppl-btns">
               <a class="ppl-btn" href="<?= e(PPL_VOLUNTEER_URL) ?>" target="_blank" rel="noopener">Join the team<span aria-hidden="true"> ↗</span><?= $ext ?></a>
@@ -290,7 +300,7 @@ render_nav('people');
           </div>
           <div class="ppl-chips" role="group" aria-label="Show people from">
             <button type="button" class="ppl-chip" data-group="all" aria-pressed="true">Everyone <span class="ppl-chip-n"><?= $total ?></span></button>
-<?php foreach ($groupCount as $g => $n): ?>            <button type="button" class="ppl-chip" data-group="<?= e($g) ?>" aria-pressed="false"><?= e(AV_TEAM_STRUCTURE[$g]['short']) ?> <span class="ppl-chip-n"><?= $n ?></span></button>
+<?php foreach ($chipCount as $g => $n): ?>            <button type="button" class="ppl-chip" data-group="<?= e($g) ?>" aria-pressed="false"><?= e(AV_TEAM_STRUCTURE[$g]['short']) ?> <span class="ppl-chip-n"><?= $n ?></span></button>
 <?php endforeach; ?>          </div>
         </div>
         <p class="ppl-count" id="ppl-count" role="status" aria-live="polite" aria-atomic="true"></p>

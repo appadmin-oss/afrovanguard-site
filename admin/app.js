@@ -806,7 +806,7 @@
   }
 
   /* ---- People / Team ---- */
-  var TIER_LABEL = { management: 'Management', director: 'Director', patron: 'Patron', ngv: 'NGV', ngg: 'NGG', volunteer: 'Volunteer' };
+  var TIER_LABEL = { management: 'Management', director: 'Director', patron: 'Patron', ngv: 'NextGen Vanguard', volunteer: 'Volunteer' };
   var pPhoto = '';
   function setPPhoto(u) {
     pPhoto = u || ''; $('#p_photo').value = pPhoto;
