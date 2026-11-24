@@ -824,8 +824,8 @@
         return '<div class="entry-row" data-id="' + m.id + '">' +
           '<div class="entry-info"><div class="entry-title">' + escapeHtml(m.name) +
           (m.featured ? ' <span class="badge published">Spotlight</span>' : '') +
-          (m.active ? '' : ' <span class="badge draft">Hidden</span>') + '</div>' +
-          '<div class="entry-meta">' + escapeHtml(TIER_LABEL[m.tier] || m.tier) +
+          (m.active ? (m.listed === false ? ' <span class="badge draft" title="Active, but not on the public page: an auto-added account with no opt-in, or a system account">Not public</span>' : '') : ' <span class="badge draft">Hidden</span>') + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(m.placement || TIER_LABEL[m.tier] || m.tier) +
           (m.role ? ' · ' + escapeHtml(m.role) : '') + (m.birthday ? ' · 🎂 ' + escapeHtml(m.birthday) : '') +
           '</div></div>' +
           '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-edit="' + m.id + '">Edit</button></div></div>';
@@ -845,6 +845,16 @@
     uploadFile(f).then(function (r) { if (r.data && r.data.ok) { setPPhoto(r.data.url); toast('Photo uploaded.'); } else { toast((r.data && r.data.error) || 'Upload failed.'); } });
   });
 
+  /* Body / Office (AV_TEAM_STRUCTURE, rendered into the form by admin/index.php):
+     the Office list shows only the offices of the chosen body. */
+  function syncOffices() {
+    var body = $('#p_body') ? $('#p_body').value : '', sel = $('#p_office'); if (!sel) return;
+    [].forEach.call(sel.querySelectorAll('optgroup'), function (g) { var on = g.getAttribute('data-body') === body; g.hidden = !on; g.disabled = !on; });
+    var cur = sel.selectedOptions[0];
+    if (cur && cur.parentNode.tagName === 'OPTGROUP' && cur.parentNode.getAttribute('data-body') !== body) sel.value = '';
+  }
+  if ($('#p_body')) $('#p_body').addEventListener('change', syncOffices);
+
   var editingPerson = null;
   function openPerson(id) {
     editingPerson = id;
@@ -852,6 +862,7 @@
     setPPhoto('');
     $('#pDeleteBtn').hidden = !id;
     show('personEdit');
+    syncOffices();
     if (!id) return;
     api('team_get&id=' + id).then(function (r) {
       if (!r.data || !r.data.ok) { toast('Not found.'); return; }
@@ -862,6 +873,7 @@
       $('#p_featured').checked = !!m.featured; $('#p_operations').checked = !!m.operations;
       $('#p_active').checked = m.active !== false; $('#p_position').value = m.position || 0;
       if ($('#p_grp')) $('#p_grp').value = m.grp || '';
+      if ($('#p_body')) { $('#p_body').value = m.body || ''; syncOffices(); $('#p_office').value = m.office || ''; }
       $('#p_birthday').value = m.birthday || '';
       if ($('#p_notice_email')) $('#p_notice_email').value = m.email || '';
       $('#p_votm_month').value = m.votm_month || m.votmMonth || '';
@@ -880,6 +892,7 @@
       id: editingPerson || 0, name: name, role: $('#p_role').value.trim(),
       tier: $('#p_tier').value, featured: $('#p_featured').checked, operations: $('#p_operations').checked,
       grp: ($('#p_grp') ? $('#p_grp').value.trim() : ''),
+      body: ($('#p_body') ? $('#p_body').value : ''), office: ($('#p_office') ? $('#p_office').value : ''),
       active: $('#p_active').checked, position: +$('#p_position').value || 0,
       tagline: $('#p_tagline').value.trim(), bio: $('#p_bio').value.trim(), location: $('#p_location').value.trim(),
       photo: pPhoto, socials: socials, birthday: $('#p_birthday').value.trim(),

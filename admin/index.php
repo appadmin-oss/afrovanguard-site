@@ -818,10 +818,24 @@
       <aside class="editor-side">
         <div class="side-card">
           <h3>Placement</h3>
-          <label class="fld"><span>Group / tier</span><select id="p_tier">
+          <label class="fld"><span>Tier (legacy)</span><select id="p_tier">
             <option value="management">Management</option><option value="director">Director</option>
             <option value="patron">Patron</option><option value="ngv">NGV</option>
             <option value="ngg">NGG</option><option value="volunteer">Volunteer</option></select></label>
+<?php require_once dirname(__DIR__) . '/lib/people.php'; /* AV_TEAM_STRUCTURE: the one map of bodies and offices */ ?>
+          <label class="fld"><span>Body (Constitution)</span><select id="p_body">
+            <option value="">Not placed — worked out from tier and role</option>
+<?php foreach (AV_TEAM_STRUCTURE as $avG): ?>            <optgroup label="<?= htmlspecialchars($avG['label'], ENT_QUOTES) ?>">
+<?php foreach ($avG['bodies'] as $avBk => $avB): ?>              <option value="<?= htmlspecialchars($avBk, ENT_QUOTES) ?>"><?= htmlspecialchars($avB['label'], ENT_QUOTES) ?></option>
+<?php endforeach; ?>            </optgroup>
+<?php endforeach; ?>          </select></label>
+          <label class="fld"><span>Office</span><select id="p_office">
+            <option value="">— None / other —</option>
+<?php foreach (av_team_bodies() as $avBk => $avB): ?>            <optgroup label="<?= htmlspecialchars($avB['def']['label'], ENT_QUOTES) ?>" data-body="<?= htmlspecialchars($avBk, ENT_QUOTES) ?>">
+<?php foreach ($avB['def']['offices'] as $avOk => $avO): ?>              <option value="<?= htmlspecialchars($avOk, ENT_QUOTES) ?>"><?= htmlspecialchars($avO, ENT_QUOTES) ?></option>
+<?php endforeach; ?>            </optgroup>
+<?php endforeach; ?>          </select>
+            <span class="muted" style="font-size:12px">Places the person on the People page, in constitutional order. Leave blank to keep the old tier.</span></label>
           <label class="fld"><span>Group</span><input id="p_grp" list="p_grp_list" placeholder="e.g. Media, Programmes, Alimosho chapter" />
             <datalist id="p_grp_list"></datalist>
             <span class="muted" style="font-size:12px">A free-form group for the People directory filter. Members from @afrovanguard.org.ng are auto-added; group them here.</span></label>

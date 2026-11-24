@@ -22,6 +22,288 @@ function av_person_url(array $m): string {
 }
 function av_tier_label(string $t): string { return AV_TIER_LABELS[$t] ?? ucfirst($t); }
 
+/*
+ * ── The constitutional structure ─────────────────────────────────────────
+ *
+ * ONE map, in constitutional order, used for the directory's sections, its
+ * sort order, its labels and the Studio's Body / Office selects:
+ *
+ *   group   — a section of the public page (Governing Council, … Honorary);
+ *             'short' names it in the summary line and the filter
+ *     bodies — where a person sits; a group with several bodies (the seven
+ *              Directorates, the Institutions, Trustees and Custodians, the
+ *              two volunteer classes) shows each as a sub-group
+ *       offices — the posts within a body, in order; unknown/blank sorts last
+ *
+ * Source: the Constitution (docs/governance/constitution.md) — Art. IV §1,
+ * VII–XIII and Schedule B. The constitution is members-only
+ * (ConstitutionDoc::PUBLIC = false), so the public page uses only the names
+ * of the bodies and offices; every description here is our own plain line,
+ * not constitutional text. A row's body and office are stored in
+ * team.body / team.office (av_team_ensure); a row without them is placed by
+ * av_team_placement()'s fallback from its tier and role text.
+ */
+const AV_TEAM_DIRECTORATE_OFFICES = ['project-director' => 'Project Director', 'deputy-director' => 'Deputy Director',
+    'administrator' => 'Project Administrator', 'finance' => 'Finance Officer', 'volunteer-coordinator' => 'Volunteer Coordinator',
+    'officer' => 'Programme Officer'];
+const AV_TEAM_INSTITUTION_OFFICES = ['head' => 'Head', 'coordinator' => 'Coordinator', 'officer' => 'Officer'];
+const AV_TEAM_STRUCTURE = [
+    'council' => ['short' => 'Council', 'label' => 'Governing Council', 'desc' => 'Keeps the vision, the values and the long-term direction on course.',
+        'bodies' => ['council' => ['label' => 'Governing Council', 'offices' => [
+            'chair' => 'Chairperson', 'deputy-chair' => 'Deputy Chairperson', 'member' => 'Council Member']]]],
+    'trustees' => ['short' => 'Trustees', 'label' => 'Registered Trustees', 'desc' => 'Hold what Afrovanguard owns in trust for its mission, never for themselves.',
+        'bodies' => [
+            'trustees' => ['label' => 'Registered Trustees', 'offices' => ['trustee' => 'Trustee']],
+            'custodians' => ['label' => 'Honorary Institutional Custodians', 'offices' => ['custodian' => 'Honorary Institutional Custodian']],
+        ]],
+    'board' => ['short' => 'Board', 'label' => 'Board of Directors', 'desc' => 'Oversees governance, performance and risk, and holds the Executive to account.',
+        'bodies' => ['board' => ['label' => 'Board of Directors', 'offices' => ['chair' => 'Chair of the Board', 'director' => 'Director']]]],
+    'executive' => ['short' => 'Executive', 'label' => 'The Executive', 'desc' => 'Runs Afrovanguard day to day, led by the President and Chief Servant.',
+        'bodies' => ['executive' => ['label' => 'The Executive', 'offices' => [
+            'president' => 'President and Chief Servant',
+            'coo' => 'Chief Operating Officer',
+            'cfo' => 'Chief Financial Officer',
+            'cto' => 'Chief Technology Officer',
+            'cpio' => 'Chief Programmes and Impact Officer',
+            'cpco' => 'Chief People and Culture Officer',
+            'cpdo' => 'Chief Partnerships and Development Officer',
+            'cco' => 'Chief Communications and Public Affairs Officer',
+            'crso' => 'Chief Research and Strategy Officer',
+            'counsel' => 'General Counsel and Compliance Officer',
+            'safeguarding' => 'Chief Safeguarding and Welfare Officer',
+        ]]]],
+    'directorates' => ['short' => 'Directorates', 'label' => 'Community Advancement Directorates', 'desc' => 'Seven directorates, each led by a Project Director, carry the work into communities.',
+        'bodies' => [
+            'sts' => ['label' => 'Street-to-Stardom (STS)', 'desc' => 'Children, families and character.', 'offices' => AV_TEAM_DIRECTORATE_OFFICES],
+            'gates' => ['label' => 'Africa GATES', 'desc' => 'Finding, growing and showcasing talent.', 'offices' => AV_TEAM_DIRECTORATE_OFFICES],
+            'techome' => ['label' => 'TECHOME', 'desc' => 'Technology, research and engineering.', 'offices' => AV_TEAM_DIRECTORATE_OFFICES],
+            'mediapro' => ['label' => 'MEDIAPRO', 'desc' => 'Media, design and documentation.', 'offices' => AV_TEAM_DIRECTORATE_OFFICES],
+            'kcap' => ['label' => 'KCAP', 'desc' => 'Culture, languages and heritage.', 'offices' => AV_TEAM_DIRECTORATE_OFFICES],
+            'bec' => ['label' => 'BEC', 'desc' => 'Enterprise, projects and analytics.', 'offices' => AV_TEAM_DIRECTORATE_OFFICES],
+            'careerhub' => ['label' => 'Career Hub', 'desc' => 'Preparing people for professional life.', 'offices' => AV_TEAM_DIRECTORATE_OFFICES],
+        ]],
+    'institutions' => ['short' => 'Institutions', 'label' => 'Institutions', 'desc' => 'The Academy, the Next Generation Genius Club and our community centres.',
+        'bodies' => [
+            'academy' => ['label' => 'Afrovanguard Academy', 'offices' => AV_TEAM_INSTITUTION_OFFICES],
+            'nggc' => ['label' => 'Next Generation Genius Club (NGGC)', 'offices' => AV_TEAM_INSTITUTION_OFFICES],
+            'cacentre' => ['label' => 'CACENTREs', 'offices' => AV_TEAM_INSTITUTION_OFFICES],
+        ]],
+    'volunteers' => ['short' => 'Volunteers', 'label' => 'Volunteers', 'desc' => 'The people who give their time and lead the work on the ground.',
+        'bodies' => [
+            'executive-volunteers' => ['label' => 'Executive Volunteers', 'offices' => ['executive-volunteer' => 'Executive Volunteer']],
+            'official-volunteers' => ['label' => 'Official Volunteers', 'offices' => ['official-volunteer' => 'Official Volunteer']],
+        ]],
+    'honorary' => ['short' => 'Patrons & advisers', 'label' => 'Honorary Patrons and advisers', 'desc' => 'Friends who lend their counsel, influence and support.',
+        'bodies' => ['honorary' => ['label' => 'Honorary Patrons and advisers', 'offices' => [
+            'grand-patron' => 'Grand Patron', 'patron' => 'Patron', 'adviser' => 'Adviser']]]],
+];
+
+/** body key => [group key, body definition, position in constitutional order]. */
+function av_team_bodies(): array
+{
+    static $b = null;
+    if ($b !== null) return $b;
+    $b = []; $i = 0;
+    foreach (AV_TEAM_STRUCTURE as $g => $grp) foreach ($grp['bodies'] as $k => $def) $b[$k] = ['group' => $g, 'def' => $def, 'rank' => $i++];
+    return $b;
+}
+function av_team_body_label(string $body): string { return av_team_bodies()[$body]['def']['label'] ?? ''; }
+function av_team_office_label(string $body, string $office): string { return av_team_bodies()[$body]['def']['offices'][$office] ?? ''; }
+
+/** The directorate a piece of text names (role or group), or ''. */
+function av_team_directorate_in(string $text): string
+{
+    $t = strtolower($text);
+    foreach ([
+        'sts' => '/\bsts\b|street[\s-]*to[\s-]*stardom/', 'gates' => '/\bafrica\s*gates\b|\bgates\b/', 'techome' => '/\btechome\b/',
+        'mediapro' => '/\bmedia\s*pro\b/', 'kcap' => '/\bkcap\b|kingdom and cultural/', 'bec' => '/\bbec\b|business (and|&) enterprise/',
+        'careerhub' => '/career\s*hub/',
+    ] as $k => $re) if (preg_match($re, $t)) return $k;
+    return '';
+}
+
+/** The executive office a role names ("CFO", "Chief Technology Officer"), or ''. */
+function av_team_exec_office_in(string $role): string
+{
+    $t = strtolower($role);
+    foreach ([
+        'president' => '/\bpresident\b|chief servant/', 'coo' => '/\bcoo\b|chief operating/', 'cfo' => '/\bcfo\b|chief financ/',
+        'cto' => '/\bcto\b|chief technology/', 'cpio' => '/\bcpio\b|chief programmes?\b/', 'cpco' => '/\bcpco\b|chief people/',
+        'cpdo' => '/\bcpdo\b|chief partnerships?\b/', 'cco' => '/\bcco\b|chief communications?\b/', 'crso' => '/\bcrso\b|chief research/',
+        'counsel' => '/general counsel|compliance officer/', 'safeguarding' => '/safeguarding/',
+    ] as $k => $re) if (preg_match($re, $t)) return $k;
+    return '';
+}
+
+/**
+ * Where somebody sits: ['group', 'body', 'office', 'inferred' => bool].
+ *
+ * A body (and office) set in the Studio wins. Otherwise — every live row
+ * today — it is worked out from the old tier and the role text:
+ *   - role names a Chief Officer ("CFO", "Chief Technology Officer") → that office in the Executive;
+ *   - role mentions the Governing Council / a Trustee / a Custodian → that body;
+ *   - management → the Executive (office unknown, sorted after named offices);
+ *   - director → Board of Directors if the role says "Board"; else the Directorate the
+ *     role or group names (STS, Africa GATES, Techome, MediaPro, KCAP, BEC, Career Hub);
+ *     else the Executive;
+ *   - patron → Honorary Patrons and advisers;
+ *   - ngv → Afrovanguard Academy; ngg → NGGC;
+ *   - volunteer → Official Volunteers (Executive Volunteers if the role says so).
+ */
+function av_team_placement(array $m): array
+{
+    $bodies = av_team_bodies();
+    $body = trim((string) ($m['body'] ?? ''));
+    $office = trim((string) ($m['office'] ?? ''));
+    if (isset($bodies[$body])) {
+        if (!isset($bodies[$body]['def']['offices'][$office])) $office = '';
+        return ['group' => $bodies[$body]['group'], 'body' => $body, 'office' => $office, 'inferred' => false];
+    }
+    $role = strtolower(trim((string) ($m['role'] ?? '')));
+    $tier = (string) ($m['tier'] ?? 'volunteer');
+    $at = static fn(string $b, string $o = '') => ['group' => $bodies[$b]['group'], 'body' => $b, 'office' => $o, 'inferred' => true];
+    $chair = (bool) preg_match('/\bchair/', $role);
+
+    if ($tier !== 'patron' && ($o = av_team_exec_office_in($role)) !== '') return $at('executive', $o);
+    if (str_contains($role, 'governing council')) return $at('council', $chair ? (str_contains($role, 'deputy') ? 'deputy-chair' : 'chair') : 'member');
+    if (str_contains($role, 'custodian')) return $at('custodians', 'custodian');
+    if (preg_match('/\btrustee/', $role)) return $at('trustees', 'trustee');
+    switch ($tier) {
+        case 'management': return $at('executive');
+        case 'director':
+            if (str_contains($role, 'board')) return $at('board', $chair ? 'chair' : 'director');
+            $d = av_team_directorate_in($role) ?: av_team_directorate_in((string) ($m['grp'] ?? ''));
+            if ($d !== '') {
+                $o = str_contains($role, 'deputy') ? 'deputy-director'
+                   : (str_contains($role, 'administrator') ? 'administrator'
+                   : (preg_match('/financ/', $role) ? 'finance'
+                   : (str_contains($role, 'volunteer coordinator') ? 'volunteer-coordinator' : 'project-director')));
+                return $at($d, $o);
+            }
+            return $at('executive');
+        case 'patron':
+            return $at('honorary', str_contains($role, 'grand') ? 'grand-patron' : (preg_match('/advis/', $role) ? 'adviser' : 'patron'));
+        case 'ngv': return $at('academy');
+        case 'ngg': return $at('nggc');
+        default:
+            return str_contains($role, 'executive volunteer') ? $at('executive-volunteers', 'executive-volunteer') : $at('official-volunteers', 'official-volunteer');
+    }
+}
+
+/** Sort key: constitutional body order, then office order (unknown last), then the Studio's position. */
+function av_team_sort_key(array $m): array
+{
+    $p = av_team_placement($m);
+    $offices = array_keys(av_team_bodies()[$p['body']]['def']['offices']);
+    $oi = $p['office'] === '' ? 999 : (int) array_search($p['office'], $offices, true);
+    return [av_team_bodies()[$p['body']]['rank'], $oi, (int) ($m['position'] ?? 0), !empty($m['featured']) ? 0 : 1, (int) ($m['id'] ?? 0)];
+}
+
+/** People sorted into constitutional order. */
+function av_team_sort(array $people): array
+{
+    usort($people, static fn($a, $b) => av_team_sort_key($a) <=> av_team_sort_key($b));
+    return $people;
+}
+
+/**
+ * The line under somebody's name. The directory sync writes role = 'Member'
+ * for every auto-enrolled account, so the old card said "VOLUNTEER" on the
+ * badge and "Member" underneath. A real role wins; the generic auto value
+ * (or none) falls back to the office, then the tier, so the line never
+ * contradicts where the person is shown.
+ */
+function av_person_role_line(array $m): string
+{
+    $role = trim((string) ($m['role'] ?? ''));
+    if ($role !== '' && strcasecmp($role, 'member') !== 0) return $role;
+    $p = av_team_placement($m);
+    return av_team_office_label($p['body'], $p['office']) ?: av_tier_label((string) ($m['tier'] ?? 'volunteer'));
+}
+
+/*
+ * Names that are accounts, not people. Two lists, easy to extend:
+ *   AV_TEAM_SYSTEM_NAMES — matched against the WHOLE name, normalised
+ *     (lower case, punctuation to spaces): "Super Admin", "No-Reply", "Test User"…
+ *   AV_TEAM_ORG_WORDS — a name containing "afrovanguard" and made ONLY of these
+ *     words is the organisation or a centre ("Afrovanguard", "CACENTRE
+ *     AFROVANGUARD", "Afrovanguard Academy", "Afrovanguard HQ").
+ * Conservative on purpose — a false positive hides a real volunteer — so
+ * "Admin Okafor" or "Esther Afrovanguard-Smith" stay: a given name or surname
+ * beside the word makes it a person.
+ */
+const AV_TEAM_SYSTEM_NAMES = ['admin', 'administrator', 'super admin', 'superadmin', 'site admin', 'sys admin', 'sysadmin',
+    'system', 'root', 'webmaster', 'web master', 'postmaster', 'no reply', 'noreply', 'do not reply',
+    'test', 'test user', 'test account', 'demo', 'demo user', 'bot', 'community bot', 'info', 'support', 'helpdesk'];
+const AV_TEAM_ORG_WORDS = ['afrovanguard', 'cacentre', 'cacentres', 'centre', 'center', 'cac', 'the', 'team', 'official', 'hq',
+    'org', 'ng', 'admin', 'office', 'foundation', 'initiative', 'academy', 'community', 'bot', 'lagos', 'chapter', 'nggc'];
+
+/** Whether a team row's name is an account rather than a person (see the lists above). */
+function av_team_is_system_account(string $name): bool
+{
+    $n = strtolower(trim((string) preg_replace('/[^a-z0-9]+/i', ' ', $name)));
+    if ($n === '') return true;
+    if (in_array($n, AV_TEAM_SYSTEM_NAMES, true)) return true;
+    $words = explode(' ', $n);
+    return in_array('afrovanguard', $words, true) && !array_diff($words, AV_TEAM_ORG_WORDS);
+}
+
+/**
+ * May this row appear on the PUBLIC directory, a public profile, the public API
+ * or site search? All of:
+ *   1. active = 1 (the Studio's own show/hide switch);
+ *   2. curated by hand (synced = 0), OR auto-synced from an org account AND the
+ *      person said yes (listed_consent_at set by av_team_opt_in()). Rows the old
+ *      sync inserted with active = 1 and nobody asked stay off the public page
+ *      even though the database still says active — consent is read, never
+ *      assumed;
+ *   3. not a system or organisation account (av_team_is_system_account()).
+ * The Studio still lists every row (av_team_rows / av_team_one are unchanged).
+ */
+function av_team_listable(array $r): bool
+{
+    if ((int) ($r['active'] ?? 0) !== 1) return false;
+    if ((int) ($r['synced'] ?? 0) === 1 && trim((string) ($r['listed_consent_at'] ?? '')) === '') return false;
+    return !av_team_is_system_account((string) ($r['name'] ?? ''));
+}
+
+/** The rows the public may see, in constitutional order (av_team_sort). */
+function av_team_public_rows(PDO $pdo): array
+{
+    return av_team_sort(array_values(array_filter(av_team_rows($pdo, true), 'av_team_listable')));
+}
+
+/** One publicly listable member by id, or the not-found shape (public profile + API). */
+function av_team_public_one(PDO $pdo, int $id): array
+{
+    av_team_ensure($pdo);
+    $s = $pdo->prepare('SELECT * FROM team WHERE id = ? AND active = 1');
+    $s->execute([$id]);
+    $r = $s->fetch(PDO::FETCH_ASSOC);
+    if (!$r || !av_team_listable($r)) return ['status' => 'error', 'error' => 'Not found'];
+    return ['status' => 'ok', 'member' => av_team_member_dict($r)];
+}
+
+/**
+ * The initials avatar's tint: one of six pairs from the site palette, chosen
+ * from the name so the same person always gets the same colour. Every pair is
+ * at least 4.5:1 (text on background).
+ */
+function av_person_tint(string $name): int
+{
+    return (int) (crc32(strtolower(trim($name))) % 6);
+}
+
+/** Up to two initials for an avatar ("Ada Okonkwo" → "AO"). */
+function av_person_initials(string $name): string
+{
+    $p = preg_split('/\s+/', trim((string) preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $name))) ?: [];
+    $p = array_values(array_filter($p, 'strlen'));
+    if (!$p) return '?';
+    $a = mb_substr($p[0], 0, 1); $b = count($p) > 1 ? mb_substr($p[count($p) - 1], 0, 1) : '';
+    return mb_strtoupper($a . $b);
+}
+
 /** Create the team table if missing (idempotent; safe on deployed DBs). */
 /*
  * listed_consent_at / listed_consent_text record when somebody agreed to
@@ -69,6 +351,11 @@ function av_team_ensure(PDO $pdo): void
            consent is lost silently. */
         "ALTER TABLE team ADD COLUMN listed_consent_at TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE team ADD COLUMN listed_consent_text TEXT NOT NULL DEFAULT ''",
+        /* Where somebody sits in the constitutional structure (AV_TEAM_STRUCTURE):
+           a body key and an office key. Blank = not placed yet, and
+           av_team_placement() works it out from the tier and role. */
+        "ALTER TABLE team ADD COLUMN body TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE team ADD COLUMN office TEXT NOT NULL DEFAULT ''",
     ] as $sql) {
         /* Through execSchema, not a bare exec: these are SQLite DDL, and a
            literal default on TEXT is error 1101 on MySQL 8 until translateDDL
@@ -196,14 +483,19 @@ function av_team_listing_state(PDO $pdo, string $email): array
     ];
 }
 
-/** Distinct non-empty groups present, in display order. */
+/** Distinct non-empty groups among the publicly listed people, in display order. */
 function av_team_groups(PDO $pdo): array
 {
     av_team_ensure($pdo);
+    /* From the public rows, so a group made only of hidden accounts is not
+       offered as a filter that shows nobody. */
     $out = [];
-    foreach ($pdo->query("SELECT DISTINCT grp FROM team WHERE active = 1 AND grp <> '' ORDER BY grp")->fetchAll(PDO::FETCH_COLUMN) as $g) {
-        if (trim((string) $g) !== '') $out[] = (string) $g;
+    foreach (av_team_public_rows($pdo) as $r) {
+        $g = trim((string) ($r['grp'] ?? ''));
+        if ($g !== '') $out[$g] = true;
     }
+    $out = array_keys($out);
+    sort($out, SORT_NATURAL | SORT_FLAG_CASE);
     return $out;
 }
 
@@ -238,6 +530,10 @@ function av_team_member_dict(array $r): array
         'birthday'   => (string) $r['birthday'],
         'email'      => (string) ($r['email'] ?? ''),
         'grp'        => (string) ($r['grp'] ?? ''),
+        'body'       => (string) ($r['body'] ?? ''),
+        'office'     => (string) ($r['office'] ?? ''),
+        'position'   => (int) ($r['position'] ?? 0),
+        'active'     => (bool) (int) ($r['active'] ?? 1),
         'socials'    => $socials,
     ];
 }
@@ -251,10 +547,10 @@ function av_team_rows(PDO $pdo, bool $activeOnly = true): array
     return $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
-/** Public members payload (matches the legacy api.php contract). */
+/** Public members payload (matches the legacy api.php contract): listable rows only. */
 function av_team_members(PDO $pdo): array
 {
-    return ['status' => 'ok', 'members' => array_map('av_team_member_dict', av_team_rows($pdo, true))];
+    return ['status' => 'ok', 'members' => array_map('av_team_member_dict', av_team_public_rows($pdo))];
 }
 
 /**
@@ -269,7 +565,7 @@ function av_team_public_dict(array $m): array
     return $m;
 }
 
-/** A single member by id (full profile). */
+/** A single active member by id, listable or not — the Studio's read. Public pages use av_team_public_one(). */
 function av_team_one(PDO $pdo, int $id): array
 {
     av_team_ensure($pdo);
@@ -285,9 +581,12 @@ function av_votm(PDO $pdo, ?string $month = null): array
 {
     av_team_ensure($pdo);
     $month = $month ?: date('Y-m');
-    $s = $pdo->prepare("SELECT * FROM team WHERE active = 1 AND votm_month <> '' AND votm_month <= ? ORDER BY votm_month DESC, id DESC LIMIT 1");
+    /* The newest pick who may be shown publicly (av_team_listable): the
+       highlight links to their profile, which would 404 for anybody else. */
+    $s = $pdo->prepare("SELECT * FROM team WHERE active = 1 AND votm_month <> '' AND votm_month <= ? ORDER BY votm_month DESC, id DESC LIMIT 25");
     $s->execute([$month]);
-    $r = $s->fetch(PDO::FETCH_ASSOC);
+    $r = null;
+    foreach ($s->fetchAll(PDO::FETCH_ASSOC) ?: [] as $cand) { if (av_team_listable($cand)) { $r = $cand; break; } }
     if (!$r) return ['status' => 'ok', 'votm' => null];
     [$yy, $mm] = array_pad(explode('-', (string) $r['votm_month']), 2, '');
     $m = av_team_member_dict($r);
@@ -295,6 +594,7 @@ function av_votm(PDO $pdo, ?string $month = null): array
         'id'       => $m['id'],
         'name'     => $m['name'],
         'role'     => $m['role'],
+        'tier'     => $m['tier'],
         'photo'    => $m['photo'],
         'location' => $m['location'],
         'month'    => (int) ($mm ?: date('n')),
@@ -368,6 +668,9 @@ function av_team_save(PDO $pdo, array $in): int
         'location' => trim((string) ($in['location'] ?? '')),
         'photo_url' => trim((string) ($in['photo'] ?? $in['photo_url'] ?? '')),
         'grp' => trim((string) ($in['grp'] ?? '')),
+        /* Only keys from AV_TEAM_STRUCTURE; an office must belong to its body. */
+        'body' => $body = (isset(av_team_bodies()[trim((string) ($in['body'] ?? ''))]) ? trim((string) $in['body']) : ''),
+        'office' => ($body !== '' && av_team_office_label($body, trim((string) ($in['office'] ?? ''))) !== '') ? trim((string) $in['office']) : '',
         'socials' => $socials,
         'email' => filter_var(trim((string) ($in['email'] ?? '')), FILTER_VALIDATE_EMAIL) ?: '',
         'birthday' => preg_match('/^\d{2}-\d{2}$/', (string) ($in['birthday'] ?? '')) ? $in['birthday'] : '',

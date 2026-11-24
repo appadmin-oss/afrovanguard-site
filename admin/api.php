@@ -338,7 +338,14 @@ try {
         // ---- People / Team directory ----
         case 'team_list':
             require_once AV_ROOT . '/lib/people.php';
-            json_out(['ok' => true, 'team' => array_map('av_team_member_dict', av_team_rows(Database::pdo(), false))]);
+            /* Each row says where it lands on the People page (AV_TEAM_STRUCTURE),
+               worked out or set, and whether the public may see it at all. */
+            json_out(['ok' => true, 'team' => array_map(static function ($r) {
+                $m = av_team_member_dict($r); $p = av_team_placement($m);
+                $m['placement'] = trim(av_team_body_label($p['body']) . ($p['office'] !== '' ? ' · ' . av_team_office_label($p['body'], $p['office']) : '')) . ($p['inferred'] ? ' (from tier)' : '');
+                $m['listed'] = av_team_listable($r);
+                return $m;
+            }, av_team_rows(Database::pdo(), false))]);
         case 'team_get':
             require_once AV_ROOT . '/lib/people.php';
             $tp = av_team_one(Database::pdo(), (int) ($_GET['id'] ?? 0));

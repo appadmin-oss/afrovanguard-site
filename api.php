@@ -5,7 +5,7 @@
  * Replaces the old Google Apps Script proxy. Data is managed in the Studio
  * (admin) and stored in the app database; see lib/people.php.
  *
- *   GET ?action=members          → all active members
+ *   GET ?action=members          → all publicly listable members (av_team_listable)
  *   GET ?action=member&id=N      → single member profile
  *   GET ?action=votm             → current Volunteer of the Month
  *   GET ?action=celebrations     → today's auto-celebrations (holidays/birthdays/VOTM)
@@ -36,7 +36,7 @@ try {
     } elseif ($action === 'member') {
         $id = (int) ($_GET['id'] ?? 0);
         if ($id < 1) json_out(['status' => 'error', 'error' => 'A member id is required.'], 400);
-        $out = av_team_one($pdo, $id);
+        $out = av_team_public_one($pdo, $id);
         if (isset($out['member'])) $out['member'] = av_team_public_dict($out['member']);
     } elseif ($action === 'votm') {
         $out = av_votm($pdo);

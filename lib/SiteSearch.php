@@ -293,8 +293,10 @@ final class SiteSearch
         /* 6) The public People directory. Public profiles only — this indexes
               what the site already publishes, never an email or contact detail. */
         try {
-            if (function_exists('av_team_rows') && function_exists('av_team_member_dict')) {
-                foreach (av_team_rows(Database::pdo(), true) as $row) {
+            if (function_exists('av_team_public_rows')) {
+                /* Listable rows only (av_team_listable): never a synced account
+                   nobody asked, nor a system one, though the Studio still has them. */
+                foreach (av_team_public_rows(Database::pdo()) as $row) {
                     $m = av_team_member_dict($row);
                     $name = (string) ($m['name'] ?? '');
                     if ($name === '') continue;
