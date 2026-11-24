@@ -1,8 +1,9 @@
 <?php
 /**
  * people/index.php — the team directory and individual profiles.
- *   /people/              → directory: hero (+ Volunteer of the Month), one toolbar, a
- *                           spotlight, then one section per constitutional body (AV_TEAM_STRUCTURE), then a call to action
+ *   /people/              → directory: a plain hero, a slim Volunteer of the Month strip, one
+ *                           toolbar, a spotlight, then one section per constitutional body
+ *                           (AV_TEAM_STRUCTURE), then a call to action
  *   /people/<id>-<slug>/  → a single member's profile (see .htaccess; ?id=N)
  *
  * Server-rendered from the native team data (lib/people.php). Only rows that
@@ -49,12 +50,13 @@ $socials = function (array $m, string $cls) use ($socIcon, $socName, $ext): stri
     return $out === '' ? '' : '<ul class="' . $cls . '">' . $out . '</ul>';
 };
 
-/** A photo, or the initials on a tint from the palette (decorative either way: the name is right beside it). */
+/** The initials on a tint from the palette, with the photo (when there is one) laid over them:
+    a photo that is missing or fails to load leaves the initials showing, with no script and
+    no inline handler (the CSP allows neither). Decorative either way: the name is right beside it. */
 $avatar = function (array $m, string $cls, int $size) : string {
-    if ($m['photo'] !== '') {
-        return '<img class="' . $cls . '" src="' . e($m['photo']) . '" alt="" width="' . $size . '" height="' . $size . '" loading="lazy" decoding="async" />';
-    }
-    return '<span class="' . $cls . ' ppl-tint-' . av_person_tint($m['name']) . '" aria-hidden="true">' . e(av_person_initials($m['name'])) . '</span>';
+    $tint = 'ppl-tint-' . av_person_tint($m['name']); $ini = e(av_person_initials($m['name']));
+    $img = $m['photo'] !== '' ? '<img class="' . $tint . '" src="' . e($m['photo']) . '" alt="" data-ini="' . $ini . '" width="' . $size . '" height="' . $size . '" loading="lazy" decoding="async" />' : '';
+    return '<span class="' . $cls . ' ' . $tint . ($img ? ' ppl-av--ph' : '') . '" aria-hidden="true">' . $ini . $img . '</span>';
 };
 
 /** The text a search matches against. */
@@ -66,18 +68,17 @@ $haystack = function (array $m): string {
 /** The data attributes the filter reads: the person (counted once however often shown), their group, the search text. */
 $dataAttrs = fn(array $m) => 'data-id="' . (int) $m['id'] . '" data-group="' . e(av_team_placement($m)['group']) . '" data-q="' . e($haystack($m)) . '"';
 
-/** One compact directory card. */
+/** One compact directory card: avatar, name, role (the tagline lives on the profile). */
 $card = function (array $m, string $hLevel = 'h4') use ($avatar, $dataAttrs): string {
     $role = av_person_role_line($m);
     ob_start(); ?>
           <li class="ppl-card" <?= $dataAttrs($m) ?>>
-            <?= $avatar($m, 'ppl-av', 64) ?>
+            <?= $avatar($m, 'ppl-av', 112) ?>
 
             <div class="ppl-card-b">
               <<?= $hLevel ?> class="ppl-card-n"><a href="<?= e(av_person_url($m)) ?>"><?= e($m['name']) ?></a></<?= $hLevel ?>>
               <p class="ppl-card-r"><?= e($role) ?></p>
-<?php if ($m['tagline'] !== ''): ?>              <p class="ppl-card-t"><?= e($m['tagline']) ?></p>
-<?php endif; ?>            </div>
+            </div>
           </li>
 <?php return (string) ob_get_clean();
 };
@@ -148,8 +149,8 @@ if ($id) {
         <nav class="ppl-crumbs" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="/">Home</a><span aria-hidden="true">›</span></li><li><a href="/about.html">About</a><span aria-hidden="true">›</span></li><li><a href="/people/">Our people</a><span aria-hidden="true">›</span></li><li><span aria-current="page"><?= e($m['name']) ?></span></li></ol></nav>
         <div class="ppl-pgrid">
           <div class="ppl-pphoto<?= $m['photo'] === '' ? ' ppl-pphoto--ini' : '' ?>">
-<?php if ($m['photo'] !== ''): ?>            <img src="<?= e($m['photo']) ?>" alt="Portrait of <?= e($m['name']) ?>" width="600" height="750" />
-<?php else: ?>            <span class="ppl-pini ppl-tint-<?= av_person_tint($m['name']) ?>" aria-hidden="true"><?= e(av_person_initials($m['name'])) ?></span>
+            <span class="ppl-pini ppl-tint-<?= av_person_tint($m['name']) ?>" aria-hidden="true"><?= e(av_person_initials($m['name'])) ?></span>
+<?php if ($m['photo'] !== ''): ?>            <img class="ppl-tint-<?= av_person_tint($m['name']) ?>" src="<?= e($m['photo']) ?>" alt="Portrait of <?= e($m['name']) ?>" data-ini="<?= e(av_person_initials($m['name'])) ?>" width="600" height="750" />
 <?php endif; ?>          </div>
           <div class="ppl-pbody">
             <p class="ppl-eyebrow"><?= e($where) ?></p>
@@ -211,7 +212,7 @@ foreach ([['executive', 'president'], ['council', 'chair'], ['executive', 'coo']
 if (!$spot) $spot = array_slice(array_values(array_filter($people, fn($m) => $m['featured'])), 0, 3);
 $spotIds = array_flip(array_map(fn($m) => (int) $m['id'], $spot));
 
-/* Everybody counted once, per group, for the summary and the chips. */
+/* Everybody counted once, per group: a chip for each group that has anybody. */
 $chipCount = [];
 foreach (array_keys(AV_TEAM_STRUCTURE) as $g) $chipCount[$g] = 0;
 foreach ($people as $m) $chipCount[av_team_placement($m)['group']]++;
@@ -226,9 +227,6 @@ foreach ($tree as $g => $bodies) {   // bodies in map order
     foreach (array_keys(AV_TEAM_STRUCTURE[$g]['bodies']) as $b) if (!empty($bodies[$b])) $ordered[$b] = $bodies[$b];
     $tree[$g] = $ordered;
 }
-$groupCount = array_map(fn($bodies) => array_sum(array_map('count', $bodies)), $tree);
-
-
 
 $votm = av_votm($pdo)['votm'] ?? null;
 $total = count($people);
@@ -252,38 +250,28 @@ render_nav('people');
       <div class="avh-topo" data-avh-topo="light" data-seed="11" aria-hidden="true"></div>
       <div class="ppl-wrap">
         <nav class="ppl-crumbs" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="/">Home</a><span aria-hidden="true">›</span></li><li><a href="/about.html">About</a><span aria-hidden="true">›</span></li><li><span aria-current="page">Our people</span></li></ol></nav>
-        <div class="ppl-hero-grid<?= $votm ? '' : ' ppl-hero-grid--solo' ?>">
-          <div class="ppl-hero-main">
-            <p class="ppl-eyebrow">Our people</p>
-            <h1>The <em>Vanguard</em> Behind the Movement</h1>
-            <p class="ppl-intro">Every leader, coordinator and volunteer who gives their time and talent to raise a generation of incorruptible African leaders.</p>
-<?php if ($total): ?>
-            <p class="ppl-summary"><span class="av-sr">On this page: </span><b><?= $total ?> <?= $total === 1 ? 'person' : 'people' ?></b><?php foreach ($chipCount as $g => $n): ?><span class="ppl-dot" aria-hidden="true">·</span><span><?= e(AV_TEAM_STRUCTURE[$g]['short']) ?> <?= $n ?></span><?php endforeach; ?></p>
-<?php endif; ?>
-            <div class="ppl-btns">
-              <a class="ppl-btn" href="<?= e(PPL_VOLUNTEER_URL) ?>" target="_blank" rel="noopener">Join the team<span aria-hidden="true"> ↗</span><?= $ext ?></a>
-              <a class="ppl-btn ppl-btn--line" href="<?= e(PPL_MEMBER_URL) ?>">Become a member</a>
-            </div>
-          </div>
-<?php if ($votm): $vm = ['id' => $votm['id'], 'name' => $votm['name'], 'photo' => $votm['photo']]; ?>
-          <aside class="ppl-votm" aria-labelledby="ppl-votm-h">
-            <p class="ppl-votm-k" id="ppl-votm-h"><?= $star ?>Volunteer of the Month<span class="ppl-votm-m"><span class="av-sr">, </span><?= e($monthName((int) $votm['month'], (int) $votm['year'])) ?></span></p>
-            <div class="ppl-votm-who">
-              <?= $avatar($vm, 'ppl-av ppl-av--lg', 72) ?>
-
-              <div>
-                <p class="ppl-votm-n"><a href="<?= e(av_person_url($votm)) ?>"><?= e($votm['name']) ?></a></p>
-                <p class="ppl-votm-r"><?= e(av_person_role_line($votm)) ?></p>
-              </div>
-            </div>
-<?php if ($votm['reason'] !== ''): ?>            <p class="ppl-votm-why"><?= e($votm['reason']) ?></p>
-<?php endif; ?>
-<?php if ($votm['quote'] !== ''): ?>            <blockquote class="ppl-votm-q"><p><?= e($votm['quote']) ?></p></blockquote>
-<?php endif; ?>          </aside>
-<?php endif; ?>
+        <p class="ppl-eyebrow">Our people</p>
+        <h1>The <em>Vanguard</em> Behind the Movement</h1>
+        <p class="ppl-intro">Every leader, coordinator and volunteer who gives their time and talent to raise a generation of incorruptible African leaders.</p>
+        <div class="ppl-btns">
+          <a class="ppl-btn" href="<?= e(PPL_VOLUNTEER_URL) ?>" target="_blank" rel="noopener">Join the team<span aria-hidden="true"> ↗</span><?= $ext ?></a>
         </div>
       </div>
     </header>
+
+<?php if ($votm): $vm = ['id' => $votm['id'], 'name' => $votm['name'], 'photo' => $votm['photo']]; ?>
+    <aside class="ppl-votm" aria-labelledby="ppl-votm-h">
+      <div class="ppl-wrap ppl-votm-in">
+        <?= $avatar($vm, 'ppl-av ppl-av--sm', 96) ?>
+
+        <div class="ppl-votm-b">
+          <p class="ppl-votm-k" id="ppl-votm-h"><?= $star ?>Volunteer of the Month<span class="ppl-votm-m"><span aria-hidden="true"> · </span><span class="av-sr">, </span><?= e($monthName((int) $votm['month'], (int) $votm['year'])) ?></span></p>
+          <p class="ppl-votm-n"><a href="<?= e(av_person_url($votm)) ?>"><?= e($votm['name']) ?></a><span class="ppl-votm-r"><?= e(av_person_role_line($votm)) ?></span></p>
+        </div>
+<?php if ($votm['quote'] !== ''): ?>        <blockquote class="ppl-votm-q"><p><?= e($votm['quote']) ?></p></blockquote>
+<?php endif; ?>      </div>
+    </aside>
+<?php endif; ?>
 
 <?php if (!$people): ?>
     <section class="ppl-sec">
@@ -291,7 +279,7 @@ render_nav('people');
     </section>
 <?php else: ?>
     <div class="ppl-tools-band">
-      <div class="ppl-wrap">
+      <div class="ppl-wrap ppl-tools-row">
         <div class="ppl-tools" id="ppl-tools" hidden>
           <div class="ppl-search">
             <label class="av-sr" for="ppl-q">Search people</label>
@@ -299,8 +287,8 @@ render_nav('people');
             <input type="search" id="ppl-q" placeholder="Search by name, role or place" autocomplete="off" spellcheck="false" />
           </div>
           <div class="ppl-chips" role="group" aria-label="Show people from">
-            <button type="button" class="ppl-chip" data-group="all" aria-pressed="true">Everyone <span class="ppl-chip-n"><?= $total ?></span></button>
-<?php foreach ($chipCount as $g => $n): ?>            <button type="button" class="ppl-chip" data-group="<?= e($g) ?>" aria-pressed="false"><?= e(AV_TEAM_STRUCTURE[$g]['short']) ?> <span class="ppl-chip-n"><?= $n ?></span></button>
+            <button type="button" class="ppl-chip" data-group="all" aria-pressed="true">Everyone</button>
+<?php foreach (array_keys($chipCount) as $g): ?>            <button type="button" class="ppl-chip" data-group="<?= e($g) ?>" aria-pressed="false"><?= e(AV_TEAM_STRUCTURE[$g]['short']) ?></button>
 <?php endforeach; ?>          </div>
         </div>
         <p class="ppl-count" id="ppl-count" role="status" aria-live="polite" aria-atomic="true"></p>
@@ -309,17 +297,15 @@ render_nav('people');
 
 <?php if ($spot): ?>
     <section class="ppl-sec ppl-leaders" id="ppl-leadership" aria-labelledby="ppl-lead-h" data-ppl-section>
-      <div class="ppl-wrap">
-        <div class="ppl-sec-h">
+      <div class="ppl-wrap ppl-sec-in">
+        <div class="ppl-sec-side">
           <h2 id="ppl-lead-h">Leadership</h2>
         </div>
         <ul class="ppl-lead-grid">
 <?php foreach ($spot as $m): $role = av_person_role_line($m); ?>
           <li class="ppl-lead" <?= $dataAttrs($m) ?>>
-            <div class="ppl-lead-ph">
-<?php if ($m['photo'] !== ''): ?>              <img src="<?= e($m['photo']) ?>" alt="" width="600" height="750" loading="lazy" decoding="async" />
-<?php else: ?>              <span class="ppl-lead-ini ppl-tint-<?= av_person_tint($m['name']) ?>" aria-hidden="true"><?= e(av_person_initials($m['name'])) ?></span>
-<?php endif; ?>            </div>
+            <?= $avatar($m, 'ppl-av ppl-av--xl', 192) ?>
+
             <div class="ppl-lead-b">
               <h3 class="ppl-lead-n"><a href="<?= e(av_person_url($m)) ?>"><?= e($m['name']) ?></a></h3>
               <p class="ppl-lead-r"><?= e($role) ?></p>
@@ -337,12 +323,12 @@ render_nav('people');
 
 <?php foreach ($tree as $g => $bodies): $G = AV_TEAM_STRUCTURE[$g]; $multi = count($G['bodies']) > 1; ?>
     <section class="ppl-sec ppl-group" id="ppl-g-<?= e($g) ?>" aria-labelledby="ppl-g-<?= e($g) ?>-h" data-ppl-section>
-      <div class="ppl-wrap">
-        <div class="ppl-sec-h">
+      <div class="ppl-wrap ppl-sec-in">
+        <div class="ppl-sec-side">
           <h2 id="ppl-g-<?= e($g) ?>-h"><?= e($G['label']) ?></h2>
-          <p class="ppl-sec-n"><span data-ppl-n><?= $groupCount[$g] ?></span><span class="av-sr"> <?= $groupCount[$g] === 1 ? 'person' : 'people' ?></span></p>
+          <p class="ppl-sec-d"><?= e($G['desc']) ?></p>
         </div>
-        <p class="ppl-sec-d"><?= e($G['desc']) ?></p>
+        <div class="ppl-sec-c">
 <?php if (!$multi): ?>
         <ul class="ppl-grid">
 <?php foreach (reset($bodies) as $m) echo $card($m, 'h3'); ?>
@@ -353,7 +339,6 @@ render_nav('people');
         <div class="ppl-body" id="ppl-b-<?= e($b) ?>" data-ppl-section>
           <div class="ppl-body-h">
             <h3 id="ppl-b-<?= e($b) ?>-h"><?= e($B['label']) ?></h3>
-            <p class="ppl-sec-n"><span data-ppl-n><?= count($list) ?></span><span class="av-sr"> <?= count($list) === 1 ? 'person' : 'people' ?></span></p>
 <?php if (!empty($B['desc'])): ?>            <p class="ppl-body-d"><?= e($B['desc']) ?></p>
 <?php endif; ?>
           </div>
@@ -362,6 +347,7 @@ render_nav('people');
           </ul>
         </div>
 <?php endforeach; endif; ?>
+        </div>
       </div>
     </section>
 <?php endforeach; ?>

@@ -80,9 +80,11 @@ ck('ngv reg: inviting creates nothing — no account, no charge', (int) NgvMembe
 /* ── Booking ────────────────────────────────────────────────────────────── */
 Ngv::save(['reg_slots' => [['centre' => 'Test Hall', 'days' => 'Mon, Wed', 'times' => ['10:00', '14:00'], 'capacity' => '1']]]);
 $slots = NgvRegistration::slots('Test Hall');
+// The office's day (Lagos), as slots() counts it — not the server's UTC date, which differs after 23:00 UTC.
+$rgToday = function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d');
 $wd = array_values(array_unique(array_map(static fn($s) => (int) gmdate('N', strtotime($s['date'] . ' 12:00:00 UTC')), $slots))); sort($wd);
 ck('ngv reg: slots are the office\'s days and times, from tomorrow, four weeks ahead', $slots !== [] && $wd === [1, 3]
-   && min(array_column($slots, 'date')) > date('Y-m-d') && max(array_column($slots, 'date')) <= date('Y-m-d', strtotime('+' . NgvRegistration::BOOK_AHEAD_DAYS . ' days')));
+   && min(array_column($slots, 'date')) > $rgToday && max(array_column($slots, 'date')) <= gmdate('Y-m-d', strtotime($rgToday . ' 00:00:00 UTC +' . NgvRegistration::BOOK_AHEAD_DAYS . ' days')));
 $first = $slots[0];
 ck('ngv reg: booking is only for somebody invited', empty(NgvRegistration::book(
     NgvMember::submitApplication(['name' => 'Not Invited', 'email' => 'no@reg2.test', 'dob' => $rgYears(20)]), 'Test Hall', $first['date'], $first['time'])['ok']));

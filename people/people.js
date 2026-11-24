@@ -40,8 +40,6 @@
     sections.slice().reverse().forEach(function (sec) {
       var n = ids([].slice.call(sec.querySelectorAll('[data-q]:not([hidden])')));
       sec.hidden = n === 0;
-      var badge = sec.querySelector(':scope > .ppl-wrap > .ppl-sec-h [data-ppl-n], :scope > .ppl-body-h [data-ppl-n]');
-      if (badge) badge.textContent = n;
     });
     if (empty) empty.hidden = shown !== 0;
     if (count && announce !== false) {

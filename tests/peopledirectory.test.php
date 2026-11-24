@@ -175,14 +175,20 @@ ck('people page: a group emptied by the spotlight keeps its chip, so the filter 
 preg_match_all('~<h3 id="ppl-b-([a-z-]+)-h">~', $html, $bm);
 ck('people page: multi-body groups show their bodies as sub-groups', $bm[1] === ['official-volunteers']);
 ck('people page: a spotlit leader appears once, not again in their section', substr_count($html, '>Test Leader Okafor</a>') === 1);
-ck('people page: sections carry a count and our own one-line description',
-   (bool) preg_match('~id="ppl-g-volunteers-h">Volunteers</h2>\s*<p class="ppl-sec-n"><span data-ppl-n>3</span>~', $html)
-   && str_contains($html, '<p class="ppl-sec-d">' . e(AV_TEAM_STRUCTURE['volunteers']['desc']) . '</p>'));
+ck('people page: sections carry our own one-line description and no count bubble',
+   (bool) preg_match('~id="ppl-g-volunteers-h">Volunteers</h2>\s*<p class="ppl-sec-d">' . preg_quote(e(AV_TEAM_STRUCTURE['volunteers']['desc']), '~') . '</p>~', $html)
+   && !str_contains($html, 'ppl-sec-n') && !str_contains($html, 'data-ppl-n'));
 ck('people page: "Member" never reaches a card', !preg_match('~class="ppl-card-r">Member<~', $html) && str_contains($html, '<p class="ppl-card-r">Official Volunteer</p>'));
 ck('people page: no tier badge inside the cards any more', !str_contains($html, 'pcard-tier'));
-ck('people page: the summary counts each group', str_contains($html, '<b>6 people</b>') && str_contains($html, '<span>Volunteers 3</span>') && str_contains($html, '<span>Council 1</span>'));
+ck('people page: the hero is plain: no summary line, one button (membership lives in the closing band)',
+   !str_contains($html, 'ppl-summary') && preg_match('~<header class="ppl-hero">(.*?)</header>~s', $html, $hm) === 1
+   && substr_count($hm[1], 'class="ppl-btn"') === 1 && !str_contains($hm[1], 'ppl-votm') && !str_contains($hm[1], '/academy/#membership'));
+ck('people page: the chips carry no counts (the live count line says how many)', !str_contains($html, 'ppl-chip-n')
+   && str_contains($html, 'data-group="all" aria-pressed="true">Everyone</button>'));
+ck('people page: directory cards carry no tagline (it stays on the profile)', !str_contains($html, 'ppl-card-t'));
 ck('people page: initials avatar is decorative and tinted', (bool) preg_match('~<span class="ppl-av ppl-tint-[0-5]" aria-hidden="true">TV</span>~', $html));
-ck('people page: a photo is used when there is one', str_contains($html, 'src="/uploads/test-patron.jpg"'));
+ck('people page: a photo is used when there is one, laid over the initials so a missing file still shows them',
+   (bool) preg_match('~<span class="ppl-av (ppl-tint-[0-5]) ppl-av--ph" aria-hidden="true">TE<img class="\1" src="/uploads/test-patron\.jpg" alt="" data-ini="TE"~', $html));
 ck('people page: the toolbar is hidden until script runs, so no-JS shows everyone', (bool) preg_match('~<div class="ppl-tools" id="ppl-tools" hidden>~', $html));
 ck('people page: the filter chips are the non-empty groups, toggle buttons with aria-pressed',
    substr_count($html, 'class="ppl-chip"') === 5 && str_contains($html, 'data-group="all" aria-pressed="true"')
@@ -190,7 +196,8 @@ ck('people page: the filter chips are the non-empty groups, toggle buttons with 
 ck('people page: the result count is a polite live region', str_contains($html, 'id="ppl-count" role="status" aria-live="polite"'));
 ck('people page: the script is a stamped file, not inline', (bool) preg_match('~<script src="/people/people\.js\?v=[0-9a-f]{10}" defer></script>~', $html)
    && !str_contains($html, "getElementById('pplGrid')"));
-ck('people page: Volunteer of the Month highlight', str_contains($html, 'class="ppl-votm"') && str_contains($html, 'Volunteer of the Month'));
+ck('people page: Volunteer of the Month highlight, a strip after the hero', str_contains($html, 'class="ppl-votm"') && str_contains($html, 'Volunteer of the Month')
+   && strpos($html, 'class="ppl-votm"') > strpos($html, '</header>', strpos($html, 'class="ppl-hero"')));
 ck('people page: closes with the call to action to volunteer / membership', str_contains($html, 'Want to be part of the vanguard?')
    && str_contains($html, 'href="https://cacentre.afrovanguard.org.ng/volunteer"') && str_contains($html, 'href="/academy/#membership"'));
 ck('people page: never links the members-only constitution', !str_contains($html, '/constitution/'));
