@@ -83,7 +83,7 @@ html[data-theme="dark"] .chioma-root,
   max-width: min(252px, calc(100vw - 100px));
   background: var(--ch-surface); color: var(--ch-ink);
   border-radius: var(--r); padding: 12px 14px;
-  font-size: 13px; line-height: 1.5; text-align: left; cursor: pointer;
+  font-size: 0.8125rem; line-height: 1.5; text-align: left; cursor: pointer;
   box-shadow: 0 10px 30px -12px rgba(13,18,32,.35);
   opacity: 0; transform: translateY(6px); pointer-events: none;
   transition: opacity .2s ease, transform .2s ease;
@@ -133,8 +133,8 @@ html[data-theme="dark"] .chioma-root,
 .ch-ava .ch-mark { width: 30px; height: 30px; display: block; }
 .ch-ava .ch-mark-svg { width: 17px; height: 17px; }
 .ch-head-txt { min-width: 0; flex: 1; }
-.ch-name { font-family: var(--ch-fh); font-size: 16px; font-weight: 600; line-height: 1.25; }
-.ch-status { font-size: 12px; line-height: 1.4; color: var(--ch-muted); margin-top: 1px; }
+.ch-name { font-family: var(--ch-fh); font-size: 1rem; font-weight: 600; line-height: 1.25; }
+.ch-status { font-size: 0.75rem; line-height: 1.4; color: var(--ch-muted); margin-top: 1px; }
 .ch-head-btn {
   width: 36px; height: 36px; flex-shrink: 0; border: 0; background: transparent; cursor: pointer;
   border-radius: var(--r-pill); color: var(--ch-muted); display: grid; place-items: center;
@@ -155,34 +155,34 @@ html[data-theme="dark"] .chioma-root,
 
 /* Chioma speaks as text on the surface: no bubble, no border, full width.
    A bubble reads as a messenger; this reads as an answer. */
-.ch-msg.bot { font-size: 15px; line-height: 1.65; color: var(--ch-ink); max-width: 100%; }
+.ch-msg.bot { font-size: 0.9375rem; line-height: 1.65; color: var(--ch-ink); max-width: 100%; }
 .ch-msg.bot > :first-child { margin-top: 0; }
 .ch-msg.bot > :last-child { margin-bottom: 0; }
 .ch-msg.bot p { margin: 0 0 12px; }
 .ch-msg.bot ul, .ch-msg.bot ol { margin: 0 0 12px; padding-left: 18px; }
 .ch-msg.bot li { margin-bottom: 6px; }
 .ch-msg.bot li::marker { color: var(--ch-muted); }
-.ch-msg.bot .ch-h { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+.ch-msg.bot .ch-h { font-size: 0.9375rem; font-weight: 600; margin: 0 0 8px; }
 .ch-msg.bot blockquote { margin: 0 0 12px; padding-left: 12px; border-left: 2px solid var(--ch-line); color: var(--ch-muted); }
-.ch-msg.bot code { font-size: 13px; background: var(--ch-surface-2); padding: 1px 5px; border-radius: 4px; }
+.ch-msg.bot code { font-size: 0.8125rem; background: var(--ch-surface-2); padding: 1px 5px; border-radius: 4px; }
 .ch-msg a { color: var(--ch-gold-ink); text-decoration: underline; text-underline-offset: 2px; }
 
 /* The visitor's own words: shaded and set in. */
 .ch-msg.user {
   align-self: flex-end; max-width: 85%;
-  font-size: 15px; line-height: 1.55; color: var(--ch-ink);
+  font-size: 0.9375rem; line-height: 1.55; color: var(--ch-ink);
   background: var(--ch-surface-2); border-radius: var(--r); padding: 10px 14px;
 }
 
 /* Failure keeps the text and offers retry in place. */
-.ch-fail { align-self: flex-end; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ch-danger); }
+.ch-fail { align-self: flex-end; display: flex; align-items: center; gap: 10px; font-size: 0.8125rem; color: var(--ch-danger); }
 .ch-fail button {
   font: inherit; font-weight: 600; color: var(--ch-danger); background: none; border: 0;
   padding: 4px 2px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; min-height: 32px;
 }
 
 /* Status while she works — an honest label, not chrome. */
-.ch-work { font-size: 13px; color: var(--ch-muted); }
+.ch-work { font-size: 0.8125rem; color: var(--ch-muted); }
 .ch-work .ch-work-t::after {
   content: ''; display: inline-block; width: 1.2em; text-align: left;
   animation: ch-dots 1.4s steps(1, end) infinite;
@@ -191,10 +191,10 @@ html[data-theme="dark"] .chioma-root,
 
 /* Sources — numbered footnotes under the answer, not cards. */
 .ch-src { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-top: -12px; }
-.ch-src-h { font-size: 12px; color: var(--ch-muted); }
+.ch-src-h { font-size: 0.75rem; color: var(--ch-muted); }
 .ch-src-a {
   display: inline-flex; align-items: baseline; gap: 5px; min-height: 24px; max-width: 100%;
-  font-size: 12px; line-height: 1.5; color: var(--ch-muted); text-decoration: none;
+  font-size: 0.75rem; line-height: 1.5; color: var(--ch-muted); text-decoration: none;
 }
 .ch-src-a:hover { color: var(--ch-ink); }
 .ch-src-a:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: 2px; border-radius: 3px; }
@@ -206,12 +206,12 @@ html[data-theme="dark"] .chioma-root,
 
 /* ── The staged form ───────────────────────────────────────────────────── */
 .ch-act { display: flex; flex-direction: column; gap: 14px; }
-.ch-act-h { font-size: 15px; font-weight: 600; line-height: 1.4; }
+.ch-act-h { font-size: 0.9375rem; font-weight: 600; line-height: 1.4; }
 .ch-act-b { display: flex; flex-direction: column; gap: 12px; }
 .ch-f { display: flex; flex-direction: column; gap: 5px; }
-.ch-f label { font-size: 12px; color: var(--ch-muted); }
+.ch-f label { font-size: 0.75rem; color: var(--ch-muted); }
 .ch-f input, .ch-f textarea, .ch-f select {
-  font-family: var(--ch-fb); font-size: 15px; line-height: 1.5; color: var(--ch-ink);
+  font-family: var(--ch-fb); font-size: 0.9375rem; line-height: 1.5; color: var(--ch-ink);
   background: var(--ch-surface); border: 1px solid var(--ch-line); border-radius: 8px;
   padding: 10px 12px; width: 100%; min-height: 44px;
 }
@@ -222,19 +222,19 @@ html[data-theme="dark"] .chioma-root,
 .ch-req, .ch-opt { color: var(--ch-muted); }
 /* The slot exists before any error does, so it is empty far more often than
    not; :empty keeps it from adding a gap to every field. */
-.ch-f-err { font-size: 12px; line-height: 1.45; color: var(--ch-danger); }
+.ch-f-err { font-size: 0.75rem; line-height: 1.45; color: var(--ch-danger); }
 .ch-f-err:empty { display: none; }
 .ch-f [aria-invalid="true"] { border-color: var(--ch-danger); }
 .ch-f [aria-invalid="true"]:focus { outline-color: var(--ch-danger); }
-.ch-act-err { font-size: 12px; line-height: 1.45; color: var(--ch-danger); }
+.ch-act-err { font-size: 0.75rem; line-height: 1.45; color: var(--ch-danger); }
 .ch-act-err:empty { display: none; }
 .ch-consent {
   display: flex; gap: 9px; align-items: flex-start; min-height: 44px; padding: 3px 0;
-  font-size: 12px; line-height: 1.5; color: var(--ch-muted); cursor: pointer;
+  font-size: 0.75rem; line-height: 1.5; color: var(--ch-muted); cursor: pointer;
 }
 .ch-consent input { width: 17px; height: 17px; min-height: 17px; flex: 0 0 17px; margin-top: 2px; accent-color: var(--ch-navy); }
 .ch-act-foot { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.ch-btn { font-family: var(--ch-fb); font-size: 13px; font-weight: 600; cursor: pointer;
+.ch-btn { font-family: var(--ch-fb); font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   border-radius: var(--r-pill); min-height: 44px; border: 0; }
 .ch-btn-go { background: var(--ch-navy); color: #fff; padding: 12px 20px; }
 .ch-btn-go:hover:not(:disabled) { background: #1b2436; }
@@ -242,16 +242,16 @@ html[data-theme="dark"] .chioma-root,
 .ch-btn-no { background: none; color: var(--ch-muted); padding: 12px 14px; }
 .ch-btn-no:hover { color: var(--ch-ink); }
 .ch-btn:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: 2px; }
-.ch-act-note { font-size: 12px; line-height: 1.5; color: var(--ch-muted); }
+.ch-act-note { font-size: 0.75rem; line-height: 1.5; color: var(--ch-muted); }
 .ch-act.is-done .ch-act-b, .ch-act.is-done .ch-act-note { display: none; }
-.ch-act-done { display: none; font-size: 13px; line-height: 1.5; color: var(--ch-ok); }
+.ch-act-done { display: none; font-size: 0.8125rem; line-height: 1.5; color: var(--ch-ok); }
 .ch-act.is-done .ch-act-done { display: block; }
 
 /* ── Chips ─────────────────────────────────────────────────────────────── */
 .ch-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 12px; flex-shrink: 0; }
 .ch-chips:empty { display: none; }
 .ch-chip {
-  font-family: var(--ch-fb); font-size: 13px; line-height: 1.3; cursor: pointer;
+  font-family: var(--ch-fb); font-size: 0.8125rem; line-height: 1.3; cursor: pointer;
   background: var(--ch-surface-2); color: var(--ch-ink); border: 0;
   border-radius: var(--r-pill); padding: 9px 14px; min-height: 38px;
 }
@@ -262,7 +262,7 @@ html[data-theme="dark"] .ch-chip:hover, .chioma-root[data-dark="1"] .ch-chip:hov
 /* ── Composer ──────────────────────────────────────────────────────────── */
 .ch-foot { display: flex; align-items: flex-end; gap: 8px; padding: 4px 16px 10px; flex-shrink: 0; }
 .ch-foot textarea {
-  flex: 1; min-width: 0; font-family: var(--ch-fb); font-size: 15px; line-height: 1.5;
+  flex: 1; min-width: 0; font-family: var(--ch-fb); font-size: 0.9375rem; line-height: 1.5;
   color: var(--ch-ink); background: var(--ch-surface-2); border: 0; border-radius: var(--r);
   padding: 12px 14px; resize: none; min-height: 46px; max-height: 120px;
   overflow-y: hidden;                       /* autoGrow() turns this on at the ceiling */
@@ -282,7 +282,7 @@ html[data-theme="dark"] .ch-chip:hover, .chioma-root[data-dark="1"] .ch-chip:hov
    caveat: one quiet row of text rather than four bordered boxes. */
 .ch-tail {
   display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
-  padding: 0 16px 14px; font-size: 12px; line-height: 1.5; color: var(--ch-muted); flex-shrink: 0;
+  padding: 0 16px 14px; font-size: 0.75rem; line-height: 1.5; color: var(--ch-muted); flex-shrink: 0;
 }
 /* A short label like "Call" is only 22px wide at 12px type. These sit in a
    row of links rather than inline in a sentence, so they owe the full 24px
@@ -299,7 +299,7 @@ html[data-theme="dark"] .ch-chip:hover, .chioma-root[data-dark="1"] .ch-chip:hov
   position: absolute; left: 50%; transform: translateX(-50%); bottom: 118px;
   display: none; align-items: center; gap: 5px; min-height: 32px; padding: 7px 14px;
   border: 0; border-radius: var(--r-pill); cursor: pointer;
-  background: var(--ch-navy); color: #fff; font-family: var(--ch-fb); font-size: 12px; font-weight: 600;
+  background: var(--ch-navy); color: #fff; font-family: var(--ch-fb); font-size: 0.75rem; font-weight: 600;
   box-shadow: 0 6px 18px -6px rgba(13,18,32,.5);
 }
 .ch-jump.show { display: flex; }

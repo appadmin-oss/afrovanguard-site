@@ -46,7 +46,7 @@
                   <span class="tc-presence"><span class="dot-live"></span><span id="tcPresence">0</span> online</span>
                 </div>
                 <div class="tc-pinned" id="tcPinned" hidden></div>
-                <div class="tc-stream" id="tcStream"><p class="pc-empty">Loading messages…</p></div>
+                <div class="tc-stream" id="tcStream" role="log" aria-label="Team chat messages" tabindex="0"><p class="pc-empty">Loading messages…</p></div>
                 <div class="tc-typing" id="tcTyping" hidden></div>
                 <form class="tc-compose tc-compose--float" id="tcCompose" autocomplete="off">
                   <div class="tc-mentions" id="tcMentions" hidden></div>

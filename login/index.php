@@ -72,7 +72,7 @@ $title = 'Sign in — Afrovanguard';
 $desc  = 'Sign in to your Afrovanguard account to continue learning, track your progress, and reach members-only programmes and the community.';
 ?>
 <!DOCTYPE html>
-<html lang="en-NG" class="no-js">
+<html lang="en-NG"<?= A11y::htmlClass('no-js') ?>>
 <head>
   <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si')</script>
   <meta charset="UTF-8" />
@@ -100,7 +100,7 @@ $desc  = 'Sign in to your Afrovanguard account to continue learning, track your 
   <link rel="stylesheet" href="<?= e(av_asset('/assets/site/av-tokens.css')) ?>" />
   <link rel="stylesheet" href="<?= e(av_asset('/assets/site/avsi.css')) ?>" />
   <script src="<?= e(av_asset('/assets/site/avsi.js')) ?>" defer></script>
-</head>
+  <?= A11y::head() ?></head>
 <body class="avsi">
 <a class="avsi-skip" href="#avsi-card">Skip to sign in</a>
 <main class="avsi-main" id="main" data-screen="Sign in">

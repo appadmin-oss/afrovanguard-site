@@ -248,7 +248,7 @@
    down the figures — and stays readable at twenty-three rows. */
 .gv-cat {
   margin: var(--afg-space-7) 0 var(--afg-space-3);
-  font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  font-size: 0.6875rem; letter-spacing: .14em; text-transform: uppercase;
   font-weight: 800; color: var(--afg-muted);
   padding-bottom: var(--afg-space-2); border-bottom: 1px solid var(--afg-border);
 }
@@ -262,7 +262,7 @@
 .gv-item-main { min-width: 0; }
 .gv-item-name { display: block; font-weight: 700; color: var(--afg-ink); }
 .gv-item-detail {
-  display: block; margin-top: 2px; font-size: 14px; line-height: 1.5;
+  display: block; margin-top: 2px; font-size: 0.875rem; line-height: 1.5;
   color: var(--afg-muted); max-width: 54ch;
 }
 .gv-meter {
@@ -277,10 +277,10 @@
   font-weight: 800; font-variant-numeric: tabular-nums; color: var(--afg-ink); white-space: nowrap;
 }
 .gv-item-price small { font-weight: 600; color: var(--afg-muted); }
-.gv-item-kind { font-size: 13px; font-weight: 700; color: var(--afg-muted); }
-.gv-item-left { font-size: 12.5px; color: var(--afg-muted); white-space: nowrap; }
+.gv-item-kind { font-size: 0.8125rem; font-weight: 700; color: var(--afg-muted); }
+.gv-item-left { font-size: 0.7813rem; color: var(--afg-muted); white-space: nowrap; }
 .gv-item-cta {
-  margin-top: 4px; font-size: 13px; font-weight: 800; text-decoration: none;
+  margin-top: 4px; font-size: 0.8125rem; font-weight: 800; text-decoration: none;
   color: var(--afg-ink); border-bottom: 2px solid var(--afg-gold); padding-bottom: 1px;
 }
 .gv-item-cta:hover { border-bottom-color: var(--afg-ink); }
@@ -303,7 +303,7 @@
   background: var(--afg-surface);
 }
 .gw-done-h { font-weight: 800; color: var(--afg-ink); margin-bottom: 6px; }
-.gw-done-b { font-size: 14px; line-height: 1.65; color: var(--afg-muted); max-width: 46ch; }
+.gw-done-b { font-size: 0.875rem; line-height: 1.65; color: var(--afg-muted); max-width: 46ch; }
 
 /* An item's picture. Fixed square so a row of them lines up however the
    photographs were cropped, and it is decorative — the name beside it is the

@@ -48,7 +48,7 @@ $appeals = class_exists('Appeals') ? Appeals::forProject($slug, 3) : [];
 
 if (function_exists('send_security_headers')) send_security_headers('public');
 ?><!DOCTYPE html>
-<html lang="en-NG" prefix="og: https://ogp.me/ns#" class="no-js">
+<html lang="en-NG" prefix="og: https://ogp.me/ns#"<?= A11y::htmlClass('no-js') ?>>
 <head>
   <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si')</script>
   <meta charset="UTF-8" />
@@ -85,7 +85,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <link rel="stylesheet" href="<?= e(av_asset('/assets/site/avcv.css')) ?>" />
   <link rel="stylesheet" href="<?= e(av_asset('/assets/site/avpj.css')) ?>" />
   <script src="<?= e(av_asset('/assets/site/avh.js')) ?>" defer></script>
-</head>
+  <?= A11y::head() ?></head>
 <body class="avh avpj" id="top">
 <a class="avh-skip" href="#main">Skip to main content</a>
 <div class="avh-page">
@@ -108,6 +108,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <div class="avpj-intro-in">
     <div class="avpj-intro-main">
       <div class="avpj-eyebrow"><?= e($P['cat']) ?> · Afrovanguard project</div>
+      <?= A11y::listen('#main', 'Listen to this page') ?>
       <p class="avpj-lead"><?= e($P['d']) ?></p>
       <ul class="avpj-tags avpj-tags--lg" aria-label="Focus">
 <?php foreach ($P['tags'] as $t): ?>        <li><?= e($t) ?></li>

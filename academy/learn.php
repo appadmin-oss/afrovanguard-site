@@ -109,6 +109,7 @@ avac_head([
     <a class="avle-course" href="<?= e($courseUrl) ?>"><?= e((string) $course['title']) ?></a>
   </div>
   <div class="avle-top-r">
+    <?= A11y::button('av-a11y-btn--compact') ?>
     <span class="avle-ring" style="--p:<?= $pct ?>" aria-hidden="true"></span><span class="avle-ring-n av-num" data-avle-count aria-hidden="true"><?= (int) $progress['completed'] ?>/<?= (int) $progress['total'] ?></span><span class="av-sr" data-avle-count-sr><?= (int) $progress['completed'] ?> of <?= (int) $progress['total'] ?> lessons complete</span>
 <?php if ($coachOn): ?>    <button type="button" class="avle-btn avle-btn--line avle-coach-btn" data-avle-coach-toggle aria-controls="avle-coach" aria-expanded="false">Ask Coach</button>
 <?php endif; ?>
@@ -247,6 +248,7 @@ avac_head([
         <button type="button" class="avle-pill" data-avle-share><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M18 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-avle-share-label>Share</span></button>
       </div>
     </div>
+    <?= A11y::listen('.avle-main .avle-body', 'Listen to this lesson') ?>
     <div class="avle-about">
       <div class="avle-about-k av-num"><?= $mins ? $mins . ' min · ' : '' ?>Video lesson</div>
       <article class="avle-body avle-prose-sm" aria-label="<?= e((string) $lesson['title']) ?>"><?= $lesson['body_html'] ?></article>
@@ -266,6 +268,7 @@ avac_head([
       </ul>
     </aside>
 <?php endif; ?>
+    <?= A11y::listen('.avle-main .avle-body', 'Listen to this lesson') ?>
     <article class="avle-body" aria-label="<?= e((string) $lesson['title']) ?>"><?= $lesson['body_html'] ?></article>
 <?php endif; ?>
 

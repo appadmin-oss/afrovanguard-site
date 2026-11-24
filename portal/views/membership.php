@@ -105,7 +105,7 @@ if ($mvPending): ?>
 <?php endif; ?>
 
           <section class="avp-card"<?= ($isOrg && $dues) ? '' : ' id="membership"' ?> aria-labelledby="avpDetH">
-            <div class="avp-card-head"><h2 id="avpDetH"><?= $isOrg ? 'Membership' : 'Account' ?></h2><span class="avp-chip avp-chip--<?= $isOrg ? 'green' : 'indigo' ?>"><?= $isOrg ? 'Active' : 'Learner' ?></span></div>
+            <div class="avp-card-head"><h2 id="avpDetH"><?= $isOrg ? 'Membership details' : 'Account details' ?></h2><span class="avp-chip avp-chip--<?= $isOrg ? 'green' : 'indigo' ?>"><?= $isOrg ? 'Active' : 'Learner' ?></span></div>
             <dl class="avp-dl">
               <div><dt>Name</dt><dd><?= e($u['name']) ?></dd></div>
               <div><dt>Email</dt><dd><?= e($u['email']) ?></dd></div>

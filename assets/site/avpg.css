@@ -81,7 +81,7 @@ body.avpg{font-family:var(--av-sans);color:var(--av-body);background:var(--av-wh
 /* Buttons: Home's — 8px radius, ink fill, a hairline outline variant. The gold
    fill stays for .btn-primary (it is the brand action on these pages) but with
    ink text and no glow. */
-body.avpg .btn{border-radius:var(--av-r-8);font-family:var(--av-sans);font-weight:600;letter-spacing:0;font-size:15px;border-width:1px;box-shadow:none}
+body.avpg .btn{border-radius:var(--av-r-8);font-family:var(--av-sans);font-weight:600;letter-spacing:0;font-size:0.9375rem;border-width:1px;box-shadow:none}
 body.avpg .btn:hover{transform:none;box-shadow:none}
 body.avpg .btn-primary{background:var(--av-ink);border-color:var(--av-ink);color:var(--av-white)}
 body.avpg .btn-primary:hover{background:var(--av-ink-hover);border-color:var(--av-ink-hover);color:var(--av-white)}
@@ -93,7 +93,7 @@ body.avpg .btn-gold{background:var(--av-gold);border-color:var(--av-gold);color:
 
 /* The standard page header (page.css) on the Home rhythm. */
 body.avpg .page-eyebrow{font-weight:700;letter-spacing:.14em;color:var(--av-gold-text)}
-body.avpg .page-title{font-family:var(--av-serif);font-weight:400;font-size:clamp(40px,5vw,64px);line-height:1.02;letter-spacing:-.01em}
+body.avpg .page-title{font-family:var(--av-serif);font-weight:400;font-size:clamp(2.5rem,5vw,4rem);line-height:1.02;letter-spacing:-.01em}
 body.avpg .page-lead{color:var(--av-copy)}
 
 /* Focus: one ring, the Home one. */

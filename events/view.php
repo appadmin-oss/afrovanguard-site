@@ -63,7 +63,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
 if ($private) { header('X-Robots-Tag: noindex, nofollow'); header('Cache-Control: private, no-store'); }
 ?>
 <!DOCTYPE html>
-<html lang="en-NG" prefix="og: https://ogp.me/ns#" class="no-js">
+<html lang="en-NG" prefix="og: https://ogp.me/ns#"<?= A11y::htmlClass('no-js') ?>>
 <head>
   <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si')</script>
   <meta charset="UTF-8" />
@@ -90,7 +90,7 @@ if ($private) { header('X-Robots-Tag: noindex, nofollow'); header('Cache-Control
   <link rel="stylesheet" href="<?= e(av_asset('/assets/site/avh.css')) ?>" />
   <link rel="stylesheet" href="<?= e(av_asset('/assets/site/avev.css')) ?>" />
   <script src="<?= e(av_asset('/assets/site/avh.js')) ?>" defer></script>
-</head>
+  <?= A11y::head() ?></head>
 <body class="avh" id="top">
 <a class="avh-skip" href="#main">Skip to main content</a>
 <div class="avh-page">

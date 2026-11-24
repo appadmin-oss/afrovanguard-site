@@ -16,6 +16,7 @@
  * tests/avhchrome.test.php fails on drift.
  */
 declare(strict_types=1);
+if (!class_exists('A11y', false)) require_once __DIR__ . '/../lib/A11y.php';
 
 /**
  * Nav + backdrop + drawer. $current is the path of the page being drawn: its
@@ -36,6 +37,7 @@ function avh_nav(string $current = ''): void
         <button type="button" class="avh-navbtn" data-avh-menu="projects" aria-expanded="false" aria-controls="avh-mega-projects">Projects<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
         <button type="button" class="avh-navbtn" data-avh-menu="involved" aria-expanded="false" aria-controls="avh-mega-involved">Get involved<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
         <button type="button" class="avh-navbtn" data-avh-menu="diary" aria-expanded="false" aria-controls="avh-mega-diary">Diary<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
+      <?= A11y::button() ?>
       <a class="avh-signin" href="/login" data-avh-close data-avh-guest data-avh-login>Sign in</a><a class="avh-signin avh-member" href="/portal/" data-avh-close>My portal</a>
       <div class="avh-acct" data-avh-acct>
         <button type="button" class="avh-acct-btn" data-avh-acct-btn data-avh-close aria-expanded="false" aria-controls="avh-acct-menu"><span class="avh-av" data-avh-me-initial aria-hidden="true">M</span><span data-avh-me-first>Member</span><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -52,6 +54,7 @@ function avh_nav(string $current = ''): void
       </div>
     </div>
     <div class="avh-narrow">
+      <?= A11y::button('av-a11y-btn--compact') ?>
       <a class="avh-join" href="https://cacentre.afrovanguard.org.ng/volunteer" data-avh-guest>Join the Movement</a><a class="avh-join avh-member" href="/portal/">My portal</a>
       <a class="avh-acct-mini" href="/portal/" aria-label="Your portal"><span class="avh-av" data-avh-me-initial aria-hidden="true">M</span></a>
       <button type="button" class="avh-burger" data-avh-burger aria-label="Open menu" aria-expanded="false" aria-controls="avh-drawer"><span></span><span></span><span></span></button>
@@ -169,7 +172,7 @@ function avh_footer(): void
       <div class="avh-foot-col"><div class="avh-foot-grp"><div>Academy</div><a href="/academy/">All programmes</a><a href="/academy/ngv/">NextGen Vanguard</a><a href="/academy/dns/">D'Vanguard National Summit</a><a href="/academy/teach/">Teach with us</a><a href="/academy/verify.php">Verify a certificate</a></div><div class="avh-foot-grp"><div>Get started</div><a href="/login">Create an account</a><a href="/portal/">Member portal</a><a href="/IQ/">IQ — Quizzes &amp; games</a></div></div>
       <div class="avh-foot-col"><div class="avh-foot-grp"><div>Projects</div><a href="/projects/sts/">Street-To-Stardom</a><a href="/projects/techhome/">Techome</a><a href="/projects/mediapro/">MediaPro</a><a href="https://afg.afrovanguard.org.ng" target="_blank" rel="noopener">Africa GATES<small aria-hidden="true">↗</small><span class="av-sr"> (opens in a new tab)</span></a><a href="/projects/bec/">Business Executive Club</a><a href="/projects/career-hub/">Career Hub</a><a href="/projects/kap/">Kingdom Advancement Project</a><a href="https://next.afrovanguard.org.ng/" target="_blank" rel="noopener">Next Generation Genius<small aria-hidden="true">↗</small><span class="av-sr"> (opens in a new tab)</span></a><a href="/projects/">All projects</a></div></div>
       <div class="avh-foot-col"><div class="avh-foot-grp"><div>Give</div><a href="/give/">Live appeals</a><a href="/donate.html">Donate</a><a href="/academy/#membership">Become a member</a></div><div class="avh-foot-grp"><div>Give your time</div><a href="https://cacentre.afrovanguard.org.ng/volunteer" target="_blank" rel="noopener">Volunteer<small aria-hidden="true">↗</small><span class="av-sr"> (opens in a new tab)</span></a><a href="/mentorship/become-a-mentor/">Become a mentor</a><a href="/contact.html">Partner with us</a><a href="/franchise">Franchise a CACENTRE</a><a href="https://cacentre.afrovanguard.org.ng" target="_blank" rel="noopener">Visit CACENTRE<small aria-hidden="true">↗</small><span class="av-sr"> (opens in a new tab)</span></a></div></div>
-      <div class="avh-foot-col"><div class="avh-foot-grp"><div>The Diary</div><a href="/diary/">All entries</a><a href="/diary/?q=Technology">Technology</a><a href="/diary/?q=Creative">Creative</a><a href="/diary/?q=Leadership">Leadership</a><a href="https://afrovanguard.org.ng/diary/feed.xml">RSS feed</a></div><div class="avh-foot-grp"><div>Policies</div><a href="/privacy-policy/">Privacy Policy</a><a href="/terms/">Terms of Use</a><a href="/accessibility/">Accessibility</a><a href="/privacy-policy/#cookies" data-av-consent-open>Cookie settings</a></div></div>
+      <div class="avh-foot-col"><div class="avh-foot-grp"><div>The Diary</div><a href="/diary/">All entries</a><a href="/diary/?q=Technology">Technology</a><a href="/diary/?q=Creative">Creative</a><a href="/diary/?q=Leadership">Leadership</a><a href="https://afrovanguard.org.ng/diary/feed.xml">RSS feed</a></div><div class="avh-foot-grp"><div>Policies</div><a href="/privacy-policy/">Privacy Policy</a><a href="/terms/">Terms of Use</a><a href="/accessibility/">Accessibility</a><?= A11y::footerLink() ?><a href="/privacy-policy/#cookies" data-av-consent-open>Cookie settings</a></div></div>
     </nav>
     <div class="avh-foot-bot">
       <div class="avh-socials">

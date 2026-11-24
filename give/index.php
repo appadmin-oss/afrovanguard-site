@@ -36,7 +36,7 @@ $jsonld = [
 ];
 if (function_exists('send_security_headers')) send_security_headers('public');
 ?><!DOCTYPE html>
-<html lang="en-NG" prefix="og: https://ogp.me/ns#" class="no-js">
+<html lang="en-NG" prefix="og: https://ogp.me/ns#"<?= A11y::htmlClass('no-js') ?>>
 <head>
   <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si')</script>
   <meta charset="UTF-8" />
@@ -76,7 +76,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <script src="<?= e(av_asset('/assets/site/avh.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/assets/site/give-pay.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/assets/site/avgv.js')) ?>" defer></script>
-</head>
+  <?= A11y::head() ?></head>
 <body class="avh" id="top">
 <a class="avh-skip" href="#main">Skip to main content</a>
 <div class="avh-page">

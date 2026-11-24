@@ -7,7 +7,7 @@
 /* Parts: a quiet band above each group of Articles. */
 .const-doc h2.const-part {
   display: block; margin: 56px 0 6px; padding: 0 0 8px;
-  font: 700 12px/1.4 'Source Sans 3', sans-serif; letter-spacing: .16em;
+  font: 700 0.75rem/1.4 'Source Sans 3', sans-serif; letter-spacing: .16em;
   text-transform: uppercase; color: var(--legal-link);
   border-bottom: 1px solid var(--legal-rule);
   scroll-margin-top: 100px;

@@ -140,7 +140,7 @@ function render_head(array $o): void {
     $site = av_chrome_mode((string) ($o['chrome'] ?? 'site')) === 'site';
     if (function_exists('send_security_headers')) send_security_headers('public'); ?>
 <!DOCTYPE html>
-<html lang="en-NG" prefix="og: https://ogp.me/ns#"<?= $site ? ' class="no-js" data-theme="light" data-theme-lock' : '' ?>>
+<html lang="en-NG" prefix="og: https://ogp.me/ns#"<?= A11y::htmlClass($site ? 'no-js' : '') ?><?= $site ? ' data-theme="light" data-theme-lock' : '' ?>>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -184,7 +184,8 @@ function render_head(array $o): void {
   <link rel="sitemap" type="application/xml" href="<?= e(diary_url('sitemap.xml')) ?>" />
 <?php if ($jsonld): ?>  <script type="application/ld+json"><?= json_encode(count($jsonld) === 1 ? ['@context' => 'https://schema.org'] + $jsonld[0] : ['@context' => 'https://schema.org', '@graph' => $jsonld], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 <?php endif; ?>  <?= $site ? THEME_BOOT_SITE : THEME_BOOT ?>
-
+  <?php /* The visitor's display settings (lib/A11y.php): onto <html> before first paint, then the panel. */ ?>
+  <?= A11y::head() ?>
 <?php /* G-06: Cormorant Garamond and Source Sans 3, self-hosted. The old
      <link> loaded Cormorant — a different face by the same designer — and
      'Source Sans 3', from fonts.googleapis.com. Self-hosting is not only about
@@ -757,7 +758,7 @@ function av_footer_inner(): void {
         </div>
       </div>
       <div class="footer-bottom">
-        <p class="footer-legal">&copy; 2026 Afrovanguard. All rights reserved. <a href="<?= $S ?>/privacy-policy/">Privacy Policy</a> · <a href="<?= $S ?>/terms/">Terms of Use</a> · <a href="<?= $S ?>/accessibility/">Accessibility</a></p>
+        <p class="footer-legal">&copy; 2026 Afrovanguard. All rights reserved. <a href="<?= $S ?>/privacy-policy/">Privacy Policy</a> · <a href="<?= $S ?>/terms/">Terms of Use</a> · <a href="<?= $S ?>/accessibility/">Accessibility</a> · <?= A11y::footerLink() ?></p>
         <p class="footer-legal">Built with purpose. Powered by passion. For Africa.</p>
       </div>
     </div>

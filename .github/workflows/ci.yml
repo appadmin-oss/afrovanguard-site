@@ -109,11 +109,12 @@ jobs:
       - name: Lessons — pictures described, links named, tables with headers, videos captioned
         run: php tools/academy-a11y-audit.php --strict
 
-      - name: Pages — axe (WCAG 2.2 A/AA) and 320px reflow, signed out and as a learner
+      - name: Pages — axe (WCAG 2.2 A/AA) and 320px reflow, signed out, as a learner and as a member, with and without the display settings
         run: |
           TOKEN="$(php tests/a11y/ci-session.php 2>/dev/null | tail -1)"
+          MEMBER_TOKEN="$(php tests/a11y/ci-session.php --member 2>/dev/null | tail -1)"
           cd tests/a11y
-          BASE=http://127.0.0.1:8000 TOKEN="$TOKEN" node axe-ci.js
+          BASE=http://127.0.0.1:8000 TOKEN="$TOKEN" MEMBER_TOKEN="$MEMBER_TOKEN" node axe-ci.js
 
       - name: Server log (on failure)
         if: failure()

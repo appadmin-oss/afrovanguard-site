@@ -9,7 +9,18 @@
 
   const $ = (s, el = root) => el.querySelector(s);
   const $$ = (s, el = root) => Array.from(el.querySelectorAll(s));
-  const reduceMq = matchMedia('(prefers-reduced-motion: reduce)');
+  /* Less motion: the device's "reduce motion", or the Accessibility panel's
+     "stop animation and moving content" (html.a11y-still, assets/site/a11y.js,
+     which says when it changes with an av:a11y event). Shaped like a
+     MediaQueryList so every feature below reads it the same way. */
+  const reduceMq = (() => {
+    const mq = matchMedia('(prefers-reduced-motion: reduce)'), fns = [];
+    const still = () => document.documentElement.classList.contains('a11y-still');
+    const fire = () => { const e = { matches: mq.matches || still() }; fns.forEach(f => f(e)); };
+    if (mq.addEventListener) mq.addEventListener('change', fire); else mq.addListener(fire);
+    document.addEventListener('av:a11y', fire);
+    return { get matches() { return mq.matches || still(); }, addEventListener: (t, f) => fns.push(f), addListener: f => fns.push(f) };
+  })();
   const deskMq = matchMedia('(min-width: 1180px)');
   const onMq = (mq, fn) => (mq.addEventListener ? mq.addEventListener('change', fn) : mq.addListener(fn));
   const layers = []; // Esc closes the top-most layer only: [{close}]
@@ -148,6 +159,30 @@
       if (willOpen) { b.setAttribute('aria-expanded', 'true'); const p = panelOf(b); if (p) p.hidden = false; }
     }));
     onMq(deskMq, () => close(false));
+  });
+
+  /* The highlights ticker (WCAG 2.2.2): a Pause/Play button, remembered in
+     av.ticker. With less motion asked for, the strip is already still (CSS)
+     and the button is not needed. */
+  run('ticker', () => {
+    const tk = $('[data-avh-ticker]'); if (!tk) return;
+    const btn = $('[data-avh-tick-toggle]', tk); if (!btn) return;
+    const label = $('[data-avh-tick-label]', btn), icon = $('[data-avh-tick-icon]', btn);
+    const PAUSE = 'M4 3h3v10H4zM9 3h3v10H9z', PLAY = 'M4.5 2.5v11l9-5.5z';
+    const set = paused => {
+      tk.classList.toggle('is-paused', paused);
+      label.textContent = paused ? 'Play' : 'Pause';
+      icon.setAttribute('d', paused ? PLAY : PAUSE);
+    };
+    let stored = ''; try { stored = localStorage.getItem('av.ticker') || ''; } catch (e) {}
+    set(stored === 'paused');
+    const sync = () => { btn.hidden = reduceMq.matches; };
+    sync(); onMq(reduceMq, sync);
+    btn.addEventListener('click', () => {
+      const paused = !tk.classList.contains('is-paused');
+      set(paused);
+      try { localStorage.setItem('av.ticker', paused ? 'paused' : 'playing'); } catch (e) {}
+    });
   });
 
   run('hero', () => {

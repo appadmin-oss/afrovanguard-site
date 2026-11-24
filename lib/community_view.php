@@ -87,7 +87,7 @@ if (!function_exists('av_render_community')) {
 
     <div class="cm-grid">
       <!-- LEFT · SPACES -->
-      <aside class="cm-rail cm-rail--l">
+      <section class="cm-rail cm-rail--l" aria-label="Spaces and house rules">
         <div class="cm-card cm-spaces">
           <p class="cm-rail-h">Spaces</p>
           <a class="cm-space-link<?= $activeSp === '' ? ' is-active' : '' ?>" href="/community/" data-space="">All activity</a>
@@ -103,7 +103,7 @@ if (!function_exists('av_render_community')) {
           <p class="cm-rail-h">House rules</p>
           <ul><li>Debate the work, never the person.</li><li>Sources beat opinions.</li><li>Keep canvassing out of the threads.</li></ul>
         </div>
-      </aside>
+      </section>
 
       <!-- CENTER · FEED -->
       <section class="cm-feed">
@@ -149,7 +149,7 @@ if (!function_exists('av_render_community')) {
       </section>
 
       <!-- RIGHT · PULSE -->
-      <aside class="cm-rail cm-rail--r">
+      <section class="cm-rail cm-rail--r" aria-label="Community pulse, members and chat">
         <div class="cm-card cm-pulse">
           <p class="cm-rail-h cm-rail-h--light">Community pulse · today</p>
           <div class="cm-pulse-grid">
@@ -181,7 +181,7 @@ if (!function_exists('av_render_community')) {
           <div class="cm-chan" id="cmChan" role="group" aria-label="Chat channels">
 <?php foreach (Community::chatChannelLabels() as $ck => $cl): ?>            <button type="button" class="cm-chan-btn<?= $ck === 'general' ? ' is-on' : '' ?>" aria-pressed="<?= $ck === 'general' ? 'true' : 'false' ?>" data-chan="<?= e($ck) ?>"># <?= e($cl) ?></button>
 <?php endforeach; ?>          </div>
-          <div class="cm-chat-log" id="cmChatLog" aria-live="polite" aria-label="Members chat messages">
+          <div class="cm-chat-log" id="cmChatLog" role="log" aria-live="polite" aria-label="Members chat messages" tabindex="0">
             <div class="cm-chat-empty">Say hello — this channel is just for Afrovanguard members.</div>
           </div>
           <form class="cm-chat-form" id="cmChatForm" autocomplete="off">
@@ -198,11 +198,11 @@ if (!function_exists('av_render_community')) {
 <?php else: ?>
         <div class="cm-card cm-event">
           <span class="cm-event-tag">Members</span>
-          <h3>Behind the movement</h3>
+          <h2 class="cm-event-h">Behind the movement</h2>
           <p>Afrovanguard members get a private directory and live chat. The forum here is open to every learner.</p>
         </div>
 <?php endif; ?>
-      </aside>
+      </section>
     </div>
   </div>
 </div>

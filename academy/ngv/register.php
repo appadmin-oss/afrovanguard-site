@@ -165,7 +165,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 $canon = rtrim(SITE_URL, '/') . '/academy/ngv/register.php';
 header('Content-Type: text/html; charset=utf-8');
 ?><!doctype html>
-<html lang="en">
+<html lang="en"<?= A11y::htmlClass() ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -245,7 +245,7 @@ textarea{min-height:110px;resize:vertical}
 .q-why{margin:6px 0 2px;color:#7a2a24;font-size:.92rem}
 @media(max-width:560px){.hero h1{font-size:1.55rem}}
 </style>
-</head>
+  <?= A11y::head() ?></head>
 <body>
 <a class="skip" href="#form">Skip to the form</a>
 <header class="top">

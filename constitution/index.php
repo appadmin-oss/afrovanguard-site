@@ -76,6 +76,7 @@ render_nav('');
               <p><strong>Internal document.</strong> For Afrovanguard members only. Please do not share or republish outside the organisation.</p>
             </div>
             <?php endif; ?>
+            <?= A11y::listen('.const-doc', 'Listen to the constitution') ?>
             <article class="legal-section const-doc">
               <?= $html /* rendered from our own Markdown; raw HTML in it is escaped */ ?>
             </article>

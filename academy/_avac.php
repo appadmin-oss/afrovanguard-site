@@ -191,7 +191,7 @@ function avac_footer(): void
     </nav>
     <div class="avac-foot-legal">
       <span><?= e((string) ($set['copyright'] ?? ('© ' . date('Y') . ' Afrovanguard'))) ?></span>
-      <a href="/privacy-policy/">Privacy</a><a href="/terms/">Terms</a><a href="/accessibility/">Accessibility</a><a href="/privacy-policy/#cookies" data-av-consent-open>Cookie settings</a>
+      <a href="/privacy-policy/">Privacy</a><a href="/terms/">Terms</a><a href="/accessibility/">Accessibility</a><?= A11y::footerLink() ?><a href="/privacy-policy/#cookies" data-av-consent-open>Cookie settings</a>
     </div>
   </div>
 </footer>
@@ -225,10 +225,10 @@ function avac_head(array $o): void
     if (function_exists('send_security_headers')) send_security_headers('public');
     ?>
 <!DOCTYPE html>
-<html lang="en-NG" prefix="og: https://ogp.me/ns#" class="no-js">
+<html lang="en-NG" prefix="og: https://ogp.me/ns#"<?= A11y::htmlClass('no-js') ?>>
 <head>
   <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si')</script>
-  <meta charset="UTF-8" />
+  <?= A11y::head() ?>  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title><?= e($title) ?></title>
   <meta name="description" content="<?= e($desc) ?>" />

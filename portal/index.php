@@ -345,6 +345,7 @@ if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) doc
       <?php /* Which view is showing, said to a screen reader as it changes; the sidebar shows it to everyone else. */ ?>
       <p class="avn-sr" aria-live="polite">Portal: <span id="crumbHere">Today</span></p>
       <div class="avp-top-actions avn-top-actions">
+        <?= A11y::button('av-a11y-btn--compact') ?>
 <?php if ($isOrg): ?>        <a class="avp-online avn-online" id="topOnline" href="/people/"<?= $onlineNow > 0 ? '' : ' hidden' ?>><span class="avn-dot" aria-hidden="true"></span><span><span class="av-num" id="tbCount"><?= (int) $onlineNow ?></span> online</span></a>
 <?php endif; ?>        <div class="avp-notif" id="notifWrap" data-csrf="<?= e($collabCsrf) ?>">
           <button type="button" class="avp-bell avn-bell" id="notifBtn" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="notifPanel">
@@ -378,7 +379,7 @@ if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) doc
 ?>
       <footer class="avp-foot">
         <span>© 2026 Afrovanguard</span>
-        <span><a href="<?= e(rtrim(SITE_URL, '/')) ?>/">Main site ↗</a> · <a href="mailto:cacentre@afrovanguard.org.ng">Support</a></span>
+        <span><a href="<?= e(rtrim(SITE_URL, '/')) ?>/">Main site ↗</a> · <a href="mailto:cacentre@afrovanguard.org.ng">Support</a> · <?= A11y::footerLink() ?></span>
       </footer>
     </div>
   </main>

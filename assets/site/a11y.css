@@ -1,0 +1,198 @@
+/* ============================================================================
+ * assets/site/a11y.css — the Accessibility panel and the settings it applies.
+ * ----------------------------------------------------------------------------
+ * Loaded on every page (lib/A11y.php head()). The settings are classes on
+ * <html>, put there by PHP from the av_a11y cookie and by the inline boot
+ * script, so they apply before first paint and with JavaScript off:
+ *
+ *   a11y-t125 … a11y-t200   text size (the site's type is rem, so it scales)
+ *   a11y-spacing            WCAG 1.4.12 spacing: line 1.5, paragraphs 2em,
+ *                           letters .12em, words .16em
+ *   a11y-font               a plain, highly legible face (Atkinson Hyperlegible)
+ *   a11y-hc + a11y-hc-light | a11y-hc-dark | a11y-hc-auto   high contrast (≥ 7:1)
+ *   a11y-links              every link underlined
+ *   a11y-focus              a large two-tone focus outline
+ *   a11y-still              no animation, transitions or moving content
+ *   a11y-targets            controls at least 44 × 44px
+ *
+ * They are a convenience on top of the pages, which are built to WCAG 2.2 AA
+ * on their own; the visitor's device settings keep working underneath them.
+ * ========================================================================= */
+
+/* Atkinson Hyperlegible (Braille Institute, SIL OFL 1.1 — fonts/licenses).
+   Downloaded only when a11y-font is on: an unused @font-face costs nothing. */
+@font-face{font-family:'Atkinson Hyperlegible';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/AtkinsonHyperlegible-400.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Atkinson Hyperlegible';font-style:normal;font-weight:700;font-display:swap;src:url(fonts/AtkinsonHyperlegible-700.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Atkinson Hyperlegible';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/AtkinsonHyperlegible-400-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0300-036F,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Atkinson Hyperlegible';font-style:normal;font-weight:700;font-display:swap;src:url(fonts/AtkinsonHyperlegible-700-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0300-036F,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+
+/* ── The header control ──────────────────────────────────────────────────── */
+.av-a11y-btn{display:inline-flex;align-items:center;gap:.4em;min-height:44px;padding:0 .7em;border:1px solid transparent;border-radius:8px;background:none;color:inherit;font:inherit;font-size:.9375rem;font-weight:500;line-height:1.2;text-decoration:none;cursor:pointer;white-space:nowrap}
+.av-a11y-btn:hover{background:rgba(17,24,39,.06);color:inherit}
+.av-a11y-btn:focus-visible{outline:3px solid currentColor;outline-offset:2px}
+.av-a11y-ico{width:1.25em;height:1.25em;flex-shrink:0}
+.avh .av-a11y-btn{color:var(--av-nav-text,#1f2937)}
+.avh-wide .av-a11y-btn{margin-right:2px}
+/* Compact: phones and the app bars keep the word for anyone who can see it
+   and for voice control ("click Accessibility"), at a smaller size. */
+.av-a11y-btn--compact{padding:0 .55em;font-size:.875rem}
+@media (max-width:420px){.av-a11y-btn--compact .av-a11y-btn-t{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}.av-a11y-btn--compact{min-width:44px;justify-content:center;padding:0}}
+.avle-top-r .av-a11y-btn{color:inherit}
+body.avp .avn-top-actions .av-a11y-btn{color:var(--avn-ink,inherit)}
+/* A page drawn without the shared header gets the control from a11y.js. */
+.av-a11y-float{position:fixed;top:8px;right:8px;z-index:60;background:#fff;color:#111827;border-color:#6b7280;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+
+/* ── The dialog ──────────────────────────────────────────────────────────── */
+.av-a11y{--a-bg:#fff;--a-ink:#111827;--a-mute:#4b5563;--a-line:#6b7280;--a-acc:#1d4ed8;--a-soft:#f3f4f6;
+  width:min(36rem,calc(100vw - 2rem));max-height:calc(100dvh - 2rem);margin:auto;padding:0;border:2px solid var(--a-ink);border-radius:14px;background:var(--a-bg);color:var(--a-ink);
+  font-family:system-ui,-apple-system,'Segoe UI',Roboto,Verdana,sans-serif;font-size:1rem;line-height:1.5;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:auto;overscroll-behavior:contain}
+.av-a11y::backdrop{background:rgba(17,24,39,.55)}
+.av-a11y *{box-sizing:border-box}
+.av-a11y-in{padding:1.1rem 1.25rem 1.25rem}
+.av-a11y-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:.35rem}
+.av-a11y h2{margin:0;font-family:inherit;font-size:1.375rem;font-weight:700;line-height:1.25;color:inherit}
+.av-a11y-x{flex-shrink:0;width:44px;height:44px;margin:-.4rem -.5rem 0 0;display:grid;place-items:center;border:1px solid transparent;border-radius:8px;background:none;color:inherit;cursor:pointer}
+.av-a11y-x:hover{background:var(--a-soft)}
+.av-a11y-x svg{width:20px;height:20px}
+.av-a11y-lede{margin:0 0 1rem;color:var(--a-ink)}
+.av-a11y fieldset{margin:0 0 1rem;padding:0;border:0;min-width:0}
+.av-a11y legend{padding:0;margin:0 0 .4rem;font-weight:700;font-size:1rem}
+.av-a11y-seg{display:flex;flex-wrap:wrap;gap:.4rem}
+.av-a11y-seg label,.av-a11y-opt{position:relative;display:flex;align-items:center;gap:.6rem;min-height:44px;padding:.45rem .75rem;border:1px solid var(--a-line);border-radius:10px;background:var(--a-bg);cursor:pointer}
+.av-a11y-seg label{justify-content:center;min-width:4.25rem}
+.av-a11y-opts{display:grid;gap:.4rem}
+.av-a11y-opt{align-items:flex-start}
+.av-a11y-opt span{display:flex;flex-direction:column}
+.av-a11y-opt small{color:var(--a-mute);font-size:.875rem;line-height:1.35}
+.av-a11y input[type=radio],.av-a11y input[type=checkbox]{width:1.25rem;height:1.25rem;margin:.1rem 0 0;flex-shrink:0;accent-color:var(--a-acc)}
+.av-a11y-seg input{margin:0}
+.av-a11y label:has(input:checked){border-color:var(--a-acc);box-shadow:inset 0 0 0 1px var(--a-acc);background:#eff6ff}
+.av-a11y label:has(input:focus-visible){outline:3px solid var(--a-acc);outline-offset:2px}
+.av-a11y-note{margin:0 0 1rem;font-size:.9rem;color:var(--a-mute)}
+.av-a11y kbd{font:inherit;font-weight:700;padding:0 .3em;border:1px solid var(--a-line);border-radius:4px;background:var(--a-soft)}
+.av-a11y-ft{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:space-between;align-items:center}
+.av-a11y-ft button{min-height:44px;padding:.5rem 1.1rem;border-radius:10px;font:inherit;font-weight:600;cursor:pointer}
+.av-a11y-reset{border:1px solid var(--a-line);background:var(--a-bg);color:var(--a-ink)}
+.av-a11y-done{border:2px solid var(--a-ink);background:var(--a-ink);color:var(--a-bg)}
+.av-a11y-more{margin:1rem 0 0;font-size:.9rem}
+.av-a11y-more a{color:var(--a-acc);text-decoration:underline}
+.av-a11y-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+
+/* ── Text size ───────────────────────────────────────────────────────────── */
+html.a11y-t125{font-size:125%!important}
+html.a11y-t150{font-size:150%!important}
+html.a11y-t175{font-size:175%!important}
+html.a11y-t200{font-size:200%!important}
+/* Long words must wrap rather than push a 320px page sideways (WCAG 1.4.10). */
+html[class*="a11y-t"] body{overflow-wrap:break-word}
+html[class*="a11y-t"] :is(h1,h2,h3,h4){overflow-wrap:anywhere;hyphens:auto}
+html[class*="a11y-t"] body *:not(pre):not(pre *):not(code){overflow-wrap:anywhere}
+html[class*="a11y-t"] body :is(select,input,textarea,img,video,iframe){max-width:100%}
+/* Labels that were kept on one line at 15px wrap once they are twice the size. */
+html:is(.a11y-t150,.a11y-t175,.a11y-t200) body :is(a,button,label,[class*="chip"],[class*="tag"],[class*="btn"],[class*="pill"]):not(pre *){white-space:normal!important}
+html[class*="a11y-t"] .avh-loc a{flex-wrap:wrap;max-width:100%}
+html[class*="a11y-t"] .avh-foot-grp a{max-width:100%}
+/* A picture that has not loaded shows its description, at the larger size: grid
+   cells must still shrink to the screen rather than grow to fit it. */
+html[class*="a11y-t"] body :is(img,picture,video){min-width:0}
+html[class*="a11y-t"] body :where([class*="grid"],[class*="gallery"],[class*="cards"]) > *{min-width:0}
+html[class*="a11y-t"] .avab-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}
+html[class*="a11y-t"] .hv :is(.hv-week-ft,.hv-card-ft){flex-wrap:wrap}
+html[class*="a11y-t"] .avle-top{height:auto;min-height:60px;flex-wrap:wrap;padding-block:6px}
+html[class*="a11y-t"] .avle-top-r{flex-shrink:1;flex-wrap:wrap;justify-content:flex-end;min-width:0}
+html[class*="a11y-t"] .avac-tracks{flex-wrap:wrap;overflow:visible;margin-inline:0;padding-inline:0}
+@media (max-width:480px){html[class*="a11y-t"] body :is(select,input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea){width:100%!important;min-width:0!important;box-sizing:border-box}html[class*="a11y-t"] body label:has(> :is(select,input:not([type=checkbox]):not([type=radio]))){min-width:0;max-width:100%}}
+html[class*="a11y-t"] .avdl-sel{flex-shrink:1;min-width:0;height:auto;min-height:44px}
+/* The Home header holds eight controls at 15px; at a larger size it switches to
+   its menu button earlier, as it would at that browser zoom. */
+@media (min-width:1180px) and (max-width:1699px){html:is(.a11y-t125,.a11y-t150) .avh-wide{display:none}html:is(.a11y-t125,.a11y-t150) .avh-narrow{display:flex}}
+@media (min-width:1180px){html:is(.a11y-t175,.a11y-t200) .avh-wide{display:none}html:is(.a11y-t175,.a11y-t200) .avh-narrow{display:flex}}
+html:is(.a11y-t175,.a11y-t200) .avh-narrow .avh-join{display:none}
+html:is(.a11y-t150,.a11y-t175,.a11y-t200) .avh-brand img{width:32px;height:32px;margin-right:8px}
+html:is(.a11y-t175,.a11y-t200) .avh-brand span{font-size:1.25rem}
+/* The name in the header is the logo: past a point it stays logo-sized on a phone. */
+@media (max-width:480px){html[class*="a11y-t"] .avh-brand span{font-size:22px;letter-spacing:0!important;word-spacing:0!important}}
+
+/* ── Comfortable spacing (WCAG 1.4.12) ───────────────────────────────────── */
+html.a11y-spacing body,html.a11y-spacing body *:not(svg):not(svg *){line-height:1.5!important;letter-spacing:.12em!important;word-spacing:.16em!important}
+html.a11y-spacing body :is(p,li,dd,blockquote){margin-bottom:2em!important}
+html.a11y-spacing body :is(li p,td p,th p){margin-bottom:.75em!important}
+
+/* ── Easy-to-read font ───────────────────────────────────────────────────── */
+html.a11y-font body,html.a11y-font body *:not(svg):not(svg *):not(code):not(pre):not(kbd):not(samp):not(.cmdk-mod){font-family:'Atkinson Hyperlegible',Verdana,Tahoma,'Segoe UI',sans-serif!important;font-style:normal}
+html.a11y-font body :is(h1,h2,h3,h4,h5,h6){font-weight:700!important}
+
+/* ── Underline links ─────────────────────────────────────────────────────── */
+html.a11y-links body a[href]{text-decoration-line:underline!important;text-decoration-thickness:max(1px,.08em)!important;text-underline-offset:.18em!important}
+
+/* ── Large focus outline ─────────────────────────────────────────────────── */
+html.a11y-focus body :focus-visible{outline:4px solid #000!important;outline-offset:3px!important;box-shadow:0 0 0 7px #fff,0 0 0 10px #000!important;border-radius:4px}
+html.a11y-focus.a11y-hc-dark body :focus-visible{outline-color:#ffeb3b!important;box-shadow:0 0 0 7px #000,0 0 0 10px #ffeb3b!important}
+@media (prefers-color-scheme:dark){html.a11y-focus.a11y-hc-auto body :focus-visible{outline-color:#ffeb3b!important;box-shadow:0 0 0 7px #000,0 0 0 10px #ffeb3b!important}}
+
+/* ── Stop animation and moving content ───────────────────────────────────── */
+html.a11y-still *,html.a11y-still *::before,html.a11y-still *::after{animation-duration:.001ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.001ms!important;transition-delay:0s!important;scroll-behavior:auto!important}
+html.a11y-still{scroll-behavior:auto!important}
+html.a11y-still .avh-tick-track{animation:none!important}
+html.a11y-still .avh-tick-view{overflow-x:auto}
+html.a11y-still .avh-tick-list[aria-hidden="true"],html.a11y-still .avh-tick-pause{display:none!important}
+html.a11y-still [data-reveal],html.a11y-still .reveal-stagger>*{opacity:1!important;transform:none!important}
+
+/* ── Bigger tap targets (≥ 44px; links inside sentences keep their size) ─── */
+html.a11y-targets body :is(button,select,summary,[role="button"],[role="tab"],[role="menuitem"],input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=range])){min-height:44px!important}
+html.a11y-targets body :is(button,[role="button"],[role="tab"]){min-width:44px!important}
+html.a11y-targets body :is(nav,footer,header,menu,[role="navigation"],[role="tablist"]) a[href]{min-height:44px;display:inline-flex;align-items:center}
+html.a11y-targets body :is(nav,footer,header) li>a[href]{display:flex}
+html.a11y-targets body input:is([type=checkbox],[type=radio]){width:1.5rem!important;height:1.5rem!important}
+html.a11y-targets body label:has(> input:is([type=checkbox],[type=radio])){min-height:44px;display:inline-flex;align-items:center;gap:.5em}
+
+/* ── High contrast (text ≥ 7:1) ──────────────────────────────────────────── */
+html.a11y-hc{--hc-bg:#fff;--hc-fg:#000;--hc-link:#0033cc;--hc-mute:#1f1f1f;--hc-dim:rgba(0,0,0,.6);color-scheme:light}
+html.a11y-hc-dark{--hc-bg:#000;--hc-fg:#fff;--hc-link:#ffeb3b;--hc-mute:#e6e6e6;--hc-dim:rgba(0,0,0,.75);color-scheme:dark}
+@media (prefers-color-scheme:dark){html.a11y-hc-auto{--hc-bg:#000;--hc-fg:#fff;--hc-link:#ffeb3b;--hc-mute:#e6e6e6;--hc-dim:rgba(0,0,0,.75);color-scheme:dark}}
+html.a11y-hc,html.a11y-hc body,html.a11y-hc body :where(*:not(svg *):not(img):not(video):not(canvas):not(iframe):not(picture):not(:empty)),html.a11y-hc body :where(input,textarea,select){background-color:var(--hc-bg)!important;background-image:none!important;color:var(--hc-fg)!important;border-color:var(--hc-fg)!important;box-shadow:none!important;text-shadow:none!important;-webkit-text-fill-color:currentColor!important}
+html.a11y-hc body *::before,html.a11y-hc body *::after{color:var(--hc-fg)!important;background-image:none!important;border-color:var(--hc-fg)!important;text-shadow:none!important}
+html.a11y-hc body *{mix-blend-mode:normal!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+/* Empty elements are shapes or layers: shades over photos, scrims, menu lines,
+   bars, dots, knobs. They keep their own colour but lose gradients; the ones
+   that draw a mark are inked in the text colour so they show on either ground. */
+html.a11y-hc body :empty:not(svg *){background-image:none!important;box-shadow:none!important}
+html.a11y-hc body :is(button,[role="button"],[class*="burger"],[class*="-x"]) > span:empty,html.a11y-hc body :is([class*="bar"],[class*="progress"],[class*="track"],[class*="ring"]) > span:empty,html.a11y-hc body :empty:is([class*="fill"],[class*="dot"],[class*="knob"],[class*="thumb"],[class*="-bar"],.read-progress){background-color:var(--hc-fg)!important}
+html.a11y-hc body hr{border-color:var(--hc-fg)!important;background-color:var(--hc-fg)!important}
+html.a11y-hc body a[href],html.a11y-hc body a[href] *{color:var(--hc-link)!important}
+html.a11y-hc body a[href]{text-decoration-line:underline!important}
+html.a11y-hc body :is(button,[role="button"],input,select,textarea,summary,.av-a11y-seg label,.av-a11y-opt){border:2px solid var(--hc-fg)!important}
+html.a11y-hc body ::placeholder{color:var(--hc-mute)!important;opacity:1!important}
+html.a11y-hc body svg:not([fill]) :is(path,circle,rect,line,polyline,polygon,ellipse)[stroke]:not([stroke="none"]){stroke:currentColor!important}
+html.a11y-hc body :is([aria-current]:not([aria-current="false"]),[aria-selected="true"],.is-active){outline:3px solid var(--hc-fg)!important;outline-offset:-3px;text-decoration-line:underline!important;text-decoration-thickness:3px!important}
+html.a11y-hc body :is([aria-pressed="true"],[aria-checked="true"]){outline:3px solid var(--hc-fg)!important;outline-offset:2px}
+html.a11y-hc body :disabled{border-style:dashed!important}
+html.a11y-hc body ::selection{background:var(--hc-fg);color:var(--hc-bg)}
+html.a11y-hc .av-a11y{--a-bg:var(--hc-bg);--a-ink:var(--hc-fg);--a-mute:var(--hc-fg);--a-line:var(--hc-fg);--a-acc:var(--hc-fg);--a-soft:var(--hc-bg)}
+html.a11y-hc .av-a11y label:has(input:checked){outline:3px solid var(--hc-fg)!important;outline-offset:-5px}
+html.a11y-hc .av-a11y-done{background-color:var(--hc-fg)!important;color:var(--hc-bg)!important}
+html.a11y-hc .av-listen-on{outline:3px solid var(--hc-fg)!important;outline-offset:4px}
+
+/* ── Listen (assets/site/listen.js) ──────────────────────────────────────── */
+.av-listen{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:0 0 1.25rem;font-family:inherit}
+.av-listen[hidden]{display:none}
+.av-listen-btn,.av-listen select{min-height:44px;padding:.4rem .9rem;border:1px solid currentColor;border-radius:999px;background:transparent;color:inherit;font:inherit;font-size:.9375rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.45em}
+.av-listen-btn[hidden]{display:none}
+.av-listen-btn svg{width:1.1em;height:1.1em;flex-shrink:0}
+.av-listen-btn:focus-visible,.av-listen select:focus-visible{outline:3px solid currentColor;outline-offset:2px}
+.av-listen label{display:inline-flex;align-items:center;gap:.4rem;font-size:.9375rem}
+.av-listen select{border-radius:10px;padding:.4rem .6rem;font-weight:500;background:Canvas;color:CanvasText}
+.av-listen-on{background:#fff3c4!important;color:#111!important;box-shadow:0 0 0 .3em #fff3c4;border-radius:4px}
+html.a11y-hc .av-listen-on{background-color:var(--hc-bg)!important;color:var(--hc-fg)!important}
+
+/* ── The settings form on /accessibility/ (works without JavaScript) ─────── */
+.a11y-form fieldset{margin:0 0 1.25rem;padding:0;border:0;min-width:0;display:flex;flex-wrap:wrap;gap:.4rem .5rem}
+.a11y-form legend{font-weight:700;margin:0 0 .5rem;padding:0;width:100%}
+.a11y-form label{display:inline-flex;align-items:center;gap:.5rem;min-height:44px;padding:.35rem .8rem;border:1px solid #6b7280;border-radius:10px;cursor:pointer}
+.a11y-form input{width:1.2rem;height:1.2rem;margin:0}
+.a11y-form-btns{display:flex;flex-wrap:wrap;gap:.6rem}
+.a11y-form-btn{min-height:44px;padding:.55rem 1.2rem;border:2px solid #111827;border-radius:10px;background:#111827;color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.a11y-form-btn--line{background:transparent;color:#111827}
+.a11y-form-btn:focus-visible{outline:3px solid #1d4ed8;outline-offset:2px}
+
+@media print{.av-a11y-btn,.av-listen,.av-a11y{display:none!important}}

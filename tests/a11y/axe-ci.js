@@ -7,10 +7,16 @@
  *   - axe-core finds any WCAG 2.0/2.1/2.2 A or AA violation, or
  *   - the page scrolls sideways at 320px (WCAG 1.4.10 Reflow).
  *
- *   BASE=http://127.0.0.1:8000 TOKEN=<av_lms session> node tests/a11y/axe-ci.js
+ *   BASE=http://127.0.0.1:8000 TOKEN=<av_lms session> MEMBER_TOKEN=<…> node tests/a11y/axe-ci.js
  *
  * TOKEN (from tests/a11y/ci-session.php) adds the pages only a signed-in
- * learner sees. Without it they are skipped, and the run says so.
+ * learner sees; MEMBER_TOKEN (ci-session.php --member) the members' pages:
+ * the constitution and every view of the member portal. Without them they
+ * are skipped, and the run says so.
+ *
+ * Then it runs once more with the Accessibility panel's heaviest settings on
+ * (the av_a11y cookie: 200% text, comfortable spacing, high contrast in light
+ * and in dark), at both widths, so a setting cannot quietly break a page.
  *
  * axe catches roughly a third of real barriers. The rest — does the screen
  * reader make sense, can you finish the quiz by keyboard — is the manual
@@ -32,6 +38,10 @@ const PUBLIC = [
   '/academy/', '/academy/techome/', '/academy/programmes/', '/academy/ngv/',
   '/academy/ngv/register.php', '/academy/dns/', '/academy/verify.php',
 ];
+const MEMBER_TOKEN = process.env.MEMBER_TOKEN || '';
+const PORTAL_VIEWS = 'overview attendance bills chat community diary fines inventory learning membership mentorship ngv quest reading requests tasks tools volunteer wallet wifi'.split(' ');
+const MEMBER = ['/constitution/'].concat(PORTAL_VIEWS.map(v => '/portal/#' + v));
+const SETTINGS = ['t200.spacing.hc-light', 't200.spacing.hc-dark'];
 const LEARNER = [
   '/academy/my', '/academy/techome/learn/welcome-to-techome',
   '/academy/techome/learn/check-your-understanding',
@@ -42,13 +52,21 @@ const LEARNER = [
   const browser = await chromium.launch();
   const failures = [];
   const report = [];
-  const pages = PUBLIC.concat(TOKEN ? LEARNER : []);
-  for (const [w, h, label] of [[1280, 800, 'desktop'], [320, 640, '320px']]) {
+  // [pages, session token, settings cookie]
+  const runs = [];
+  for (const set of [''].concat(SETTINGS)) {
+    runs.push([PUBLIC.concat(TOKEN ? LEARNER : []), TOKEN, set]);
+    if (MEMBER_TOKEN) runs.push([MEMBER, MEMBER_TOKEN, set]);
+  }
+  const pages = runs.filter(r => !r[2]).reduce((n, r) => n.concat(r[0]), []);
+  for (const [list, tok, set] of runs) for (const [w, h, size] of [[1280, 800, 'desktop'], [320, 640, '320px']]) {
+    const label = size + (set ? ' [' + set + ']' : '');
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, reducedMotion: 'reduce' });
     const cookies = [{ name: 'av_consent', value: 'analytics%3D0', url: BASE }];
-    if (TOKEN) cookies.push({ name: 'av_lms', value: TOKEN, url: BASE });
+    if (tok) cookies.push({ name: 'av_lms', value: tok, url: BASE });
+    if (set) cookies.push({ name: 'av_a11y', value: set, url: BASE });
     await ctx.addCookies(cookies);
-    for (const p of pages) {
+    for (const p of list) {
       const pg = await ctx.newPage();
       const resp = await pg.goto(BASE + p, { waitUntil: 'networkidle', timeout: 60000 }).catch(e => ({ status: () => 0, err: e }));
       const status = resp.status();
@@ -70,7 +88,7 @@ const LEARNER = [
       const overflow = await pg.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       const bad = [];
       for (const v of res) bad.push(`${v.id} (${v.impact}, ${v.count}×): ${v.help} — ${v.nodes.join(' | ')}\n      ${v.url}`);
-      if (label === '320px' && overflow > 1) bad.push(`reflow: the page is ${overflow}px wider than a 320px screen (WCAG 1.4.10)`);
+      if (size === '320px' && overflow > 1) bad.push(`reflow: the page is ${overflow}px wider than a 320px screen (WCAG 1.4.10)`);
       if (bad.length) { failures.push(...bad.map(b => `${label} ${p}: ${b}`)); report.push(`✗ ${label} ${p}\n    ` + bad.join('\n    ')); }
       else report.push(`✓ ${label} ${p}`);
       await pg.close();
@@ -80,9 +98,10 @@ const LEARNER = [
   await browser.close();
   console.log(report.join('\n'));
   if (!TOKEN) console.log('\n(no TOKEN: the signed-in learner pages were not tested)');
+  if (!MEMBER_TOKEN) console.log('(no MEMBER_TOKEN: the constitution and the member portal were not tested)');
   if (failures.length) {
     console.log(`\n${failures.length} accessibility failure(s). Each line above says what, where, and links to how to fix it.`);
     process.exit(1);
   }
-  console.log(`\nAll ${pages.length} pages pass axe (WCAG 2.2 A/AA) at desktop and 320px.`);
+  console.log(`\nAll ${pages.length} pages pass axe (WCAG 2.2 A/AA) at desktop and 320px, and again with ${SETTINGS.join(' and ')}.`);
 })().catch(e => { console.error(e); process.exit(1); });

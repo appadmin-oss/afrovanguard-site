@@ -20,7 +20,7 @@
   --mt-gap: clamp(28px, 4vw, 48px);
   --mt-section: clamp(52px, 7vw, 92px);
   color: var(--afg-body);
-  font-size: 16.5px;
+  font-size: 1.0313rem;
   line-height: 1.7;
 }
 .mt p { max-width: var(--mt-measure); }
@@ -40,7 +40,7 @@
 
 .mt-h {
   font-family: var(--afg-font-display);
-  font-size: clamp(28px, 3.6vw, 40px); line-height: 1.15; letter-spacing: -.01em;
+  font-size: clamp(1.75rem, 3.6vw, 2.5rem); line-height: 1.15; letter-spacing: -.01em;
   color: var(--afg-ink); margin: 0 0 14px;
 }
 .mt-section--dark .mt-h { color: #fff; }
@@ -48,12 +48,12 @@
 .mt-section--dark .mt-h em { color: var(--afg-gold); }
 
 .mt-kicker {
-  font-size: 12px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
+  font-size: 0.75rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
   color: var(--afg-gold-ink); margin: 0 0 10px;
 }
 .mt-section--dark .mt-kicker { color: var(--afg-gold); }
 
-.mt-lead { font-size: clamp(17px, 2vw, 19px); line-height: 1.65; color: var(--afg-body); }
+.mt-lead { font-size: clamp(1.0625rem, 2vw, 1.1875rem); line-height: 1.65; color: var(--afg-body); }
 .mt-section--dark .mt-lead { color: rgba(255,255,255,.82); }
 
 /* The one line the whole page turns on. */
@@ -64,10 +64,10 @@
 }
 .mt-ask q {
   display: block; quotes: none;
-  font-family: var(--afg-font-display); font-size: clamp(22px, 3vw, 31px);
+  font-family: var(--afg-font-display); font-size: clamp(1.375rem, 3vw, 1.9375rem);
   line-height: 1.25; color: var(--afg-ink);
 }
-.mt-ask footer { margin-top: 10px; font-size: 13.5px; color: var(--afg-muted); }
+.mt-ask footer { margin-top: 10px; font-size: 0.8438rem; color: var(--afg-muted); }
 
 /* ── The Quest ladder ──────────────────────────────────────────────────── */
 .mt-ladder { list-style: none; margin: 28px 0 0; padding: 0; display: grid; gap: 2px; }
@@ -78,14 +78,14 @@
 }
 .mt-step--here { background: var(--afg-gold); color: var(--afg-ink); }
 .mt-step-n {
-  font-family: var(--afg-font-mono); font-size: 12px; font-weight: 700;
+  font-family: var(--afg-font-mono); font-size: 0.75rem; font-weight: 700;
   letter-spacing: .1em; text-transform: uppercase; color: var(--afg-gold);
 }
 .mt-step--here .mt-step-n { color: rgba(17,24,39,.75); }
 .mt-step-b { min-width: 0; }
-.mt-step-t { font-weight: 700; font-size: 16px; color: #fff; }
+.mt-step-t { font-weight: 700; font-size: 1rem; color: #fff; }
 .mt-step--here .mt-step-t { color: var(--afg-ink); }
-.mt-step-d { font-size: 14.5px; line-height: 1.55; color: rgba(255,255,255,.72); margin-top: 3px; }
+.mt-step-d { font-size: 0.9063rem; line-height: 1.55; color: rgba(255,255,255,.72); margin-top: 3px; }
 .mt-step--here .mt-step-d { color: rgba(17,24,39,.82); }
 @media (max-width: 560px) {
   .mt-step { grid-template-columns: 1fr; gap: 4px; }
@@ -101,12 +101,12 @@
   border-radius: 14px; padding: clamp(20px, 2.6vw, 26px);
 }
 .mt-card h3 {
-  font-size: 17px; font-weight: 700; color: var(--afg-ink); margin: 0 0 8px; line-height: 1.3;
+  font-size: 1.0625rem; font-weight: 700; color: var(--afg-ink); margin: 0 0 8px; line-height: 1.3;
 }
-.mt-card p { font-size: 15px; line-height: 1.6; margin: 0; max-width: none; }
+.mt-card p { font-size: 0.9375rem; line-height: 1.6; margin: 0; max-width: none; }
 .mt-card p + p { margin-top: 10px; }
 .mt-card-n {
-  display: block; font-family: var(--afg-font-mono); font-size: 12px; font-weight: 700;
+  display: block; font-family: var(--afg-font-mono); font-size: 0.75rem; font-weight: 700;
   letter-spacing: .1em; color: var(--afg-gold-ink); margin-bottom: 10px;
 }
 
@@ -127,10 +127,10 @@
 .mt-vs { padding: clamp(20px, 2.6vw, 26px); border-radius: 14px; }
 .mt-vs--weak { background: var(--afg-surface-2); border: 1px solid var(--afg-border); }
 .mt-vs--real { background: var(--afg-navy); color: #fff; }
-.mt-vs h3 { font-size: 13px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 14px; }
+.mt-vs h3 { font-size: 0.8125rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 14px; }
 .mt-vs--weak h3 { color: var(--afg-muted); }
 .mt-vs--real h3 { color: var(--afg-gold); }
-.mt-vs q { display: block; quotes: none; font-family: var(--afg-font-display); font-size: 20px; line-height: 1.35; }
+.mt-vs q { display: block; quotes: none; font-family: var(--afg-font-display); font-size: 1.25rem; line-height: 1.35; }
 .mt-vs--weak q { color: var(--afg-ink); }
 .mt-vs--real q { color: #fff; }
 .mt-vs q + q { margin-top: 12px; }
@@ -141,7 +141,7 @@
   margin: 24px 0 0; padding: 0; list-style: none;
 }
 .mt-mult li {
-  font-family: var(--afg-font-mono); font-weight: 700; font-size: 15px;
+  font-family: var(--afg-font-mono); font-weight: 700; font-size: 0.9375rem;
   min-width: 46px; text-align: center; padding: 10px 12px; border-radius: 8px;
   background: rgba(255,255,255,.06); color: #fff;
 }
@@ -150,7 +150,7 @@
 /* ── The Monday-morning passage ────────────────────────────────────────── */
 .mt-when { margin: 24px 0 0; padding: 0; list-style: none; max-width: var(--mt-measure); }
 .mt-when li {
-  font-family: var(--afg-font-display); font-size: clamp(19px, 2.4vw, 24px);
+  font-family: var(--afg-font-display); font-size: clamp(1.1875rem, 2.4vw, 1.5rem);
   line-height: 1.45; color: var(--afg-ink);
   padding: 7px 0; border-bottom: 1px solid var(--afg-border);
 }
@@ -161,14 +161,14 @@
 .mt-creed li {
   position: relative; padding: 14px 0 14px 46px;
   border-bottom: 1px solid rgba(255,255,255,.1);
-  font-size: 16.5px; line-height: 1.6; color: rgba(255,255,255,.88);
+  font-size: 1.0313rem; line-height: 1.6; color: rgba(255,255,255,.88);
   max-width: var(--mt-measure);
 }
 .mt-creed li:last-child { border-bottom: 0; }
 .mt-creed li::before {
   counter-increment: creed; content: counter(creed, decimal-leading-zero);
   position: absolute; left: 0; top: 16px;
-  font-family: var(--afg-font-mono); font-size: 12px; font-weight: 700; color: var(--afg-gold);
+  font-family: var(--afg-font-mono); font-size: 0.75rem; font-weight: 700; color: var(--afg-gold);
 }
 
 /* ── Apply ─────────────────────────────────────────────────────────────── */
@@ -178,12 +178,12 @@
   border-radius: 14px; padding: clamp(20px, 2.6vw, 26px);
   display: flex; flex-direction: column; gap: 12px;
 }
-.mt-route h3 { font-size: 17px; font-weight: 700; margin: 0; color: var(--afg-ink); }
-.mt-route p { font-size: 15px; line-height: 1.6; margin: 0; flex: 1; max-width: none; }
+.mt-route h3 { font-size: 1.0625rem; font-weight: 700; margin: 0; color: var(--afg-ink); }
+.mt-route p { font-size: 0.9375rem; line-height: 1.6; margin: 0; flex: 1; max-width: none; }
 .mt-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 48px; padding: 13px 24px; border-radius: 999px;
-  font-family: var(--afg-font-body); font-weight: 700; font-size: 15px;
+  font-family: var(--afg-font-body); font-weight: 700; font-size: 0.9375rem;
   text-decoration: none; border: 1.5px solid transparent; cursor: pointer;
   align-self: flex-start;
 }
@@ -193,7 +193,7 @@
 .mt-btn--out:hover { border-color: var(--afg-gold-deep); }
 .mt-btn:focus-visible { outline: 3px solid var(--afg-focus); outline-offset: 2px; }
 
-.mt-note { margin-top: 20px; font-size: 14.5px; color: var(--afg-muted); }
+.mt-note { margin-top: 20px; font-size: 0.9063rem; color: var(--afg-muted); }
 
 /* Anything that moves does so because it explains something; here, nothing
    needs to, so there is nothing to collapse under reduced motion. */
@@ -203,14 +203,14 @@
    reader needs the row and column headers to read a cell back meaningfully. */
 .mt-tablewrap { margin-top: 28px; overflow-x: auto; }
 .mt-tablewrap:focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
-.mt-rank { width: 100%; border-collapse: collapse; font-size: 15px; }
+.mt-rank { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
 .mt-rank caption {
-  text-align: left; font-size: 13px; color: rgba(255,255,255,.66);
+  text-align: left; font-size: 0.8125rem; color: rgba(255,255,255,.66);
   padding-bottom: 12px;
 }
 .mt-rank th, .mt-rank td { padding: 11px 14px; text-align: left; white-space: nowrap; }
 .mt-rank thead th {
-  font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  font-size: 0.75rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
   color: var(--afg-gold); border-bottom: 1px solid rgba(255,255,255,.18);
 }
 .mt-rank tbody th {
@@ -234,10 +234,10 @@
 .mt-form { margin-top: var(--mt-gap); max-width: 720px; }
 .mt-form-row { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .mt-field { display: flex; flex-direction: column; gap: 6px; margin: 0 0 18px; max-width: none; }
-.mt-field label { font-size: 14px; font-weight: 600; color: var(--afg-ink); }
+.mt-field label { font-size: 0.875rem; font-weight: 600; color: var(--afg-ink); }
 .mt-req, .mt-opt { font-weight: 400; color: var(--afg-muted); }
 .mt-field input, .mt-field textarea, .mt-field select {
-  font-family: var(--afg-font-body); font-size: 16px; line-height: 1.5; color: var(--afg-ink);
+  font-family: var(--afg-font-body); font-size: 1rem; line-height: 1.5; color: var(--afg-ink);
   background: var(--afg-surface); border: 1px solid var(--afg-border-strong); border-radius: 10px;
   padding: 12px 14px; width: 100%; min-height: 48px;
 }
@@ -246,12 +246,12 @@
   outline: 3px solid var(--afg-focus); outline-offset: 1px; border-color: transparent;
 }
 .mt-field [aria-invalid="true"] { border-color: var(--afg-danger); }
-.mt-hint { font-size: 13.5px; line-height: 1.5; color: var(--afg-muted); }
-.mt-err { font-size: 13.5px; line-height: 1.5; color: var(--afg-danger); }
+.mt-hint { font-size: 0.8438rem; line-height: 1.5; color: var(--afg-muted); }
+.mt-err { font-size: 0.8438rem; line-height: 1.5; color: var(--afg-danger); }
 .mt-err:empty { display: none; }
 .mt-consent {
   display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
-  font-weight: 400 !important; font-size: 14.5px; line-height: 1.55; color: var(--afg-body);
+  font-weight: 400 !important; font-size: 0.9063rem; line-height: 1.55; color: var(--afg-body);
   min-height: 48px; padding: 4px 0;
 }
 .mt-consent input { width: 20px; height: 20px; min-height: 20px; flex: 0 0 20px; margin-top: 2px; accent-color: var(--afg-navy); }
@@ -259,12 +259,12 @@
    hidden fields still fills it. Never reachable by keyboard or screen reader. */
 .mt-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 .mt-form-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 4px; }
-.mt-formmsg { margin: 0; font-size: 14.5px; line-height: 1.5; }
+.mt-formmsg { margin: 0; font-size: 0.9063rem; line-height: 1.5; }
 .mt-formmsg:empty { display: none; }
 .mt-formmsg.is-good { color: var(--afg-success-ink, #15803d); }
 .mt-formmsg.is-bad { color: var(--afg-danger); }
 
 .mt-alt { margin-top: 36px; padding-top: 28px; border-top: 1px solid var(--afg-border); }
-.mt-alt p { font-size: 15px; line-height: 1.65; margin: 0 0 12px; }
+.mt-alt p { font-size: 0.9375rem; line-height: 1.65; margin: 0 0 12px; }
 .mt-alt p:last-child { margin-bottom: 0; }
 .mt-alt a { color: var(--afg-gold-ink); text-decoration: underline; text-underline-offset: 2px; }

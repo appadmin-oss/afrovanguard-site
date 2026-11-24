@@ -24,7 +24,7 @@
 .avcel-k--mine .avcel-dots{background-image:radial-gradient(color-mix(in srgb,var(--av-gold-light) 18%,transparent) 1.2px,transparent 1.6px)}
 .avcel-k--mate .avcel-dots{background-image:radial-gradient(color-mix(in srgb,var(--av-cel-ice) 20%,transparent) 1.2px,transparent 1.6px)}
 .avcel-k--group .avcel-dots{background-image:radial-gradient(color-mix(in srgb,var(--av-cel-heather) 20%,transparent) 1.2px,transparent 1.6px)}
-.avcel-age{position:absolute;font-family:var(--av-serif);font-size:210px;font-weight:500;line-height:1;letter-spacing:-.04em;
+.avcel-age{position:absolute;font-family:var(--av-serif);font-size:13.125rem;font-weight:500;line-height:1;letter-spacing:-.04em;
   color:color-mix(in srgb,var(--av-gold-light) 16%,transparent);font-variant-numeric:tabular-nums}
 .avcel-cream,.avcel-wash{position:absolute;inset:0;z-index:1;pointer-events:none}
 .avcel-cream{background:color-mix(in srgb,var(--avcel-c1) 10%,var(--av-paper))}
@@ -35,7 +35,7 @@
 .avcel-badge{position:relative;z-index:2;width:96px;height:96px;border-radius:50%;padding:3px;background:var(--avcel-ring);
   box-shadow:0 14px 30px -12px rgba(0,0,0,.55)}
 .avcel-badge img,.avcel-badge .avcel-ini{width:100%;height:100%;border-radius:50%;display:block;border:3px solid var(--av-white)}
-.avcel-badge .avcel-ini{display:flex;align-items:center;justify-content:center;font-weight:700;font-size:32px;background:var(--av-gold);color:var(--av-ink)}
+.avcel-badge .avcel-ini{display:flex;align-items:center;justify-content:center;font-weight:700;font-size:2rem;background:var(--av-gold);color:var(--av-ink)}
 .avcel-badge .avcel-ini img{position:absolute;inset:3px;width:calc(100% - 6px);height:calc(100% - 6px);object-fit:cover}
 .avcel-k--mate .avcel-ini{background:var(--av-indigo-bg);color:var(--av-indigo)}
 .avcel-badge .avcel-sealov{position:absolute;inset:3px;width:calc(100% - 6px);height:calc(100% - 6px);opacity:0}
@@ -58,16 +58,16 @@
 .avcel-art.is-washed .avcel-wash{animation:avcel-fade-out .45s ease both}
 
 .avcel-body{padding:20px 22px 22px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
-.avcel-kicker{margin:0;font-size:11.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--avcel-kfg)}
-.avcel-title{margin:0;font-family:var(--av-serif);font-size:31px;font-weight:500;line-height:1.05;color:var(--av-ink);text-wrap:balance}
-.avcel-msg{margin:0;font-size:14.5px;line-height:1.55;color:var(--av-nav-sub);text-wrap:pretty}
+.avcel-kicker{margin:0;font-size:0.7188rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--avcel-kfg)}
+.avcel-title{margin:0;font-family:var(--av-serif);font-size:1.9375rem;font-weight:500;line-height:1.05;color:var(--av-ink);text-wrap:balance}
+.avcel-msg{margin:0;font-size:0.9063rem;line-height:1.55;color:var(--av-nav-sub);text-wrap:pretty}
 .avcel-perk{margin:0;display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:var(--av-r-pill);background:var(--av-gold-soft);
-  color:var(--av-gold-text);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+  color:var(--av-gold-text);font-size:0.8125rem;font-weight:700;font-variant-numeric:tabular-nums}
 .avcel-actions{width:100%;display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:6px}
 .avcel-cta{width:100%;height:46px;border-radius:var(--av-r-12);border:0;background:var(--av-ink);color:var(--av-white);
-  font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;padding:0 16px}
+  font-family:inherit;font-size:0.9375rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;padding:0 16px}
 .avcel-cta:hover{background:var(--av-ink-hover);color:var(--av-white)}
-.avcel-second{min-height:44px;border:0;background:none;padding:4px 12px;font-family:inherit;font-size:14px;font-weight:600;color:var(--av-slate);cursor:pointer}
+.avcel-second{min-height:44px;border:0;background:none;padding:4px 12px;font-family:inherit;font-size:0.875rem;font-weight:600;color:var(--av-slate);cursor:pointer}
 .avcel-second:hover{color:var(--av-ink)}
 .avcel-x{border:0;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .avcel-x svg{display:block}
@@ -81,15 +81,15 @@
 .avcel-wish{width:100%;display:flex;flex-direction:column;gap:8px;text-align:left;margin-top:4px}
 .avcel-wish[hidden]{display:none}
 .avcel-wish input,.avcel-wish textarea{width:100%;padding:10px 12px;border:1px solid var(--av-line-2);border-radius:var(--av-r-8);
-  font-family:inherit;font-size:16px;background:var(--av-white);color:var(--av-ink)}
+  font-family:inherit;font-size:1rem;background:var(--av-white);color:var(--av-ink)}
 .avcel-wish textarea{resize:vertical;min-height:84px;line-height:1.45}
-.avcel-wish .avcel-send{height:44px;border-radius:var(--av-r-10);border:0;background:var(--av-ink);color:var(--av-white);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.avcel-wish .avcel-send{height:44px;border-radius:var(--av-r-10);border:0;background:var(--av-ink);color:var(--av-white);font-family:inherit;font-size:0.875rem;font-weight:700;cursor:pointer}
 .avcel-wish .avcel-send:disabled{opacity:.6;cursor:default}
 .avcel-hp{position:absolute!important;left:-9999px!important;width:1px;height:1px;opacity:0}
-.avcel-status{margin:0;font-size:13px;color:var(--av-muted);min-height:1em}
+.avcel-status{margin:0;font-size:0.8125rem;color:var(--av-muted);min-height:1em}
 .avcel-status.is-ok{color:var(--av-green)}
 .avcel-status.is-err{color:var(--av-red)}
-.avcel-more{margin:0;font-size:13px;color:var(--av-muted)}
+.avcel-more{margin:0;font-size:0.8125rem;color:var(--av-muted)}
 .avcel-more a{color:var(--av-gold-text);font-weight:600}
 
 /* Tablet and computer: centred card, art on the left, close top-right. */
@@ -98,17 +98,17 @@
   .avcel-dialog{max-width:640px;gap:0}
   .avcel-card{display:grid;grid-template-columns:260px minmax(0,1fr);border-radius:18px;box-shadow:0 30px 60px -20px rgba(0,0,0,.45)}
   .avcel-art{height:auto;min-height:270px}
-  .avcel-age{font-size:170px}
+  .avcel-age{font-size:10.625rem}
   .avcel-badge{width:84px;height:84px}
-  .avcel-badge .avcel-ini{font-size:28px}
+  .avcel-badge .avcel-ini{font-size:1.75rem}
   .avcel-group li{width:30px;height:30px}
   .avcel-body{padding:24px 24px 22px;gap:9px;align-items:stretch;text-align:left}
   .avcel-kicker{padding-right:30px}
-  .avcel-title{font-size:30px;padding-right:20px}
-  .avcel-msg{font-size:14px}
-  .avcel-perk{align-self:flex-start;padding:6px 11px;font-size:12.5px}
+  .avcel-title{font-size:1.875rem;padding-right:20px}
+  .avcel-msg{font-size:0.875rem}
+  .avcel-perk{align-self:flex-start;padding:6px 11px;font-size:0.7813rem}
   .avcel-actions{flex-direction:row;flex-wrap:wrap;gap:8px;align-items:center}
-  .avcel-cta{width:auto;height:38px;border-radius:9px;font-size:14px}
+  .avcel-cta{width:auto;height:38px;border-radius:9px;font-size:0.875rem}
   .avcel-second{min-height:38px;height:38px;padding:0 12px;border-radius:9px;border:1px solid var(--av-line-2);background:var(--av-white);color:var(--av-ink)}
   .avcel-second:hover{background:var(--av-stone)}
   .avcel-x--phone{display:none}
@@ -119,7 +119,7 @@
 
 /* ── 3a · the scene SVG (viewBox 400 × 124) ──────────────────── */
 .avcel-doodle{display:block;width:100%;height:auto;overflow:visible}
-.avcel-doodle .avcel-w1,.avcel-doodle .avcel-w2{font-family:var(--av-serif);font-size:42px;font-weight:600;fill:var(--av-ink)}
+.avcel-doodle .avcel-w1,.avcel-doodle .avcel-w2{font-family:var(--av-serif);font-size:2.625rem;font-weight:600;fill:var(--av-ink)}
 .avcel-doodle .avcel-ground{fill:color-mix(in srgb,var(--avcel-c1) 10%,var(--av-paper))}
 .avcel-rip{fill:none;stroke:var(--av-quote-mark);stroke-width:1.2;opacity:0}
 .avcel-doodle :is(.avcel-m,.avcel-i,.avcel-wg,.avcel-dacc-in,.avcel-dseal,.avcel-w1,.avcel-w2,.avcel-rip){transform-box:fill-box;transform-origin:50% 50%}
@@ -178,13 +178,13 @@
 .avcel-stripe{height:3px;background:var(--avcel-stripe)}
 .avcel-ban{position:relative;overflow:hidden;display:flex;align-items:center;gap:10px;padding:9px clamp(16px,3vw,32px);
   background:color-mix(in srgb,currentColor 3%,transparent);border-bottom:1px solid color-mix(in srgb,currentColor 10%,transparent);
-  font-family:var(--av-sans);font-size:13px;line-height:1.4}
+  font-family:var(--av-sans);font-size:0.8125rem;line-height:1.4}
 .avcel-ban-bar{width:3px;align-self:stretch;border-radius:2px;background:var(--avcel-stripe);flex-shrink:0}
 .avcel-ban-txt{flex:1;min-width:0;margin:0}
 .avcel-ban-txt span{opacity:.72}
 .avcel-ban-ico{position:absolute;right:62px;top:50%;width:58px;height:58px;transform:translateY(-50%) rotate(-8deg);pointer-events:none;
   fill:none;stroke:var(--avcel-kfg);stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;opacity:.2}
-.avcel-ban-x{position:relative;border:0;background:none;padding:2px 4px;min-height:44px;font-family:inherit;font-size:12.5px;font-weight:600;color:inherit;opacity:.72;cursor:pointer}
+.avcel-ban-x{position:relative;border:0;background:none;padding:2px 4px;min-height:44px;font-family:inherit;font-size:0.7813rem;font-weight:600;color:inherit;opacity:.72;cursor:pointer}
 .avcel-ban-x:hover{opacity:1}
 .avcel-ban-x:focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
 @media (min-width:640px){.avcel-ban-x{min-height:32px}}
@@ -194,8 +194,8 @@
 .avcel-ring-seal{width:48px;height:48px;border-radius:50%;padding:2.5px;background:var(--avcel-ring);flex-shrink:0}
 .avcel-ring-seal img{width:100%;height:100%;border-radius:50%;display:block;border:2px solid var(--av-paper)}
 .avcel-ring-word{display:flex;flex-direction:column;gap:3px;line-height:1}
-.avcel-ring-word>span:first-child{font-family:var(--av-serif);font-size:28px;font-weight:600}
-.avcel-ring-cap{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--avcel-kfg)}
+.avcel-ring-word>span:first-child{font-family:var(--av-serif);font-size:1.75rem;font-weight:600}
+.avcel-ring-cap{display:flex;align-items:center;gap:6px;font-size:0.6563rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--avcel-kfg)}
 .avcel-ring-cap::before{content:"";width:5px;height:5px;background:currentColor;transform:rotate(45deg)}
 
 /* ── keyframes ───────────────────────────────────────────────── */

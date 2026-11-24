@@ -15,7 +15,7 @@
    the boot script restores before first paint, so a reader who set 22px last
    week does not watch it jump from 19 on every load. The range the buttons
    allow is 15–22px, which is 0.79–1.16 of the default. */
-.avd-article{font-size:calc(19px * var(--reading-scale));line-height:1.72;color:var(--av-ink-2)}
+.avd-article{font-size:calc(1.1875rem * var(--reading-scale));line-height:1.72;color:var(--av-ink-2)}
 .avd-article>p{max-width:68ch;text-wrap:pretty}
 .avd-article>p:first-of-type,.avd-article>.avd-listen+p{font-size:1.08em;color:var(--av-ink)}
 .avd-article h2{font-family:var(--av-serif);font-weight:500;font-size:1.8em;letter-spacing:-.005em;line-height:1.14;margin:2.1em 0 .55em;color:var(--av-ink)}
@@ -28,9 +28,9 @@
 .avd-rail-progress span{display:block;height:100%;width:0;background:var(--av-gold);transition:width .12s linear}
 .avd-rail-toggle{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0;
   border:0;background:none;color:var(--av-ink);font:inherit;text-align:left;cursor:pointer}
-.avd-rail-eyebrow{flex:none;font:800 11px var(--av-sans);letter-spacing:.14em;text-transform:uppercase;color:var(--av-muted)}
+.avd-rail-eyebrow{flex:none;font:800 0.6875rem var(--av-sans);letter-spacing:.14em;text-transform:uppercase;color:var(--av-muted)}
 .avd-rail-current{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  font:600 14px var(--av-sans);color:var(--av-ink)}
+  font:600 0.875rem var(--av-sans);color:var(--av-ink)}
 .avd-rail-chev{flex:none;color:var(--av-muted);transition:transform .18s ease}
 .avd-rail-toggle[aria-expanded=true] .avd-rail-chev{transform:rotate(180deg)}
 .avd-rail-panel{display:none;padding:0 0 16px}
@@ -40,16 +40,16 @@
 .avd-toc{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;
   border-left:1px solid var(--av-line)}
 .avd-toc a{display:block;padding:9px 0 9px 16px;margin-left:-1px;border-left:2px solid transparent;
-  font:500 14px/1.35 var(--av-sans);color:var(--av-muted);text-decoration:none}
+  font:500 0.875rem/1.35 var(--av-sans);color:var(--av-muted);text-decoration:none}
 .avd-toc a:hover{color:var(--av-ink)}
 .avd-toc a.is-active{color:var(--av-ink);border-left-color:var(--av-gold);font-weight:700}
-.avd-rail-left{margin:16px 0 0;font:500 13px var(--av-sans);color:var(--av-muted)}
+.avd-rail-left{margin:16px 0 0;font:500 0.8125rem var(--av-sans);color:var(--av-muted)}
 
 .avd-size{display:flex;gap:8px;margin-top:12px}
 .avd-size button{width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--av-line-2);
   border-radius:var(--av-r-8);background:var(--av-white);color:var(--av-ink);
   font:600 14px var(--av-sans);cursor:pointer}
-.avd-size button:last-child{font-size:17px}
+.avd-size button:last-child{font-size:1.0625rem}
 .avd-size button:hover{border-color:var(--av-ink)}
 .avd-size button[disabled]{opacity:.4;cursor:default}
 
@@ -58,7 +58,7 @@
     max-height:calc(100vh - 140px);overflow:auto}
   .avd-rail-progress,.avd-rail-toggle{display:none}
   .avd-rail-panel{display:block;padding:0}
-  .avd-rail-head{display:block;margin:0 0 10px;font:800 11px var(--av-sans);letter-spacing:.14em;
+  .avd-rail-head{display:block;margin:0 0 10px;font:800 0.6875rem var(--av-sans);letter-spacing:.14em;
     text-transform:uppercase;color:var(--av-muted)}
 }
 
@@ -70,10 +70,10 @@
    vocabulary drops in without touching the CSS. */
 .avd-tags{display:flex;flex-wrap:wrap;gap:8px;list-style:none;margin:40px 0 0;padding:0}
 .avd-tags a{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border:1px solid var(--av-line-2);
-  border-radius:var(--av-r-pill);font:500 13px var(--av-sans);color:var(--av-muted);text-decoration:none}
+  border-radius:var(--av-r-pill);font:500 0.8125rem var(--av-sans);color:var(--av-muted);text-decoration:none}
 .avd-tags a:hover{border-color:var(--av-ink);color:var(--av-ink)}
 /* Pull quotes carry the same two share links the selection toolbar offers. */
-.avd-quote-share{display:flex;gap:12px;margin:-18px 0 32px;font:500 13px var(--av-sans)}
+.avd-quote-share{display:flex;gap:12px;margin:-18px 0 32px;font:500 0.8125rem var(--av-sans)}
 .avd-quote-share a{color:var(--av-muted);text-decoration:none;border-bottom:1px solid var(--av-line-2)}
 .avd-quote-share a:hover{color:var(--av-ink);border-bottom-color:var(--av-ink)}
 
@@ -98,7 +98,7 @@
 /* In map view the list is the hidden, crawlable source of truth; its counts go
    with it, and the map's own card carries them instead. */
 .journey-canvas-wrap:not(.is-listview) .journey-a11y .avd-counts{display:none}
-.jc-counts{display:block;margin-top:6px;font:400 12px var(--av-sans);color:var(--av-muted)}
+.jc-counts{display:block;margin-top:6px;font:400 0.75rem var(--av-sans);color:var(--av-muted)}
 
 /* ── Focus ──────────────────────────────────────────────────────────────────
    tokens.css states the handoff's ring inside :where(), which has no
@@ -151,12 +151,12 @@
 
 /* Follow the author — the reader's email, when they are not signed in. */
 .avd-follow-form { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
-.avd-follow-form label { font: 500 14px/1.45 var(--av-sans); color: var(--av-ink); }
+.avd-follow-form label { font: 500 0.875rem/1.45 var(--av-sans); color: var(--av-ink); }
 .avd-follow-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.avd-follow-row input[type=email] { flex: 1 1 200px; min-width: 0; height: 44px; padding: 0 14px; border-radius: var(--av-r-8); border: 1px solid var(--av-line-2); background: var(--av-white); font: 400 16px var(--av-sans); color: var(--av-ink); }
+.avd-follow-row input[type=email] { flex: 1 1 200px; min-width: 0; height: 44px; padding: 0 14px; border-radius: var(--av-r-8); border: 1px solid var(--av-line-2); background: var(--av-white); font: 400 1rem var(--av-sans); color: var(--av-ink); }
 .avd-follow-row input[type=email]:focus { border-color: var(--av-ink); outline: none; }
 .avd-follow-row .avd-btn { min-height: 44px; }
 .avd-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
-.avd-follow-msg { margin: 10px 0 0; font: 500 14px/1.45 var(--av-sans); color: var(--av-gold-text); }
+.avd-follow-msg { margin: 10px 0 0; font: 500 0.875rem/1.45 var(--av-sans); color: var(--av-gold-text); }
 .avd-follow-msg:empty { display: none; }
 .avd-follow-msg.is-bad { color: var(--av-alert); }

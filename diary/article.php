@@ -167,6 +167,8 @@ render_nav('diary');
 <?php avd_rail($sections, $readMin); ?>
           <article class="avd-article article-body">
 <?php avd_listen($a, $a['slug'], $audio); ?>
+<?php /* No recorded reading: the browser's own voice can read it (lib/A11y.php, assets/site/listen.js). */
+if (!$audio) echo A11y::listen('article.avd-article', 'Listen to this entry'), "\n"; ?>
 <?php if (!empty($a['series'])): $sx = $a['series']; ?>
             <aside class="series-box" aria-label="Part of a series">
               <div class="series-box-head">

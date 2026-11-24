@@ -28,7 +28,7 @@
    Several views label a field by wrapping it, which stacks only if the label
    is a block. avm.css styles the controls, not the wrapper. */
 .avm label{display:block}
-.avm-dialog label,.avm-panel>label{font-size:13px;font-weight:600;color:var(--av-text-2);display:flex;flex-direction:column;gap:6px}
+.avm-dialog label,.avm-panel>label{font-size:0.8125rem;font-weight:600;color:var(--av-text-2);display:flex;flex-direction:column;gap:6px}
 .avm-opt,.avm-seg label,.avm-cats label,.avm-chips label,.avm-log label.avm-opt{font-weight:inherit;color:inherit}
 .avm-seg label,.avm-cats label{display:block}
 
@@ -41,7 +41,7 @@
    kbd in the shortcuts dialog. */
 .avm-dialog kbd{display:inline-block;min-width:22px;padding:2px 6px;border:1px solid var(--av-line-2);
   border-bottom-width:2px;border-radius:var(--av-r-6);background:var(--av-stone-2);
-  font:600 12px var(--av-sans);text-align:center}
+  font:600 0.75rem var(--av-sans);text-align:center}
 .avm-dialog dt{margin:0}
 .avm-dialog dd{margin:0;color:var(--av-text-2)}
 
@@ -108,15 +108,15 @@
 .avm-tint--green{background:var(--av-green-bg)}
 .avm-tint--warn{background:var(--av-gold-soft)}
 .avm-tint--red{background:var(--av-red-bg)}
-.avm-tint b{display:block;font-size:15px;font-weight:700}
-.avm-tint span{display:block;font-size:12.5px;color:var(--av-muted)}
+.avm-tint b{display:block;font-size:0.9375rem;font-weight:700}
+.avm-tint span{display:block;font-size:0.7813rem;color:var(--av-muted)}
 
 /* The one thing on the screen you are meant to do next. One per view. */
 .avm-act{border:1px solid var(--av-gold-light);border-radius:var(--av-r-12);padding:16px;
   background:var(--av-gold-soft);display:flex;flex-wrap:wrap;align-items:center;gap:12px}
 .avm-act-txt{flex:1;min-width:220px}
-.avm-act h2{margin:0;font-size:15px;font-weight:700}
-.avm-act p{margin:4px 0 0;font-size:13.5px;color:var(--av-text-2);max-width:62ch}
+.avm-act h2{margin:0;font-size:0.9375rem;font-weight:700}
+.avm-act p{margin:4px 0 0;font-size:0.8438rem;color:var(--av-text-2);max-width:62ch}
 
 /* ── A card that introduces something, with a strip above it ────────────── */
 .avm-lead{border:1px solid var(--av-line);border-radius:var(--av-r-12);overflow:hidden;background:var(--av-white)}
@@ -125,16 +125,16 @@
 
 /* ── Four figures in a row, inside a panel ──────────────────────────────── */
 .avm-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:14px}
-.avm-figs b{display:block;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
-.avm-figs small{display:block;margin-top:2px;font-size:12.5px;color:var(--av-muted)}
+.avm-figs b{display:block;font-size:1.375rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.avm-figs small{display:block;margin-top:2px;font-size:0.7813rem;color:var(--av-muted)}
 
 /* ── A level, as a pill ─────────────────────────────────────────────────── */
-.avm-lv{padding:3px 9px;border-radius:var(--av-r-6);font-size:11.5px;font-weight:700;background:var(--av-stone-3);color:var(--av-muted)}
+.avm-lv{padding:3px 9px;border-radius:var(--av-r-6);font-size:0.7188rem;font-weight:700;background:var(--av-stone-3);color:var(--av-muted)}
 .avm-lv--1{background:var(--av-indigo-bg);color:var(--av-indigo)}
 .avm-lv--2,.avm-lv--3{background:var(--av-green-bg);color:var(--av-green)}
 .avm-rows{display:flex;flex-direction:column}
 .avm-rows>div{display:flex;justify-content:space-between;align-items:center;gap:12px;
-  padding:7px 0;border-bottom:1px solid var(--av-stone-3);font-size:13.5px}
+  padding:7px 0;border-bottom:1px solid var(--av-stone-3);font-size:0.8438rem}
 .avm-rows>div:last-child{border-bottom:0}
 
 /* ── A stage that means something ───────────────────────────────────────── */
@@ -146,14 +146,14 @@
 .avm-who small{margin-top:1px}
 
 /* ── Values ─────────────────────────────────────────────────────────────── */
-.avm-val-h em{font-style:italic;font-weight:400;font-size:13.5px;color:var(--av-muted)}
+.avm-val-h em{font-style:italic;font-weight:400;font-size:0.8438rem;color:var(--av-muted)}
 .avm-val .avm-seg{grid-template-columns:repeat(4,1fr);gap:8px;padding:0;background:none}
-.avm-val .avm-seg span{height:44px;border:1px solid var(--av-line);background:var(--av-white);font-size:13.5px}
+.avm-val .avm-seg span{height:44px;border:1px solid var(--av-line);background:var(--av-white);font-size:0.8438rem}
 .avm-val .avm-seg input:checked+span{border:2px solid var(--av-ink);font-weight:700;box-shadow:none}
 .avm-save{position:sticky;bottom:0;z-index:10;margin:0 -2px;padding:12px 2px 2px;
   background:linear-gradient(to top,var(--av-white) 72%,transparent)}
-.avm-save .avm-btn{width:100%;height:48px;font-size:15px}
-.avm-save p{margin:0 0 8px;font-size:13px;color:var(--av-muted);text-align:center}
+.avm-save .avm-btn{width:100%;height:48px;font-size:0.9375rem}
+.avm-save p{margin:0 0 8px;font-size:0.8125rem;color:var(--av-muted);text-align:center}
 
 /* ── The reading line on Values ─────────────────────────────────────────── */
 .avm-observing{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
@@ -177,8 +177,8 @@
    else is type and space. A met goal keeps its words — struck through, not
    deleted — because the close conversation looks back at what was agreed.  */
 .avm-goalbox{display:flex;flex-direction:column;gap:10px}
-.avm-goalsum{margin:0;font-size:13px;color:var(--av-muted)}
-.avm-goalsum b{font-size:13px;font-weight:700;color:var(--av-ink)}
+.avm-goalsum{margin:0;font-size:0.8125rem;color:var(--av-muted)}
+.avm-goalsum b{font-size:0.8125rem;font-weight:700;color:var(--av-ink)}
 
 .avm-goalmeter{display:flex;align-items:center;gap:10px;min-width:0}
 .avm-goalbar{flex:0 0 120px;height:4px;border-radius:999px;background:var(--av-stone-2);overflow:hidden}
@@ -208,28 +208,28 @@
 .avm .avm-goal-tick.is-aside{color:var(--av-muted)}
 .avm-goal-tick.is-aside{width:26px;height:26px;margin:1px 0 0;font-size:13px;cursor:default}
 .avm-goal-tick.is-aside::before{border-style:dashed}
-.avm-goal-t{margin:0;font-size:15px;font-weight:700;line-height:1.45}
-.avm-goal-m{margin:3px 0 0;font-size:13.5px;line-height:1.5;color:var(--av-text-2)}
-.avm-goal-meta{margin:5px 0 0;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12.5px;color:var(--av-muted)}
+.avm-goal-t{margin:0;font-size:0.9375rem;font-weight:700;line-height:1.45}
+.avm-goal-m{margin:3px 0 0;font-size:0.8438rem;line-height:1.5;color:var(--av-text-2)}
+.avm-goal-meta{margin:5px 0 0;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:0.7813rem;color:var(--av-muted)}
 .avm-goal-due{font-weight:700;color:var(--av-gold-text)}
 .avm-goal-due.is-over{color:var(--av-red)}
 .avm-goal.is-met .avm-goal-t{text-decoration:line-through;color:var(--av-muted);font-weight:600}
 .avm-goal.is-dropped .avm-goal-t{color:var(--av-muted);font-weight:600}
 .avm-goal.is-dropped .avm-goal-m{display:none}
 .avm-goal-edit{align-self:center}
-.avm-goal-none{margin:0;font-size:14px;line-height:1.55;color:var(--av-text-2)}
+.avm-goal-none{margin:0;font-size:0.875rem;line-height:1.55;color:var(--av-text-2)}
 .avm-goal-add{align-self:flex-start}
 
 .avm-goalform{display:flex;flex-direction:column;gap:6px;padding:14px;border-radius:var(--av-r-10);
   background:var(--av-stone);border:1px solid var(--av-stone-3)}
-.avm-goalform-h{margin:0 0 2px;font-size:14px;font-weight:700}
-.avm-lbl{font-size:13px;font-weight:600;margin-top:4px}
+.avm-goalform-h{margin:0 0 2px;font-size:0.875rem;font-weight:700}
+.avm-lbl{font-size:0.8125rem;font-weight:600;margin-top:4px}
 .avm-lbl em{font-style:normal;font-weight:400;color:var(--av-muted)}
 .avm-goal-date{max-width:200px}
 .avm-goalform-a{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px}
 .avm-goal-del,.avm-goal-aside{margin-left:auto}
 .avm-goal-del{color:var(--av-red)}
-.avm-goal-err{margin:6px 0 0;font-size:13px;font-weight:600;color:var(--av-red)}
+.avm-goal-err{margin:6px 0 0;font-size:0.8125rem;font-weight:600;color:var(--av-red)}
 
 @media (prefers-reduced-motion:reduce){.avm-goalbar i{transition:none}}
 @container avm (max-width:599px){

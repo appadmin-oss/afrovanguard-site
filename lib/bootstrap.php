@@ -414,6 +414,7 @@ require_once __DIR__ . '/SitePages.php';          // the Studio's Pages editor: 
 require_once __DIR__ . '/SiteSettings.php';      // the details every page shares (footer email, place, social links)
 require_once __DIR__ . '/Cms.php';               // the content store: drafts, revisions, review, scheduling
 require_once __DIR__ . '/Prefs.php';
+require_once __DIR__ . '/A11y.php';    // the visitor's display settings (the Accessibility panel)
 require_once __DIR__ . '/Notifications.php';
 require_once __DIR__ . '/AcademyNudges.php';
 require_once __DIR__ . '/AdminAudit.php';

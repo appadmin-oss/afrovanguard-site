@@ -5,6 +5,8 @@
  *   GET  ?action=get              → { ok, tz }
  *   POST ?action=set_tz {tz}      → { ok, tz }
  *   POST ?action=set_shortcuts {ids[]} → { ok, ids }   the phone More sheet's tiles
+ *   POST ?action=set_a11y {value, at} → { ok, a11y, a11y_at }   the Accessibility panel (lib/A11y.php):
+ *        the member's display settings, so they follow them to another device
  *
  * Any signed-in user; writes are same-origin + CSRF + rate-limited.
  */
@@ -23,7 +25,20 @@ if ($method === 'POST') { $body = json_decode(file_get_contents('php://input') ?
 try {
     switch ($action) {
         case 'get':
-            json_out(['ok' => true, 'tz' => av_user_tz($uid)]);
+            $a11y = Prefs::get($uid, A11y::PREF, '');
+            json_out(['ok' => true, 'tz' => av_user_tz($uid), 'a11y' => A11y::valueOf($a11y), 'a11y_at' => A11y::stampOf($a11y)]);
+
+        case 'set_a11y':
+            /* Only allow-listed words reach the store (A11y::parse); "when" is the
+               device's clock, clamped to now, so newest-wins cannot be gamed into
+               the future and a device with no record (0) never beats a saved one. */
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            av_require_write($uid, 'prefs', 60);
+            $val = A11y::serialize(A11y::parse((string) ($body['value'] ?? '')));
+            $at  = max(1, min(time(), (int) ($body['at'] ?? 0) ?: time()));
+            Prefs::set($uid, A11y::PREF, $val . '@' . $at);
+            A11y::setCookie($val);
+            json_out(['ok' => true, 'a11y' => $val === '0' ? '' : $val, 'a11y_at' => $at]);
 
         case 'set_tz':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
