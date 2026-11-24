@@ -1,10 +1,12 @@
 /* assets/site/a11y.js — the Accessibility panel (lib/A11y.php, a11y.css).
  *
- * A native <dialog>, opened from the header's "Accessibility" control, the
- * footer link or Alt+Shift+A. Focus goes in and stays in (showModal makes the
- * page behind it inert), Escape closes it, and focus goes back to whatever
- * opened it. Every control is a native radio or checkbox; a change applies at
- * once and is kept:
+ * A launcher at the bottom left of every page (bottom right is Chioma's) —
+ * a round button from 600px, a tab against the screen's edge on a phone —
+ * the footer link and Alt+Shift+A open a compact panel: a native <dialog> in
+ * the launcher's corner on a wide screen and a bottom sheet on a phone. Focus goes in and stays in (showModal makes the page behind it
+ * inert), Escape closes it, and focus goes back to whatever opened it. Every
+ * control is native — radios drawn as segmented controls, checkboxes with
+ * role="switch" — and a change applies at once and is kept:
  *   · localStorage av.a11y and the av_a11y cookie (PHP reads the cookie, so the
  *     next page is drawn with the classes and nothing flashes);
  *   · for a signed-in member, their account too (portal/prefs.php), newest wins,
@@ -18,15 +20,16 @@
   var d = document.documentElement, KEY = 'av.a11y', AT = 'av.a11y.at', CK = 'av_a11y';
   var TOKEN = /^(t125|t150|t175|t200|spacing|font|links|focus|still|targets|hc-auto|hc-light|hc-dark)$/;
   var FLAGS = [
-    ['spacing', 'Comfortable spacing', 'More room between lines, words and letters'],
-    ['font', 'Easy-to-read font', 'A plain, clear typeface (Atkinson Hyperlegible)'],
-    ['links', 'Underline all links', 'So links do not rely on colour'],
-    ['focus', 'Large focus outline', 'A thick outline round whatever the keyboard is on'],
-    ['still', 'Stop animation and moving content', 'Pauses the news ticker, slideshows, videos that play by themselves and transitions'],
-    ['targets', 'Bigger buttons and links', 'At least 44 pixels to tap or click; links inside sentences keep their size']
+    ['spacing', 'Comfortable spacing', 'More room between lines and letters'],
+    ['font', 'Easy-to-read font', 'Atkinson Hyperlegible, plain and clear'],
+    ['links', 'Underline links', 'So links never rely on colour alone'],
+    ['focus', 'Large focus outline', 'A bold ring round the keyboard focus'],
+    ['still', 'Stop moving content', 'Pauses tickers, slideshows and videos'],
+    ['targets', 'Bigger buttons and links', 'At least 44 pixels to tap or click']
   ];
   var SIZES = [100, 125, 150, 175, 200];
-  var CONTRAST = [['', 'Standard'], ['hc-auto', 'High contrast, matching my device'], ['hc-light', 'High contrast, light'], ['hc-dark', 'High contrast, dark']];
+  /* [value, label, what a screen reader hears after it] */
+  var CONTRAST = [['', 'Off', ''], ['hc-auto', 'Auto', '(matches your device’s light or dark mode)'], ['hc-light', 'Light', ''], ['hc-dark', 'Dark', '']];
 
   /* ── Reading and writing the value ─────────────────────────────────── */
   function parse(v) {
@@ -121,8 +124,8 @@
       }).catch(function () {});
   }
 
-  /* ── The dialog ───────────────────────────────────────────────────── */
-  var dlg = null, opener = null, status = null;
+  /* ── The panel ────────────────────────────────────────────────────── */
+  var dlg = null, opener = null, status = null, fab = null;
   function el(tag, attrs, html) {
     var e = document.createElement(tag);
     for (var k in attrs) if (Object.prototype.hasOwnProperty.call(attrs, k)) e.setAttribute(k, attrs[k]);
@@ -130,40 +133,48 @@
     return e;
   }
   var mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  var ALT = mac ? 'Option' : 'Alt';
+  var ICON = '<svg class="av-a11y-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="4.6" r="2.1" fill="currentColor"/><path d="M4.8 8.4c2.4.8 4.8 1.2 7.2 1.2s4.8-.4 7.2-1.2M12 9.6v4.6m0 0-2.9 6.2m2.9-6.2 2.9 6.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   function build() {
     dlg = el('dialog', { 'class': 'av-a11y', id: 'av-a11y', 'aria-labelledby': 'av-a11y-h', 'aria-describedby': 'av-a11y-d' });
-    var h = '<div class="av-a11y-in">'
-      + '<div class="av-a11y-hd"><h2 id="av-a11y-h">Accessibility settings</h2>'
-      + '<button type="button" class="av-a11y-x" data-a11y-close aria-label="Close accessibility settings"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button></div>'
-      + '<p class="av-a11y-lede" id="av-a11y-d">These change how this site looks for you. Your own device’s settings, screen reader and magnifier work here too.</p>'
-      + '<fieldset><legend>Text size</legend><div class="av-a11y-seg">';
-    SIZES.forEach(function (n) { h += '<label><input type="radio" name="av-a11y-text" value="' + n + '"> ' + n + '%</label>'; });
-    h += '</div></fieldset><fieldset><legend>Contrast</legend><div class="av-a11y-opts">';
-    CONTRAST.forEach(function (c) { h += '<label class="av-a11y-opt"><input type="radio" name="av-a11y-hc" value="' + c[0] + '"><span>' + c[1] + '</span></label>'; });
-    h += '</div></fieldset><fieldset><legend>Reading and moving</legend><div class="av-a11y-opts">';
-    FLAGS.forEach(function (f) { h += '<label class="av-a11y-opt"><input type="checkbox" name="av-a11y-' + f[0] + '" value="' + f[0] + '"><span>' + f[1] + '<small>' + f[2] + '</small></span></label>'; });
-    h += '</div></fieldset>'
-      + '<p class="av-a11y-note">Changes apply straight away and are kept on this device' + (signedIn ? ' and in your account' : '') + '. Open this panel from any page with <kbd>' + (mac ? 'Option' : 'Alt') + '</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>.</p>'
-      + '<div class="av-a11y-ft"><button type="button" class="av-a11y-reset" data-a11y-reset>Reset to standard</button><button type="button" class="av-a11y-done" data-a11y-close>Done</button></div>'
-      + '<p class="av-a11y-more"><a href="/accessibility/">Our accessibility statement</a> — what works, what falls short, and how to tell us about a barrier.</p>'
-      + '<p class="av-a11y-sr" role="status" aria-live="polite" data-a11y-status></p>'
-      + '</div>';
+    var h = '<div class="av-a11y-hd"><span class="av-a11y-badge" aria-hidden="true">' + ICON + '</span>'
+      + '<div class="av-a11y-hd-t"><h2 id="av-a11y-h">Accessibility settings</h2>'
+      + '<p id="av-a11y-d">These change how this site looks for you. Your device’s own settings, screen reader and magnifier keep working.</p></div>'
+      + '<button type="button" class="av-a11y-x" data-a11y-close aria-label="Close accessibility settings"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>'
+      + '<div class="av-a11y-body">'
+      + '<fieldset class="av-a11y-f"><legend>Text size</legend><div class="av-a11y-seg">';
+    SIZES.forEach(function (n) {
+      h += '<label><input type="radio" name="av-a11y-text" value="' + n + '"><span>' + (n === 100 ? 'A<span class="av-a11y-sr">, 100% (standard)</span>' : n + '<small>%</small>') + '</span></label>';
+    });
+    h += '</div></fieldset><fieldset class="av-a11y-f"><legend>High contrast</legend><div class="av-a11y-seg av-a11y-seg--hc">';
+    CONTRAST.forEach(function (c) {
+      h += '<label><input type="radio" name="av-a11y-hc" value="' + c[0] + '"><span><i class="av-a11y-sw av-a11y-sw--' + (c[0] || 'off') + '" aria-hidden="true"></i>' + c[1] + (c[2] ? '<span class="av-a11y-sr"> ' + c[2] + '</span>' : '') + '</span></label>';
+    });
+    h += '</div></fieldset><ul class="av-a11y-list" role="list">';
+    FLAGS.forEach(function (f) {
+      h += '<li><label class="av-a11y-row"><span class="av-a11y-row-t">' + f[1] + '<small>' + f[2] + '</small></span><input type="checkbox" role="switch" name="av-a11y-' + f[0] + '" value="' + f[0] + '"></label></li>';
+    });
+    h += '</ul></div>'
+      + '<div class="av-a11y-ft"><button type="button" class="av-a11y-reset" data-a11y-reset>Reset to standard</button>'
+      + '<a class="av-a11y-more" href="/accessibility/">Accessibility statement</a></div>'
+      + '<p class="av-a11y-note">Saved on this device' + (signedIn ? ' and in your account' : '') + '. Open from any page with <span class="av-a11y-nw"><kbd>' + ALT + '</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd></span>.</p>'
+      + '<p class="av-a11y-sr" role="status" aria-live="polite" data-a11y-status></p>';
     dlg.innerHTML = h;
     document.body.appendChild(dlg);
     status = dlg.querySelector('[data-a11y-status]');
     dlg.addEventListener('change', onChange);
     dlg.addEventListener('click', function (e) {
       var t = e.target.closest ? e.target.closest('[data-a11y-close],[data-a11y-reset]') : null;
-      if (e.target === dlg) { close(); return; } // a click on the backdrop
+      if (e.target === dlg) { close(); return; } // a click outside the panel (on the backdrop)
       if (!t) return;
       if (t.hasAttribute('data-a11y-reset')) { save(parse('0')); sync(); say('Settings reset to standard.'); return; }
       close();
     });
     dlg.addEventListener('close', restore);
-    /* Tab and Shift+Tab go round the dialog, never out to the address bar and back. */
+    /* Tab and Shift+Tab go round the panel, never out to the address bar and back. */
     dlg.addEventListener('keydown', function (e) {
       if (e.key !== 'Tab') return;
-      var f = [].filter.call(dlg.querySelectorAll('button,a[href],input:not([type=radio]),input[type=radio]:checked,select'), function (x) { return !x.disabled && x.offsetParent !== null; });
+      var f = [].filter.call(dlg.querySelectorAll('button,a[href],input:not([type=radio]),input[type=radio]:checked,select'), function (x) { return !x.disabled && x.getClientRects().length; });
       var named = {}; // a radio group with nothing checked is reached by its first radio
       dlg.querySelectorAll('input[type=radio]').forEach(function (r) { if (!named[r.name]) named[r.name] = r; });
       Object.keys(named).forEach(function (n) { if (!dlg.querySelector('input[name="' + n + '"]:checked')) f.push(named[n]); });
@@ -180,13 +191,14 @@
     dlg.querySelectorAll('input[name="av-a11y-text"]').forEach(function (i) { i.checked = +i.value === state.text; });
     dlg.querySelectorAll('input[name="av-a11y-hc"]').forEach(function (i) { i.checked = i.value === state.contrast; });
     FLAGS.forEach(function (f) { var i = dlg.querySelector('input[name="av-a11y-' + f[0] + '"]'); if (i) i.checked = !!state.flags[f[0]]; });
+    if (fab) fab.classList.toggle('is-on', serialize(state) !== '0');
   }
   function onChange(e) {
     var i = e.target, s = parse(serialize(state));
     if (i.name === 'av-a11y-text') s.text = +i.value;
     else if (i.name === 'av-a11y-hc') s.contrast = i.value;
     else if (i.type === 'checkbox') { if (i.checked) s.flags[i.value] = true; else delete s.flags[i.value]; }
-    save(s);
+    save(s); sync();
   }
   function open(from) {
     if (typeof HTMLDialogElement === 'undefined' || !HTMLDialogElement.prototype.showModal) { location.href = '/accessibility/#settings'; return; }
@@ -195,37 +207,126 @@
     opener = from || document.activeElement;
     sync();
     dlg.showModal();
+    fit();
     var first = dlg.querySelector('input[name="av-a11y-text"]:checked') || dlg.querySelector('input');
     if (first) first.focus();
     document.querySelectorAll('[data-a11y-open][aria-expanded]').forEach(function (b) { b.setAttribute('aria-expanded', 'true'); });
   }
   function close() { if (dlg && dlg.open) dlg.close(); }
   function restore() {
+    fit();
     document.querySelectorAll('[data-a11y-open][aria-expanded]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
     var o = opener; opener = null;
-    /* Back to the control that opened it — or, if that one is hidden at this
-       width now, its twin that is showing. */
-    if (o && o.isConnected && o.offsetParent === null && o.hasAttribute && o.hasAttribute('data-a11y-open')) {
-      var twin = [].filter.call(document.querySelectorAll('[data-a11y-open]'), function (b) { return b.offsetParent !== null; })[0];
-      if (twin) o = twin;
+    /* Back to what opened it — or, if that one is hidden now, the launcher. */
+    if (o && o.isConnected && !o.getClientRects().length && fab) o = fab;
+    if (o && o.focus && o.isConnected) { try { o.focus({ preventScroll: true }); } catch (e) {} }
+    look();
+  }
+
+  /* ── The launcher, bottom left ────────────────────────────────────────
+     Bottom right is Chioma's. Its height above the page's bottom bars comes
+     from --av-bottom-ui (bottom-ui.js); a11y.css draws it as a round button
+     from 600px and as a tab against the screen's edge on a phone.
+
+     IT STEPS ASIDE WHILE SOMEBODY READS DOWN A PAGE: scrolling down past
+     80px it slides off the edge (data-tuck), still in the tab order; it comes
+     back on the first scroll up and, from 600px, about 900ms after the
+     scrolling stops. On a phone it stays away until the reader scrolls up —
+     coming back at every pause put it over a row's button mid-read. It never
+     leaves while it has the keyboard's focus.
+
+     AND IT NEVER SITS ON A CONTROL. No fixed spot is clear on every page, so
+     it asks the page: when the scrolling settles, on load, on resize and once
+     more after entrance animations, it samples nine points of its resting box,
+     and while a link, button or field is under any of them it stays tucked
+     until the spot is clear. The footer link and Alt+Shift+A are never tucked. */
+  var CONTROL = 'a[href], button, input, select, textarea, summary, label, [role="button"], [role="link"], [tabindex]:not([tabindex="-1"])';
+  function overControl() {
+    if (!fab || !fab.getClientRects().length) return false;
+    /* offsetLeft/Top ignore the tuck's transform: this is the RESTING box. */
+    var x = fab.offsetLeft, y = fab.offsetTop, w = fab.offsetWidth, h = fab.offsetHeight;
+    if (!w || !h || !document.elementsFromPoint) return false;
+    var xs = [x + 3, x + w / 2, x + w - 3], ys = [y + 3, y + h / 2, y + h - 3];
+    for (var i = 0; i < 3; i++) for (var j = 0; j < 3; j++) {
+      var under = document.elementsFromPoint(xs[i], ys[j]);
+      for (var k = 0; k < under.length; k++) {
+        var e = under[k];
+        if (e === fab || fab.contains(e) || (dlg && dlg.contains(e))) continue;
+        if (e.closest && e.closest(CONTROL)) return true;
+      }
     }
-    if (o && o.focus && o.isConnected) { try { o.focus(); } catch (e) {} }
+    return false;
+  }
+  var reading = false, blocked = false;
+  function paintTuck() {
+    if (!fab) return;
+    if ((reading || blocked) && document.activeElement !== fab) fab.setAttribute('data-tuck', '');
+    else fab.removeAttribute('data-tuck');
+  }
+  function look() { blocked = overControl(); paintTuck(); }
+  function tuckOnScroll() {
+    var phone = window.matchMedia ? window.matchMedia('(max-width: 599px)') : null;
+    var lastY = window.pageYOffset, settle = 0, again = 0;
+    window.addEventListener('scroll', function () {
+      var y = window.pageYOffset, dy = y - lastY;
+      lastY = y;
+      if (Math.abs(dy) < 4) return;
+      reading = dy > 0 && y > 80;
+      paintTuck();
+      clearTimeout(settle);
+      settle = setTimeout(function () {
+        if (!(phone && phone.matches && y > 80)) reading = false;
+        look();
+      }, 900);
+    }, { passive: true });
+    fab.addEventListener('focus', function () { fab.removeAttribute('data-tuck'); });
+    fab.addEventListener('blur', paintTuck);
+    window.addEventListener('resize', function () {
+      if (!window.requestAnimationFrame) return look();
+      cancelAnimationFrame(again); again = requestAnimationFrame(look);
+    });
+    if (window.requestAnimationFrame) requestAnimationFrame(look); else look();
+    if (document.readyState !== 'complete') window.addEventListener('load', look);
+    /* Once more after the page's entrance animations have put things in place. */
+    setTimeout(look, 1600);
+  }
+
+  /* ── The phone sheet follows the VISUAL viewport ──────────────────────
+     iOS leaves the layout viewport full height under the on-screen keyboard
+     and a bottom toolbar; while the sheet is open its bottom and height follow
+     visualViewport. Closed, or wider than a phone, the properties go. */
+  var SHEET_MQ = window.matchMedia ? window.matchMedia('(max-width: 599px)') : null;
+  var vv = window.visualViewport;
+  function fit() {
+    if (!dlg) return;
+    if (!vv || !dlg.open || !SHEET_MQ || !SHEET_MQ.matches) {
+      dlg.style.removeProperty('--av-vv-h'); dlg.style.removeProperty('--av-vv-b'); return;
+    }
+    dlg.style.setProperty('--av-vv-h', Math.round(vv.height) + 'px');
+    dlg.style.setProperty('--av-vv-b', Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) + 'px');
+  }
+  if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); }
+
+  function addFab() {
+    if (document.querySelector('.av-a11y-fab')) return;
+    fab = el('button', { type: 'button', 'class': 'av-a11y-fab', 'data-a11y-open': '', 'aria-label': 'Accessibility settings', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', 'aria-controls': 'av-a11y', 'aria-keyshortcuts': 'Alt+Shift+A' },
+      ICON + '<span class="av-a11y-tip" aria-hidden="true">Accessibility settings<span class="av-a11y-tip-k">' + ALT + ' Shift A</span></span>');
+    document.body.appendChild(fab);
+    /* The tooltip goes with Escape and comes back on the next hover or focus (WCAG 1.4.13). */
+    fab.addEventListener('keydown', function (e) { if (e.key === 'Escape') fab.classList.add('is-quiet'); });
+    fab.addEventListener('mouseleave', function () { fab.classList.remove('is-quiet'); });
+    fab.addEventListener('blur', function () { fab.classList.remove('is-quiet'); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && fab.matches(':hover')) fab.classList.add('is-quiet'); });
+    tuckOnScroll();
   }
 
   /* ── The ways in ──────────────────────────────────────────────────── */
   function upgrade() {
-    var openers = document.querySelectorAll('[data-a11y-open]');
-    /* A page drawn without the shared header still gets the control. */
-    if (![].some.call(openers, function (o) { return !o.hasAttribute('data-a11y-link'); })) {
-      var host = document.querySelector('body > header, header[role="banner"], .avsi-head, header');
-      var a = el('a', { 'class': 'av-a11y-btn av-a11y-btn--compact' + (host ? '' : ' av-a11y-float'), href: '/accessibility/#settings', 'data-a11y-open': '' },
-        '<svg class="av-a11y-ico" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10.25" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="6.9" r="1.6" fill="currentColor"/><path d="M6.8 9.6l5.2 1.1 5.2-1.1M12 10.7v3.4m0 0l-2.6 4.6M12 14.1l2.6 4.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="av-a11y-btn-t">Accessibility</span>');
-      if (host) host.appendChild(a); else document.body.insertBefore(a, document.body.firstChild);
-    }
-    /* The header control is a link so it works without JavaScript; with it,
-       it is what it does — a button that opens a dialog. */
+    addFab();
+    /* Any older header control is a link so it works without JavaScript; with
+       it, it is what it does — a button that opens a dialog. */
     document.querySelectorAll('a[data-a11y-open]:not([data-a11y-link])').forEach(function (a) {
-      var b = el('button', { type: 'button', 'class': a.className, 'data-a11y-open': '', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', 'aria-controls': 'av-a11y', title: 'Accessibility settings (' + (mac ? 'Option' : 'Alt') + '+Shift+A)' });
+      var b = el('button', { type: 'button', 'class': a.className, 'data-a11y-open': '', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', 'aria-controls': 'av-a11y' });
       b.innerHTML = a.innerHTML;
       a.parentNode.replaceChild(b, a);
     });
@@ -247,6 +348,7 @@
     upgrade();
     document.querySelectorAll('.a11y-page-open').forEach(function (p) { p.hidden = false; });
     apply(state);
+    sync();
     pull();
     /* The statement page's "Open the settings" and a #settings arrival from the panel's fallback. */
     if (location.hash === '#a11y-open') open(null);

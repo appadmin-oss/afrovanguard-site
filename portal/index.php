@@ -345,7 +345,7 @@ if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) doc
       <?php /* Which view is showing, said to a screen reader as it changes; the sidebar shows it to everyone else. */ ?>
       <p class="avn-sr" aria-live="polite">Portal: <span id="crumbHere">Today</span></p>
       <div class="avp-top-actions avn-top-actions">
-        <?= A11y::button('av-a11y-btn--compact') ?>
+        <?= SiteSearch::trigger('', 'Search the site…') ?>
 <?php if ($isOrg): ?>        <a class="avp-online avn-online" id="topOnline" href="/people/"<?= $onlineNow > 0 ? '' : ' hidden' ?>><span class="avn-dot" aria-hidden="true"></span><span><span class="av-num" id="tbCount"><?= (int) $onlineNow ?></span> online</span></a>
 <?php endif; ?>        <div class="avp-notif" id="notifWrap" data-csrf="<?= e($collabCsrf) ?>">
           <button type="button" class="avp-bell avn-bell" id="notifBtn" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="notifPanel">
@@ -384,7 +384,7 @@ if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) doc
     </div>
   </main>
 
-  <nav class="avp-tabs avn-tabs" aria-label="Primary">
+  <nav class="avp-tabs avn-tabs" aria-label="Primary" data-bottom-ui>
 <?php foreach ($tabs as [$id, $label]): ?>
     <a class="avp-tab avn-tab<?= $id === 'overview' ? ' is-active' : '' ?>" href="#<?= e($id) ?>" data-view="<?= e($id) ?>"<?= $id === 'overview' ? ' aria-current="page"' : '' ?>><span class="avn-tab-i"><?= $navIco($id, 21) ?></span><span><?= e($label) ?></span></a>
 <?php endforeach; ?>

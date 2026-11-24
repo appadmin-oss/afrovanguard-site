@@ -461,7 +461,7 @@ $donateHref = '/donate.html?campaign=' . rawurlencode((string) $a['slug']);
 </main>
 
 <?php if ($st['accepting']): ?>
-<div class="give-sticky">
+<div class="give-sticky" data-bottom-ui>
   <div class="s-fig">
     <div class="s-raised"><?= e(Appeals::naira($st['raised'])) ?><?php if ($st['goal'] > 0): ?> <span class="s-goal">of <?= e(Appeals::naira($st['goal'])) ?></span><?php endif; ?></div>
     <?php if ($st['percent'] !== null): ?>

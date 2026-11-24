@@ -18,6 +18,10 @@
  * "0" means "standard, on purpose". Anything not on the list is dropped; a value
  * that is not plainly those characters is ignored whole.
  *
+ * The way in: a round button fixed at the bottom left of every page, drawn by
+ * a11y.js (bottom right is Chioma's); the footer link; Alt+Shift+A. Without
+ * JavaScript the footer link goes to the settings form on /accessibility/.
+ *
  * Styles: assets/site/a11y.css · behaviour: assets/site/a11y.js · Listen: assets/site/listen.js
  */
 declare(strict_types=1);
@@ -138,14 +142,21 @@ final class A11y
         return $all === '' ? '' : ' class="' . htmlspecialchars($all, ENT_QUOTES) . '"';
     }
 
-    /** The <head> part: the boot script, the stylesheet and the script. Once per page. */
+    /**
+     * The <head> part: the boot script, the panel's stylesheet and script, and
+     * the site search palette's (lib/SiteSearch.php) — the two tools every page
+     * carries. Once per page.
+     */
     public static function head(): string
     {
         if (self::$headDone) return '';
         self::$headDone = true;
+        if (!class_exists('SiteSearch', false)) require_once __DIR__ . '/SiteSearch.php';
         return self::BOOT . "\n"
+            . '  <script src="' . htmlspecialchars(av_asset('/assets/site/bottom-ui.js'), ENT_QUOTES) . '" defer></script>' . "\n"
             . '  <link href="' . htmlspecialchars(av_asset('/assets/site/a11y.css'), ENT_QUOTES) . '" rel="stylesheet" />' . "\n"
-            . '  <script src="' . htmlspecialchars(av_asset('/assets/site/a11y.js'), ENT_QUOTES) . '" defer></script>' . "\n";
+            . '  <script src="' . htmlspecialchars(av_asset('/assets/site/a11y.js'), ENT_QUOTES) . '" defer></script>' . "\n"
+            . SiteSearch::head();
     }
 
     /** Whether head() has run on this page (avh_nav() adds it to a page whose own head did not). */
@@ -153,18 +164,6 @@ final class A11y
 
     /** For the test suite: draw a fresh page. */
     public static function resetForTest(): void { self::$headDone = false; self::$memo = null; }
-
-    /**
-     * The header control. An <a> to the settings on the statement page, so it
-     * works with JavaScript off; a11y.js turns it into a <button> that opens the
-     * dialog. Icon (a person in a circle) plus the word, always.
-     */
-    public static function button(string $extraClass = ''): string
-    {
-        return '<a class="av-a11y-btn' . ($extraClass !== '' ? ' ' . htmlspecialchars($extraClass, ENT_QUOTES) : '') . '" href="/accessibility/#settings" data-a11y-open>'
-            . '<svg class="av-a11y-ico" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10.25" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="6.9" r="1.6" fill="currentColor"/><path d="M6.8 9.6l5.2 1.1 5.2-1.1M12 10.7v3.4m0 0l-2.6 4.6M12 14.1l2.6 4.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-            . '<span class="av-a11y-btn-t">Accessibility</span></a>';
-    }
 
     /** The footer link (every footer). Opens the same dialog; without JavaScript, the settings on the statement page. */
     public static function footerLink(): string

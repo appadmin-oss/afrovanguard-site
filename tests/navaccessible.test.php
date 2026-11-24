@@ -209,7 +209,7 @@ foreach (avh_chrome_pages(AV_ROOT) as $f) {
 /* The mentor portal draws only for a mentor; its nav markup is held here. */
 $navaccMentor = (string) file_get_contents(AV_ROOT . '/mentorship/mentor/index.php') . (string) file_get_contents(AV_ROOT . '/mentorship/mentor/views/_tabbar.php');
 ck('mentor portal: the skip link lands on a focusable main', str_contains($navaccMentor, '<main class="avm-main" id="main-content" tabindex="-1">'));
-ck('mentor portal: both navs are named, differently', str_contains($navaccMentor, '<nav class="avm-nav" aria-label="Mentor portal">') && str_contains($navaccMentor, '<nav class="avm-tabbar" aria-label="Sections">'));
+ck('mentor portal: both navs are named, differently', str_contains($navaccMentor, '<nav class="avm-nav" aria-label="Mentor portal">') && str_contains($navaccMentor, '<nav class="avm-tabbar" aria-label="Sections" data-bottom-ui>'));
 ck('mentor portal: the current section is marked in words', substr_count($navaccMentor, "' aria-current=\"page\"'") >= 5);
 ck('mentor portal: the tab bar\'s More says it opens a dialog', str_contains($navaccMentor, 'data-avm-open="more" aria-haspopup="dialog"'));
 

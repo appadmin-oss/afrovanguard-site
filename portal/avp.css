@@ -421,6 +421,9 @@ a.avp-kpi--link:focus-visible { outline: 2px solid var(--avp-gold); outline-offs
 .avp #your-card { margin: 0; }
 
 /* ── drawer (tablet and phone) ─────────────────────────────────────────── */
+/* The accessibility button (assets/site/a11y.css) sits bottom left: on a wide
+   screen that is the sidebar's foot, so it moves just past the sidebar. */
+@media (min-width: 960px) { :root { --av-fab-left: calc(264px + 16px); } }
 .avp-tabs { display: none; }
 @media (max-width: 959px) {
   .avp-side { position: fixed; left: 0; top: 0; bottom: 0; height: 100%; box-shadow: var(--avp-shadow-drawer); transform: translateX(-100%); visibility: hidden; transition: transform .22s ease, visibility 0s linear .22s; }

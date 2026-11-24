@@ -257,12 +257,10 @@
 .give-sticky {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: none;
   padding: var(--afg-space-3) var(--afg-space-4);
-  /* Clear the Chioma launcher. It is 56px, pinned bottom-right at 16px, and
-     carries a z-index in the billions — so it floats OVER this bar and was
-     sitting squarely on top of the Give button, which is the one control the
-     whole page exists to offer. Reserving its column is the honest fix: raising
-     our own z-index would just put the collision the other way round. */
-  padding-right: calc(56px + 16px + var(--afg-space-3) + env(safe-area-inset-right, 0px));
+  /* Chioma's launcher used to float over this bar's Give button. The bar now
+     carries data-bottom-ui (assets/site/bottom-ui.js), so the launcher rises
+     above it instead and the bar keeps its full width. */
+  padding-right: calc(var(--afg-space-4) + env(safe-area-inset-right, 0px));
   padding-bottom: calc(var(--afg-space-3) + env(safe-area-inset-bottom, 0px));
   background: var(--afg-surface); border-top: 1px solid var(--afg-border);
   box-shadow: var(--afg-shadow-lg); gap: var(--afg-space-3); align-items: center;

@@ -38,7 +38,9 @@
 
   position: fixed;
   right: max(16px, env(safe-area-inset-right));
-  bottom: max(16px, env(safe-area-inset-bottom));
+  /* Above any bottom bar on screen (assets/site/bottom-ui.js), like the
+     Accessibility button at the other corner. */
+  bottom: calc(var(--av-bottom-ui, 0px) + 16px + env(safe-area-inset-bottom));
   z-index: 2147483000;
   font-family: var(--ch-fb);
 }
@@ -89,6 +91,12 @@ html[data-theme="dark"] .chioma-root,
   transition: opacity .2s ease, transform .2s ease;
 }
 .chioma-greet.show { opacity: 1; transform: none; pointer-events: auto; }
+/* A phone: beside the launcher the nudge would reach the bottom-left corner,
+   which is the Accessibility button's (assets/site/a11y.css). Above it, it
+   can be as wide as it likes and still clear that button. */
+@media (max-width: 479px) {
+  .chioma-greet { right: 0; bottom: 70px; max-width: min(300px, calc(100vw - 32px)); }
+}
 .chioma-greet b { font-weight: 600; }
 /* The nudge used to be a div with a click handler — no role, no keyboard, no
    focus. The text is a real button now, and dismiss is its own control. */
@@ -307,7 +315,10 @@ html[data-theme="dark"] .ch-chip:hover, .chioma-root[data-dark="1"] .ch-chip:hov
 
 /* ── Phone: a sheet ────────────────────────────────────────────────────── */
 @media (max-width: 559px) {
-  .chioma-root { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); }
+  .chioma-root { right: 12px; bottom: calc(var(--av-bottom-ui, 0px) + 12px + env(safe-area-inset-bottom)); }
+  /* One question at a time: while the cookie notice asks (it sat on top of
+     the launcher anyway), the launcher waits, as the Accessibility tab does. */
+  body:has(.av-cc:not([hidden])) .chioma-root:not(.is-open) { display: none; }
   .chioma-panel {
     position: fixed; inset: auto 0 0 0; width: 100%;
     /* --ch-vh comes from visualViewport: on iOS the keyboard overlays the

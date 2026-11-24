@@ -98,12 +98,12 @@ final class ChiomaTools
     private const DEFS = [
         'site_search' => [
             'act'  => false,
-            'desc' => 'Search everything Afrovanguard publishes: key pages, Diary entries, Academy courses and the public people directory. Use this FIRST for any question about what the organisation does, offers or has written — it returns live content, not a guess.',
+            'desc' => 'Search everything Afrovanguard publishes: key pages, Diary entries, Academy courses, the projects, public events and the public people directory. Use this FIRST for any question about what the organisation does, offers or has written — it returns live content, not a guess.',
             'schema' => [
                 'type' => 'object',
                 'properties' => [
                     'query' => ['type' => 'string', 'description' => 'What to look for.'],
-                    'type'  => ['type' => 'string', 'description' => 'Optional filter: Page, Diary, Academy or People.'],
+                    'type'  => ['type' => 'string', 'description' => 'Optional filter: Page, Diary, Academy, Project, Event or People.'],
                 ],
                 'required' => ['query'],
             ],

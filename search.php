@@ -1,6 +1,6 @@
 <?php
 /**
- * search.php — site search: JSON for the search modal, a page for browsers.
+ * search.php — site search: JSON for the search palette, a page for browsers.
  *
  *   GET ?q=<query>[&ai=1]
  *
@@ -16,26 +16,31 @@ require_once __DIR__ . '/lib/bootstrap.php';
 
 /* The page view. A browser that navigates here (a search form on the 404 page,
    a shared link, no JavaScript) asks for text/html and gets the results as a
-   page in the Home chrome — the Home nav has no search dialog, so this is the
-   site's search page. The modal's fetch() sends Accept: *\/* and keeps the JSON;
+   page in the Home chrome — the full results the palette's "See all results"
+   opens, and the search without JavaScript. The palette's fetch() asks for JSON;
    ?format=json forces it. Same results, same ranking (SiteSearch). */
 $accept = (string) ($_SERVER['HTTP_ACCEPT'] ?? '');
 if (($_GET['format'] ?? '') !== 'json' && stripos($accept, 'text/html') !== false) {
     require AV_ROOT . '/lib/search-page.php';
-    exit;
+    return;
 }
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
+header('Cache-Control: no-store');
 
-$q = trim((string) ($_GET['q'] ?? ''));
-$qlen = function_exists('mb_strlen') ? mb_strlen($q) : strlen($q);
+$q = SiteSearch::normalise(is_string($_GET['q'] ?? null) ? $_GET['q'] : '');
+$qlen = mb_strlen($q);
 if ($qlen < 2) {
-    echo json_encode(['ok' => true, 'q' => $q, 'results' => [], 'ai' => null]);
-    exit;
+    echo json_encode(['ok' => true, 'q' => $q, 'results' => [], 'suggest' => '', 'ai' => null]);
+    return;
 }
+$type = is_string($_GET['type'] ?? null) ? (string) $_GET['type'] : '';
+if (!array_key_exists($type, SiteSearch::TYPES)) $type = '';
 
-$results = SiteSearch::query($q, 12, (string) ($_GET['type'] ?? ''));
+$results = SiteSearch::query($q, 12, $type);
+/* Nothing found: offer the nearest spelling the site actually uses. */
+$suggest = $results ? '' : SiteSearch::suggest($q);
 
 /* ── Optional AI answer, grounded on the live site knowledge. ────────────── */
 $ai = null;
@@ -57,4 +62,4 @@ if ((string) ($_GET['ai'] ?? '') === '1' && class_exists('AvBot')) {
     }
 }
 
-echo json_encode(['ok' => true, 'q' => $q, 'results' => $results, 'ai' => $ai], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+echo json_encode(['ok' => true, 'q' => $q, 'results' => $results, 'suggest' => $suggest, 'ai' => $ai], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE);

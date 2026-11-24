@@ -243,7 +243,10 @@ body.avle{margin:0;background:var(--av-white);color:var(--av-ink);font-family:va
   .avle-pass input,.avle-notes textarea,.avle-coach-form textarea{font-size:1rem}
   .avle-mod-h,.avle-item{min-height:44px}
 }
-@media (max-width:379px){
+/* Phones: the header also holds the search; the word "Academy" and the n/6
+   count step aside (the count is still read out: data-avle-count-sr). */
+@media (max-width:479px){
+  .avle-ring-n{display:none}
   .avle-brand span:last-child{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 }
 .no-js [data-avle-coach-toggle],.no-js [data-avle-notes-toggle],.no-js [data-avle-side-toggle],.no-js [data-avle-share],.no-js [data-avle-complete]{display:none}

@@ -17,6 +17,7 @@
  */
 declare(strict_types=1);
 if (!class_exists('A11y', false)) require_once __DIR__ . '/../lib/A11y.php';
+if (!class_exists('SiteSearch', false)) require_once __DIR__ . '/../lib/SiteSearch.php';
 
 /**
  * Nav + backdrop + drawer. $current is the path of the page being drawn: its
@@ -37,7 +38,7 @@ function avh_nav(string $current = ''): void
         <button type="button" class="avh-navbtn" data-avh-menu="projects" aria-expanded="false" aria-controls="avh-mega-projects">Projects<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
         <button type="button" class="avh-navbtn" data-avh-menu="involved" aria-expanded="false" aria-controls="avh-mega-involved">Get involved<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
         <button type="button" class="avh-navbtn" data-avh-menu="diary" aria-expanded="false" aria-controls="avh-mega-diary">Diary<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
-      <?= A11y::button() ?>
+      <?= SiteSearch::trigger() ?>
       <a class="avh-signin" href="/login" data-avh-close data-avh-guest data-avh-login>Sign in</a><a class="avh-signin avh-member" href="/portal/" data-avh-close>My portal</a>
       <div class="avh-acct" data-avh-acct>
         <button type="button" class="avh-acct-btn" data-avh-acct-btn data-avh-close aria-expanded="false" aria-controls="avh-acct-menu"><span class="avh-av" data-avh-me-initial aria-hidden="true">M</span><span data-avh-me-first>Member</span><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -54,7 +55,7 @@ function avh_nav(string $current = ''): void
       </div>
     </div>
     <div class="avh-narrow">
-      <?= A11y::button('av-a11y-btn--compact') ?>
+      <?= SiteSearch::trigger('icon') ?>
       <a class="avh-join" href="https://cacentre.afrovanguard.org.ng/volunteer" data-avh-guest>Join the Movement</a><a class="avh-join avh-member" href="/portal/">My portal</a>
       <a class="avh-acct-mini" href="/portal/" aria-label="Your portal"><span class="avh-av" data-avh-me-initial aria-hidden="true">M</span></a>
       <button type="button" class="avh-burger" data-avh-burger aria-label="Open menu" aria-expanded="false" aria-controls="avh-drawer"><span></span><span></span><span></span></button>

@@ -116,6 +116,12 @@ jobs:
           cd tests/a11y
           BASE=http://127.0.0.1:8000 TOKEN="$TOKEN" MEMBER_TOKEN="$MEMBER_TOKEN" node axe-ci.js
 
+      - name: Search palette and Accessibility launcher — keyboard, bottom clearance, tuck on scroll, never over a control
+        run: |
+          MEMBER_TOKEN="$(php tests/a11y/ci-session.php --member 2>/dev/null | tail -1)"
+          cd tests/a11y
+          BASE=http://127.0.0.1:8000 MEMBER_TOKEN="$MEMBER_TOKEN" node launchers-ci.js
+
       - name: Server log (on failure)
         if: failure()
         run: tail -n 200 "$RUNNER_TEMP/php-server.log" || true

@@ -86,7 +86,7 @@
     if (box) { box.hidden = false; focusFirst(); return; }
     var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
     box = document.createElement('section');
-    box.className = 'av-cc'; box.setAttribute('role', 'region'); box.setAttribute('aria-labelledby', 'av-cc-h');
+    box.className = 'av-cc'; box.setAttribute('data-bottom-ui', ''); box.setAttribute('role', 'region'); box.setAttribute('aria-labelledby', 'av-cc-h');
     box.innerHTML = '<h2 id="av-cc-h">Cookies</h2>'
       + '<p>We’d like to use Google Analytics to count visits and see which pages help people. It sets cookies. '
       + 'Nothing is sent until you allow it. The cookies the site needs to work are listed in our <a href="/privacy-policy/#cookies">privacy policy</a>.</p>'

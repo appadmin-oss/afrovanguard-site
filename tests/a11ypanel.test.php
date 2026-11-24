@@ -50,38 +50,60 @@ ck('a11y boot: its allow-list is the PHP one', str_contains(A11y::BOOT, '(t125|t
    && A11y::TEXT === [100, 125, 150, 175, 200] && A11y::FLAGS === ['spacing', 'font', 'links', 'focus', 'still', 'targets']);
 ck('a11y boot: it only writes a cookie value it has checked', str_contains(A11y::BOOT, "/^[a-z0-9.-]{1,80}$/.test(v)"));
 
-/* ── The panel on every kind of page ─────────────────────────────────── */
+/* ── The way in on every kind of page: a round button, the footer link, the shortcut ── */
 $chrome = avh_chrome_html();
-ck('a11y panel: the Home header has the control, at both widths, icon plus "Accessibility"',
-   substr_count($chrome['nav'], 'data-a11y-open>') === 2 && substr_count($chrome['nav'], '<span class="av-a11y-btn-t">Accessibility</span>') === 2 && str_contains($chrome['nav'], 'class="av-a11y-ico"'));
-ck('a11y panel: it sits in the same place on every page — before Sign in, and before the menu button', (bool) preg_match('~data-a11y-open>.*?</a>\s*<a class="avh-signin"~s', $chrome['nav'])
-   && (bool) preg_match('~<div class="avh-narrow">\s*<a class="av-a11y-btn av-a11y-btn--compact"~', $chrome['nav']));
-ck('a11y panel: without JavaScript the control is a link to the settings form', str_contains(A11y::button(), 'href="/accessibility/#settings"'));
-ck('a11y panel: the Home footer links to it', str_contains($chrome['foot'], '>Accessibility settings</a>'));
+ck('a11y fab: the header no longer carries an Accessibility pill (it is the round button now)', !str_contains($chrome['nav'], 'data-a11y-open') && !str_contains($chrome['nav'], 'av-a11y-btn'));
+ck('a11y fab: there is no header-button helper left to bring it back', !method_exists('A11y', 'button'));
+ck('a11y panel: the Home footer links to it', str_contains($chrome['foot'], '>Accessibility settings</a>') && str_contains(A11y::footerLink(), 'href="/accessibility/#settings"'));
 foreach (['index.html', 'about.html', 'contact.html', 'donate.html', 'projects/index.html', '404.html', '500.html'] as $f) {
     $h = (string) file_get_contents("$r/$f");
-    ck("a11y panel: $f has the boot script, the stylesheet and script, the header control and the footer link",
+    ck("a11y panel: $f has the boot script, the stylesheet and script, and the footer link (the script draws the button)",
        str_contains($h, A11y::BOOT) && (bool) preg_match('~/assets/site/a11y\.css\?v=~', $h) && (bool) preg_match('~/assets/site/a11y\.js\?v=~', $h)
-       && str_contains($h, 'data-a11y-open>') && str_contains($h, '>Accessibility settings</a>'));
+       && str_contains($h, '>Accessibility settings</a>') && !str_contains($h, 'av-a11y-btn'));
 }
 $acc = render_page(AV_ROOT . '/accessibility/index.php');
-ck('a11y panel: a main-site page (accessibility statement) renders it', str_contains($acc, 'a11y.js') && str_contains($acc, 'class="av-a11y-btn"') && str_contains($acc, '>Accessibility settings</a>'));
+ck('a11y panel: a main-site page (accessibility statement) loads it and has the footer link', str_contains($acc, 'a11y.js') && str_contains($acc, '>Accessibility settings</a>'));
 A11y::resetForTest();
 $cat = render_page(AV_ROOT . '/academy/index.php');
-ck('a11y panel: an Academy page renders it (head, header control, footer link)', str_contains($cat, 'a11y.js') && str_contains($cat, 'data-a11y-open>') && str_contains($cat, '>Accessibility settings</a>'));
+ck('a11y panel: an Academy page loads it (head, footer link)', str_contains($cat, 'a11y.js') && str_contains($cat, '>Accessibility settings</a>'));
 A11y::resetForTest();
 foreach (['academy/_avac.php' => 'avac_head', 'events/index.php' => '', 'ethos/index.php' => '', 'give/index.php' => '', 'how-it-works.php' => '', 'projects/_detail.php' => '', 'login/index.php' => '', 'constitution/index.php' => ''] as $f => $_)
     ck("a11y panel: $f loads it", str_contains((string) file_get_contents("$r/$f"), 'A11y::head()') || str_contains((string) file_get_contents("$r/$f"), 'render_head('));
 $portal = (string) file_get_contents("$r/portal/index.php");
-ck('a11y panel: the portal top bar has the control first, and its footer the link', (bool) preg_match('~<div class="avp-top-actions avn-top-actions">\s*<\?= A11y::button~', $portal) && str_contains($portal, 'A11y::footerLink()'));
+ck('a11y panel: the portal footer has the link', str_contains($portal, 'A11y::footerLink()'));
 ck('a11y panel: the portal is drawn with render_head (so the head and <html> classes)', str_contains($portal, "render_head([") && str_contains($portal, "'chrome'     => 'app'"));
-ck('a11y panel: the lesson player header has the control', str_contains((string) file_get_contents("$r/academy/learn.php"), "<div class=\"avle-top-r\">\n    <?= A11y::button("));
+ck('a11y fab: on the portal\'s wide screen it moves past the sidebar; its phone tab bar is a measured bottom bar',
+   str_contains((string) file_get_contents("$r/portal/avp.css"), '@media (min-width: 960px) { :root { --av-fab-left: calc(264px + 16px); } }')
+   && str_contains($portal, '<nav class="avp-tabs avn-tabs" aria-label="Primary" data-bottom-ui>'));
 
-/* The dialog, in script: native controls, focus in and back, Escape, the shortcut. */
+/* The button and the panel, in script. */
 $js = (string) file_get_contents("$r/assets/site/a11y.js");
+ck('a11y fab: a real button, named, saying it opens a dialog and its shortcut', str_contains($js, "el('button', { type: 'button', 'class': 'av-a11y-fab', 'data-a11y-open': '', 'aria-label': 'Accessibility settings', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', 'aria-controls': 'av-a11y', 'aria-keyshortcuts': 'Alt+Shift+A' }"));
+ck('a11y fab: its visible label is a tooltip that Escape dismisses (WCAG 1.4.13)', str_contains($js, '<span class="av-a11y-tip" aria-hidden="true">Accessibility settings') && str_contains($js, "if (e.key === 'Escape') fab.classList.add('is-quiet');"));
+/* Bottom clearance: one measured variable (assets/site/bottom-ui.js), after africa-gates' Gee. */
+$bu = (string) file_get_contents("$r/assets/site/bottom-ui.js");
+ck('bottom ui: the figure is the highest top edge of the visible bars, not the tallest height', str_contains($bu, "h = Math.max(h, Math.round(vh - r.top));") && !str_contains($bu, 'r.height)'));
+ck('bottom ui: visible means getClientRects(), never offsetParent (null for every fixed bar)', str_contains($bu, 'if (!el.getClientRects().length) continue;') && !preg_match('~offsetParent\s*[!=]==~', $bu));
+ck('bottom ui: mount, unmount, size and resize are all seen', str_contains($bu, "subtree: true, childList: true") && str_contains($bu, "attributeFilter: ['hidden', 'class', 'style', 'data-open', 'data-bottom-ui']") && str_contains($bu, 'new ResizeObserver(set)') && str_contains($bu, "window.addEventListener('resize', set"));
+ck('bottom ui: it writes only when the figure changes (its own write would re-trigger it)', str_contains($bu, "if (v === last) return;") && str_contains($bu, "document.body.style.setProperty('--av-bottom-ui', v);"));
+ck('bottom ui: every page loads it, before the panel', (bool) preg_match('~bottom-ui\.js[^\n]*\n[^\n]*a11y\.css~', A11y::head() . '') || str_contains((string) file_get_contents("$r/lib/A11y.php"), "av_asset('/assets/site/bottom-ui.js')"));
+foreach (['assets/site/ga.js' => "box.setAttribute('data-bottom-ui', '')", 'portal/index.php' => 'class="avp-tabs avn-tabs" aria-label="Primary" data-bottom-ui', 'mentorship/mentor/views/_tabbar.php' => '<nav class="avm-tabbar" aria-label="Sections" data-bottom-ui>', 'academy/learn.php' => '<div class="avle-bar-wrap" data-bottom-ui>', 'give/appeal.php' => '<div class="give-sticky" data-bottom-ui>'] as $f => $needle)
+    ck("bottom ui: $f marks its bottom bar", str_contains((string) file_get_contents("$r/$f"), $needle));
+foreach (['index.html', 'about.html', '404.html'] as $f) ck("bottom ui: $f loads it", (bool) preg_match('~/assets/site/bottom-ui\.js\?v=[0-9a-f]{10}" defer~', (string) file_get_contents("$r/$f")));
+ck('bottom ui: Chioma\'s launcher clears the same bars, so the two corners never collide', str_contains((string) file_get_contents("$r/assets/site/chioma.css"), 'bottom: calc(var(--av-bottom-ui, 0px) + 16px + env(safe-area-inset-bottom));'));
+/* Tuck on scroll, and never over a control. */
+ck('a11y fab: reading down past 80px tucks it; scrolling up brings it back', str_contains($js, 'reading = dy > 0 && y > 80;') && str_contains($js, "if ((reading || blocked) && document.activeElement !== fab) fab.setAttribute('data-tuck', '');"));
+ck('a11y fab: from 600px it returns ~900ms after scrolling stops; on a phone it waits for a scroll up', str_contains($js, "if (!(phone && phone.matches && y > 80)) reading = false;") && str_contains($js, '}, 900);') && str_contains($js, "window.matchMedia('(max-width: 599px)')"));
+ck('a11y fab: never tucked while it has focus', str_contains($js, "fab.addEventListener('focus', function () { fab.removeAttribute('data-tuck'); });"));
+ck('a11y fab: nine points of its resting box, any control under one keeps it tucked (ignoring itself and the panel)',
+   str_contains($js, 'var xs = [x + 3, x + w / 2, x + w - 3], ys = [y + 3, y + h / 2, y + h - 3];') && str_contains($js, 'document.elementsFromPoint(xs[i], ys[j])')
+   && str_contains($js, "var CONTROL = 'a[href], button, input, select, textarea, summary, label, [role=\"button\"], [role=\"link\"], [tabindex]:not([tabindex=\"-1\"])';")
+   && str_contains($js, "if (e === fab || fab.contains(e) || (dlg && dlg.contains(e))) continue;"));
+ck('a11y fab: it looks on load, resize, the load event and again at 1.6s', str_contains($js, "window.addEventListener('load', look)") && str_contains($js, 'setTimeout(look, 1600);') && str_contains($js, 'requestAnimationFrame(look)'));
+ck('a11y sheet: on a phone it follows the visual viewport', str_contains($js, "dlg.style.setProperty('--av-vv-h', Math.round(vv.height) + 'px');") && str_contains($js, "vv.addEventListener('resize', fit)"));
 ck('a11y dialog: a native <dialog> opened modal, labelled and described', str_contains($js, "el('dialog'") && str_contains($js, 'showModal()') && str_contains($js, "'aria-labelledby': 'av-a11y-h'") && str_contains($js, "'aria-describedby': 'av-a11y-d'"));
-ck('a11y dialog: radios and checkboxes only', str_contains($js, 'type="radio" name="av-a11y-text"') && str_contains($js, 'type="radio" name="av-a11y-hc"') && str_contains($js, 'type="checkbox" name="av-a11y-'));
-ck('a11y dialog: focus is kept inside and goes back to the opener', str_contains($js, "if (e.key !== 'Tab') return;") && str_contains($js, "dlg.addEventListener('close', restore)") && str_contains($js, 'o.focus()'));
+ck('a11y dialog: native radios for size and contrast (a segmented control), checkboxes with role="switch"', str_contains($js, 'type="radio" name="av-a11y-text"') && str_contains($js, 'type="radio" name="av-a11y-hc"') && str_contains($js, '<input type="checkbox" role="switch" name="av-a11y-') && str_contains($js, 'class="av-a11y-seg"'));
+ck('a11y dialog: focus is kept inside and goes back to the opener', str_contains($js, "if (e.key !== 'Tab') return;") && str_contains($js, "dlg.addEventListener('close', restore)") && str_contains($js, 'o.focus({ preventScroll: true })'));
 ck('a11y dialog: Alt+Shift+A opens it (e.code for a Mac\'s Option key)', str_contains($js, "e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && (e.code === 'KeyA'"));
 ck('a11y dialog: Alt+Shift+A clashes with no other shortcut on the site', (function () use ($r): bool {
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($r, FilesystemIterator::SKIP_DOTS)) as $f) {
@@ -91,9 +113,10 @@ ck('a11y dialog: Alt+Shift+A clashes with no other shortcut on the site', (funct
     }
     return true;
 })());
-ck('a11y dialog: it says what it is, plainly, and claims nothing more', str_contains($js, 'These change how this site looks for you. Your own device’s settings, screen reader and magnifier work here too.')
+ck('a11y dialog: it says what it is, plainly, and claims nothing more', str_contains($js, 'These change how this site looks for you. Your device’s own settings, screen reader and magnifier keep working.')
    && !preg_match('~complian|ADA|certif|fully accessible~i', $js . file_get_contents("$r/assets/site/a11y.css")));
-ck('a11y dialog: the shortcut is announced in the panel', str_contains($js, "<kbd>' + (mac ? 'Option' : 'Alt') + '</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>"));
+ck('a11y dialog: the shortcut is announced in the panel', str_contains($js, "<kbd>' + ALT + '</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>"));
+ck('a11y dialog: a quiet reset and the statement', str_contains($js, 'data-a11y-reset>Reset to standard</button>') && str_contains($js, 'href="/accessibility/">Accessibility statement</a>'));
 $css = (string) file_get_contents("$r/assets/site/a11y.css");
 ck('a11y css: text sizes scale rem from <html>', str_contains($css, 'html.a11y-t200{font-size:200%!important}') && str_contains($css, 'html.a11y-t125{font-size:125%!important}'));
 ck('a11y css: comfortable spacing is the WCAG 1.4.12 values', str_contains($css, 'line-height:1.5!important;letter-spacing:.12em!important;word-spacing:.16em!important') && str_contains($css, 'margin-bottom:2em!important'));
@@ -101,7 +124,27 @@ ck('a11y css: high contrast has light and dark and follows the device', str_cont
 ck('a11y css: the font is self-hosted (font-src \'self\'), OFL licence alongside', str_contains($css, "src:url(fonts/AtkinsonHyperlegible-400.woff2)") && is_file("$r/assets/site/fonts/AtkinsonHyperlegible-400.woff2")
    && is_file("$r/assets/site/fonts/AtkinsonHyperlegible-700.woff2") && str_contains((string) file_get_contents("$r/assets/site/fonts/licenses/atkinson-hyperlegible-OFL.txt"), 'SIL Open Font License'));
 ck('a11y css: bigger targets are 44px; still stops animation and the ticker', str_contains($css, 'min-height:44px!important') && str_contains($css, 'html.a11y-still .avh-tick-track{animation:none!important}'));
-ck('a11y assets: small', filesize("$r/assets/site/a11y.js") < 20000 && filesize("$r/assets/site/a11y.css") < 22000 && filesize("$r/assets/site/listen.js") < 10000);
+ck('a11y css: bottom left in logical properties, clear of the measured bottom bars and the safe area; out of print',
+   str_contains($css, '.av-a11y-fab{position:fixed;inset-inline-start:var(--av-fab-left,max(16px,env(safe-area-inset-left)));bottom:calc(var(--av-bottom-ui,0px) + 16px + env(safe-area-inset-bottom));')
+   && str_contains($css, '@media print{.av-a11y-fab,') && !str_contains($css, 'left:var(--av-fab'));
+ck('a11y css: tucked off the edge and faded (not display:none), mirrored for right-to-left, back on focus, no slide with reduced motion',
+   str_contains($css, '.av-a11y-fab[data-tuck]{transform:translateX(calc(-100% - 24px));opacity:0;pointer-events:none}') && str_contains($css, '[dir="rtl"] .av-a11y-fab[data-tuck]{transform:translateX(calc(100% + 24px))}')
+   && str_contains($css, '.av-a11y-fab[data-tuck]:focus-visible{transform:none;opacity:1;pointer-events:auto}') && str_contains($css, '@media (prefers-reduced-motion:reduce){.av-a11y-fab{transition:none}.av-a11y-fab[data-tuck]{transform:none}}'));
+ck('a11y css: a phone gets a 44px tab flush with the edge, and it waits while the cookie notice asks',
+   str_contains($css, '@media (max-width:599px){') && str_contains($css, '.av-a11y-fab{inset-inline-start:0;width:44px;height:44px;') && str_contains($css, 'border-radius:0 999px 999px 0') && str_contains($css, 'body:has(.av-cc:not([hidden])) .av-a11y-fab{display:none}'));
+ck('a11y css: the launcher is not drawn while its panel is open', str_contains($css, 'html:has(#av-a11y[open]) .av-a11y-fab{display:none}'));
+ck('a11y css: the button is at least 44px; focus scrolled into view stops above it (WCAG 2.4.11)', str_contains($css, '--av-fab:48px') && str_contains($css, 'html{scroll-padding-bottom:80px}'));
+ck('CI: the launcher and palette are driven by keyboard in Chromium (tests/a11y/launchers-ci.js)', is_file("$r/tests/a11y/launchers-ci.js")
+   && str_contains((string) file_get_contents("$r/.github/workflows/ci.yml"), 'node launchers-ci.js')
+   && str_contains((string) file_get_contents("$r/tests/a11y/launchers-ci.js"), "a button under the resting spot keeps it tucked")
+   && str_contains((string) file_get_contents("$r/tests/a11y/launchers-ci.js"), "on a phone the tab waits while the notice asks")
+   && str_contains((string) file_get_contents("$r/tests/a11y/launchers-ci.js"), "the tab bar is measured"));
+ck('bottom ui: on a phone Chioma uses the same figure, and waits while the cookie notice asks', str_contains((string) file_get_contents("$r/assets/site/chioma.css"), '.chioma-root { right: 12px; bottom: calc(var(--av-bottom-ui, 0px) + 12px + env(safe-area-inset-bottom)); }')
+   && str_contains((string) file_get_contents("$r/assets/site/chioma.css"), 'body:has(.av-cc:not([hidden])) .chioma-root:not(.is-open) { display: none; }'));
+ck('a11y fab: on a phone Chioma\'s nudge sits above its own launcher, clear of the bottom-left button',
+   str_contains((string) file_get_contents("$r/assets/site/chioma.css"), "@media (max-width: 479px) {\n  .chioma-greet { right: 0; bottom: 70px;"));
+ck('a11y css: the panel opens in the launcher\'s corner, and as a bottom sheet over the visual viewport on a phone', str_contains($css, 'position:fixed;inset:auto;inset-inline-start:var(--av-fab-left,max(16px,env(safe-area-inset-left)));bottom:calc(var(--av-bottom-ui,0px) + 16px + env(safe-area-inset-bottom));') && str_contains($css, '.av-a11y{inset:auto 0 var(--av-vv-b,0px) 0;') && str_contains($css, 'border-radius:18px 18px 0 0'));
+ck('a11y assets: small', filesize("$r/assets/site/a11y.js") < 26000 && filesize("$r/assets/site/a11y.css") < 32000 && filesize("$r/assets/site/bottom-ui.js") < 5000 && filesize("$r/assets/site/listen.js") < 10000);
 
 /* No-JS settings form on the statement, and the account store. */
 ck('a11y statement: the settings form is there, with a token', str_contains($acc, 'id="settings"') && str_contains($acc, '<form class="a11y-form" method="post"') && (bool) preg_match('~name="csrf" value="[0-9]+\.[0-9a-f]+\.~', $acc));

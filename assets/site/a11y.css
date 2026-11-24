@@ -15,6 +15,9 @@
  *   a11y-still              no animation, transitions or moving content
  *   a11y-targets            controls at least 44 × 44px
  *
+ * The panel opens from a round button fixed at the bottom left of every page
+ * (bottom right is Chioma's), the footer link, or Alt+Shift+A.
+ *
  * They are a convenience on top of the pages, which are built to WCAG 2.2 AA
  * on their own; the visitor's device settings keep working underneath them.
  * ========================================================================= */
@@ -26,57 +29,135 @@
 @font-face{font-family:'Atkinson Hyperlegible';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/AtkinsonHyperlegible-400-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0300-036F,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 @font-face{font-family:'Atkinson Hyperlegible';font-style:normal;font-weight:700;font-display:swap;src:url(fonts/AtkinsonHyperlegible-700-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0300-036F,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 
-/* ── The header control ──────────────────────────────────────────────────── */
-.av-a11y-btn{display:inline-flex;align-items:center;gap:.4em;min-height:44px;padding:0 .7em;border:1px solid transparent;border-radius:8px;background:none;color:inherit;font:inherit;font-size:.9375rem;font-weight:500;line-height:1.2;text-decoration:none;cursor:pointer;white-space:nowrap}
-.av-a11y-btn:hover{background:rgba(17,24,39,.06);color:inherit}
-.av-a11y-btn:focus-visible{outline:3px solid currentColor;outline-offset:2px}
-.av-a11y-ico{width:1.25em;height:1.25em;flex-shrink:0}
-.avh .av-a11y-btn{color:var(--av-nav-text,#1f2937)}
-.avh-wide .av-a11y-btn{margin-right:2px}
-/* Compact: phones and the app bars keep the word for anyone who can see it
-   and for voice control ("click Accessibility"), at a smaller size. */
-.av-a11y-btn--compact{padding:0 .55em;font-size:.875rem}
-@media (max-width:420px){.av-a11y-btn--compact .av-a11y-btn-t{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}.av-a11y-btn--compact{min-width:44px;justify-content:center;padding:0}}
-.avle-top-r .av-a11y-btn{color:inherit}
-body.avp .avn-top-actions .av-a11y-btn{color:var(--avn-ink,inherit)}
-/* A page drawn without the shared header gets the control from a11y.js. */
-.av-a11y-float{position:fixed;top:8px;right:8px;z-index:60;background:#fff;color:#111827;border-color:#6b7280;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+/* ── The way in: bottom left (bottom right is Chioma's) ──────────────────── */
+/* CLEARANCE IS ONE MEASURED VARIABLE. --av-bottom-ui is set on <body> by
+   bottom-ui.js from every [data-bottom-ui] bar on screen (the portal's tab bar,
+   the cookie notice, a lesson's or an appeal's bar); Chioma's launcher reads
+   the same one, so the two corners never collide and nothing here is typed.
+   Pixels, not rem: the text-size setting must not push it around. Logical
+   properties, so a right-to-left page mirrors it. */
+:root{--av-fab:48px}
+/* Keyboard focus scrolled into view stops above it (WCAG 2.4.11). */
+html{scroll-padding-bottom:80px}
+.av-a11y-fab{position:fixed;inset-inline-start:var(--av-fab-left,max(16px,env(safe-area-inset-left)));bottom:calc(var(--av-bottom-ui,0px) + 16px + env(safe-area-inset-bottom));
+  z-index:2147482990;display:grid;place-items:center;width:var(--av-fab);height:var(--av-fab);padding:0;
+  border:1px solid var(--av-line-2,#D6D3CC);border-radius:50%;background:var(--av-white,#fff);color:var(--av-ink,#111827);cursor:pointer;
+  box-shadow:0 6px 20px -6px rgba(17,24,39,.28),0 1px 3px rgba(17,24,39,.08);
+  transition:transform .2s ease,opacity .2s ease,box-shadow .15s ease,border-color .15s ease,bottom .2s ease;
+  font:600 14px/1.2 var(--av-sans,"Source Sans 3",system-ui,sans-serif);-webkit-tap-highlight-color:transparent}
+.av-a11y-fab .av-a11y-ico{width:24px;height:24px}
+.av-a11y-fab:hover{border-color:var(--av-ink,#111827);box-shadow:0 10px 24px -8px rgba(17,24,39,.35),0 1px 3px rgba(17,24,39,.1)}
+.av-a11y-fab:focus-visible{outline:3px solid var(--av-focus,#2F6FDB);outline-offset:3px}
+/* TUCKED (a11y.js): while the reader scrolls down, and while a control lies
+   under its resting spot. Off the edge and faded, not display:none, so it
+   slides back rather than popping and stays in the tab order; keyboard focus
+   brings it straight back (WCAG 2.4.7). */
+.av-a11y-fab[data-tuck]{transform:translateX(calc(-100% - 24px));opacity:0;pointer-events:none}
+[dir="rtl"] .av-a11y-fab[data-tuck]{transform:translateX(calc(100% + 24px))}
+.av-a11y-fab[data-tuck]:focus-visible{transform:none;opacity:1;pointer-events:auto}
+/* No slide where motion is unwelcome: it simply goes and comes back. */
+@media (prefers-reduced-motion:reduce){.av-a11y-fab{transition:none}.av-a11y-fab[data-tuck]{transform:none}}
+html.a11y-still .av-a11y-fab[data-tuck]{transform:none}
+/* While its own panel is open the launcher is not drawn; it is drawn again the
+   moment the panel closes, so the focus handed back has somewhere to land. */
+html:has(#av-a11y[open]) .av-a11y-fab{display:none}
+/* A quiet dot when any setting is on, so the visitor knows where it came from. */
+.av-a11y-fab.is-on::after{content:"";position:absolute;top:2px;inset-inline-end:2px;width:10px;height:10px;border-radius:50%;background:var(--av-gold,#F3B416);box-shadow:0 0 0 2px var(--av-white,#fff)}
+/* The tooltip: on hover and on keyboard focus, beside the button; Escape hides it. */
+.av-a11y-tip{position:absolute;inset-inline-start:calc(100% + 10px);top:50%;transform:translate(-4px,-50%);display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;
+  background:var(--av-ink,#111827);color:var(--av-white,#fff);font-size:13px;font-weight:600;white-space:nowrap;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .12s,transform .12s,visibility 0s linear .12s}
+.av-a11y-tip-k{padding:2px 5px;border-radius:4px;background:rgba(255,255,255,.14);color:var(--av-on-ink-strong,#E5E7EB);font-size:11px;font-weight:600;letter-spacing:.02em}
+.av-a11y-fab:is(:hover,:focus-visible):not(.is-quiet):not([data-tuck]:not(:focus-visible)) .av-a11y-tip{opacity:1;visibility:visible;transform:translate(0,-50%);transition:opacity .12s,transform .12s}
+@media (hover:none){.av-a11y-fab:hover:not(:focus-visible) .av-a11y-tip{opacity:0;visibility:hidden}}
+@media (prefers-reduced-motion:reduce){.av-a11y-tip{transition:none}}
+/* A phone: a tab against the screen's edge, not a round button over the page.
+   44 by 44 (the hit box), half a pill, sitting mostly in the page margin. */
+@media (max-width:599px){
+  .av-a11y-fab{inset-inline-start:0;width:44px;height:44px;padding-inline-end:4px;border-inline-start:0;border-radius:0 999px 999px 0;box-shadow:0 4px 14px -4px rgba(17,24,39,.3)}
+  [dir="rtl"] .av-a11y-fab{padding-inline:4px 0;border-radius:999px 0 0 999px}
+  .av-a11y-fab .av-a11y-ico{width:22px;height:22px}
+  .av-a11y-fab.is-on::after{top:3px;inset-inline-end:5px;width:8px;height:8px}
+  /* One question at a time: while the cookie notice asks, the tab waits. */
+  body:has(.av-cc:not([hidden])) .av-a11y-fab{display:none}
+}
 
-/* ── The dialog ──────────────────────────────────────────────────────────── */
-.av-a11y{--a-bg:#fff;--a-ink:#111827;--a-mute:#4b5563;--a-line:#6b7280;--a-acc:#1d4ed8;--a-soft:#f3f4f6;
-  width:min(36rem,calc(100vw - 2rem));max-height:calc(100dvh - 2rem);margin:auto;padding:0;border:2px solid var(--a-ink);border-radius:14px;background:var(--a-bg);color:var(--a-ink);
-  font-family:system-ui,-apple-system,'Segoe UI',Roboto,Verdana,sans-serif;font-size:1rem;line-height:1.5;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:auto;overscroll-behavior:contain}
-.av-a11y::backdrop{background:rgba(17,24,39,.55)}
-.av-a11y *{box-sizing:border-box}
-.av-a11y-in{padding:1.1rem 1.25rem 1.25rem}
-.av-a11y-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:.35rem}
-.av-a11y h2{margin:0;font-family:inherit;font-size:1.375rem;font-weight:700;line-height:1.25;color:inherit}
-.av-a11y-x{flex-shrink:0;width:44px;height:44px;margin:-.4rem -.5rem 0 0;display:grid;place-items:center;border:1px solid transparent;border-radius:8px;background:none;color:inherit;cursor:pointer}
-.av-a11y-x:hover{background:var(--a-soft)}
-.av-a11y-x svg{width:20px;height:20px}
-.av-a11y-lede{margin:0 0 1rem;color:var(--a-ink)}
-.av-a11y fieldset{margin:0 0 1rem;padding:0;border:0;min-width:0}
-.av-a11y legend{padding:0;margin:0 0 .4rem;font-weight:700;font-size:1rem}
-.av-a11y-seg{display:flex;flex-wrap:wrap;gap:.4rem}
-.av-a11y-seg label,.av-a11y-opt{position:relative;display:flex;align-items:center;gap:.6rem;min-height:44px;padding:.45rem .75rem;border:1px solid var(--a-line);border-radius:10px;background:var(--a-bg);cursor:pointer}
-.av-a11y-seg label{justify-content:center;min-width:4.25rem}
-.av-a11y-opts{display:grid;gap:.4rem}
-.av-a11y-opt{align-items:flex-start}
-.av-a11y-opt span{display:flex;flex-direction:column}
-.av-a11y-opt small{color:var(--a-mute);font-size:.875rem;line-height:1.35}
-.av-a11y input[type=radio],.av-a11y input[type=checkbox]{width:1.25rem;height:1.25rem;margin:.1rem 0 0;flex-shrink:0;accent-color:var(--a-acc)}
-.av-a11y-seg input{margin:0}
-.av-a11y label:has(input:checked){border-color:var(--a-acc);box-shadow:inset 0 0 0 1px var(--a-acc);background:#eff6ff}
-.av-a11y label:has(input:focus-visible){outline:3px solid var(--a-acc);outline-offset:2px}
-.av-a11y-note{margin:0 0 1rem;font-size:.9rem;color:var(--a-mute)}
-.av-a11y kbd{font:inherit;font-weight:700;padding:0 .3em;border:1px solid var(--a-line);border-radius:4px;background:var(--a-soft)}
-.av-a11y-ft{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:space-between;align-items:center}
-.av-a11y-ft button{min-height:44px;padding:.5rem 1.1rem;border-radius:10px;font:inherit;font-weight:600;cursor:pointer}
-.av-a11y-reset{border:1px solid var(--a-line);background:var(--a-bg);color:var(--a-ink)}
-.av-a11y-done{border:2px solid var(--a-ink);background:var(--a-ink);color:var(--a-bg)}
-.av-a11y-more{margin:1rem 0 0;font-size:.9rem}
-.av-a11y-more a{color:var(--a-acc);text-decoration:underline}
+/* ── The panel: a popover above the button; a bottom sheet on a phone ────── */
+.av-a11y{--a-bg:var(--av-white,#fff);--a-ink:var(--av-ink,#111827);--a-text:var(--av-text-2,#454A56);--a-mute:var(--av-muted,#5F636D);--a-line:var(--av-line,#E8E6E1);--a-line-2:var(--av-line-2,#D6D3CC);
+  --a-soft:var(--av-stone,#F5F3EF);--a-paper:var(--av-paper,#FAF9F6);--a-acc:var(--av-ink,#111827);--a-focus:var(--av-focus,#2F6FDB);
+  /* In the launcher's corner (the launcher steps aside while it is open). */
+  position:fixed;inset:auto;inset-inline-start:var(--av-fab-left,max(16px,env(safe-area-inset-left)));bottom:calc(var(--av-bottom-ui,0px) + 16px + env(safe-area-inset-bottom));margin:0;padding:0;
+  width:min(23.5rem,calc(100vw - 32px));max-height:calc(100dvh - var(--av-bottom-ui,0px) - 32px - env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain;
+  border:1px solid var(--a-line);border-radius:16px;background:var(--a-bg);color:var(--a-ink);
+  font:400 1rem/1.4 var(--av-sans,"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif);box-shadow:0 24px 60px -12px rgba(17,24,39,.3),0 2px 8px rgba(17,24,39,.06)}
+.av-a11y[open]{display:flex;flex-direction:column}
+.av-a11y::backdrop{background:rgba(17,24,39,.12)}
+@media (prefers-reduced-motion:no-preference){.av-a11y[open]{animation:av-a11y-in .16s ease-out;transform-origin:bottom left}}
+[dir="rtl"] .av-a11y[open]{transform-origin:bottom right}
+@keyframes av-a11y-in{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:none}}
+.av-a11y *,.av-a11y *::before,.av-a11y *::after{box-sizing:border-box}
+.av-a11y-hd{display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem .625rem 1.125rem}
+.av-a11y-badge{display:grid;place-items:center;width:2.25rem;height:2.25rem;flex-shrink:0;border-radius:10px;background:var(--a-ink);color:var(--a-bg)}
+.av-a11y-badge .av-a11y-ico{width:1.25rem;height:1.25rem}
+.av-a11y-hd-t{flex:1;min-width:0}
+.av-a11y h2{margin:0;font:700 1.0625rem/1.3 inherit;font-family:inherit;color:inherit;letter-spacing:0}
+.av-a11y-hd p{margin:.125rem 0 0;color:var(--a-mute);font-size:.8125rem;line-height:1.4}
+.av-a11y-x{display:grid;place-items:center;width:2.75rem;height:2.75rem;flex-shrink:0;margin:-.5rem -.5rem 0 0;padding:0;border:0;border-radius:10px;background:none;color:var(--a-mute);cursor:pointer}
+.av-a11y-x:hover{background:var(--a-soft);color:var(--a-ink)}
+.av-a11y-x svg{width:1.125rem;height:1.125rem}
+.av-a11y-body{padding:0 1.125rem}
+.av-a11y-f{margin:0 0 .75rem;padding:0;border:0;min-width:0}
+.av-a11y-f legend{float:left;width:100%;margin:0 0 .4375rem;padding:0;color:var(--a-ink);font-size:.8125rem;font-weight:700}
+.av-a11y-f legend+*{clear:both}
+/* Segmented control: native radios, drawn as one rounded track. */
+.av-a11y-seg{display:flex;gap:2px;padding:3px;border-radius:12px;background:var(--a-soft);border:1px solid var(--a-line)}
+.av-a11y-seg label{position:relative;flex:1 1 0;min-width:0;cursor:pointer}
+.av-a11y-seg input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.av-a11y-seg label>span{display:flex;align-items:center;justify-content:center;gap:.375rem;min-height:2.5rem;padding:0 .25rem;border-radius:9px;color:var(--a-text);font-size:.9375rem;font-weight:600;line-height:1.1;text-align:center;transition:background-color .12s,color .12s,box-shadow .12s}
+.av-a11y-seg small{font-size:.6875rem;font-weight:600;color:inherit;opacity:.7;margin-left:1px}
+.av-a11y-seg:not(.av-a11y-seg--hc) label>span{gap:0}
+.av-a11y-nw{white-space:nowrap}
+.av-a11y-seg label:hover>span{color:var(--a-ink);background:rgba(255,255,255,.6)}
+.av-a11y-seg input:checked+span{background:var(--a-bg);color:var(--a-ink);box-shadow:0 1px 3px rgba(17,24,39,.14),0 0 0 1px var(--a-line-2)}
+.av-a11y-seg input:focus-visible+span{outline:2px solid var(--a-focus);outline-offset:1px}
+.av-a11y-seg--hc label>span{font-size:.875rem}
+.av-a11y-sw{display:inline-block;width:.875rem;height:.875rem;flex-shrink:0;border-radius:50%;border:1px solid var(--a-line-2)}
+.av-a11y-sw--off{background:linear-gradient(135deg,var(--av-paper,#FAF9F6) 50%,var(--av-gold,#F3B416) 50%)}
+.av-a11y-sw--hc-auto{background:linear-gradient(135deg,#fff 50%,#000 50%);border-color:#000}
+.av-a11y-sw--hc-light{background:#fff;border:2px solid #000}
+.av-a11y-sw--hc-dark{background:#000;border:2px solid #000;box-shadow:inset 0 0 0 2px #ffeb3b}
+/* Switches: a tidy list, label and one-line hint on the left. */
+.av-a11y-list{margin:0;padding:0;list-style:none;border-top:1px solid var(--a-line)}
+.av-a11y-list li{margin:0;padding:0;border-bottom:1px solid var(--a-line)}
+.av-a11y-list li:last-child{border-bottom:0}
+.av-a11y-row{display:flex;align-items:center;gap:.75rem;min-height:3rem;padding:.375rem 0;cursor:pointer}
+.av-a11y-row-t{display:flex;flex-direction:column;flex:1;min-width:0;color:var(--a-ink);font-size:.9375rem;font-weight:600;line-height:1.3}
+.av-a11y-row-t small{margin-top:.0625rem;color:var(--a-mute);font-size:.8125rem;font-weight:400;line-height:1.35}
+.av-a11y input[role="switch"]{-webkit-appearance:none;appearance:none;position:relative;flex-shrink:0;width:2.5rem;height:1.5rem;margin:0;border:0;border-radius:999px;background:var(--av-line-3,#B9B5AC);cursor:pointer;transition:background-color .15s}
+.av-a11y input[role="switch"]::before{content:"";position:absolute;top:3px;left:3px;width:calc(1.5rem - 6px);height:calc(1.5rem - 6px);border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(17,24,39,.3);transition:transform .15s}
+.av-a11y input[role="switch"]:checked{background:var(--a-acc)}
+.av-a11y input[role="switch"]:checked::before{transform:translateX(1rem)}
+.av-a11y input[role="switch"]:focus-visible{outline:2px solid var(--a-focus);outline-offset:3px}
+.av-a11y-row:hover input[role="switch"]:not(:checked){background:var(--a-mute)}
+.av-a11y-ft{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-top:.25rem;padding:.25rem 1.125rem 0}
+.av-a11y-reset{min-height:2.75rem;padding:0 .25rem;margin-left:-.25rem;border:0;background:none;color:var(--a-text);font:inherit;font-size:.875rem;font-weight:600;text-decoration:underline;text-decoration-color:var(--a-line-2);text-underline-offset:3px;cursor:pointer}
+.av-a11y-reset:hover{color:var(--a-ink);text-decoration-color:currentColor}
+.av-a11y-more{display:inline-flex;align-items:center;min-height:2.75rem;color:var(--a-ink);font-size:.875rem;font-weight:600;text-decoration:underline;text-decoration-color:var(--av-gold,#F3B416);text-decoration-thickness:2px;text-underline-offset:3px}
+.av-a11y-note{margin:0;padding:.125rem 1.125rem 1rem;color:var(--a-mute);font-size:.75rem;line-height:1.45}
+.av-a11y kbd{font:inherit;font-size:.6875rem;font-weight:700;padding:.0625rem .3125rem;border:1px solid var(--a-line-2);border-radius:4px;background:var(--a-paper);color:var(--a-text)}
+.av-a11y :focus-visible{outline:2px solid var(--a-focus);outline-offset:2px}
 .av-a11y-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+/* A phone: a bottom sheet. It follows the VISUAL viewport (a11y.js writes
+   --av-vv-b and --av-vv-h while it is open), so an on-screen keyboard or a
+   browser's bottom toolbar never covers it; without a script, the layout
+   viewport. */
+@media (max-width:599px){
+  .av-a11y{inset:auto 0 var(--av-vv-b,0px) 0;width:100%;max-width:100%;max-height:calc(var(--av-vv-h,100dvh) - 24px);border-width:1px 0 0;border-radius:18px 18px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+  .av-a11y::before{content:"";align-self:center;flex-shrink:0;width:36px;height:4px;margin-top:8px;border-radius:2px;background:var(--a-line-2)}
+  .av-a11y::backdrop{background:rgba(17,24,39,.4)}
+  .av-a11y-hd{padding-top:.625rem}
+  @media (prefers-reduced-motion:no-preference){.av-a11y[open]{animation:av-a11y-up .2s ease-out}}
+}
+@keyframes av-a11y-up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
 
 /* ── Text size ───────────────────────────────────────────────────────────── */
 html.a11y-t125{font-size:125%!important}
@@ -117,6 +198,8 @@ html:is(.a11y-t175,.a11y-t200) .avh-brand span{font-size:1.25rem}
 html.a11y-spacing body,html.a11y-spacing body *:not(svg):not(svg *){line-height:1.5!important;letter-spacing:.12em!important;word-spacing:.16em!important}
 html.a11y-spacing body :is(p,li,dd,blockquote){margin-bottom:2em!important}
 html.a11y-spacing body :is(li p,td p,th p){margin-bottom:.75em!important}
+/* The panel's own rows are a list of controls, not reading text. */
+html.a11y-spacing .av-a11y :is(li,p){margin-bottom:0!important}
 
 /* ── Easy-to-read font ───────────────────────────────────────────────────── */
 html.a11y-font body,html.a11y-font body *:not(svg):not(svg *):not(code):not(pre):not(kbd):not(samp):not(.cmdk-mod){font-family:'Atkinson Hyperlegible',Verdana,Tahoma,'Segoe UI',sans-serif!important;font-style:normal}
@@ -161,16 +244,25 @@ html.a11y-hc body :is(button,[role="button"],[class*="burger"],[class*="-x"]) > 
 html.a11y-hc body hr{border-color:var(--hc-fg)!important;background-color:var(--hc-fg)!important}
 html.a11y-hc body a[href],html.a11y-hc body a[href] *{color:var(--hc-link)!important}
 html.a11y-hc body a[href]{text-decoration-line:underline!important}
-html.a11y-hc body :is(button,[role="button"],input,select,textarea,summary,.av-a11y-seg label,.av-a11y-opt){border:2px solid var(--hc-fg)!important}
+html.a11y-hc body :is(button,[role="button"],input:not([role="switch"]),select,textarea,summary){border:2px solid var(--hc-fg)!important}
 html.a11y-hc body ::placeholder{color:var(--hc-mute)!important;opacity:1!important}
 html.a11y-hc body svg:not([fill]) :is(path,circle,rect,line,polyline,polygon,ellipse)[stroke]:not([stroke="none"]){stroke:currentColor!important}
 html.a11y-hc body :is([aria-current]:not([aria-current="false"]),[aria-selected="true"],.is-active){outline:3px solid var(--hc-fg)!important;outline-offset:-3px;text-decoration-line:underline!important;text-decoration-thickness:3px!important}
 html.a11y-hc body :is([aria-pressed="true"],[aria-checked="true"]){outline:3px solid var(--hc-fg)!important;outline-offset:2px}
 html.a11y-hc body :disabled{border-style:dashed!important}
 html.a11y-hc body ::selection{background:var(--hc-fg);color:var(--hc-bg)}
-html.a11y-hc .av-a11y{--a-bg:var(--hc-bg);--a-ink:var(--hc-fg);--a-mute:var(--hc-fg);--a-line:var(--hc-fg);--a-acc:var(--hc-fg);--a-soft:var(--hc-bg)}
-html.a11y-hc .av-a11y label:has(input:checked){outline:3px solid var(--hc-fg)!important;outline-offset:-5px}
-html.a11y-hc .av-a11y-done{background-color:var(--hc-fg)!important;color:var(--hc-bg)!important}
+html.a11y-hc .av-a11y{--a-bg:var(--hc-bg);--a-ink:var(--hc-fg);--a-text:var(--hc-fg);--a-mute:var(--hc-fg);--a-line:var(--hc-fg);--a-line-2:var(--hc-fg);--a-acc:var(--hc-fg);--a-soft:var(--hc-bg);--a-paper:var(--hc-bg);border:2px solid var(--hc-fg)!important}
+html.a11y-hc .av-a11y-seg input:checked+span{outline:3px solid var(--hc-fg)!important;outline-offset:-3px;text-decoration:underline!important;text-decoration-thickness:2px!important}
+html.a11y-hc .av-a11y input[role="switch"]{border:2px solid var(--hc-fg)!important;background-color:var(--hc-bg)!important}
+html.a11y-hc .av-a11y input[role="switch"]::before{background-color:var(--hc-fg)!important;top:1px;left:1px}
+html.a11y-hc .av-a11y input[role="switch"]:checked{background-color:var(--hc-fg)!important}
+html.a11y-hc .av-a11y input[role="switch"]:checked::before{background-color:var(--hc-bg)!important}
+html.a11y-hc .av-a11y-badge{background-color:var(--hc-fg)!important;color:var(--hc-bg)!important}
+html.a11y-hc .av-a11y-badge svg *{stroke:currentColor!important}
+html.a11y-hc .av-a11y-fab{border:2px solid var(--hc-fg)!important}
+html.a11y-hc .av-a11y-fab[aria-expanded="true"]{background-color:var(--hc-fg)!important;color:var(--hc-bg)!important}
+html.a11y-hc .av-a11y-tip{border:2px solid var(--hc-fg)!important}
+html.a11y-hc .av-a11y-sw{border:2px solid var(--hc-fg)!important}
 html.a11y-hc .av-listen-on{outline:3px solid var(--hc-fg)!important;outline-offset:4px}
 
 /* ── Listen (assets/site/listen.js) ──────────────────────────────────────── */
@@ -195,4 +287,4 @@ html.a11y-hc .av-listen-on{background-color:var(--hc-bg)!important;color:var(--h
 .a11y-form-btn--line{background:transparent;color:#111827}
 .a11y-form-btn:focus-visible{outline:3px solid #1d4ed8;outline-offset:2px}
 
-@media print{.av-a11y-btn,.av-listen,.av-a11y{display:none!important}}
+@media print{.av-a11y-fab,.av-listen,.av-a11y{display:none!important}}

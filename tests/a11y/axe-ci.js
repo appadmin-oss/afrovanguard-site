@@ -42,6 +42,9 @@ const MEMBER_TOKEN = process.env.MEMBER_TOKEN || '';
 const PORTAL_VIEWS = 'overview attendance bills chat community diary fines inventory learning membership mentorship ngv quest reading requests tasks tools volunteer wallet wifi'.split(' ');
 const MEMBER = ['/constitution/'].concat(PORTAL_VIEWS.map(v => '/portal/#' + v));
 const SETTINGS = ['t200.spacing.hc-light', 't200.spacing.hc-dark'];
+/* Open states: the search palette (empty, then with results) and the
+   Accessibility panel, on a page of each chrome. */
+const PALETTE = ['/', '/academy/', '/search.php?q=tech'];
 const LEARNER = [
   '/academy/my', '/academy/techome/learn/welcome-to-techome',
   '/academy/techome/learn/check-your-understanding',
@@ -90,6 +93,34 @@ const LEARNER = [
       for (const v of res) bad.push(`${v.id} (${v.impact}, ${v.count}×): ${v.help} — ${v.nodes.join(' | ')}\n      ${v.url}`);
       if (size === '320px' && overflow > 1) bad.push(`reflow: the page is ${overflow}px wider than a 320px screen (WCAG 1.4.10)`);
       if (bad.length) { failures.push(...bad.map(b => `${label} ${p}: ${b}`)); report.push(`✗ ${label} ${p}\n    ` + bad.join('\n    ')); }
+      else report.push(`✓ ${label} ${p}`);
+      await pg.close();
+    }
+    await ctx.close();
+  }
+  /* The palette and the panel, open, at both widths. */
+  for (const [w, h, size] of [[1280, 800, 'desktop'], [320, 640, '320px']]) {
+    const ctx = await browser.newContext({ viewport: { width: w, height: h }, reducedMotion: 'reduce' });
+    await ctx.addCookies([{ name: 'av_consent', value: 'analytics%3D0', url: BASE }]);
+    for (const p of PALETTE) for (const state of ['palette empty', 'palette results', 'panel']) {
+      const label = `${size} [${state}]`;
+      const pg = await ctx.newPage();
+      await pg.goto(BASE + p, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {});
+      await pg.addStyleTag({ content: '*,*::before,*::after{animation-duration:0s!important;animation-delay:0s!important;transition-duration:0s!important;transition-delay:0s!important}' });
+      await pg.evaluate(() => document.querySelectorAll('.avcel-layer').forEach(e => e.remove()));
+      /* By its shortcut: the launcher may rightly be tucked (a control under its spot). */
+      if (state === 'panel') { await pg.keyboard.press('Alt+Shift+A'); }
+      else {
+        await pg.keyboard.press('Control+k');
+        if (state === 'palette results') { await pg.keyboard.type('tech'); await pg.waitForResponse(r => r.url().includes('/search.php?format=json'), { timeout: 10000 }).catch(() => {}); await pg.waitForTimeout(300); }
+      }
+      await pg.waitForTimeout(250);
+      const opened = await pg.evaluate(s => !!document.querySelector(s === 'panel' ? '#av-a11y[open]' : '#av-search[open]'), state);
+      await pg.addScriptTag({ content: AXE });
+      const res = await pg.evaluate(async tags => (await window.axe.run(document, { runOnly: { type: 'tag', values: tags }, resultTypes: ['violations'] }))
+        .violations.map(v => `${v.id} (${v.impact}, ${v.nodes.length}×): ${v.help} — ${v.nodes.slice(0, 3).map(n => n.target.join(' ')).join(' | ')}`), TAGS);
+      if (!opened) res.push(`${state} did not open`);
+      if (res.length) { failures.push(...res.map(b => `${label} ${p}: ${b}`)); report.push(`✗ ${label} ${p}\n    ` + res.join('\n    ')); }
       else report.push(`✓ ${label} ${p}`);
       await pg.close();
     }
