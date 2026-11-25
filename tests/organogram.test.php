@@ -111,32 +111,75 @@ ck('organogram holders: somebody in a body but no named office holds no office o
 $html = render_page(AV_ROOT . '/people/organogram/index.php');
 $text = html_entity_decode(strip_tags((string) preg_replace('~<(script|style)\b.*?</\1>~s', '', $html)), ENT_QUOTES, 'UTF-8');
 ck('organogram page: renders', str_contains($html, '<h1>How Afrovanguard is <em>organised</em></h1>') && str_contains($html, 'class="ppl org"') && !str_contains($html, 'render_page: threw'));
-ck('organogram page: one nested list, tree order in the markup', (static function () use ($html): bool {
+/* The chart model: one flattened list the page, the panel and search share. */
+$Mo = Organogram::model($h);
+ck('organogram model: tree order, the spine first, every group\'s members under it', (static function () use ($Mo): bool {
+    $k = array_keys($Mo); $p = -1;
+    foreach (['assembly', 'council', 'board', 'president', 'coo', 'directorates', 'unit-techome', 'techome-finance', 'institutions', 'chief-officers', 'office-cfo', 'committees', 'cmte-afr', 'trustees', 'custodians'] as $id) {
+        $q = array_search($id, $k, true); if ($q === false || $q < $p) return false; $p = $q;
+    }
+    return $Mo['office-cfo']['parent'] === 'chief-officers' && $Mo['cmte-afr']['parent'] === 'committees' && $Mo['techome-finance']['parent'] === 'unit-techome';
+})());
+ck('organogram model: a group member answers to the group\'s parent (a Chief Officer to the President, a committee to the Board, a Directorate to the COO)',
+   $Mo['office-cfo']['upTo'] === 'president' && $Mo['cmte-pis']['upTo'] === 'board' && $Mo['unit-sts']['upTo'] === 'coo' && $Mo['techome-deputy-director']['upTo'] === 'unit-techome');
+ck('organogram model: the groups collapse and stack (Board committees, Chief Officers, Directorates, Institutions, each team); the spine does not',
+   $Mo['chief-officers']['collapsible'] && $Mo['committees']['collapsible'] && $Mo['directorates']['collapsible'] && $Mo['unit-techome']['collapsible']
+   && $Mo['chief-officers']['layout'] === 'stack' && $Mo['coo']['layout'] === 'stack' && !$Mo['board']['collapsible'] && !$Mo['president']['collapsible'] && $Mo['board']['layout'] === 'row');
+ck('organogram model: one accent per tier', $Mo['council']['tier'] === 'gov' && $Mo['cmte-afr']['tier'] === 'gov' && $Mo['office-cto']['tier'] === 'exec' && $Mo['techome-finance']['tier'] === 'ops');
+ck('organogram model: the Custodians sit beside the Trustees, with no line', $Mo['custodians']['beside'] && $Mo['trustees']['layout'] === 'beside');
+ck('organogram model: counts on the groups', Organogram::countText($Mo, 'chief-officers') === '9 offices · 1 filled' && Organogram::countText($Mo, 'committees') === '5 committees'
+   && Organogram::countText($Mo, 'directorates') === '7 directorates' && Organogram::countText($Mo, 'board') === '');
+ck('organogram model: every independent line reaches both of its ends in words (the seven Finance Officers are one line at the CFO\'s end)', (static function (): bool {
+    foreach (Organogram::LINES as $l) {
+        foreach (Organogram::endKeys($l['from']) as $f) if (!in_array($l['say'], array_column(Organogram::linesFor($f), 0), true)) return false;
+        if ($l['to'] !== null && !in_array($l['say'], array_column(Organogram::linesFor($l['to']), 0), true)) return false;
+    }
+    return count(array_filter(Organogram::linesFor('office-cfo'), static fn($x) => $x[1] === 'directorates')) === 1;
+})());
+
+ck('organogram page: one nested list, tree order in the markup (the outline is the page)', (static function () use ($html): bool {
     $p = -1;
-    foreach (['assembly', 'council', 'board', 'president', 'coo', 'directorates', 'institutions', 'chief-officers', 'committees', 'trustees'] as $id) {
+    foreach (['assembly', 'council', 'board', 'president', 'coo', 'directorates', 'unit-sts', 'institutions', 'chief-officers', 'office-cfo', 'committees', 'cmte-afr', 'trustees', 'custodians'] as $id) {
         $q = strpos($html, 'id="org-' . $id . '"'); if ($q === false || $q < $p) return false; $p = $q;
     }
-    return substr_count($html, 'class="org-kids"') === 5 && str_contains($html, '<ul class="org-tree">');
+    return str_contains($html, '<ul class="org-tree">') && substr_count($html, 'class="org-kids"') === 19;
 })());
-ck('organogram page: every Directorate and institution is a <details> with its team, closed', substr_count($html, '<details class="org-unit">') === 9
-   && str_contains($html, 'id="org-unit-techome"') && str_contains($html, 'Volunteer Coordinator') && str_contains($html, 'Project Administrator'));
-ck('organogram page: group boxes are open <details> (keyboard-operable, no script)', substr_count($html, 'class="org-node org-group" open') === 4);
-ck('organogram page: a listable holder is named with a link to their profile and an avatar',
-   (bool) preg_match('~<a class="org-who" href="/people/' . $cfo . '-orgtest-finance-danjuma/"><span class="ppl-av org-av ppl-tint-\d" aria-hidden="true">OD</span><span class="org-who-n">Orgtest Finance Danjuma</span></a>~', $html));
-ck('organogram page: names only for listable people', str_contains($html, 'Orgtest Consented Trustee') && !str_contains($html, 'Orgtest Unconsented Coo')
-   && !str_contains($html, 'Orgtest Inactive Cto') && !str_contains($html, 'Super Admin'));
-ck('organogram page: an unfilled office shows its title only, with no "Vacant"', str_contains($html, '<span class="org-o">Deputy Chairperson</span></li>') && stripos($text, 'vacant') === false);
-ck('organogram page: every independent line is written at its ends and in the list', (static function () use ($html): bool {
-    foreach (Organogram::LINES as $l) {
-        foreach (['at_from', 'at_to', 'say'] as $k) if (!empty($l[$k]) && !str_contains($html, htmlspecialchars($l[$k], ENT_QUOTES))) return false;
-    }
+ck('organogram page: every node is in the outline with a deep-link id and search words', (static function () use ($html, $Mo): bool {
+    foreach ($Mo as $k => $n) if (!preg_match('~<li class="org-li[^"]*" id="org-' . preg_quote($k, '~') . '" data-org-key="' . preg_quote($k, '~') . '" data-org-q="[^"]+"~', $html)) return false;
     return true;
 })());
-ck('organogram page: drawn lines carry their pair for the script', str_contains($html, 'data-org-end="from" data-org-pair="office-cfo&gt;cmte-afr"')
-   && str_contains($html, 'data-org-end="to" data-org-pair="office-cfo&gt;cmte-afr"'));
-ck('organogram page: the connector layer and its notes are hidden from assistive tech', str_contains($html, '<svg class="org-dash" aria-hidden="true" focusable="false">')
-   && str_contains($html, '<span class="org-chip-k" aria-hidden="true">'));
-ck('organogram page: the chart is a labelled, focusable region', str_contains($html, 'class="org-scroll" role="region" aria-labelledby="org-chart-h" aria-describedby="org-legend" tabindex="0"'));
+ck('organogram page: search words carry titles, office titles, listed names and short forms', (bool) preg_match('~id="org-office-cfo" data-org-key="office-cfo" data-org-q="Chief Financial Officer \| cfo \| Orgtest Finance Danjuma"~', $html)
+   && (bool) preg_match('~id="org-council" data-org-key="council" data-org-q="[^"]*Chairperson[^"]*Orgtest Chair Amadi~', $html));
+ck('organogram page: groups say they collapse; the Custodians are marked beside', str_contains($html, 'id="org-chief-officers" data-org-key="chief-officers" data-org-q="Chief Officers" data-org-collapsible')
+   && str_contains($html, 'data-org-beside') && str_contains($html, '<p class="org-tag">Beside the Registered Trustees, no line</p>'));
+/* Lean nodes: a title, the holders' faces, a count. No description, no note callouts inside a node. */
+$nodesHtml = preg_match_all('~<div class="org-node">(.*?)</div>\n~s', $html, $nm) ? $nm[1] : [];
+ck('organogram page: lean nodes — title, holder and count only (' . count($nodesHtml) . ')', count($nodesHtml) === count($Mo) && !array_filter($nodesHtml, static fn($x) =>
+   str_contains($x, 'org-d"') || str_contains($x, 'org-chip') || str_contains($x, 'org-ind') || str_contains($x, 'org-about') || str_contains($x, '<a ')));
+ck('organogram page: a node shows its holder plainly (the profile link is in its words)', (bool) preg_match('~<p class="org-face" id="org-f-office-cfo"><span class="org-avs"><span class="ppl-av org-av ppl-tint-\d" aria-hidden="true">OD</span></span><span class="org-face-n">Orgtest Finance Danjuma</span></p>~', $html));
+ck('organogram page: the count on a collapsed group', str_contains($html, '<p class="org-meta" id="org-m-chief-officers">9 offices · 1 filled</p>'));
+ck('organogram page: every node\'s words sit beside it for the outline and the panel (description, holders, who it answers to, its lines)',
+   str_contains($html, '<div class="org-about" id="org-a-council"><p class="org-d">Keeps the vision, the values and the long-term direction on course.</p>')
+   && (bool) preg_match('~id="org-a-office-cfo"><p class="org-held"><span class="org-lab">Held by</span> <a class="org-who" href="/people/' . $cfo . '-orgtest-finance-danjuma/">~', $html)
+   && str_contains($html, '<p class="org-up" data-org-up="president"><span class="org-lab">Answers to</span> <a href="#org-president">President and Chief Servant</a>')
+   && str_contains($html, '<li data-org-to="cmte-afr" data-org-short="Independent line to the Audit, Finance and Risk Committee"><span class="org-dash-k" aria-hidden="true"></span><span class="av-sr">Independent line: </span>'));
+ck('organogram page: names only for listable people', str_contains($html, 'Orgtest Consented Trustee') && !str_contains($html, 'Orgtest Unconsented Coo')
+   && !str_contains($html, 'Orgtest Inactive Cto') && !str_contains($html, 'Super Admin'));
+ck('organogram page: an unfilled office shows its title only, with no "Vacant"', str_contains($html, '<li><span class="org-o">Deputy Chairperson</span></li>') && stripos($text, 'vacant') === false);
+ck('organogram page: every independent line is written out, at each end', (static function () use ($html): bool {
+    foreach (Organogram::LINES as $l) if (substr_count($html, htmlspecialchars($l['say'], ENT_QUOTES)) < ($l['to'] === null ? 1 : 2)) return false;
+    return true;
+})());
+ck('organogram page: the overlay is hidden from assistive tech; the chart is a labelled, focusable region',
+   str_contains($html, '<svg class="org-svg" aria-hidden="true" focusable="false"></svg>')
+   && str_contains($html, 'class="org-scroll" role="region" aria-label="Organogram" aria-describedby="org-legend" tabindex="0"'));
+ck('organogram page: a short legend line, no long notes', str_contains($html, 'Solid line: answers to') && str_contains($html, 'Dashed line: an independent line')
+   && !str_contains($html, 'Every line, in words') && !str_contains($html, 'class="org-chip'));
+ck('organogram page: script-only controls are hidden until script runs (find, expand, lines, fit, text version, print); the panel is an empty dialog',
+   str_contains($html, '<div class="org-bar" data-org-bar hidden>') && str_contains($html, '<label class="av-sr" for="org-q">Find a person or office</label>')
+   && str_contains($html, 'data-org-lines aria-pressed="false"') && str_contains($html, 'data-org-text aria-pressed="false">Text version</button>')
+   && str_contains($html, 'id="org-live" role="status" aria-live="polite"') && str_contains($html, '<dialog class="org-panel" id="org-panel" aria-labelledby="org-panel-h"></dialog>')
+   && str_contains($html, '<nav class="org-path" aria-label="Chart path" data-org-path hidden></nav>'));
 $main = (string) (preg_match('~<main\b.*?</main>~s', $html, $mm) ? $mm[0] : '');
 ck('organogram page: no NGGC node or name in the chart (the site menu is not the chart)', $main !== '' && stripos($main, 'NGGC') === false && stripos($main, 'Next Generation Genius') === false);
 ck('organogram page: no Constitution link or article references while it is members-only',
@@ -152,7 +195,7 @@ $grams = static function (string $s, int $n = 8): array {
 $cg = $grams(ConstitutionDoc::markdown());
 $hit = array_keys(array_intersect_key($grams($text), $cg));
 ck('organogram page: quotes no eight-word run of the Constitution' . ($hit ? ' — ' . $hit[0] : ''), ConstitutionDoc::PUBLIC || !$hit);
-ck('organogram page: works without script — the Print button is the only thing script adds, hidden until then',
+ck('organogram page: the hero is quiet — Download first, Print secondary (shown by script)',
    str_contains($html, '<button type="button" class="ppl-btn ppl-btn--line" data-org-print hidden>Print</button>')
    && (bool) preg_match('~<script src="/people/organogram/organogram\.js\?v=[0-9a-f]{10}" defer></script>~', $html)
    && str_contains($html, 'href="/people/organogram/download/">Download (PDF)</a>'));
@@ -166,9 +209,15 @@ ck('organogram page: the profile anchors exist on the page', (static function ()
 ck('organogram page: breadcrumb and canonical', str_contains($html, '<li><a href="/people/">Our people</a><span aria-hidden="true">›</span></li><li><span aria-current="page">Organogram</span>')
    && str_contains($html, 'rel="canonical" href="' . rtrim(SITE_URL, '/') . '/people/organogram/"'));
 $css = (string) file_get_contents(AV_ROOT . '/people/organogram/organogram.css');
-ck('organogram css: a landscape print page, the chrome hidden, the tree in print', str_contains($css, '@page{size:A4 landscape') && str_contains($css, '@media print,(min-width:1240px)')
-   && str_contains($css, '.avh-head,.avh-foot'));
-ck('organogram css: larger text gets the outline, never a wide tree', substr_count($css, 'html:not([class*="a11y-t"])') > 20);
+$js = (string) file_get_contents(AV_ROOT . '/people/organogram/organogram.js');
+ck('organogram css: a landscape print page, the chrome hidden', str_contains($css, '@page{size:A4 landscape') && str_contains($css, '.avh-head,.avh-foot'));
+ck('organogram css: the chart\'s own width picks the drawing (container query, media fallback); larger text always gets the navigator',
+   str_contains($css, '@container orgstage (min-width:900px){.org-chart{--org-mode:tree}}') && str_contains($css, '@supports not (container-type:inline-size){@media (min-width:1100px)')
+   && str_contains($css, 'html[class*="a11y-t"] .org-chart{--org-mode:nav!important}'));
+ck('organogram css: without script the outline shows every node\'s words', str_contains($css, '.is-tree .org-about,') && !preg_match('~(^|\})\.org-about\{display:none~', $css));
+ck('organogram js: disclosure buttons, not role="tree"; deep links with replaceState; polite announcements; a typo-tolerant find',
+   str_contains($js, "setAttribute('aria-expanded'") && !preg_match('~role["\x27]?\s*[=,]\s*["\x27]tree~', $js) && str_contains($js, 'history.replaceState')
+   && str_contains($js, 'function within1(') && str_contains($js, "showModal()") && str_contains($js, "'Back'"));
 
 /* ══ Routes, links, sitemap, search ═══════════════════════════════════ */
 $router = (string) file_get_contents(AV_ROOT . '/router.php');

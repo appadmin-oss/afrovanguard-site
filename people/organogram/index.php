@@ -1,19 +1,24 @@
 <?php
 /**
  * people/organogram/index.php — /people/organogram/: how Afrovanguard is
- * organised, as a chart.
+ * organised.
  *
  * The structure is lib/Organogram.php (TREE, LINES, ALONGSIDE) laid over the
- * People map AV_TEAM_STRUCTURE, so this page and /people/ always agree. The
- * names are the People page's: only rows av_team_public_rows() returns.
+ * People map AV_TEAM_STRUCTURE, flattened by Organogram::model(), so this page
+ * and /people/ always agree. The names are the People page's: only rows
+ * av_team_public_rows() returns.
  *
- * One nested list, drawn two ways by organogram.css:
- *   - from 1240px (and normal text size): a top-down tree, solid connectors in
- *     CSS; the independent lines are dashed notes at both ends, and
- *     organogram.js adds dashed connectors between ends that sit side by side;
- *   - below 1240px, or with larger text: an indented outline.
- * Group boxes and every Directorate are <details>, so the page works by
- * keyboard and without script. Print: one A4/Letter landscape page.
+ * ONE nested list is the page. Without script it is the full text outline:
+ * every body and office, who holds it, who it answers to and its independent
+ * lines in words (the primary, accessible version; UW / Minnesota State
+ * accessible org chart guidance). organogram.js then draws the same list as:
+ *   - a lean top-down tree on wide charts (container ≥ 900px): title and
+ *     holder only, the governance spine open and the big groups collapsed
+ *     behind disclosure buttons (aria-expanded), a details panel beside it;
+ *   - a drill-down navigator on narrow charts or with larger text: one level
+ *     of cards at a time, a breadcrumb and Back;
+ *   - the text outline again on demand ("Text version").
+ * Each node's .org-about holds its words; the panel is built from it.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/lib/bootstrap.php';
@@ -24,7 +29,7 @@ $S = rtrim(SITE_URL, '/');
 $pdo = Database::pdo();
 $people = Organogram::people($pdo);
 $holders = Organogram::holders($people);
-$nodes = Organogram::nodes();
+$M = Organogram::model($holders);
 $showBasis = Organogram::showBasis();
 
 /* ---------- pieces ---------- */
@@ -33,111 +38,84 @@ $avatar = function (array $m): string {
     $img = ($m['photo'] ?? '') !== '' ? '<img class="' . $tint . '" src="' . e($m['photo']) . '" alt="" data-ini="' . $ini . '" width="56" height="56" loading="lazy" decoding="async" />' : '';
     return '<span class="ppl-av org-av ' . $tint . '" aria-hidden="true">' . $ini . $img . '</span>';
 };
-/** The holders of one office: each a link to their profile with a small avatar. */
-$who = function (string $body, string $office) use ($holders, $avatar): string {
-    $out = '';
-    foreach ($holders[$body . '/' . $office] ?? [] as $m) {
-        $out .= '<a class="org-who" href="' . e(av_person_url($m)) . '">' . $avatar($m) . '<span class="org-who-n">' . e($m['name']) . '</span></a>';
-    }
-    return $out;
+/** A holder: a link to their profile with a small avatar (the outline and the panel). */
+$whoLink = fn(array $m): string => '<a class="org-who" href="' . e(av_person_url($m)) . '">' . $avatar($m) . '<span class="org-who-n">' . e($m['name']) . '</span></a>';
+/** The lean node's holder line: avatars and the first name, "+N" for the rest. Plain text: the links are in the words. */
+$face = function (array $n) use ($avatar): string {
+    $f = $n['face'];
+    if (!$f) return '';
+    $av = '';
+    foreach (array_slice($f, 0, 3) as $m) $av .= $avatar($m);
+    $more = count($f) - 1;
+    return '<span class="org-avs">' . $av . '</span><span class="org-face-n">' . e($f[0]['name'])
+         . ($more > 0 ? ' <span class="org-more"><span aria-hidden="true">+' . $more . '</span><span class="av-sr">and ' . $more . ' more</span></span>' : '') . '</span>';
 };
 /** The article references, only while the Constitution is public (then linked to it). */
 $basis = function (array $b) use ($showBasis): string {
     if (!$showBasis) return '';
     return ' <a class="org-ref" href="/constitution/">' . e(Organogram::basisText($b)) . '</a>';
 };
-/** The independent lines at one end, as dashed notes. */
-$chips = function (string $id): string {
-    $out = '';
-    foreach (Organogram::linesAt($id) as [$text, $line, $end]) {
-        $ref = $line['draw'] && $line['to'] !== null ? ' data-org-end="' . e($end) . '" data-org-pair="' . e($line['from'] . '>' . $line['to']) . '"' : '';
-        $out .= '<li class="org-chip org-chip--' . e($line['kind']) . '"' . $ref . '><span class="org-chip-k" aria-hidden="true"></span>' . e($text) . '</li>';
+$treeBasis = [];
+foreach (Organogram::nodes() as $id => $tn) $treeBasis[$id] = $tn['basis'];
+$lineBasis = static function (string $say): array { foreach (Organogram::LINES as $l) if ($l['say'] === $say) return $l['basis']; return []; };
+
+/** A node's words: its line, who holds it, who it answers to, its independent lines. */
+$about = function (array $n) use ($M, $whoLink, $basis, $treeBasis, $lineBasis): string {
+    $k = $n['key']; $h = '';
+    if ($n['desc'] !== '') $h .= '<p class="org-d">' . e($n['desc']) . '</p>';
+    $offs = $n['offices'];
+    if (count($offs) === 1 && $offs[0][0] === $n['title']) {
+        if ($offs[0][1]) $h .= '<p class="org-held"><span class="org-lab">Held by</span> ' . implode(' ', array_map($whoLink, $offs[0][1])) . '</p>';
+    } elseif ($offs) {
+        $h .= '<ul class="org-offices">';
+        foreach ($offs as [$lab, $ms]) $h .= '<li><span class="org-o">' . e($lab) . '</span>' . ($ms ? '<span class="org-whos">' . implode('', array_map($whoLink, $ms)) . '</span>' : '') . '</li>';
+        $h .= '</ul>';
     }
-    return $out === '' ? '' : '<ul class="org-chips">' . $out . '</ul>';
-};
-/** A row: an office title, its holders, its notes. */
-$row = function (string $id, string $title, string $whoHtml, string $extra = '') use ($chips): string {
-    return '<li class="org-row" id="org-' . e($id) . '"><span class="org-o">' . e($title) . '</span>' . ($whoHtml !== '' ? '<span class="org-whos">' . $whoHtml . '</span>' : '') . $extra . $chips($id) . '</li>';
-};
-/** One Directorate or institution: expandable to its team. */
-$unit = function (string $b, array $def) use ($who, $chips, $holders): string {
-    $first = (string) array_key_first($def['offices']);
-    $leadNames = array_map(fn($m) => $m['name'], $holders[$b . '/' . $first] ?? []);
-    $team = '';
-    foreach ($def['offices'] as $o => $lab) {
-        $team .= '<li class="org-row"' . ($o === 'finance' ? ' id="org-' . e($b) . '-finance"' : '') . '><span class="org-o">' . e($lab) . '</span>'
-              . (($w = $who($b, $o)) !== '' ? '<span class="org-whos">' . $w . '</span>' : '')
-              . ($o === 'finance' ? $chips('directorate-finance') : '') . '</li>';
+    if ($n['parent'] !== null && !$n['beside']) {
+        $p = $M[$n['upTo'] ?? $n['parent']];
+        $h .= '<p class="org-up" data-org-up="' . e($p['key']) . '"><span class="org-lab">Answers to</span> <a href="#org-' . e($p['key']) . '">' . e($p['title']) . '</a>'
+            . ($n['say'] !== '' ? '<span class="org-say"> ' . e($n['say']) . $basis($treeBasis[$k] ?? []) . '</span>' : '') . '</p>';
     }
-    $isDir = (av_team_bodies()[$b]['group'] ?? '') === 'directorates';
-    ob_start(); ?>
-<li class="org-unit-li" id="org-unit-<?= e($b) ?>"><details class="org-unit">
-  <summary><span class="org-u-t"><?= e($def['label']) ?></span><?php if ($leadNames): ?><span class="org-u-lead"><span class="av-sr">, </span><?= e(implode(', ', $leadNames)) ?></span><?php endif; ?><span class="av-sr"> — show the team</span></summary>
-  <div class="org-team">
-<?php if (!empty($def['desc'])): ?>    <p class="org-n"><?= e($def['desc']) ?></p>
-<?php endif; ?>
-    <ul class="org-rows"><?= $team ?></ul>
-<?php if ($isDir): ?>    <p class="org-n org-n--sm">Named safeguarding people wherever children or vulnerable people are served.</p>
-<?php endif; ?>
-    <?= $chips('unit-' . $b) ?>
-  </div>
-</details></li>
-<?php return (string) ob_get_clean();
+    if ($k === 'chief-officers') $h .= '<p class="org-say org-say--p">Until each office can be funded on its own, the Board may ask one person to hold more than one Chief Officer post, provided finance, compliance and safeguarding stay independent of the work they check, and every such combination is written down and reviewed each year.' . $basis(['X §3(4)']) . '</p>';
+    $lines = Organogram::linesFor($k);
+    if ($lines) {
+        $h .= '<ul class="org-ind">';
+        foreach ($lines as [$say, $other, $short]) {
+            $h .= '<li' . ($other !== null && isset($M[$other]) ? ' data-org-to="' . e($other) . '"' : '') . ($short !== '' ? ' data-org-short="' . e($short) . '"' : '') . '><span class="org-dash-k" aria-hidden="true"></span><span class="av-sr">Independent line: </span>' . e($say) . $basis($lineBasis($say)) . '</li>';
+        }
+        $h .= '</ul>';
+    }
+    return $h;
+};
+/** What search looks through: the title, the office titles, the holders, short forms (CFO). */
+$q = function (array $n): string {
+    $w = [$n['title'], $n['aka']];
+    foreach ($n['offices'] as [$lab, $ms]) { $w[] = $lab; foreach ($ms as $m) $w[] = $m['name']; }
+    foreach ($n['face'] as $m) $w[] = $m['name'];
+    return implode(' | ', array_unique(array_filter($w, 'strlen')));
 };
 
-/** A node of the tree, and its children, recursively. */
-$render = function (array $n, int $h = 3) use (&$render, $nodes, $who, $chips, $row, $unit): string {
-    $id = $n['id']; $label = Organogram::label($n); $note = Organogram::note($n);
-    $kids = $n['children'] ?? [];
-    $isGroup = in_array($n['kind'], ['offices', 'units', 'cmtees'], true);
-    ob_start(); ?>
-<li class="org-li org-li--<?= e($n['kind']) ?>" id="org-<?= e($id) ?>">
-<?php if ($isGroup): ?>
-  <details class="org-node org-group" open data-org-node="<?= e($id) ?>">
-    <summary><h<?= $h ?> class="org-t"><?= e($label) ?></h<?= $h ?>></summary>
-    <div class="org-group-b">
-<?php if ($note !== ''): ?>      <p class="org-n"><?= e($note) ?></p>
-<?php endif; ?>
-      <?= $chips($id) ?>
-      <ul class="org-rows">
-<?php if ($n['kind'] === 'offices'): foreach (Organogram::offices($n) as $o => $lab) echo $row('office-' . $o, $lab, $who($n['body'], $o));
-      elseif ($n['kind'] === 'cmtees'): foreach (Organogram::COMMITTEES as $k => $lab) echo $row('cmte-' . $k, $lab, '');
-      else: foreach (Organogram::units($n) as $b => $def) echo $unit($b, $def); endif; ?>
-      </ul>
-    </div>
-  </details>
-<?php else: ?>
-  <div class="org-node org-node--<?= e($n['kind']) ?><?= $n['parent'] === null ? ' org-node--top' : '' ?>" data-org-node="<?= e($id) ?>">
-    <h<?= $h ?> class="org-t"><?= e($label) ?></h<?= $h ?>>
-<?php if ($n['kind'] === 'office'): ?>
-<?php if (($w = $who($n['body'], $n['office'])) !== ''): ?>    <p class="org-whos"><?= $w ?></p>
-<?php endif; ?>
-<?php elseif ($n['kind'] === 'body'): ?>
-<?php if ($note !== ''): ?>    <p class="org-n"><?= e($note) ?></p>
-<?php endif; ?>
-    <ul class="org-rows org-rows--body">
-<?php foreach (Organogram::offices($n) as $o => $lab) echo $row($n['body'] . '-' . $o, $lab, $who($n['body'], $o)); ?>
-    </ul>
-<?php else: ?>
-    <p class="org-n"><?= e($note) ?></p>
-<?php endif; ?>
-    <?= $chips($id) ?>
-  </div>
-<?php if (!empty($n['aside'])): $ab = $n['aside']; $adef = av_team_bodies()[$ab]['def']; ?>
-  <div class="org-aside" id="org-<?= e($ab) ?>">
-    <p class="org-t org-t--sm"><?= e($adef['label']) ?></p>
-    <p class="org-n">Beside the Trustees, with no trustee powers and no line of authority.</p>
-<?php foreach ($adef['offices'] as $o => $lab) if (($w = $who($ab, $o)) !== '') echo '    <p class="org-whos">' . $w . "</p>\n"; ?>
-  </div>
-<?php endif; ?>
-<?php endif; ?>
-<?php if ($kids): ?>
-  <ul class="org-kids">
-<?php foreach ($kids as $k) echo $render($nodes[$k['id']]); ?>
-  </ul>
-<?php endif; ?>
-</li>
-<?php return (string) ob_get_clean();
+/** A node and its children, recursively: the lean node, its words, its children. */
+$render = function (string $k) use (&$render, $M, $face, $about, $q): string {
+    $n = $M[$k]; $d = $n['depth'];
+    $tag = $d <= 3 ? 'h' . (3 + $d) : 'p';
+    $f = $face($n); $count = Organogram::countText($M, $k);
+    $attrs = ' class="org-li org-li--' . e($n['kind']) . ' org-tier--' . e($n['tier']) . '" id="org-' . e($k) . '" data-org-key="' . e($k) . '" data-org-q="' . e($q($n)) . '"'
+           . ($n['collapsible'] ? ' data-org-collapsible' : '') . ($n['beside'] ? ' data-org-beside' : '');
+    $h = '<li' . $attrs . '>' . "\n"
+       . '  <div class="org-node">'
+       . ($n['beside'] ? '<p class="org-tag">Beside the ' . e($M[$n['parent']]['title']) . ', no line</p>' : '')
+       . '<' . $tag . ' class="org-t" id="org-t-' . e($k) . '">' . e($n['title']) . '</' . $tag . '>'
+       . ($f !== '' ? '<p class="org-face" id="org-f-' . e($k) . '">' . $f . '</p>' : '')
+       . ($count !== '' ? '<p class="org-meta" id="org-m-' . e($k) . '">' . e($count) . '</p>' : '')
+       . "</div>\n"
+       . '  <div class="org-about" id="org-a-' . e($k) . '">' . $about($n) . "</div>\n";
+    if ($n['kids']) {
+        $h .= '  <ul class="org-kids" id="org-k-' . e($k) . '" data-org-layout="' . e($n['layout']) . '">' . "\n";
+        foreach ($n['kids'] as $c) $h .= $render($c);
+        $h .= "  </ul>\n";
+    }
+    return $h . "</li>\n";
 };
 
 render_head([
@@ -161,54 +139,47 @@ render_nav('people');
         <nav class="ppl-crumbs" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="/">Home</a><span aria-hidden="true">›</span></li><li><a href="/about.html">About</a><span aria-hidden="true">›</span></li><li><a href="/people/">Our people</a><span aria-hidden="true">›</span></li><li><span aria-current="page">Organogram</span></li></ol></nav>
         <p class="ppl-eyebrow">Organogram</p>
         <h1>How Afrovanguard is <em>organised</em></h1>
-        <p class="ppl-intro">From the General Assembly of our Members to the teams in every Directorate: who answers to whom, and the lines that stay independent.</p>
+        <p class="ppl-intro">Who answers to whom, from the General Assembly of our Members to the teams in every Directorate.</p>
         <div class="ppl-btns org-actions">
           <a class="ppl-btn" href="/people/organogram/download/">Download (PDF)</a>
           <button type="button" class="ppl-btn ppl-btn--line" data-org-print hidden>Print</button>
-          <a class="org-back" href="/people/">See everyone on the People page <span aria-hidden="true">→</span></a>
         </div>
       </div>
     </header>
 
-    <section class="org-sec">
+    <section class="org-sec" aria-labelledby="org-chart-h">
       <div class="ppl-wrap">
-        <div class="org-sec-head">
-          <h2 id="org-chart-h">The chart</h2>
-          <div class="org-legend" id="org-legend">
-            <p class="org-key"><span class="org-key-s" aria-hidden="true"></span>Solid line: answers to the body above</p>
-            <p class="org-key"><span class="org-key-d" aria-hidden="true"></span>Dashed: an independent line, described at both ends</p>
-            <p class="org-key org-key--note">The COO coordinates operations only; finance, safeguarding, audit and compliance keep their own lines.</p>
+        <h2 id="org-chart-h" class="av-sr">The chart</h2>
+        <div class="org-bar" data-org-bar hidden>
+          <div class="org-find" role="search" aria-label="Find on the chart">
+            <label class="av-sr" for="org-q">Find a person or office</label>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input type="search" id="org-q" placeholder="Find a person or office" autocomplete="off" spellcheck="false" aria-describedby="org-live" />
+            <ul class="org-res" id="org-res" aria-label="Matches" hidden></ul>
           </div>
-        </div>
-        <div class="org-scroll" role="region" aria-labelledby="org-chart-h" aria-describedby="org-legend" tabindex="0">
-          <div class="org-chart">
-            <ul class="org-tree">
-<?= $render($nodes['assembly']) ?>
-            </ul>
-            <svg class="org-dash" aria-hidden="true" focusable="false"></svg>
+          <div class="org-ctl">
+            <button type="button" class="org-b" data-org-all="open">Expand all</button>
+            <button type="button" class="org-b" data-org-all="close">Collapse all</button>
+            <button type="button" class="org-b org-b--sw" data-org-lines aria-pressed="false"><span class="org-sw" aria-hidden="true"></span>Show independent lines</button>
+            <button type="button" class="org-b" data-org-fit aria-pressed="false" hidden>Fit to width</button>
+            <button type="button" class="org-b" data-org-text aria-pressed="false">Text version</button>
           </div>
+          <p class="av-sr" id="org-live" role="status" aria-live="polite" aria-atomic="true"></p>
         </div>
-      </div>
-    </section>
+        <p class="org-legend" id="org-legend"><span class="org-key"><span class="org-key-s" aria-hidden="true"></span>Solid line: answers to</span> <span class="org-key"><span class="org-key-d" aria-hidden="true"></span>Dashed line: an independent line</span></p>
 
-    <section class="org-sec org-words" aria-labelledby="org-words-h">
-      <div class="ppl-wrap">
-        <h2 id="org-words-h">Every line, in words</h2>
-        <div class="org-words-cols">
-          <div>
-            <h3>Who answers to whom</h3>
-            <ul class="org-say">
-<?php foreach (Organogram::solidLines() as $l): ?>              <li><?= e($l['say']) ?><?= $basis($l['basis']) ?></li>
-<?php endforeach; ?>
-            </ul>
-          </div>
-          <div>
-            <h3>Independent lines</h3>
-            <ul class="org-say org-say--dash">
-<?php foreach (Organogram::LINES as $l): ?>              <li><?= e($l['say']) ?><?= $basis($l['basis']) ?></li>
-<?php endforeach; ?>
-              <li>Until each office can be funded on its own, the Board may ask one person to hold more than one Chief Officer post, provided finance, compliance and safeguarding stay independent of the work they check, and every such combination is written down and reviewed each year.<?= $basis(['X §3(4)']) ?></li>
-            </ul>
+        <div class="org-stage" data-org-stage>
+          <nav class="org-path" aria-label="Chart path" data-org-path hidden></nav>
+          <div class="org-body">
+            <div class="org-scroll" role="region" aria-label="Organogram" aria-describedby="org-legend" tabindex="0">
+              <div class="org-chart">
+                <ul class="org-tree">
+<?= $render('assembly') ?>
+                </ul>
+                <svg class="org-svg" aria-hidden="true" focusable="false"></svg>
+              </div>
+            </div>
+            <dialog class="org-panel" id="org-panel" aria-labelledby="org-panel-h"></dialog>
           </div>
         </div>
       </div>
@@ -223,7 +194,7 @@ render_nav('people');
           <li id="org-along-<?= e($aid) ?>"><h3><?= e($title) ?></h3><p><?= e($line) ?><?= $basis($b) ?></p><?php if ($anchor !== ''): ?><a href="/people/#<?= e($anchor) ?>">See them on the People page<span class="av-sr">: <?= e($title) ?></span> <span aria-hidden="true">→</span></a><?php endif; ?></li>
 <?php endforeach; ?>
         </ul>
-        <p class="org-fine">Names on this chart are the people who appear on our public People page. An office shown without a name is not yet listed publicly.</p>
+        <p class="org-fine">Names on this chart are the people who appear on our public <a href="/people/">People page</a>. An office shown without a name is not yet listed publicly.</p>
       </div>
     </section>
   </main>
