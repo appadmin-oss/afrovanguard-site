@@ -16,6 +16,8 @@
  *   - tuck on scroll and never over a control (a button put under its
  *     resting spot), focus always bringing it back, reduced motion, RTL;
  *   - no overlap with Chioma, at 1280, 390 and 320; out of print;
+ *   - Chioma's launcher by the same rule (launcher-tuck.js): tuck, focus, its
+ *     panel open, its nudge, never over a control, reduced motion, RTL, print;
  *   - axe on the open states with the display settings off and on.
  *
  *   BASE=http://127.0.0.1:8000 MEMBER_TOKEN=<…> node launchers-ci.js
@@ -206,6 +208,63 @@ if (TOK) { // the portal's phone tab bar
 { const c=await ctx(b,1280,800);const pg=await go(c,'/about.html');
   await pg.evaluate(()=>document.documentElement.setAttribute('dir','rtl')); await pg.waitForTimeout(100);
   const f=await rect(pg,'.av-a11y-fab'); ck('rtl: the launcher mirrors to the inline start (right)', f && Math.abs(1280-16-f.r)<20);
+  await pg.close(); await c.close(); }
+
+/* ── Chioma's launcher: the same rule, from the same module (launcher-tuck.js) ── */
+const chTucked=pg=>pg.evaluate(()=>document.querySelector('.chioma-fab').hasAttribute('data-tuck'));
+const chBlocked=pg=>pg.evaluate(()=>{const f=document.querySelector('.chioma-fab');let x=0,y=0,e=f;while(e){x+=e.offsetLeft;y+=e.offsetTop;e=e.offsetParent;}
+  return document.elementsFromPoint(x+f.offsetWidth/2,y+f.offsetHeight/2).some(el=>!el.closest('[data-av-launcher]')&&el.closest('a[href],button,input,select,textarea,summary,label,[role=button],[role=link],[tabindex]:not([tabindex="-1"])'))});
+{ for (const [w,h,phone] of [[1280,800,false],[375,812,true],[320,640,true]]) { const c=await ctx(b,w,h);const pg=await go(c,'/'); await pg.waitForTimeout(300);
+  ck(`chioma ${w}: both launchers registered with the shared module`, await pg.evaluate(()=>!!window.AvTuck&&document.querySelector('.chioma-root').hasAttribute('data-av-launcher')&&document.querySelector('.av-a11y-fab').hasAttribute('data-av-launcher')));
+  await pg.mouse.wheel(0,600); await pg.waitForTimeout(150);
+  ck(`chioma ${w}: reading down tucks it`, await chTucked(pg));
+  ck(`chioma ${w}: tucked by transform and opacity, still in the tab order`, await pg.evaluate(()=>{const f=document.querySelector('.chioma-fab'),cs=getComputedStyle(f);return cs.display!=='none'&&cs.opacity==='0'&&cs.pointerEvents==='none'&&f.tabIndex===0}));
+  await pg.waitForTimeout(1200);
+  const after=await chTucked(pg), blocked=await chBlocked(pg);
+  if (phone) ck(`chioma ${w}: on a phone it stays away after the scrolling stops`, after);
+  else ck(`chioma ${w}: on a desktop it returns ~900ms after the scrolling stops (unless over a control: ${blocked})`, after===blocked);
+  await pg.mouse.wheel(0,-200); await pg.waitForTimeout(150);
+  ck(`chioma ${w}: scrolling up brings it back (unless over a control)`, !(await chTucked(pg)) || await chBlocked(pg));
+  await pg.mouse.wheel(0,600); await pg.waitForTimeout(150); await pg.focus('.chioma-fab');
+  ck(`chioma ${w}: never tucked while it has focus`, !(await chTucked(pg)) && await pg.evaluate(()=>getComputedStyle(document.querySelector('.chioma-fab')).opacity==='1'));
+  await pg.keyboard.press('Enter'); await pg.waitForTimeout(300);
+  ck(`chioma ${w}: Enter still opens the panel`, await pg.evaluate(()=>document.querySelector('.chioma-root').classList.contains('is-open')));
+  if (!phone) { await pg.focus('#chInput'); await pg.mouse.wheel(0,400); await pg.waitForTimeout(150);
+    ck(`chioma ${w}: never tucked while its panel is open`, !(await chTucked(pg))); }
+  await pg.keyboard.press('Escape'); await pg.waitForTimeout(300);
+  ck(`chioma ${w}: Escape closes it and focus comes back to the launcher, visible`, await pg.evaluate(()=>!document.querySelector('.chioma-root').classList.contains('is-open')&&document.activeElement.id==='chFab'&&!document.activeElement.hasAttribute('data-tuck')));
+  await pg.emulateMedia({media:'print'}); ck(`chioma ${w}: hidden in print`, !(await rect(pg,'.chioma-fab'))); await pg.emulateMedia({media:'screen'});
+  await pg.close(); await c.close(); }
+}
+{ // the nudge goes with the launcher, and waits while it is away
+ const c=await ctx(b,1280,800);const pg=await go(c,'/about.html');
+ await pg.evaluate(()=>document.querySelector('#chGreet').classList.add('show'));
+ await pg.mouse.wheel(0,600); await pg.waitForTimeout(150);
+ ck('chioma nudge: tucking hides a showing nudge', await chTucked(pg) && await pg.evaluate(()=>!document.querySelector('#chGreet').classList.contains('show')));
+ await pg.close(); await c.close(); }
+{ // never over a control
+ for (const [w,h] of [[1280,800],[320,640]]) { const c=await ctx(b,w,h);const pg=await go(c,'/about.html'); await pg.waitForTimeout(300);
+  ck(`chioma over-control ${w}: clear spot, not tucked`, !(await chTucked(pg)));
+  await pg.evaluate(()=>{const x=document.createElement('button');x.id='under';x.textContent='Under';x.style.cssText='position:fixed;right:0;bottom:0;width:120px;height:120px;z-index:1';document.body.appendChild(x);dispatchEvent(new Event('resize'));});
+  await pg.waitForTimeout(200);
+  ck(`chioma over-control ${w}: a button under the resting spot keeps it tucked`, await chTucked(pg));
+  ck(`chioma over-control ${w}: …and the button underneath is clickable`, await pg.evaluate(()=>{const r=document.getElementById('under').getBoundingClientRect();return document.elementFromPoint(r.right-30,r.bottom-30).id==='under'}));
+  await pg.focus('.chioma-fab');
+  ck(`chioma over-control ${w}: keyboard focus still brings it back`, await pg.evaluate(()=>getComputedStyle(document.querySelector('.chioma-fab')).opacity==='1'));
+  await pg.evaluate(()=>{document.activeElement.blur();document.getElementById('under').remove();dispatchEvent(new Event('resize'));}); await pg.waitForTimeout(200);
+  ck(`chioma over-control ${w}: the spot clear again, it comes back`, !(await chTucked(pg)));
+  await pg.close(); await c.close(); }
+}
+{ const c=await b.newContext({viewport:{width:1280,height:800},reducedMotion:'reduce'}); await c.addCookies([{name:'av_consent',value:'analytics%3D0',url:BASE}]); const pg=await go(c,'/');
+  await pg.mouse.wheel(0,600); await pg.waitForTimeout(150);
+  ck('chioma: with reduced motion it fades without sliding', await pg.evaluate(()=>{const f=document.querySelector('.chioma-fab');return f.hasAttribute('data-tuck')&&getComputedStyle(f).transform==='none'}));
+  await pg.close(); await c.close(); }
+{ const c=await ctx(b,1280,800);const pg=await go(c,'/about.html');
+  await pg.evaluate(()=>document.documentElement.setAttribute('dir','rtl')); await pg.waitForTimeout(100);
+  const ch=await rect(pg,'.chioma-fab'), f=await rect(pg,'.av-a11y-fab');
+  ck('rtl: Chioma mirrors to the inline end (left), clear of the Accessibility button', ch && ch.l<40 && !overlap(ch,f));
+  await pg.mouse.wheel(0,600); await pg.waitForTimeout(400);
+  const t=await rect(pg,'.chioma-fab'); ck('rtl: Chioma tucks off its own (left) edge', t && t.r<=0);
   await pg.close(); await c.close(); }
 
 /* ── Open states through axe, with settings off and on, desktop and 320 ── */

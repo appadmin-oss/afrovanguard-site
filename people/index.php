@@ -1,18 +1,19 @@
 <?php
 /**
  * people/index.php — the team directory and individual profiles.
- *   /people/              → directory: a plain hero, a slim Volunteer of the Month strip, a
- *                           small "How we are organised" overview (in-page navigation that
- *                           works without script), one toolbar, Leadership full width, then
- *                           one section per constitutional body (AV_TEAM_STRUCTURE), each a
- *                           full-width header over a grid of cards, then a call to action
+ *   /people/              → directory: a plain hero, a slim Volunteer of the Month strip, one
+ *                           toolbar (search, and one row of group chips with counts that are
+ *                           in-page links without script and filters with it), Leadership
+ *                           full width, then one section per constitutional body
+ *                           (AV_TEAM_STRUCTURE), each a full-width header over a grid of
+ *                           cards, then a call to action
  *   /people/<id>-<slug>/  → a single member's profile (see .htaccess; ?id=N)
  *
  * Server-rendered from the native team data (lib/people.php). Only rows that
  * pass av_team_listable() are ever shown here: curated by hand, or auto-synced
  * AND opted in, and never a system or organisation account. Everything is in
  * the markup, so the page works without script; people/people.js only adds
- * the search and filter (the toolbar stays hidden until it runs), keeps them in
+ * the search (hidden until it runs) and turns the chips into filters, keeps them in
  * the URL (?q=, ?g=), and on a profile points "All our people" back at the
  * filtered directory the visitor came from.
  */
@@ -275,13 +276,15 @@ foreach ($tree as $g => $bodies) {   // bodies in map order
 $votm = av_votm($pdo)['votm'] ?? null;
 $total = count($people);
 
-/* "How we are organised": the groups in constitutional order, only those with listable
-   people, each with how many (everyone once, leaders included) and a link to its section.
-   A group whose only people are in Leadership links there. */
-$overview = [];
+/* The chips: one row that is both the structure at a glance and the filter. The groups in
+   constitutional order, only those with listable people, each with how many (everyone
+   once, leaders included). Without script each chip is a link to its section (a group
+   whose only people are in Leadership links there), so the row is a <nav> of anchor
+   links; people.js turns it into a group of toggle buttons that filter (aria-pressed),
+   so each mode says what it does — never a "link" that filters or a "button" that jumps. */
+$chips = ['all' => ['label' => 'Everyone', 'n' => $total, 'href' => $spot ? '#ppl-leadership' : '#ppl-g-' . array_key_first($tree)]];
 foreach ($chipCount as $g => $n) {
-    $overview[$g] = ['label' => $g === 'council' ? AV_TEAM_STRUCTURE[$g]['label'] : AV_TEAM_STRUCTURE[$g]['short'], 'n' => $n,
-                     'href' => isset($tree[$g]) ? '#ppl-g-' . $g : '#ppl-leadership'];
+    $chips[$g] = ['label' => AV_TEAM_STRUCTURE[$g]['short'], 'n' => $n, 'href' => isset($tree[$g]) ? '#ppl-g-' . $g : '#ppl-leadership'];
 }
 
 render_head([
@@ -331,27 +334,17 @@ render_nav('people');
       <div class="ppl-wrap"><p class="ppl-none">Our directory is being prepared — check back soon.</p></div>
     </section>
 <?php else: ?>
-    <nav class="ppl-org" aria-labelledby="ppl-org-h">
-      <div class="ppl-wrap ppl-org-in">
-        <h2 class="ppl-org-h" id="ppl-org-h">How we are organised</h2>
-        <ol class="ppl-org-list">
-<?php foreach ($overview as $g => $o): ?>          <li><a href="<?= e($o['href']) ?>" data-ppl-jump="<?= e($g) ?>"><span class="ppl-org-l"><?= e($o['label']) ?></span> <span class="ppl-org-c"><?= (int) $o['n'] ?><span class="av-sr"> <?= $o['n'] === 1 ? 'person' : 'people' ?></span></span></a></li>
-<?php endforeach; ?>        </ol>
-      </div>
-    </nav>
-
     <div class="ppl-tools-band">
       <div class="ppl-wrap ppl-tools-row">
-        <div class="ppl-tools" id="ppl-tools" hidden>
-          <div class="ppl-search">
+        <div class="ppl-tools" id="ppl-tools">
+          <div class="ppl-search" data-ppl-search hidden>
             <label class="av-sr" for="ppl-q">Search people</label>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
             <input type="search" id="ppl-q" placeholder="Search name, role, directorate or place" autocomplete="off" spellcheck="false" />
           </div>
-          <div class="ppl-chips" role="group" aria-label="Show people from">
-            <button type="button" class="ppl-chip" data-group="all" aria-pressed="true">Everyone</button>
-<?php foreach (array_keys($chipCount) as $g): ?>            <button type="button" class="ppl-chip" data-group="<?= e($g) ?>" aria-pressed="false"><?= e(AV_TEAM_STRUCTURE[$g]['short']) ?></button>
-<?php endforeach; ?>          </div>
+          <nav class="ppl-chips" aria-label="Browse our people by group" data-ppl-chips>
+<?php foreach ($chips as $g => $c): ?>            <a class="ppl-chip" href="<?= e($c['href']) ?>" data-group="<?= e($g) ?>"><?= e($c['label']) ?> <span class="ppl-chip-n"><?= (int) $c['n'] ?><span class="av-sr"> <?= $c['n'] === 1 ? 'person' : 'people' ?></span></span></a>
+<?php endforeach; ?>          </nav>
         </div>
         <div class="ppl-status">
           <p class="ppl-count" id="ppl-count" role="status" aria-live="polite" aria-atomic="true"></p>

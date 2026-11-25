@@ -37,7 +37,7 @@
   --ch-fh: 'Cormorant Garamond', Georgia, serif;
 
   position: fixed;
-  right: max(16px, env(safe-area-inset-right));
+  inset-inline-end: max(16px, env(safe-area-inset-right));
   /* Above any bottom bar on screen (assets/site/bottom-ui.js), like the
      Accessibility button at the other corner. */
   bottom: calc(var(--av-bottom-ui, 0px) + 16px + env(safe-area-inset-bottom));
@@ -66,26 +66,39 @@ html[data-theme="dark"] .chioma-root,
   border-radius: var(--r-pill); cursor: pointer; display: grid; place-items: center;
   background: var(--ch-navy); color: var(--ch-gold);
   box-shadow: 0 8px 24px -8px rgba(13,18,32,.4);
-  transition: transform .18s ease;
+  transition: transform .2s ease, opacity .2s ease;
 }
 .chioma-fab:hover { transform: translateY(-1px); }
+/* TUCKED (assets/site/launcher-tuck.js, the Accessibility button's rule):
+   while the reader scrolls down, and while a control lies under its resting
+   spot. Off its edge and faded, not display:none, so it slides back rather
+   than popping and stays in the tab order; keyboard focus brings it straight
+   back (WCAG 2.4.7). Never while the panel is open. Mirrored right-to-left. */
+.chioma-root:not(.is-open) .chioma-fab[data-tuck] { transform: translateX(calc(100% + 24px)); opacity: 0; pointer-events: none; }
+[dir="rtl"] .chioma-root:not(.is-open) .chioma-fab[data-tuck] { transform: translateX(calc(-100% - 24px)); }
+.chioma-root:not(.is-open) .chioma-fab[data-tuck]:focus-visible { transform: none; opacity: 1; pointer-events: auto; }
+/* The widget's own box would still catch clicks at the resting spot: it lets them through. */
+.chioma-root:not(.is-open):has(> .chioma-fab[data-tuck]:not(:focus-visible)) { pointer-events: none; }
+/* No slide where motion is unwelcome: it simply goes and comes back. */
+@media (prefers-reduced-motion: reduce) { .chioma-root:not(.is-open) .chioma-fab[data-tuck] { transform: none; } }
+html.a11y-still .chioma-root:not(.is-open) .chioma-fab[data-tuck] { transform: none; }
 .chioma-fab:active { transform: scale(.96); }
 .chioma-fab:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: 3px; }
 .chioma-fab .ch-mark { width: 56px; height: 56px; border-radius: var(--r-pill); display: block; }
 .chioma-fab .ch-mark-svg { width: 30px; height: 30px; }
 .chioma-fab .ch-dot {
-  position: absolute; top: 3px; right: 3px; width: 12px; height: 12px; border-radius: var(--r-pill);
+  position: absolute; top: 3px; inset-inline-end: 3px; width: 12px; height: 12px; border-radius: var(--r-pill);
   background: var(--ch-gold); border: 2.5px solid var(--ch-surface);
 }
 .chioma-root.is-open .chioma-fab .ch-dot { display: none; }
 
 /* ── Nudge ─────────────────────────────────────────────────────────────── */
 .chioma-greet {
-  position: absolute; right: 68px; bottom: 6px; width: max-content;
+  position: absolute; inset-inline-end: 68px; bottom: 6px; width: max-content;
   max-width: min(252px, calc(100vw - 100px));
   background: var(--ch-surface); color: var(--ch-ink);
   border-radius: var(--r); padding: 12px 14px;
-  font-size: 0.8125rem; line-height: 1.5; text-align: left; cursor: pointer;
+  font-size: 0.8125rem; line-height: 1.5; text-align: start; cursor: pointer;
   box-shadow: 0 10px 30px -12px rgba(13,18,32,.35);
   opacity: 0; transform: translateY(6px); pointer-events: none;
   transition: opacity .2s ease, transform .2s ease;
@@ -95,18 +108,18 @@ html[data-theme="dark"] .chioma-root,
    which is the Accessibility button's (assets/site/a11y.css). Above it, it
    can be as wide as it likes and still clear that button. */
 @media (max-width: 479px) {
-  .chioma-greet { right: 0; bottom: 70px; max-width: min(300px, calc(100vw - 32px)); }
+  .chioma-greet { inset-inline-end: 0; bottom: 70px; max-width: min(300px, calc(100vw - 32px)); }
 }
 .chioma-greet b { font-weight: 600; }
 /* The nudge used to be a div with a click handler — no role, no keyboard, no
    focus. The text is a real button now, and dismiss is its own control. */
 .ch-greet-open {
   display: block; width: 100%; padding: 0; margin: 0; border: 0; background: none;
-  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  font: inherit; color: inherit; text-align: start; cursor: pointer;
 }
 .ch-greet-open:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: 4px; border-radius: 6px; }
 .chioma-greet .ch-greet-x {
-  position: absolute; top: -9px; right: -9px; width: 24px; height: 24px;
+  position: absolute; top: -9px; inset-inline-end: -9px; width: 24px; height: 24px;
   border-radius: var(--r-pill); border: 0; background: var(--ch-surface); color: var(--ch-muted);
   cursor: pointer; display: grid; place-items: center;
   box-shadow: 0 2px 8px rgba(13,18,32,.16);
@@ -115,7 +128,7 @@ html[data-theme="dark"] .chioma-root,
 
 /* ── Panel ─────────────────────────────────────────────────────────────── */
 .chioma-panel {
-  position: absolute; right: 0; bottom: 70px;
+  position: absolute; inset-inline-end: 0; bottom: 70px;
   width: min(420px, calc(100vw - 32px));
   height: min(640px, calc(100dvh - 120px));
   display: none; flex-direction: column; overflow: hidden;
@@ -315,7 +328,7 @@ html[data-theme="dark"] .ch-chip:hover, .chioma-root[data-dark="1"] .ch-chip:hov
 
 /* ── Phone: a sheet ────────────────────────────────────────────────────── */
 @media (max-width: 559px) {
-  .chioma-root { right: 12px; bottom: calc(var(--av-bottom-ui, 0px) + 12px + env(safe-area-inset-bottom)); }
+  .chioma-root { inset-inline-end: 12px; bottom: calc(var(--av-bottom-ui, 0px) + 12px + env(safe-area-inset-bottom)); }
   /* One question at a time: while the cookie notice asks (it sat on top of
      the launcher anyway), the launcher waits, as the Accessibility tab does. */
   body:has(.av-cc:not([hidden])) .chioma-root:not(.is-open) { display: none; }

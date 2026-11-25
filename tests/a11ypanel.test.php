@@ -91,15 +91,41 @@ foreach (['assets/site/ga.js' => "box.setAttribute('data-bottom-ui', '')", 'port
     ck("bottom ui: $f marks its bottom bar", str_contains((string) file_get_contents("$r/$f"), $needle));
 foreach (['index.html', 'about.html', '404.html'] as $f) ck("bottom ui: $f loads it", (bool) preg_match('~/assets/site/bottom-ui\.js\?v=[0-9a-f]{10}" defer~', (string) file_get_contents("$r/$f")));
 ck('bottom ui: Chioma\'s launcher clears the same bars, so the two corners never collide', str_contains((string) file_get_contents("$r/assets/site/chioma.css"), 'bottom: calc(var(--av-bottom-ui, 0px) + 16px + env(safe-area-inset-bottom));'));
-/* Tuck on scroll, and never over a control. */
-ck('a11y fab: reading down past 80px tucks it; scrolling up brings it back', str_contains($js, 'reading = dy > 0 && y > 80;') && str_contains($js, "if ((reading || blocked) && document.activeElement !== fab) fab.setAttribute('data-tuck', '');"));
-ck('a11y fab: from 600px it returns ~900ms after scrolling stops; on a phone it waits for a scroll up', str_contains($js, "if (!(phone && phone.matches && y > 80)) reading = false;") && str_contains($js, '}, 900);') && str_contains($js, "window.matchMedia('(max-width: 599px)')"));
-ck('a11y fab: never tucked while it has focus', str_contains($js, "fab.addEventListener('focus', function () { fab.removeAttribute('data-tuck'); });"));
-ck('a11y fab: nine points of its resting box, any control under one keeps it tucked (ignoring itself and the panel)',
-   str_contains($js, 'var xs = [x + 3, x + w / 2, x + w - 3], ys = [y + 3, y + h / 2, y + h - 3];') && str_contains($js, 'document.elementsFromPoint(xs[i], ys[j])')
-   && str_contains($js, "var CONTROL = 'a[href], button, input, select, textarea, summary, label, [role=\"button\"], [role=\"link\"], [tabindex]:not([tabindex=\"-1\"])';")
-   && str_contains($js, "if (e === fab || fab.contains(e) || (dlg && dlg.contains(e))) continue;"));
-ck('a11y fab: it looks on load, resize, the load event and again at 1.6s', str_contains($js, "window.addEventListener('load', look)") && str_contains($js, 'setTimeout(look, 1600);') && str_contains($js, 'requestAnimationFrame(look)'));
+/* Tuck on scroll, and never over a control: one shared module (launcher-tuck.js), used by both launchers. */
+$tk = (string) file_get_contents("$r/assets/site/launcher-tuck.js");
+$chJs = (string) file_get_contents("$r/assets/site/chioma.js");
+$chCss = (string) file_get_contents("$r/assets/site/chioma.css");
+ck('launcher tuck: reading down past 80px tucks it; scrolling up brings it back', str_contains($tk, 'reading = dy > 0 && y > 80;') && str_contains($tk, "if ((reading || blocked) && document.activeElement !== fab && !held()) {") && str_contains($tk, "fab.setAttribute('data-tuck', '');"));
+ck('launcher tuck: from 600px it returns ~900ms after scrolling stops; on a phone it waits for a scroll up', str_contains($tk, "if (!(phone && phone.matches && y > 80)) reading = false;") && str_contains($tk, '}, 900);') && str_contains($tk, "var PHONE = '(max-width: 599px)';"));
+ck('launcher tuck: never tucked while it has focus, nor while the caller holds it', str_contains($tk, "fab.addEventListener('focus', function () { fab.removeAttribute('data-tuck'); });") && str_contains($tk, 'return !!(opts.hold && opts.hold());'));
+ck('launcher tuck: nine points of its resting box, any control under one keeps it tucked (ignoring every launcher and what the caller names)',
+   str_contains($tk, 'var xs = [b.x + 3, b.x + b.w / 2, b.x + b.w - 3], ys = [b.y + 3, b.y + b.h / 2, b.y + b.h - 3];') && str_contains($tk, 'document.elementsFromPoint(xs[i], ys[j])')
+   && str_contains($tk, "var CONTROL = 'a[href], button, input, select, textarea, summary, label, [role=\"button\"], [role=\"link\"], [tabindex]:not([tabindex=\"-1\"])';")
+   && str_contains($tk, "e.closest('[data-av-launcher]') || (opts.ignore && opts.ignore(e))") && str_contains($tk, 'while (e) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; }'));
+ck('launcher tuck: it looks on load, resize, the load event and again at 1.6s', str_contains($tk, "window.addEventListener('load', look)") && str_contains($tk, 'setTimeout(look, 1600);') && str_contains($tk, 'requestAnimationFrame(look)'));
+ck('launcher tuck: the Accessibility button uses the shared module (its panel ignored), with no copy of its own',
+   str_contains($js, "tuck = window.AvTuck(fab, { ignore: function (e) { return !!(dlg && dlg.contains(e)); } });") && !str_contains($js, 'elementsFromPoint') && !str_contains($js, 'reading = dy > 0'));
+ck('launcher tuck: Chioma\'s launcher uses the same module: never while its panel is open, its nudge goes with it, no copy of its own',
+   str_contains($chJs, "var tuck = window.AvTuck ? window.AvTuck(fab, {") && str_contains($chJs, 'scope: root,') && str_contains($chJs, 'hold: function () { return open; },')
+   && str_contains($chJs, 'onTuck: hideGreet') && str_contains($chJs, 'if (tuck) tuck.paint();') && !str_contains($chJs, 'elementsFromPoint') && !str_contains($chJs, 'reading = dy > 0'));
+ck('launcher tuck: Chioma\'s nudge waits while the launcher has stepped aside', str_contains($chJs, "if (tucked()) { schedule(8000); return; }") && str_contains($chJs, "if (tucked()) { bubbleTimer = setTimeout(first, 4000); return; }"));
+ck('launcher tuck: Chioma\'s launcher slides off its own (inline-end) edge, faded, mirrored for RTL, back on focus, no slide with reduced motion or Stop moving content, never while open',
+   str_contains($chCss, '.chioma-root:not(.is-open) .chioma-fab[data-tuck] { transform: translateX(calc(100% + 24px)); opacity: 0; pointer-events: none; }')
+   && str_contains($chCss, '[dir="rtl"] .chioma-root:not(.is-open) .chioma-fab[data-tuck] { transform: translateX(calc(-100% - 24px)); }')
+   && str_contains($chCss, '.chioma-root:not(.is-open) .chioma-fab[data-tuck]:focus-visible { transform: none; opacity: 1; pointer-events: auto; }')
+   && str_contains($chCss, '@media (prefers-reduced-motion: reduce) { .chioma-root:not(.is-open) .chioma-fab[data-tuck] { transform: none; } }')
+   && str_contains($chCss, 'html.a11y-still .chioma-root:not(.is-open) .chioma-fab[data-tuck] { transform: none; }')
+   && str_contains($chCss, '@media print { .chioma-root { display: none !important; } }') && str_contains($chCss, 'inset-inline-end: max(16px, env(safe-area-inset-right));'));
+ck('launcher tuck: every page loads the module before either launcher (A11y head, error pages, static pages)',
+   str_contains((string) file_get_contents("$r/lib/A11y.php"), "av_asset('/assets/site/launcher-tuck.js')")
+   && strpos((string) file_get_contents("$r/lib/A11y.php"), 'launcher-tuck.js') < strpos((string) file_get_contents("$r/lib/A11y.php"), "av_asset('/assets/site/a11y.js')")
+   && str_contains((string) file_get_contents("$r/lib/errors.php"), "av_err_asset('/assets/site/launcher-tuck.js')"));
+foreach (['index.html', 'about.html', 'contact.html', 'donate.html', 'projects/index.html', '404.html', '500.html'] as $f) {
+    $src = (string) file_get_contents("$r/$f");
+    ck("launcher tuck: $f loads it before a11y.js and chioma.js", (bool) preg_match('~/assets/site/launcher-tuck\.js\?v=[0-9a-f]{10}" defer~', $src)
+       && strpos($src, 'launcher-tuck.js') < strpos($src, '/assets/site/a11y.js') && (!str_contains($src, 'chioma.js') || strpos($src, 'launcher-tuck.js') < strpos($src, 'chioma.js')));
+}
+ck('launcher tuck: small', filesize("$r/assets/site/launcher-tuck.js") < 6000);
 ck('a11y sheet: on a phone it follows the visual viewport', str_contains($js, "dlg.style.setProperty('--av-vv-h', Math.round(vv.height) + 'px');") && str_contains($js, "vv.addEventListener('resize', fit)"));
 ck('a11y dialog: a native <dialog> opened modal, labelled and described', str_contains($js, "el('dialog'") && str_contains($js, 'showModal()') && str_contains($js, "'aria-labelledby': 'av-a11y-h'") && str_contains($js, "'aria-describedby': 'av-a11y-d'"));
 ck('a11y dialog: native radios for size and contrast (a segmented control), checkboxes with role="switch"', str_contains($js, 'type="radio" name="av-a11y-text"') && str_contains($js, 'type="radio" name="av-a11y-hc"') && str_contains($js, '<input type="checkbox" role="switch" name="av-a11y-') && str_contains($js, 'class="av-a11y-seg"'));
@@ -139,10 +165,10 @@ ck('CI: the launcher and palette are driven by keyboard in Chromium (tests/a11y/
    && str_contains((string) file_get_contents("$r/tests/a11y/launchers-ci.js"), "a button under the resting spot keeps it tucked")
    && str_contains((string) file_get_contents("$r/tests/a11y/launchers-ci.js"), "on a phone the tab waits while the notice asks")
    && str_contains((string) file_get_contents("$r/tests/a11y/launchers-ci.js"), "the tab bar is measured"));
-ck('bottom ui: on a phone Chioma uses the same figure, and waits while the cookie notice asks', str_contains((string) file_get_contents("$r/assets/site/chioma.css"), '.chioma-root { right: 12px; bottom: calc(var(--av-bottom-ui, 0px) + 12px + env(safe-area-inset-bottom)); }')
+ck('bottom ui: on a phone Chioma uses the same figure, and waits while the cookie notice asks', str_contains((string) file_get_contents("$r/assets/site/chioma.css"), '.chioma-root { inset-inline-end: 12px; bottom: calc(var(--av-bottom-ui, 0px) + 12px + env(safe-area-inset-bottom)); }')
    && str_contains((string) file_get_contents("$r/assets/site/chioma.css"), 'body:has(.av-cc:not([hidden])) .chioma-root:not(.is-open) { display: none; }'));
 ck('a11y fab: on a phone Chioma\'s nudge sits above its own launcher, clear of the bottom-left button',
-   str_contains((string) file_get_contents("$r/assets/site/chioma.css"), "@media (max-width: 479px) {\n  .chioma-greet { right: 0; bottom: 70px;"));
+   str_contains((string) file_get_contents("$r/assets/site/chioma.css"), "@media (max-width: 479px) {\n  .chioma-greet { inset-inline-end: 0; bottom: 70px;"));
 ck('a11y css: the panel opens in the launcher\'s corner, and as a bottom sheet over the visual viewport on a phone', str_contains($css, 'position:fixed;inset:auto;inset-inline-start:var(--av-fab-left,max(16px,env(safe-area-inset-left)));bottom:calc(var(--av-bottom-ui,0px) + 16px + env(safe-area-inset-bottom));') && str_contains($css, '.av-a11y{inset:auto 0 var(--av-vv-b,0px) 0;') && str_contains($css, 'border-radius:18px 18px 0 0'));
 ck('a11y assets: small', filesize("$r/assets/site/a11y.js") < 26000 && filesize("$r/assets/site/a11y.css") < 32000 && filesize("$r/assets/site/bottom-ui.js") < 5000 && filesize("$r/assets/site/listen.js") < 10000);
 

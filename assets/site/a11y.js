@@ -228,67 +228,17 @@
      from --av-bottom-ui (bottom-ui.js); a11y.css draws it as a round button
      from 600px and as a tab against the screen's edge on a phone.
 
-     IT STEPS ASIDE WHILE SOMEBODY READS DOWN A PAGE: scrolling down past
-     80px it slides off the edge (data-tuck), still in the tab order; it comes
-     back on the first scroll up and, from 600px, about 900ms after the
-     scrolling stops. On a phone it stays away until the reader scrolls up —
-     coming back at every pause put it over a row's button mid-read. It never
-     leaves while it has the keyboard's focus.
-
-     AND IT NEVER SITS ON A CONTROL. No fixed spot is clear on every page, so
-     it asks the page: when the scrolling settles, on load, on resize and once
-     more after entrance animations, it samples nine points of its resting box,
-     and while a link, button or field is under any of them it stays tucked
-     until the spot is clear. The footer link and Alt+Shift+A are never tucked. */
-  var CONTROL = 'a[href], button, input, select, textarea, summary, label, [role="button"], [role="link"], [tabindex]:not([tabindex="-1"])';
-  function overControl() {
-    if (!fab || !fab.getClientRects().length) return false;
-    /* offsetLeft/Top ignore the tuck's transform: this is the RESTING box. */
-    var x = fab.offsetLeft, y = fab.offsetTop, w = fab.offsetWidth, h = fab.offsetHeight;
-    if (!w || !h || !document.elementsFromPoint) return false;
-    var xs = [x + 3, x + w / 2, x + w - 3], ys = [y + 3, y + h / 2, y + h - 3];
-    for (var i = 0; i < 3; i++) for (var j = 0; j < 3; j++) {
-      var under = document.elementsFromPoint(xs[i], ys[j]);
-      for (var k = 0; k < under.length; k++) {
-        var e = under[k];
-        if (e === fab || fab.contains(e) || (dlg && dlg.contains(e))) continue;
-        if (e.closest && e.closest(CONTROL)) return true;
-      }
-    }
-    return false;
-  }
-  var reading = false, blocked = false;
-  function paintTuck() {
-    if (!fab) return;
-    if ((reading || blocked) && document.activeElement !== fab) fab.setAttribute('data-tuck', '');
-    else fab.removeAttribute('data-tuck');
-  }
-  function look() { blocked = overControl(); paintTuck(); }
+     IT STEPS ASIDE WHILE SOMEBODY READS DOWN A PAGE, AND NEVER SITS ON A
+     CONTROL: the rule is shared with Chioma's launcher, in launcher-tuck.js
+     (tuck past 80px scrolling down, back on scroll up or ~900ms after it stops
+     from 600px, a phone waits for a scroll up, never while focused, nine points
+     of the resting box checked for controls). The footer link and Alt+Shift+A
+     are never tucked. */
+  var tuck = null;
+  function look() { if (tuck) tuck.look(); }
   function tuckOnScroll() {
-    var phone = window.matchMedia ? window.matchMedia('(max-width: 599px)') : null;
-    var lastY = window.pageYOffset, settle = 0, again = 0;
-    window.addEventListener('scroll', function () {
-      var y = window.pageYOffset, dy = y - lastY;
-      lastY = y;
-      if (Math.abs(dy) < 4) return;
-      reading = dy > 0 && y > 80;
-      paintTuck();
-      clearTimeout(settle);
-      settle = setTimeout(function () {
-        if (!(phone && phone.matches && y > 80)) reading = false;
-        look();
-      }, 900);
-    }, { passive: true });
-    fab.addEventListener('focus', function () { fab.removeAttribute('data-tuck'); });
-    fab.addEventListener('blur', paintTuck);
-    window.addEventListener('resize', function () {
-      if (!window.requestAnimationFrame) return look();
-      cancelAnimationFrame(again); again = requestAnimationFrame(look);
-    });
-    if (window.requestAnimationFrame) requestAnimationFrame(look); else look();
-    if (document.readyState !== 'complete') window.addEventListener('load', look);
-    /* Once more after the page's entrance animations have put things in place. */
-    setTimeout(look, 1600);
+    if (!window.AvTuck) return;
+    tuck = window.AvTuck(fab, { ignore: function (e) { return !!(dlg && dlg.contains(e)); } });
   }
 
   /* ── The phone sheet follows the VISUAL viewport ──────────────────────

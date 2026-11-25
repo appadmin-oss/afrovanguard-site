@@ -154,6 +154,7 @@ final class A11y
         if (!class_exists('SiteSearch', false)) require_once __DIR__ . '/SiteSearch.php';
         return self::BOOT . "\n"
             . '  <script src="' . htmlspecialchars(av_asset('/assets/site/bottom-ui.js'), ENT_QUOTES) . '" defer></script>' . "\n"
+            . '  <script src="' . htmlspecialchars(av_asset('/assets/site/launcher-tuck.js'), ENT_QUOTES) . '" defer></script>' . "\n"
             . '  <link href="' . htmlspecialchars(av_asset('/assets/site/a11y.css'), ENT_QUOTES) . '" rel="stylesheet" />' . "\n"
             . '  <script src="' . htmlspecialchars(av_asset('/assets/site/a11y.js'), ENT_QUOTES) . '" defer></script>' . "\n"
             . SiteSearch::head();

@@ -171,7 +171,7 @@ preg_match_all('~<li class="ppl-lead"[^>]*>.*?class="ppl-lead-n"><a[^>]*>([^<]+)
 ck('people page: the spotlight is the President, then the Council Chairperson', $lm[1] === ['Test Leader Okafor', 'Test Director Bello']);
 preg_match_all('~<h2 id="ppl-g-([a-z]+)-h">~', $html, $gm);
 ck('people page: sections in constitutional order, only the non-empty ones (spotlit people leave theirs)', $gm[1] === ['volunteers', 'honorary']);
-ck('people page: a group emptied by the spotlight keeps its chip, so the filter still finds its leader', str_contains($html, 'class="ppl-chip" data-group="executive"') && str_contains($html, 'class="ppl-chip" data-group="council"'));
+ck('people page: a group emptied by the spotlight keeps its chip, so the filter still finds its leader', str_contains($html, 'class="ppl-chip" href="#ppl-leadership" data-group="executive"') && str_contains($html, 'class="ppl-chip" href="#ppl-leadership" data-group="council"'));
 preg_match_all('~<h3 id="ppl-b-([a-z-]+)-h">~', $html, $bm);
 ck('people page: multi-body groups show their bodies as sub-groups', $bm[1] === ['official-volunteers']);
 ck('people page: a spotlit leader appears once, not again in their section', substr_count($html, '>Test Leader Okafor</a>') === 1);
@@ -183,16 +183,12 @@ ck('people page: no tier badge inside the cards any more', !str_contains($html, 
 ck('people page: the hero is plain: no summary line, one button (membership lives in the closing band)',
    !str_contains($html, 'ppl-summary') && preg_match('~<header class="ppl-hero">(.*?)</header>~s', $html, $hm) === 1
    && substr_count($hm[1], 'class="ppl-btn"') === 1 && !str_contains($hm[1], 'ppl-votm') && !str_contains($hm[1], '/academy/#membership'));
-ck('people page: the chips carry no counts (the live count line says how many)', !str_contains($html, 'ppl-chip-n')
-   && str_contains($html, 'data-group="all" aria-pressed="true">Everyone</button>'));
 ck('people page: directory cards carry no tagline (it stays on the profile)', !str_contains($html, 'ppl-card-t'));
 ck('people page: initials avatar is decorative and tinted', (bool) preg_match('~<span class="ppl-av ppl-tint-[0-5]" aria-hidden="true">TV</span>~', $html));
 ck('people page: a photo is used when there is one, laid over the initials so a missing file still shows them',
    (bool) preg_match('~<span class="ppl-av (ppl-tint-[0-5]) ppl-av--ph" aria-hidden="true">TE<img class="\1" src="/uploads/test-patron\.jpg" alt="" data-ini="TE"~', $html));
-ck('people page: the toolbar is hidden until script runs, so no-JS shows everyone', (bool) preg_match('~<div class="ppl-tools" id="ppl-tools" hidden>~', $html));
-ck('people page: the filter chips are the non-empty groups, toggle buttons with aria-pressed',
-   substr_count($html, 'class="ppl-chip"') === 5 && str_contains($html, 'data-group="all" aria-pressed="true"')
-   && str_contains($html, 'data-group="honorary" aria-pressed="false"') && !str_contains($html, 'data-group="board" aria-pressed') && !str_contains($html, 'ppl-pill'));
+ck('people page: the search is hidden until script runs; the chips show without it, so no-JS shows everyone and the structure',
+   str_contains($html, '<div class="ppl-tools" id="ppl-tools">') && str_contains($html, '<div class="ppl-search" data-ppl-search hidden>'));
 ck('people page: the result count is a polite live region', str_contains($html, 'id="ppl-count" role="status" aria-live="polite"'));
 ck('people page: the script is a stamped file, not inline', (bool) preg_match('~<script src="/people/people\.js\?v=[0-9a-f]{10}" defer></script>~', $html)
    && !str_contains($html, "getElementById('pplGrid')"));
@@ -206,23 +202,26 @@ ck('people page: an unsafe social URL is dropped, a real one kept with a name',
 ck('people page: breadcrumb uses the site pattern (› separators, aria-current)', str_contains($html, '<nav class="ppl-crumbs" aria-label="Breadcrumb"><ol class="av-crumbs"><li><a href="/">Home</a><span aria-hidden="true">›</span>')
    && str_contains($html, '<span aria-current="page">Our people</span>'));
 
-/* ══ How we are organised ══════════════════════════════════════════════ */
-preg_match('~<nav class="ppl-org" aria-labelledby="ppl-org-h">(.*?)</nav>~s', $html, $om);
-$org = $om[1] ?? '';
-preg_match_all('~<li><a href="(#[a-z-]+)" data-ppl-jump="([a-z]+)"><span class="ppl-org-l">([^<]+)</span> <span class="ppl-org-c">(\d+)<span class="av-sr"> (person|people)</span>~', $org, $ov, PREG_SET_ORDER);
-ck('people overview: a labelled nav with a heading, after the Volunteer of the Month strip and before the toolbar and Leadership',
-   $org !== '' && str_contains($org, '<h2 class="ppl-org-h" id="ppl-org-h">How we are organised</h2>') && str_contains($org, '<ol class="ppl-org-list">')
-   && strpos($html, 'class="ppl-votm"') < strpos($html, 'class="ppl-org"') && strpos($html, 'class="ppl-org"') < strpos($html, 'class="ppl-tools-band"')
-   && strpos($html, 'class="ppl-org"') < strpos($html, 'id="ppl-leadership"'));
-ck('people overview: only the groups with listable people, in constitutional order',
-   array_column($ov, 2) === ['council', 'executive', 'volunteers', 'honorary']);
-ck('people overview: counts everybody once, leaders included (Council 1: its Chair is in Leadership)',
-   array_combine(array_column($ov, 2), array_map('intval', array_column($ov, 4))) === ['council' => 1, 'executive' => 1, 'volunteers' => 3, 'honorary' => 1]
-   && $ov[0][5] === 'person' && $ov[2][5] === 'people');
-ck('people overview: links to each group\'s section, or to Leadership when all its people are there',
-   array_column($ov, 1) === ['#ppl-leadership', '#ppl-leadership', '#ppl-g-volunteers', '#ppl-g-honorary']
-   && str_contains($html, 'id="ppl-g-volunteers"') && str_contains($html, 'id="ppl-leadership"'));
-ck('people overview: the Council keeps its full name, the rest their short one', $ov[0][3] === 'Governing Council' && $ov[3][3] === 'Patrons &amp; advisers');
+/* ══ The chips: the structure and the filter in one row ═════════════════ */
+preg_match('~<nav class="ppl-chips" aria-label="([^"]+)" data-ppl-chips>(.*?)</nav>~s', $html, $cm);
+$chipRow = $cm[2] ?? '';
+preg_match_all('~<a class="ppl-chip" href="(#[a-z-]+)" data-group="([a-z]+)">([^<]+) <span class="ppl-chip-n">(\d+)<span class="av-sr"> (person|people)</span></span></a>~', $chipRow, $ov, PREG_SET_ORDER);
+ck('people chips: one row — the old "How we are organised" overview is gone, markup and styles',
+   $chipRow !== '' && !str_contains($html, 'ppl-org') && !str_contains($html, 'How we are organised') && !str_contains($html, 'data-ppl-jump')
+   && !str_contains((string) file_get_contents(AV_ROOT . '/people/people.css'), 'ppl-org') && substr_count($html, 'class="ppl-chip"') === 5);
+ck('people chips: without script a named <nav> of plain links (no aria-pressed, no buttons), in the toolbar before Leadership',
+   ($cm[1] ?? '') === 'Browse our people by group' && !str_contains($chipRow, 'aria-pressed') && !str_contains($chipRow, '<button')
+   && strpos($html, 'data-ppl-chips') < strpos($html, 'id="ppl-leadership"') && strpos($html, 'class="ppl-votm"') < strpos($html, 'data-ppl-chips')
+   && !str_contains($html, '>Browse by<'));
+ck('people chips: "Everyone" first with the total, then only the groups with listable people, in constitutional order',
+   array_column($ov, 2) === ['all', 'council', 'executive', 'volunteers', 'honorary'] && $ov[0][3] === 'Everyone' && (int) $ov[0][4] === 6);
+ck('people chips: each counts everybody once, leaders included (Council 1: its Chair is in Leadership)',
+   array_combine(array_column($ov, 2), array_map('intval', array_column($ov, 4))) === ['all' => 6, 'council' => 1, 'executive' => 1, 'volunteers' => 3, 'honorary' => 1]
+   && $ov[1][5] === 'person' && $ov[3][5] === 'people');
+ck('people chips: each links to its section without script, or to Leadership when the spotlight emptied it',
+   array_column($ov, 1) === ['#ppl-leadership', '#ppl-leadership', '#ppl-leadership', '#ppl-g-volunteers', '#ppl-g-honorary']
+   && str_contains($html, 'id="ppl-g-volunteers"') && str_contains($html, 'id="ppl-g-honorary"') && str_contains($html, 'id="ppl-leadership"'));
+ck('people chips: the short group names', $ov[1][3] === 'Council' && $ov[4][3] === 'Patrons &amp; advisers');
 
 /* ══ Layout: full-width sections, cards, launcher-safe column ═════════ */
 ck('people layout: sections are a full-width header (name, then its line) over the people, no side column',
@@ -301,7 +300,11 @@ ck('people js: toggles aria-pressed and hides with the hidden attribute (no inli
    str_contains($js, "setAttribute('aria-pressed'") && str_contains($js, '.hidden =') && !str_contains($js, 'style.display'));
 ck('people js: whole sections with nobody left are hidden', str_contains($js, 'sec.hidden = n === 0'));
 ck('people js: people are counted by id', str_contains($js, "getAttribute('data-id')"));
-ck('people js: the toolbar is revealed by the script', str_contains($js, 'tools.hidden = false'));
+ck('people js: the search is revealed by the script', str_contains($js, 'searchBox.hidden = false'));
+ck('people js: the chip links become a named group of toggle buttons (aria-pressed), nodes moved not re-parsed',
+   str_contains($js, "row.setAttribute('role', 'group');") && str_contains($js, "row.setAttribute('aria-label', 'Show people from');")
+   && str_contains($js, "createElement('button')") && str_contains($js, "b.setAttribute('aria-pressed', 'false');") && str_contains($js, 'nav.parentNode.replaceChild(row, nav);')
+   && str_contains($js, 'while (a.firstChild) b.appendChild(a.firstChild);'));
 ck('people js: the search and chip are kept in the URL (?q=, ?g=) with replaceState and read back on load',
    str_contains($js, 'history.replaceState(') && str_contains($js, "p.set('q', raw)") && str_contains($js, "p.set('g', group)")
    && str_contains($js, "params.get('q')") && str_contains($js, "setGroup(params.get('g') || 'all', true)"));
@@ -315,4 +318,28 @@ ck('people js: storage is guarded (private windows)', str_contains($js, 'try { i
 
 $pdo->exec('DELETE FROM team');
 $htmlE = render_page(AV_ROOT . '/people/index.php');
-ck('people overview: an empty directory shows no overview and no toolbar', !str_contains($htmlE, 'class="ppl-org"') && !str_contains($htmlE, 'id="ppl-tools"'));
+ck('people chips: an empty directory shows no chips and no toolbar', !str_contains($htmlE, 'class="ppl-chip"') && !str_contains($htmlE, 'id="ppl-tools"'));
+
+/* ══ Initials tints: clearly a colour of their own on every ground ═════ */
+$tintCss = (string) file_get_contents(AV_ROOT . '/people/people.css');
+$tok = (string) file_get_contents(AV_ROOT . '/assets/site/av-tokens.css');
+$hex = static function (string $src, string $name): string { return preg_match('~' . preg_quote($name, '~') . ':\s*(#[0-9A-Fa-f]{6})~', $src, $mm) ? $mm[1] : ''; };
+$lum = static function (string $h): float {
+    $c = array_map(static fn($i) => hexdec(substr($h, $i, 2)) / 255, [1, 3, 5]);
+    $c = array_map(static fn($x) => $x <= 0.04045 ? $x / 12.92 : (($x + 0.055) / 1.055) ** 2.4, $c);
+    return 0.2126 * $c[0] + 0.7152 * $c[1] + 0.0722 * $c[2];
+};
+$ratio = static function (string $a, string $b) use ($lum): float { $x = $lum($a); $y = $lum($b); return (max($x, $y) + 0.05) / (min($x, $y) + 0.05); };
+$grounds = ['sand (profile hero)' => $hex($tok, '--av-sand'), 'paper (directory)' => $hex($tok, '--av-paper'), 'white (cards)' => $hex($tok, '--av-white'), 'stone-3' => $hex($tok, '--av-stone-3')];
+ck('people tints: the grounds are read from the tokens', !in_array('', $grounds, true));
+for ($t = 0; $t < 6; $t++) {
+    $bg = $hex($tintCss, "--ppl-tint-$t"); $ink = $hex($tintCss, "--ppl-tint-$t-ink");
+    $worst = $bg === '' ? 0.0 : min(array_map(static fn($g) => $ratio($bg, $g), $grounds));
+    ck("people tints: tint $t ($bg) stands apart from every ground (≥ 1.4:1, worst " . round($worst, 2) . ')', $bg !== '' && $worst >= 1.4);
+    ck("people tints: tint $t's initials ($ink) are ≥ 4.5:1 on it (" . ($bg && $ink ? round($ratio($bg, $ink), 2) : 0) . ')', $bg !== '' && $ink !== '' && $ratio($bg, $ink) >= 4.5);
+    ck("people tints: .ppl-tint-$t uses its pair", str_contains($tintCss, ".ppl-tint-$t,.ppl img.ppl-tint-$t{background:var(--ppl-tint-$t);color:var(--ppl-tint-$t-ink)}"));
+}
+ck('people tints: no neutral stone or sand tint (it was nearly the profile hero\'s colour)', !preg_match('~\.ppl-tint-\d[^{]*\{background:var\(--av-(sand|stone)~', $tintCss));
+ck('people tints: the profile hero is still sand, the tints\' reference ground', str_contains($tintCss, '.ppl-hero,.ppl-phero{position:relative;overflow:hidden;isolation:isolate;background:var(--av-sand);'));
+ck('people tints: high contrast (light and dark) rings the avatar and the photo box, which it paints in the page ground',
+   str_contains($tintCss, 'html.a11y-hc .ppl :is(.ppl-av,.ppl-pini){outline:2px solid var(--hc-fg);outline-offset:-2px}'));

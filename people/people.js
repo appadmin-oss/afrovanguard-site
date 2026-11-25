@@ -2,8 +2,12 @@
  * way back to it from a profile.
  *
  * Directory. The page is complete without this file: every person is in the markup
- * and the toolbar is `hidden` until this runs. The chips are the constitutional
- * groups on the page; filtering hides whole cards with the `hidden` attribute, and a
+ * and the search is `hidden` until this runs. The chips are the constitutional
+ * groups on the page, each with its count. Without this file they are a <nav> of
+ * links to the sections; this turns them into what they then do — a labelled group
+ * of toggle buttons (aria-pressed) that filter — so a screen reader is never told
+ * "link" for something that filters, or "button" for something that jumps.
+ * Filtering hides whole cards with the `hidden` attribute, and a
  * section (or directorate, or institution) left with nobody in it is hidden too.
  * The result count is a polite live region, so a screen reader hears it settle.
  *   - The search folds accents, matches name, role, office, directorate, group and
@@ -46,6 +50,24 @@
   var count = document.getElementById('ppl-count');
   var empty = document.getElementById('ppl-empty');
   var clear = document.querySelector('[data-ppl-clear]');
+  /* The chips: links → toggle buttons, inside a group named for what it does. Their nodes
+     are moved across, never re-parsed from a string. */
+  var nav = tools.querySelector('[data-ppl-chips]');
+  if (nav) {
+    var row = document.createElement('div');
+    row.className = nav.className;
+    row.setAttribute('role', 'group');
+    row.setAttribute('aria-label', 'Show people from');
+    [].slice.call(nav.querySelectorAll('a.ppl-chip')).forEach(function (a) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = a.className;
+      b.setAttribute('data-group', a.getAttribute('data-group'));
+      b.setAttribute('aria-pressed', 'false');
+      while (a.firstChild) b.appendChild(a.firstChild);
+      row.appendChild(b);
+    });
+    nav.parentNode.replaceChild(row, nav);
+  }
   var chips = [].slice.call(tools.querySelectorAll('.ppl-chip'));
   var people = [].slice.call(document.querySelectorAll('.ppl-dir [data-q]'));
   var sections = [].slice.call(document.querySelectorAll('[data-ppl-section]'));
@@ -210,19 +232,12 @@
   if (reset) reset.addEventListener('click', function () { resetAll(true); });
   if (clear) clear.addEventListener('click', function () { resetAll(true); });
 
-  /* The overview's links: a section the filter has hidden is brought back first. */
-  [].slice.call(document.querySelectorAll('[data-ppl-jump]')).forEach(function (a) {
-    a.addEventListener('click', function () {
-      var t = document.querySelector(a.getAttribute('href'));
-      if (t && t.hidden) resetAll(false);
-    });
-  });
-
   /* Restore ?q= and ?g= from the address. */
   var params = new URLSearchParams(location.search);
   if (q && params.get('q')) q.value = params.get('q').slice(0, 80);
   setGroup(params.get('g') || 'all', true);
 
-  tools.hidden = false;
+  var searchBox = tools.querySelector('[data-ppl-search]');
+  if (searchBox) searchBox.hidden = false;
   apply(false);
 })();

@@ -481,6 +481,7 @@
     open = on;
     root.classList.toggle('is-open', on);
     fab.setAttribute('aria-expanded', String(on));
+    if (tuck) tuck.paint();
     if (on) {
       lastFocus = document.activeElement;
       muteBubbles(); hideGreet(); renderHistory();
@@ -501,6 +502,19 @@
     }
   }
   function hideGreet() { greet.classList.remove('show'); }
+
+  /* ---- stepping aside -------------------------------------------------
+     The launcher steps aside while somebody reads down the page and never
+     rests on a control, by the same rule as the Accessibility button
+     (assets/site/launcher-tuck.js): tucked past 80px scrolling down, back on
+     a scroll up (from 600px also ~900ms after the scrolling stops), never
+     while it has focus and never while the panel is open. A nudge showing as
+     it tucks goes with it, so nothing of Chioma floats over the page. */
+  var tuck = window.AvTuck ? window.AvTuck(fab, {
+    scope: root,
+    hold: function () { return open; },
+    onTuck: hideGreet
+  }) : null;
 
   /* ---- sending ---- */
   function sendMessage(text) {
@@ -645,8 +659,10 @@
     ssSet('chioma.phrase', String(i + 1));
     return list[i];
   }
+  function tucked() { return fab.hasAttribute('data-tuck'); }
   function showBubble(text) {
     if (open || muted() || count() >= CAP) return;
+    if (tucked()) { schedule(8000); return; }   // not while it has stepped aside
     greetText.textContent = text;
     greet.classList.add('show');
     ssSet('chioma.bubbles', String(count() + 1));
@@ -660,9 +676,10 @@
     bubbleTimer = setTimeout(function () { if (!open && !muted()) showBubble(nextPhrase()); }, delay);
   }
   if (!greeted && !muted()) {
-    bubbleTimer = setTimeout(function () {
+    bubbleTimer = setTimeout(function first() {
       bubbleTimer = null;
       if (open || muted() || count() >= CAP) return;
+      if (tucked()) { bubbleTimer = setTimeout(first, 4000); return; }
       greet.classList.add('show');
       ssSet('chioma.bubbles', String(count() + 1)); ssSet('chioma.greeted', '1');
       if (hideTimer) clearTimeout(hideTimer);

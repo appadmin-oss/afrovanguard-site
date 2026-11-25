@@ -94,6 +94,7 @@ function av_error_render(int $code, bool $static = false): void {
 
 <link rel="stylesheet" href="<?= av_err_asset('/assets/site/a11y.css') ?>" />
 <script src="<?= av_err_asset('/assets/site/bottom-ui.js') ?>" defer></script>
+<script src="<?= av_err_asset('/assets/site/launcher-tuck.js') ?>" defer></script>
 <script src="<?= av_err_asset('/assets/site/a11y.js') ?>" defer></script>
 <link rel="stylesheet" href="<?= av_err_asset('/assets/site/avsearch.css') ?>" />
 <script src="<?= av_err_asset('/assets/site/avsearch.js') ?>" defer></script>

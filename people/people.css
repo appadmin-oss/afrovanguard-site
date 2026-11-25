@@ -34,13 +34,23 @@
 .ppl-btn--onink{background:transparent;border-color:var(--av-on-ink-line);color:var(--av-white);font-weight:500}
 .avh .ppl-btn--onink:hover{background:var(--av-ink-hover);border-color:var(--av-on-ink-muted);color:var(--av-white)}
 
-/* Initials avatars: six tints from the palette, each ≥ 4.5:1 */
-.ppl-tint-0,.ppl img.ppl-tint-0{background:var(--av-gold-soft);color:var(--av-gold-text)}
-.ppl-tint-1,.ppl img.ppl-tint-1{background:var(--av-green-bg);color:var(--av-green)}
-.ppl-tint-2,.ppl img.ppl-tint-2{background:var(--av-indigo-bg);color:var(--av-indigo)}
-.ppl-tint-3,.ppl img.ppl-tint-3{background:var(--av-red-bg);color:var(--av-red)}
-.ppl-tint-4,.ppl img.ppl-tint-4{background:var(--av-sand);color:var(--av-ink)}
-.ppl-tint-5,.ppl img.ppl-tint-5{background:var(--av-stone-3);color:var(--av-slate)}
+/* Initials avatars: six tints, each a clear colour of its own. Every tint is at least 1.4:1
+   against each ground it sits on (the hero's sand, the page's paper, the cards' white), so a
+   big photo box without a photo never reads as empty, and its initials are ≥ 6:1 on it
+   (tests/peopledirectory.test.php computes both from these values). No neutral tint: a
+   stone or sand one was nearly the hero's own colour. Gold, green, indigo, terracotta,
+   clay, teal — the palette's families, a step deeper than their pale -bg washes. */
+.ppl{--ppl-tint-0:#E8C05A;--ppl-tint-0-ink:#4A3403;--ppl-tint-1:#A0D0B0;--ppl-tint-1-ink:#0C3F24;--ppl-tint-2:#BCC2F3;--ppl-tint-2-ink:#2A2386;
+  --ppl-tint-3:#F0B5A5;--ppl-tint-3-ink:#6E1F0F;--ppl-tint-4:#DDBB95;--ppl-tint-4-ink:#4A2F14;--ppl-tint-5:#A8CFDD;--ppl-tint-5-ink:#0F3A4A}
+.ppl-tint-0,.ppl img.ppl-tint-0{background:var(--ppl-tint-0);color:var(--ppl-tint-0-ink)}
+.ppl-tint-1,.ppl img.ppl-tint-1{background:var(--ppl-tint-1);color:var(--ppl-tint-1-ink)}
+.ppl-tint-2,.ppl img.ppl-tint-2{background:var(--ppl-tint-2);color:var(--ppl-tint-2-ink)}
+.ppl-tint-3,.ppl img.ppl-tint-3{background:var(--ppl-tint-3);color:var(--ppl-tint-3-ink)}
+.ppl-tint-4,.ppl img.ppl-tint-4{background:var(--ppl-tint-4);color:var(--ppl-tint-4-ink)}
+.ppl-tint-5,.ppl img.ppl-tint-5{background:var(--ppl-tint-5);color:var(--ppl-tint-5-ink)}
+/* High contrast paints every box in the page's own ground, tints included: a ring keeps
+   the avatar, and the profile's photo box, visible as a shape in light and dark. */
+html.a11y-hc .ppl :is(.ppl-av,.ppl-pini){outline:2px solid var(--hc-fg);outline-offset:-2px}
 
 /* ── Hero: breadcrumb, eyebrow, headline, one line, one button ───── */
 .ppl-hero,.ppl-phero{position:relative;overflow:hidden;isolation:isolate;background:var(--av-sand);padding:clamp(24px,3.5vw,40px) 0 clamp(40px,5vw,56px)}
@@ -64,19 +74,8 @@
 .ppl-votm-q{margin:0 0 0 auto;max-width:46ch;padding:0 0 0 16px;border-left:2px solid var(--av-gold-light)}
 .ppl-votm-q p{margin:0;font-family:var(--av-serif);font-style:italic;font-size:1.0625rem;line-height:1.4;color:var(--av-copy-2)}
 
-/* ── How we are organised: the groups in order, as in-page links ──── */
-.ppl-org-in{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding-top:18px;padding-bottom:2px}
-.ppl-org-h{margin:0;font-family:var(--av-sans)!important;font-size:0.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--av-muted)}
-.ppl-org-list{list-style:none;margin:0 0 0 -6px;padding:0;display:flex;flex-wrap:wrap;align-items:center;gap:2px 0}
-.ppl-org-list li{display:flex;align-items:center}
-.ppl-org-list li+li::before{content:"\203A" / "";padding:0 4px;color:var(--av-sep);font-size:1rem;line-height:1}
-.ppl-org-list a{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:2px 6px;border-radius:var(--av-r-8);font-size:0.875rem;font-weight:500;color:var(--av-copy-2);text-decoration:none;white-space:nowrap}
-.avh .ppl-org-list a:hover{color:var(--av-ink);text-decoration:underline;text-underline-offset:3px}
-.ppl-org-c{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:var(--av-r-pill);background:var(--av-stone-3);color:var(--av-ink);font-size:0.75rem;font-weight:700;font-variant-numeric:tabular-nums}
-
 /* ── Toolbar ──────────────────────────────────────────────────────── */
 .ppl-tools-band{border-bottom:1px solid var(--av-line);background:var(--av-paper)}
-.ppl-tools-band:has(.ppl-tools[hidden]){border-bottom:0}
 .ppl-tools-row{display:flex;flex-wrap:wrap;align-items:center;gap:0 16px}
 .ppl-tools{flex:1 1 auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 0}
 .ppl-search{position:relative;flex:0 1 240px}
@@ -85,9 +84,26 @@
 .ppl-search input::placeholder{color:var(--av-faint-text);opacity:1}
 .ppl-search input:focus{border-color:var(--av-ink)}
 .ppl-chips{display:flex;flex-wrap:wrap;gap:2px;flex:1 1 0;min-width:min(100%,320px)}
-.ppl-chip{display:inline-flex;align-items:center;min-height:36px;padding:4px 11px;border:1px solid transparent;border-radius:var(--av-r-pill);background:transparent;color:var(--av-copy-2);font-family:var(--av-sans);font-size:0.875rem;font-weight:500;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+/* One row of chips: the groups in constitutional order, each with its count. Links to the
+   sections without script, toggle buttons that filter with it (people.js); drawn alike. */
+.ppl-chip{position:relative;display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:4px 7px 4px 12px;border:1px solid transparent;border-radius:var(--av-r-pill);background:transparent;color:var(--av-copy-2);font-family:var(--av-sans);font-size:0.875rem;font-weight:500;line-height:1.2;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
 .avh .ppl-chip:hover{border-color:var(--av-line-2);color:var(--av-ink)}
+.ppl-chip-n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:var(--av-r-pill);background:var(--av-stone-3);color:var(--av-ink);font-size:0.75rem;font-weight:700;font-variant-numeric:tabular-nums}
 .ppl-chip[aria-pressed="true"]{background:var(--av-ink);border-color:var(--av-ink);color:var(--av-white)}
+/* From 640px: the search and the count share the first line, and the chips get a line of
+   their own, full width, so the whole structure reads in one row. Without script the search
+   and the count are absent and only the chips show. (DOM order is search, chips, Clear.) */
+@media (min-width:640px){
+  .ppl-tools-row{display:grid;grid-template-columns:minmax(0,280px) minmax(0,1fr);align-items:center;column-gap:16px;padding-top:12px;padding-bottom:12px}
+  .ppl-tools{display:contents}
+  .ppl-search{grid-area:1/1}
+  .ppl-status{grid-area:1/2;justify-self:end;margin:0}
+  .ppl-tools-row .ppl-status,.ppl-tools-row:has(.ppl-clear:not([hidden])) .ppl-status{padding:0}
+  .ppl-chips{grid-area:2/1/3/3;margin:0 -12px}
+  .ppl-search:not([hidden])~.ppl-chips{margin-top:10px}
+}
+.ppl-chip[aria-pressed="true"] .ppl-chip-n{background:var(--av-white);color:var(--av-ink)}
+html.a11y-hc .ppl-chip-n{outline:1px solid currentColor}
 .ppl-status{display:flex;align-items:center;gap:12px;margin-left:auto}
 .ppl-count{margin:0;font-size:0.8438rem;color:var(--av-muted)}
 .ppl-status:has(.ppl-count:not(:empty)){padding:0 0 12px}
@@ -247,12 +263,7 @@ html.a11y-hc .ppl mark{outline:1px solid currentColor;text-decoration:underline}
     margin:-4px -16px;padding:6px 16px;gap:6px;scroll-padding:0 16px;
     -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 32px),transparent);mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 32px),transparent)}
   .ppl-chips::-webkit-scrollbar{display:none}
-  .ppl-chip{flex:none;min-height:44px;padding:4px 14px;border-color:var(--av-line-2);background:var(--av-white);scroll-snap-align:start}
-  /* The overview as a tidy two-column list: no separators wrapping onto new lines. */
-  .ppl-org-in{padding-top:14px;gap:4px;align-items:stretch}
-  .ppl-org-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px;margin:0 -6px}
-  .ppl-org-list li+li::before{content:none}
-  .ppl-org-list a{display:flex;justify-content:space-between;min-height:40px;white-space:normal}
+  .ppl-chip{flex:none;min-height:44px;padding:4px 8px 4px 14px;border-color:var(--av-line-2);background:var(--av-white);scroll-snap-align:start}
   .ppl-lead{padding:16px;gap:16px}
   .ppl-lead-go{white-space:normal}
   html[class*="a11y-t"] .ppl-lead{flex-direction:column}
