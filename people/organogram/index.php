@@ -11,14 +11,16 @@
  * ONE nested list is the page. Without script it is the full text outline:
  * every body and office, who holds it, who it answers to and its independent
  * lines in words (the primary, accessible version; UW / Minnesota State
- * accessible org chart guidance). organogram.js then draws the same list as:
- *   - a lean top-down tree on wide charts (container ≥ 900px): title and
- *     holder only, the governance spine open and the big groups collapsed
- *     behind disclosure buttons (aria-expanded), a details panel beside it;
- *   - a drill-down navigator on narrow charts or with larger text: one level
+ * accessible org chart guidance). organogram.js then shows the same structure:
+ *   - as a drawn chart on wide stages (container >= 700px, normal text size),
+ *     drawn by d3-org-chart (MIT, self-hosted under /assets/vendor/, fetched
+ *     only when the chart is shown) from #org-data, a JSON copy of the same
+ *     model. The drawing is presentational (role="img"); every action in it is
+ *     also in the toolbar, the details drawer and the outline;
+ *   - as a drill-down navigator on narrow stages or with larger text: one level
  *     of cards at a time, a breadcrumb and Back;
- *   - the text outline again on demand ("Text version").
- * Each node's .org-about holds its words; the panel is built from it.
+ *   - as the text outline again on demand ("Text version").
+ * Each node's .org-about holds its words; the details drawer is built from it.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/lib/bootstrap.php';
@@ -118,6 +120,29 @@ $render = function (string $k) use (&$render, $M, $face, $about, $q): string {
     return $h . "</li>\n";
 };
 
+/** The chart's data: the same model, flattened for d3-org-chart (names: listed people only, via holders()). */
+$orgData = ['nodes' => [], 'lines' => []];
+foreach ($M as $k => $n) {
+    $orgData['nodes'][] = [
+        'id' => $k,
+        // A node beside another (the Custodians beside the Trustees) is drawn under it as its own card, with no line.
+        'parentId' => $n['parent'],
+        'title' => $n['title'], 'tier' => $n['tier'], 'kind' => $n['kind'],
+        'group' => $n['collapsible'], 'beside' => $n['beside'] ? $M[$n['parent']]['title'] : '',
+        'count' => Organogram::countText($M, $k), 'kids' => count($n['kids']),
+        'holders' => array_map(static fn(array $m): array => ['name' => $m['name'], 'ini' => av_person_initials($m['name']),
+            'tint' => av_person_tint($m['name']), 'photo' => (string) ($m['photo'] ?? '')], array_slice($n['face'], 0, 3)),
+        'more' => max(0, count($n['face']) - 1),
+    ];
+}
+foreach (Organogram::LINES as $l) {
+    if ($l['to'] === null || !isset($M[$l['to']])) continue;
+    $from = array_values(array_filter(Organogram::endKeys($l['from']), static fn($x) => isset($M[$x])));
+    if ($from) $orgData['lines'][] = ['from' => $from, 'to' => $l['to'], 'kind' => $l['kind']];
+}
+/* The drawing library, in load order; organogram.js fetches it only when the chart is shown. */
+$orgLib = array_map('av_asset', ['/assets/vendor/d3@7.9.0/d3.min.js', '/assets/vendor/d3-flextree@2.1.2/d3-flextree.min.js', '/assets/vendor/d3-org-chart@3.1.1/d3-org-chart.min.js']);
+
 render_head([
     'title' => 'Organogram — How Afrovanguard Is Organised · Afrovanguard',
     'desc'  => 'The organisational chart of Afrovanguard: the General Assembly, Governing Council, Trustees, Board, Executive and the seven Community Advancement Directorates.',
@@ -140,48 +165,49 @@ render_nav('people');
         <p class="ppl-eyebrow">Organogram</p>
         <h1>How Afrovanguard is <em>organised</em></h1>
         <p class="ppl-intro">Who answers to whom, from the General Assembly of our Members to the teams in every Directorate.</p>
-        <div class="ppl-btns org-actions">
-          <a class="ppl-btn" href="/people/organogram/download/">Download (PDF)</a>
-          <button type="button" class="ppl-btn ppl-btn--line" data-org-print hidden>Print</button>
-        </div>
       </div>
     </header>
 
     <section class="org-sec" aria-labelledby="org-chart-h">
       <div class="ppl-wrap">
         <h2 id="org-chart-h" class="av-sr">The chart</h2>
-        <div class="org-bar" data-org-bar hidden>
-          <div class="org-find" role="search" aria-label="Find on the chart">
+        <div class="org-bar" data-org-bar>
+          <div class="org-find" role="search" aria-label="Find on the chart" hidden>
             <label class="av-sr" for="org-q">Find a person or office</label>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
             <input type="search" id="org-q" placeholder="Find a person or office" autocomplete="off" spellcheck="false" aria-describedby="org-live" />
             <ul class="org-res" id="org-res" aria-label="Matches" hidden></ul>
           </div>
           <div class="org-ctl">
-            <button type="button" class="org-b" data-org-all="open">Expand all</button>
-            <button type="button" class="org-b" data-org-all="close">Collapse all</button>
-            <button type="button" class="org-b org-b--sw" data-org-lines aria-pressed="false"><span class="org-sw" aria-hidden="true"></span>Show independent lines</button>
-            <button type="button" class="org-b" data-org-fit aria-pressed="false" hidden>Fit to width</button>
-            <button type="button" class="org-b" data-org-text aria-pressed="false">Text version</button>
+            <button type="button" class="org-b" data-org-all="open" data-org-chart-only hidden>Expand all</button>
+            <button type="button" class="org-b" data-org-all="close" data-org-chart-only hidden>Collapse all</button>
+            <button type="button" class="org-b" data-org-fit data-org-chart-only hidden>Fit</button>
+            <button type="button" class="org-b org-b--sw" data-org-lines aria-pressed="false" data-org-chart-only hidden><span class="org-sw" aria-hidden="true"></span>Independent lines</button>
+            <span class="org-sep" aria-hidden="true"></span>
+            <button type="button" class="org-b" data-org-png data-org-chart-only hidden><svg class="org-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg><span class="av-sr">Download </span>PNG</button>
+            <a class="org-b" href="/people/organogram/download/"><svg class="org-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg><span class="av-sr">Download </span>PDF</a>
+            <button type="button" class="org-b" data-org-text aria-pressed="false" hidden>Text version</button>
           </div>
           <p class="av-sr" id="org-live" role="status" aria-live="polite" aria-atomic="true"></p>
         </div>
-        <p class="org-legend" id="org-legend"><span class="org-key"><span class="org-key-s" aria-hidden="true"></span>Solid line: answers to</span> <span class="org-key"><span class="org-key-d" aria-hidden="true"></span>Dashed line: an independent line</span></p>
+        <div class="org-legend" id="org-legend" hidden>
+          <span class="org-key"><span class="org-key-s" aria-hidden="true"></span>Solid line: answers to</span>
+          <span class="org-key"><span class="org-key-d" aria-hidden="true"></span>Dashed line: an independent line</span>
+          <span class="org-hint">Drag to move. Pinch, or Ctrl and scroll, to zoom.</span>
+          <button type="button" class="org-kbd" data-org-kbd>Browse by keyboard</button>
+        </div>
 
-        <div class="org-stage" data-org-stage>
+        <div class="org-stage" data-org-stage data-org-lib="<?= e(json_encode($orgLib, JSON_UNESCAPED_SLASHES)) ?>">
           <nav class="org-path" aria-label="Chart path" data-org-path hidden></nav>
           <div class="org-body">
-            <div class="org-scroll" role="region" aria-label="Organogram" aria-describedby="org-legend" tabindex="0">
-              <div class="org-chart">
-                <ul class="org-tree">
+            <div class="org-viz" data-org-viz role="img" aria-label="The organogram, drawn. The same chart, with every action, is in the Text version and through Find." tabindex="-1" hidden></div>
+            <ul class="org-tree">
 <?= $render('assembly') ?>
-                </ul>
-                <svg class="org-svg" aria-hidden="true" focusable="false"></svg>
-              </div>
-            </div>
+            </ul>
             <dialog class="org-panel" id="org-panel" aria-labelledby="org-panel-h"></dialog>
           </div>
         </div>
+        <script type="application/json" id="org-data"><?= json_encode($orgData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
       </div>
     </section>
 

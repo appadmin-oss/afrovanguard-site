@@ -170,16 +170,61 @@ ck('organogram page: every independent line is written out, at each end', (stati
     foreach (Organogram::LINES as $l) if (substr_count($html, htmlspecialchars($l['say'], ENT_QUOTES)) < ($l['to'] === null ? 1 : 2)) return false;
     return true;
 })());
-ck('organogram page: the overlay is hidden from assistive tech; the chart is a labelled, focusable region',
-   str_contains($html, '<svg class="org-svg" aria-hidden="true" focusable="false"></svg>')
-   && str_contains($html, 'class="org-scroll" role="region" aria-label="Organogram" aria-describedby="org-legend" tabindex="0"'));
-ck('organogram page: a short legend line, no long notes', str_contains($html, 'Solid line: answers to') && str_contains($html, 'Dashed line: an independent line')
+ck('organogram page: the drawing is presentational (role="img", labelled, pointing at the Text version) and holds nothing focusable',
+   (bool) preg_match('~<div class="org-viz" data-org-viz role="img" aria-label="[^"]*Text version[^"]*" tabindex="-1" hidden></div>~', $html)
+   && !str_contains($html, 'class="org-svg"') && !str_contains($html, 'class="org-scroll"'));
+ck('organogram page: a short legend line, no long notes, and a visible keyboard entry beside the drawing', str_contains($html, 'Solid line: answers to') && str_contains($html, 'Dashed line: an independent line')
+   && str_contains($html, '<button type="button" class="org-kbd" data-org-kbd>Browse by keyboard</button>')
    && !str_contains($html, 'Every line, in words') && !str_contains($html, 'class="org-chip'));
-ck('organogram page: script-only controls are hidden until script runs (find, expand, lines, fit, text version, print); the panel is an empty dialog',
-   str_contains($html, '<div class="org-bar" data-org-bar hidden>') && str_contains($html, '<label class="av-sr" for="org-q">Find a person or office</label>')
-   && str_contains($html, 'data-org-lines aria-pressed="false"') && str_contains($html, 'data-org-text aria-pressed="false">Text version</button>')
+ck('organogram page: one toolbar — script-only controls hidden until script runs (find, expand, collapse, fit, lines, PNG, text version), the PDF always there; the panel is an empty dialog',
+   str_contains($html, '<div class="org-bar" data-org-bar>') && str_contains($html, '<div class="org-find" role="search" aria-label="Find on the chart" hidden>')
+   && str_contains($html, '<label class="av-sr" for="org-q">Find a person or office</label>')
+   && str_contains($html, 'data-org-all="open" data-org-chart-only hidden>Expand all</button>') && str_contains($html, 'data-org-all="close" data-org-chart-only hidden>Collapse all</button>')
+   && str_contains($html, 'data-org-fit data-org-chart-only hidden>Fit</button>') && str_contains($html, 'data-org-lines aria-pressed="false" data-org-chart-only hidden>')
+   && (bool) preg_match('~data-org-png data-org-chart-only hidden>.*?<span class="av-sr">Download </span>PNG</button>~', $html)
+   && (bool) preg_match('~<a class="org-b" href="/people/organogram/download/">.*?<span class="av-sr">Download </span>PDF</a>~', $html)
+   && str_contains($html, 'data-org-text aria-pressed="false" hidden>Text version</button>')
    && str_contains($html, 'id="org-live" role="status" aria-live="polite"') && str_contains($html, '<dialog class="org-panel" id="org-panel" aria-labelledby="org-panel-h"></dialog>')
    && str_contains($html, '<nav class="org-path" aria-label="Chart path" data-org-path hidden></nav>'));
+/* The drawn chart's data: one JSON copy of the same model, CSP-safe (not executed, < escaped). */
+$orgJson = preg_match('~<script type="application/json" id="org-data">(.*?)</script>~s', $html, $jm) ? json_decode($jm[1], true) : null;
+ck('organogram data: the chart is fed from the model — every node once, in tree order, with its parent', is_array($orgJson)
+   && array_column($orgJson['nodes'], 'id') === array_keys($Mo)
+   && array_column($orgJson['nodes'], 'parentId', 'id') === array_map(static fn($n) => $n['parent'], $Mo)
+   && !str_contains($jm[1], '<') && !str_contains($jm[1], '</'));
+ck('organogram data: titles, tiers, groups and counts match the model; the Custodians are marked beside', is_array($orgJson) && (static function () use ($orgJson, $Mo): bool {
+    foreach ($orgJson['nodes'] as $n) {
+        $m = $Mo[$n['id']];
+        if ($n['title'] !== $m['title'] || $n['tier'] !== $m['tier'] || $n['group'] !== $m['collapsible'] || $n['count'] !== Organogram::countText($Mo, $n['id']) || $n['kids'] !== count($m['kids'])) return false;
+        if (array_column($n['holders'], 'name') !== array_column(array_slice($m['face'], 0, 3), 'name') || $n['more'] !== max(0, count($m['face']) - 1)) return false;
+    }
+    $c = array_column($orgJson['nodes'], null, 'id')['custodians'];
+    return $c['beside'] === 'Registered Trustees' && $c['parentId'] === 'trustees';
+})());
+ck('organogram data: names only for listable people', is_array($orgJson) && str_contains($jm[1], 'Orgtest Finance Danjuma') && !str_contains($jm[1], 'Orgtest Unconsented Coo')
+   && !str_contains($jm[1], 'Orgtest Inactive Cto') && !str_contains($jm[1], 'Super Admin') && !str_contains($jm[1], 'Orgtest Logistics Head'));
+ck('organogram data: the independent lines, both ends on the chart (the seven Finance Officers as one line\'s seven starts); no words, references or NGGC',
+   is_array($orgJson) && count($orgJson['lines']) === count(array_filter(Organogram::LINES, static fn($l) => $l['to'] !== null))
+   && in_array(['from' => ['office-cfo'], 'to' => 'cmte-afr', 'kind' => 'finance'], $orgJson['lines'], true)
+   && in_array(['from' => array_map(static fn($b) => $b . '-finance', array_keys(AV_TEAM_STRUCTURE['directorates']['bodies'])), 'to' => 'office-cfo', 'kind' => 'finance'], $orgJson['lines'], true)
+   && !array_filter($orgJson['lines'], static fn($l) => array_diff($l['from'], array_keys($Mo)) || !isset($Mo[$l['to']]))
+   && stripos($jm[1], 'NGGC') === false && !preg_match('~Art\. [IVX]+ §|Schedule [AB]~', $jm[1]));
+/* The library: self-hosted, pinned, licensed, loaded by this page only, on demand. */
+$libs = ['d3@7.9.0/d3.min.js' => 'd3@7.9.0/LICENSE', 'd3-flextree@2.1.2/d3-flextree.min.js' => 'd3-flextree@2.1.2/LICENSE', 'd3-org-chart@3.1.1/d3-org-chart.min.js' => 'd3-org-chart@3.1.1/LICENSE.md'];
+ck('organogram library: d3 7.9.0, d3-flextree 2.1.2 and d3-org-chart 3.1.1 are vendored with their licences', (static function () use ($libs): bool {
+    foreach ($libs as $js => $lic) if (!is_file(AV_ROOT . '/assets/vendor/' . $js) || filesize(AV_ROOT . '/assets/vendor/' . $js) < 5000 || !is_file(AV_ROOT . '/assets/vendor/' . $lic)) return false;
+    return str_contains((string) file_get_contents(AV_ROOT . '/assets/vendor/d3@7.9.0/d3.min.js'), 'd3js.org v7.9.0')
+        && str_contains((string) file_get_contents(AV_ROOT . '/assets/vendor/d3-org-chart@3.1.1/LICENSE.md'), 'MIT License')
+        && str_contains((string) file_get_contents(AV_ROOT . '/assets/vendor/d3@7.9.0/LICENSE'), 'Mike Bostock')
+        && str_contains((string) file_get_contents(AV_ROOT . '/assets/vendor/d3-flextree@2.1.2/LICENSE'), 'DO WHAT THE');
+})());
+ck('organogram library: the page names the stamped files, in load order, for the script to fetch on first use (no CDN)',
+   (bool) preg_match('~data-org-lib="\[&quot;/assets/vendor/d3@7\.9\.0/d3\.min\.js\?v=[0-9a-f]{10}&quot;,&quot;/assets/vendor/d3-flextree@2\.1\.2/d3-flextree\.min\.js\?v=[0-9a-f]{10}&quot;,&quot;/assets/vendor/d3-org-chart@3\.1\.1/d3-org-chart\.min\.js\?v=[0-9a-f]{10}&quot;\]"~', $html)
+   && !preg_match('~<script[^>]+src="https?://[^"]*(d3|org-chart)~i', $html) && !str_contains($html, 'cdn.jsdelivr.net/npm/d3'));
+ck('organogram library: no other page loads it', (static function (): bool {
+    foreach (['/people/index.php', '/index.html', '/about.html'] as $f) if (str_contains((string) @file_get_contents(AV_ROOT . $f), 'd3-org-chart')) return false;
+    return true;
+})());
 $main = (string) (preg_match('~<main\b.*?</main>~s', $html, $mm) ? $mm[0] : '');
 ck('organogram page: no NGGC node or name in the chart (the site menu is not the chart)', $main !== '' && stripos($main, 'NGGC') === false && stripos($main, 'Next Generation Genius') === false);
 ck('organogram page: no Constitution link or article references while it is members-only',
@@ -195,10 +240,10 @@ $grams = static function (string $s, int $n = 8): array {
 $cg = $grams(ConstitutionDoc::markdown());
 $hit = array_keys(array_intersect_key($grams($text), $cg));
 ck('organogram page: quotes no eight-word run of the Constitution' . ($hit ? ' — ' . $hit[0] : ''), ConstitutionDoc::PUBLIC || !$hit);
-ck('organogram page: the hero is quiet — Download first, Print secondary (shown by script)',
-   str_contains($html, '<button type="button" class="ppl-btn ppl-btn--line" data-org-print hidden>Print</button>')
+ck('organogram page: the hero is quiet (the PDF is in the toolbar); the script is stamped and deferred',
+   !str_contains($html, 'data-org-print') && !str_contains($html, 'org-actions')
    && (bool) preg_match('~<script src="/people/organogram/organogram\.js\?v=[0-9a-f]{10}" defer></script>~', $html)
-   && str_contains($html, 'href="/people/organogram/download/">Download (PDF)</a>'));
+   && str_contains($html, 'href="/people/organogram/download/">'));
 ck('organogram page: the profile anchors exist on the page', (static function () use ($html): bool {
     foreach ([['body' => 'executive', 'office' => 'cfo'], ['body' => 'techome', 'office' => ''], ['body' => 'council', 'office' => 'chair'], ['body' => 'custodians', 'office' => 'custodian'],
               ['body' => 'honorary', 'office' => 'patron'], ['body' => 'official-volunteers', 'office' => ''], ['body' => 'executive', 'office' => '']] as $p) {
@@ -211,13 +256,18 @@ ck('organogram page: breadcrumb and canonical', str_contains($html, '<li><a href
 $css = (string) file_get_contents(AV_ROOT . '/people/organogram/organogram.css');
 $js = (string) file_get_contents(AV_ROOT . '/people/organogram/organogram.js');
 ck('organogram css: a landscape print page, the chrome hidden', str_contains($css, '@page{size:A4 landscape') && str_contains($css, '.avh-head,.avh-foot'));
-ck('organogram css: the chart\'s own width picks the drawing (container query, media fallback); larger text always gets the navigator',
-   str_contains($css, '@container orgstage (min-width:900px){.org-chart{--org-mode:tree}}') && str_contains($css, '@supports not (container-type:inline-size){@media (min-width:1100px)')
-   && str_contains($css, 'html[class*="a11y-t"] .org-chart{--org-mode:nav!important}'));
-ck('organogram css: without script the outline shows every node\'s words', str_contains($css, '.is-tree .org-about,') && !preg_match('~(^|\})\.org-about\{display:none~', $css));
-ck('organogram js: disclosure buttons, not role="tree"; deep links with replaceState; polite announcements; a typo-tolerant find',
-   str_contains($js, "setAttribute('aria-expanded'") && !preg_match('~role["\x27]?\s*[=,]\s*["\x27]tree~', $js) && str_contains($js, 'history.replaceState')
-   && str_contains($js, 'function within1(') && str_contains($js, "showModal()") && str_contains($js, "'Back'"));
+ck('organogram css: the stage\'s own width picks the view (container query, media fallback); larger text always gets the navigator',
+   str_contains($css, '@container orgstage (min-width:700px){.org-body{--org-mode:chart}}') && str_contains($css, '@supports not (container-type:inline-size){@media (min-width:760px)')
+   && str_contains($css, 'html[class*="a11y-t"] .org-body{--org-mode:nav!important}'));
+ck('organogram css: the drawer overlays the chart (absolute, from the right), a bottom sheet when modal; reduced motion stops its slide',
+   str_contains($css, '.is-chart .org-panel[open]:not(:modal){position:absolute;') && str_contains($css, '.org-panel:modal{position:fixed;inset:auto 0 0 0;')
+   && str_contains($css, '@media (prefers-reduced-motion:reduce){.org *,.org *::after{transition:none!important;animation:none!important}}'));
+ck('organogram css: without script the outline shows every node\'s words; in chart view the list steps aside for the drawing', str_contains($css, '.is-chart .org-tree{display:none}') && !preg_match('~(^|\})\.org-about\{display:none~', $css));
+ck('organogram js: d3-org-chart drives the drawing (compact, highlight-to-root, connections, library export); no role="tree"; deep links with replaceState; polite announcements; a typo-tolerant find; motion off when asked',
+   str_contains($js, 'new window.d3.OrgChart()') && str_contains($js, '.compact(true)') && str_contains($js, 'chart.setUpToTheRootHighlighted(sel)') && str_contains($js, 'chart.connections(connections())')
+   && str_contains($js, 'chart.downloadImage(') && str_contains($js, "matchMedia('(prefers-reduced-motion: reduce)')") && str_contains($js, ".duration(still() ? 0 : 320)")
+   && !preg_match('~role["\x27]?\s*[=,]\s*["\x27]tree~', $js) && str_contains($js, 'history.replaceState')
+   && str_contains($js, 'function within1(') && str_contains($js, "showModal()") && str_contains($js, "'Back'") && str_contains($js, "JSON.parse(document.getElementById('org-data').textContent)"));
 
 /* ══ Routes, links, sitemap, search ═══════════════════════════════════ */
 $router = (string) file_get_contents(AV_ROOT . '/router.php');

@@ -17,6 +17,10 @@
 - **Libraries load when needed**, not with the page: in the Volunteer dashboard
   FullCalendar (the Calendar view), uPlot (My record's chart), Tom Select (adding
   somebody to a team) and SortableJS (the minutes editor) are fetched on first use.
+  The organogram's drawn chart (`/people/organogram/`) fetches d3-org-chart 3.1.1
+  (MIT) on d3 7.9.0 (ISC) and d3-flextree 2.1.2 (WTFPL), self-hosted under
+  `assets/vendor/<name>@<version>/` with their licences, only when the chart is
+  shown (wide screens); phones and large text use the navigator and never load it.
 - Every local CSS/JS URL is stamped with its hash (`av_asset()`,
   `tools/stamp-assets.php`), so a cached copy is never the wrong one.
 

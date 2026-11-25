@@ -1,50 +1,60 @@
-/* people/organogram/organogram.css — the organogram (/people/organogram/). Prefix org-.
-   Loaded after people.css (hero, buttons, avatars, .ppl-wrap's launcher gutter). Tokens only.
+/* people/organogram/organogram.css — the organogram (/people/organogram/). Prefix org- (the
+   drawn chart's cards: ocn-). Loaded after people.css (hero, buttons, avatars, .ppl-wrap's
+   launcher gutter). Tokens only.
 
-   ONE nested list, three drawings (organogram.js puts the class on .org-stage):
-     OUTLINE  no script, or "Text version": the full indented outline with every node's
-              words (.org-about) — the primary, accessible version;
-     .is-tree wide charts (container ≥ 900px, normal text size): a lean top-down tree, title
-              and holder only; groups stack vertically under their parent instead of fanning
-              out; solid connectors are borders on the list items; the details panel docks
-              beside it;
-     .is-nav  narrow charts or larger text: one level of cards at a time with a breadcrumb.
-   One accent per tier on the top edge of a node: gold governance, ink Executive, green
-   operations. Connectors are decoration (aria-hidden SVG, pseudo-elements); the nesting
-   carries the structure. */
+   ONE nested list, three views (organogram.js puts the class on .org-stage):
+     OUTLINE   no script, or "Text version": the full indented outline with every node's
+               words (.org-about) — the primary, accessible version;
+     .is-chart wide stages (container >= 700px, normal text size): the chart drawn by
+               d3-org-chart into .org-viz (presentational; the list is hidden): uniform
+               cards, thin rounded connectors, one accent per tier (gold governance, ink
+               Executive, green operations), a count chip on each group; the details
+               drawer slides over the chart from the right;
+     .is-nav   narrow stages or larger text: one level of cards at a time, a breadcrumb.
+   The card and connector rules are also copied into the PNG export (organogram.js
+   exportCss reads every rule naming .ocn or .svg-chart-container). */
 
 .org-hero{padding-bottom:clamp(24px,3.5vw,36px)}
 .org-hero h1{max-width:20ch}
-.org-actions{align-items:center}
 .org-sec{padding:clamp(20px,3vw,32px) 0 0}
 .org-sec h2{font-family:var(--av-serif);font-weight:400;font-size:clamp(1.5rem,2.2vw,1.875rem);line-height:1.1;margin:0;color:var(--av-ink)}
-.org{--org-gov:var(--av-gold);--org-exec:var(--av-ink);--org-ops:var(--av-green);--org-ln:var(--av-slate-2);--org-w:196px;--org-t:.15s ease}
+.org{--org-gov:var(--av-gold);--org-exec:var(--av-ink);--org-ops:var(--av-green);--org-ln:var(--av-slate-2);--org-t:.15s ease}
 
-/* ── Toolbar: find, expand/collapse, lines, fit, text version ──────── */
-.org-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;margin:0 0 8px}
-.org-find{position:relative;flex:1 1 260px;max-width:360px}
-.org-find svg{position:absolute;left:14px;top:20px;width:17px;height:17px;transform:translateY(-50%);color:var(--av-muted);pointer-events:none}
-.org-find input{width:100%;min-height:40px;padding:7px 14px 7px 40px;border:1px solid var(--av-line-2);border-radius:var(--av-r-pill);background:var(--av-white);color:var(--av-ink);font-family:var(--av-sans);font-size:0.9375rem}
+/* ── Toolbar: one quiet pill row (find, expand, collapse, fit, lines, PNG, PDF, text) ── */
+.org-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:0 0 10px}
+.org-find{position:relative;flex:1 1 220px;max-width:300px}
+.org-find[hidden]{display:none}
+.org-find svg{position:absolute;left:13px;top:19px;width:16px;height:16px;transform:translateY(-50%);color:var(--av-muted);pointer-events:none}
+.org-find input{width:100%;min-height:38px;padding:6px 14px 6px 38px;border:1px solid var(--av-line-2);border-radius:var(--av-r-pill);background:var(--av-white);color:var(--av-ink);font-family:var(--av-sans);font-size:0.9063rem}
 .org-find input::placeholder{color:var(--av-faint-text);opacity:1}
 .org-find input:focus{border-color:var(--av-ink)}
-.org-res{position:absolute;z-index:30;left:0;right:0;top:calc(100% + 6px);list-style:none;margin:0;padding:6px;background:var(--av-white);border:1px solid var(--av-line-2);border-radius:var(--av-r-12);box-shadow:var(--av-shadow-pop)}
+.org-res{position:absolute;z-index:30;left:0;right:0;top:calc(100% + 6px);min-width:280px;list-style:none;margin:0;padding:6px;background:var(--av-white);border:1px solid var(--av-line-2);border-radius:var(--av-r-12);box-shadow:var(--av-shadow-pop)}
 .org-res button{display:block;width:100%;min-height:44px;padding:7px 10px;border:0;border-radius:var(--av-r-8);background:none;text-align:left;font-family:var(--av-sans);font-size:0.9375rem;line-height:1.3;color:var(--av-ink);cursor:pointer}
 .org-res button:hover,.org-res button:focus-visible{background:var(--av-gold-soft)}
 .org-res small{display:block;font-size:0.8125rem;color:var(--av-copy-3)}
 .org-res mark{background:var(--av-gold-light);color:inherit;border-radius:2px}
 .org-res-none{padding:10px;font-size:0.9375rem;color:var(--av-copy-3)}
 .org-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:2px;border:1px solid var(--av-line-2);border-radius:var(--av-r-pill);background:var(--av-white)}
-.org-b{display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:5px 12px;border:0;border-radius:var(--av-r-pill);background:none;font-family:var(--av-sans);font-size:0.8438rem;font-weight:600;color:var(--av-ink-2);cursor:pointer;transition:background var(--org-t),color var(--org-t)}
-.avh .org-b:hover{background:var(--av-paper)}
+.org-b{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:4px 12px;border:0;border-radius:var(--av-r-pill);background:none;font-family:var(--av-sans);font-size:0.8438rem;font-weight:600;line-height:1.2;color:var(--av-ink-2);text-decoration:none;white-space:nowrap;cursor:pointer;transition:background var(--org-t),color var(--org-t)}
+.org-b[hidden]{display:none}
+.avh .org-b:hover{background:var(--av-paper);color:var(--av-ink)}
 .org-b[aria-pressed="true"]{background:var(--av-ink);color:var(--av-white)}
-.avh .org-b[aria-pressed="true"]:hover{background:var(--av-ink-hover)}
-.org-b[data-org-lines]:not([hidden])~.org-b[data-org-text]{margin-left:2px;box-shadow:-3px 0 0 -2px var(--av-line-2)}
-.org-sw{flex:none;width:20px;border-top:2px dashed currentColor}
+.avh .org-b[aria-pressed="true"]:hover{background:var(--av-ink-hover);color:var(--av-white)}
+.org-b:disabled{opacity:.6;cursor:progress}
+.org-sw{flex:none;width:18px;border-top:2px dashed currentColor}
+.org-dl{flex:none;width:15px;height:15px}
+.org-sep{flex:none;width:1px;height:18px;margin:0 4px;background:var(--av-line-2)}
+.org-ctl [data-org-chart-only][hidden]~.org-sep,.org-ctl .org-sep:first-child{display:none}
 @media (pointer:coarse){.org-b{min-height:44px}}
-.org-legend{display:flex;flex-wrap:wrap;gap:4px 20px;margin:0 0 18px;font-size:0.8125rem;line-height:1.4;color:var(--av-copy-2)}
+.org-legend{display:flex;flex-wrap:wrap;align-items:center;gap:4px 18px;margin:0 0 10px;font-size:0.8125rem;line-height:1.4;color:var(--av-copy-2)}
+.org-legend[hidden]{display:none}
 .org-key{display:inline-flex;align-items:center;gap:8px}
 .org-key-s,.org-key-d{flex:none;width:22px;border-top:1.5px solid var(--av-slate)}
 .org-key-d{border-top:1.5px dashed var(--av-gold-text)}
+.org-hint{color:var(--av-copy-3)}
+.org-kbd{margin-left:auto;min-height:32px;padding:4px 2px;border:0;background:none;font-family:var(--av-sans);font-size:0.8125rem;font-weight:600;color:var(--av-ink);text-decoration:underline;text-decoration-color:var(--av-line-3);text-underline-offset:3px;cursor:pointer}
+.avh .org-kbd:hover{text-decoration-color:currentColor}
+@media (pointer:coarse){.org-kbd{min-height:44px}}
 
 /* ── Shared node parts ─────────────────────────────────────────────── */
 .org-tree,.org-kids,.org-offices,.org-ind{list-style:none;margin:0;padding:0}
@@ -85,78 +95,72 @@
 .org-node .org-pick:focus-visible{outline:none}
 .org-node:has(.org-pick:focus-visible){outline:3px solid var(--av-focus);outline-offset:2px}
 .org-pick-x{font-weight:600}
-.org-tog{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;width:calc(100% + 26px);min-height:32px;margin:9px -13px -11px;padding:5px 13px;border:0;border-top:1px solid var(--av-line);border-radius:0 0 var(--av-r-10) var(--av-r-10);background:none;font-family:var(--av-sans);font-size:0.8125rem;font-weight:500;color:var(--av-copy-3);text-align:left;cursor:pointer;transition:background-color var(--org-t),color var(--org-t)}
-.avh .org-tog:hover{background:var(--av-paper);color:var(--av-ink)}
-.org-tog::after{content:"";flex:none;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-2px) rotate(45deg);transition:transform .15s}
-.org-tog[aria-expanded="true"]::after{transform:translateY(2px) rotate(-135deg)}
-@media (pointer:coarse){.org-tog{min-height:44px}}
 
 /* ── OUTLINE (no script; "Text version") ──────────────────────────── */
-.org-stage:not(.is-tree):not(.is-nav) .org-node{max-width:680px;border:0;border-left:3px solid var(--org-gov);border-radius:0;background:none;padding:4px 0 0 12px}
-.org-stage:not(.is-tree):not(.is-nav) .org-tier--exec>.org-node{border-left-color:var(--org-exec)}
-.org-stage:not(.is-tree):not(.is-nav) .org-tier--ops>.org-node{border-left-color:var(--org-ops)}
-.org-stage:not(.is-tree):not(.is-nav) .org-li[data-org-beside]>.org-node{border-left-style:dashed;border-left-color:var(--av-line-3)}
-.org-stage:not(.is-tree):not(.is-nav) .org-t{font-size:1.0625rem}
-.org-stage:not(.is-tree):not(.is-nav) .org-face{display:none}
-.org-stage:not(.is-tree):not(.is-nav) .org-about{max-width:680px;padding:0 0 6px 15px}
-.org-stage:not(.is-tree):not(.is-nav) .org-kids{margin-left:6px;padding-left:16px;border-left:1px solid var(--av-line-2)}
-.org-stage:not(.is-tree):not(.is-nav) .org-kids>.org-li{padding-top:14px}
-.org-stage:not(.is-tree):not(.is-nav) .org-tree{padding-bottom:8px}
-.org-svg{display:none}
+.org-stage:not(.is-chart):not(.is-nav) .org-node{max-width:680px;border:0;border-left:3px solid var(--org-gov);border-radius:0;background:none;padding:4px 0 0 12px}
+.org-stage:not(.is-chart):not(.is-nav) .org-tier--exec>.org-node{border-left-color:var(--org-exec)}
+.org-stage:not(.is-chart):not(.is-nav) .org-tier--ops>.org-node{border-left-color:var(--org-ops)}
+.org-stage:not(.is-chart):not(.is-nav) .org-li[data-org-beside]>.org-node{border-left-style:dashed;border-left-color:var(--av-line-3)}
+.org-stage:not(.is-chart):not(.is-nav) .org-t{font-size:1.0625rem}
+.org-stage:not(.is-chart):not(.is-nav) .org-face{display:none}
+.org-stage:not(.is-chart):not(.is-nav) .org-about{max-width:680px;padding:0 0 6px 15px}
+.org-stage:not(.is-chart):not(.is-nav) .org-kids{margin-left:6px;padding-left:16px;border-left:1px solid var(--av-line-2)}
+.org-stage:not(.is-chart):not(.is-nav) .org-kids>.org-li{padding-top:14px}
+.org-stage:not(.is-chart):not(.is-nav) .org-tree{padding-bottom:8px}
 .org-panel{display:none}
 
-/* ── TREE (wide charts) ────────────────────────────────────────────── */
-.is-tree .org-about,.is-tree .org-meta{display:none}
-.is-tree .org-body{position:relative}
-.is-tree .org-body.has-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,340px);gap:20px;align-items:start}
-.is-tree .org-scroll{overflow-x:auto;overflow-y:hidden;padding:6px 4px 24px;border-radius:var(--av-r-12)}
-.is-tree .org-chart{position:relative;width:max-content;margin:0 auto;zoom:var(--org-z,1)}
-.is-tree .org-tree,.is-tree .org-kids[data-org-layout="row"]{display:flex;justify-content:center;align-items:flex-start}
-.is-tree .org-li{position:relative;display:flex;flex-direction:column;align-items:center;padding:18px 6px 0}
-.is-tree .org-tree>.org-li{padding-top:0}
-.is-tree .org-node{width:var(--org-w)}
-.is-tree .org-li.is-closed>.org-kids{display:none}
-/* row: each child draws its half of the bus and its drop */
-.is-tree .org-kids[data-org-layout="row"]{position:relative;padding-top:18px}
-.is-tree .org-kids[data-org-layout="row"]::before{content:"";position:absolute;top:0;left:50%;height:18px;border-left:1px solid var(--org-ln)}
-.is-tree .org-kids[data-org-layout="row"]>.org-li::before,.is-tree .org-kids[data-org-layout="row"]>.org-li::after{content:"";position:absolute;top:0;right:50%;width:50%;height:18px;border-top:1px solid var(--org-ln)}
-.is-tree .org-kids[data-org-layout="row"]>.org-li::after{right:auto;left:50%;border-left:1px solid var(--org-ln)}
-.is-tree .org-kids[data-org-layout="row"]>.org-li:first-child::before,.is-tree .org-kids[data-org-layout="row"]>.org-li:last-child::after{border-top:0}
-.is-tree .org-kids[data-org-layout="row"]>.org-li:last-child::before{border-right:1px solid var(--org-ln);border-top-right-radius:8px}
-.is-tree .org-kids[data-org-layout="row"]>.org-li:first-child::after{border-top-left-radius:8px}
-.is-tree .org-kids[data-org-layout="row"]>.org-li:only-child::before{display:none}
-.is-tree .org-kids[data-org-layout="row"]>.org-li:only-child::after{border-top:0;border-radius:0}
-/* stack: a group's children one under another, a rail down the left (Frappe: no sideways fan for deep branches) */
-.is-tree .org-kids[data-org-layout="stack"]{position:relative;width:var(--org-w);margin:0 auto;padding:0 0 0 14px}
-.is-tree .org-kids[data-org-layout="stack"] .org-kids[data-org-layout="stack"]{width:auto}
-.is-tree .org-kids[data-org-layout="stack"]>.org-li{display:block;padding:8px 0 0 12px}
-.is-tree .org-kids[data-org-layout="stack"]>.org-li::before{content:"";position:absolute;left:0;top:0;width:10px;height:26px;border-left:1px solid var(--org-ln);border-bottom:1px solid var(--org-ln);border-bottom-left-radius:6px}
-.is-tree .org-kids[data-org-layout="stack"]>.org-li:not(:last-child)::after{content:"";position:absolute;left:0;top:0;bottom:0;border-left:1px solid var(--org-ln)}
-.is-tree .org-kids[data-org-layout="stack"] .org-node{width:auto}
-.is-tree .org-kids[data-org-layout="stack"] .org-node{padding:8px 10px}
-.is-tree .org-kids[data-org-layout="stack"] .org-node .org-tog{width:calc(100% + 20px);margin:6px -10px -8px;padding:5px 10px}
-.is-tree .org-kids[data-org-layout="stack"] .org-t{font-size:0.875rem}
-/* beside: no line, just under its neighbour */
-.is-tree .org-kids[data-org-layout="beside"]{padding-top:10px}
-.is-tree .org-kids[data-org-layout="beside"]>.org-li{padding:0}
-.is-tree .org-li[data-org-beside]>.org-node{width:172px}
-/* the overlay: the selected chain and the independent lines */
-.is-tree .org-tree{position:relative;z-index:1}
-.is-tree .org-svg{display:block;position:absolute;z-index:0;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
-.org-svg .org-chain{fill:none;stroke:var(--av-ink);stroke-width:1.75;stroke-linejoin:round}
-.org-svg .org-indl{fill:none;stroke:var(--av-gold-text);stroke-width:1.4;stroke-dasharray:5 4}
-.org-svg .org-indl.is-mine{stroke-width:2.5}
-.org-svg circle{fill:var(--av-gold-text)}
-/* selection: the chain stays, the rest steps back (borders and grounds only; text keeps its contrast) */
-.is-tree .org-chart.has-sel{--org-ln:var(--av-line-2)}
-.is-tree .has-sel .org-li:not(.on-chain):not(.on-link)>.org-node{background:var(--av-paper);border-color:var(--av-line);border-top-color:var(--av-line-2)}
-.is-tree .has-sel .org-li.on-link>.org-node{border-color:var(--av-gold-text);border-style:dashed}
-.is-tree .org-li.on-chain>.org-node{border-color:var(--av-ink-2)}
-.is-tree .org-tier--gov.on-chain>.org-node{border-top-color:var(--org-gov)}
-.is-tree .org-tier--ops.on-chain>.org-node{border-top-color:var(--org-ops)}
-.org-li.is-sel>.org-node{box-shadow:0 0 0 1.5px var(--av-ink)}
-.org-li.is-hit>.org-node{box-shadow:0 0 0 2px var(--av-gold)}
-.org-li.is-sel.is-hit>.org-node{box-shadow:0 0 0 1.5px var(--av-ink),0 0 0 4px var(--av-gold-light)}
+/* ── CHART (wide stages): d3-org-chart draws into .org-viz ─────────── */
+.org-viz{display:none}
+.is-chart .org-tree{display:none}
+.is-chart .org-body{position:relative;height:clamp(460px,calc(100vh - 230px),780px);overflow:hidden;border:1px solid var(--av-line);border-radius:var(--av-r-14,14px);
+  background-color:var(--av-paper);background-image:radial-gradient(circle,var(--av-line-2) 1px,transparent 1.3px);background-size:22px 22px}
+.is-chart .org-viz{display:block;position:absolute;inset:0;cursor:grab}
+.is-chart .org-viz:active{cursor:grabbing}
+.org-viz:focus{outline:none}
+.org-viz:focus-visible{outline:3px solid var(--av-focus);outline-offset:-3px}
+.org-viz[aria-busy]::after{content:"Drawing the chart…";position:absolute;left:50%;top:40%;transform:translateX(-50%);font-size:0.875rem;color:var(--av-copy-3)}
+.org-viz svg{display:block}
+/* connectors: thin and rounded; the selected node's chain to the General Assembly in ink */
+.svg-chart-container path.link{fill:none;stroke:var(--org-ln);stroke-width:1.25;stroke-linejoin:round}
+.svg-chart-container path.link.is-path{stroke:var(--av-ink);stroke-width:2.25}
+.svg-chart-container path.link.is-none{display:none}
+.svg-chart-container path.connection{fill:none;stroke:var(--av-gold-text);stroke-width:1.5;stroke-dasharray:5 5;stroke-linecap:round;opacity:.75}
+.svg-chart-container path.connection.is-mine{stroke-width:2.25;opacity:1}
+.svg-chart-title{font-size:20px;font-weight:600;fill:var(--av-ink)}
+/* the card: uniform size, avatar + office title + holder, one accent per tier */
+.ocn{box-sizing:border-box;position:relative;display:flex;align-items:center;gap:11px;width:100%;height:100%;padding:12px 14px 12px 12px;overflow:hidden;
+  background:var(--av-white);border:1px solid var(--av-line-2);border-radius:12px;box-shadow:0 1px 2px rgba(17,24,39,.06),0 4px 12px -6px rgba(17,24,39,.12);
+  font-family:var(--av-sans);color:var(--av-ink);cursor:pointer;transition:border-color .15s,box-shadow .15s,opacity .15s}
+.ocn::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--org-gov)}
+.ocn--exec::before{background:var(--org-exec)}
+.ocn--ops::before{background:var(--org-ops)}
+.ocn:hover{border-color:var(--av-slate)}
+.ocn--beside{background:var(--av-paper);border-style:dashed;box-shadow:none}
+.ocn--beside::before{display:none}
+.ocn-av{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;overflow:hidden;border-radius:50%;font-size:12px;font-weight:700;letter-spacing:.02em}
+.ocn-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 22%}
+.ocn-av--none,.ocn-av--grp{background:var(--av-paper);color:var(--av-slate);box-shadow:inset 0 0 0 1px var(--av-line-2)}
+.ocn-av--grp{border-radius:10px}
+.ocn-av svg{width:20px;height:20px}
+.ocn-tx{display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:0}
+.ocn-t{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:13.5px;font-weight:600;line-height:1.25;color:var(--av-ink)}
+.ocn-h{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12.5px;line-height:1.3;color:var(--av-copy-3)}
+.ocn-more{font-weight:600}
+.ocn-tag{font-size:11.5px;font-weight:600;color:var(--av-copy-3)}
+/* the count chip on a group, centred on its bottom edge; its own toggle */
+.ocn-chip{display:inline-flex;align-items:center;gap:6px;margin:auto;height:24px;padding:0 10px 0 11px;border:1px solid var(--av-line-2);border-radius:999px;background:var(--av-white);
+  font-family:var(--av-sans);font-size:11.5px;font-weight:600;line-height:1;white-space:nowrap;color:var(--av-copy-2);box-shadow:0 1px 2px rgba(17,24,39,.08);cursor:pointer}
+.ocn-chip i{width:6px;height:6px;margin-top:-3px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(45deg)}
+.ocn-chip.is-open i{margin-top:3px;transform:rotate(-135deg)}
+.node-button-g:hover .ocn-chip{border-color:var(--av-ink);color:var(--av-ink)}
+/* selection: the chain stays, the rest steps back */
+.org-viz.has-sel .ocn:not(.is-path):not(.is-link):not(.is-sel){box-shadow:none}
+.org-viz.has-sel .ocn:not(.is-path):not(.is-link):not(.is-sel)>*{opacity:.55}
+.ocn.is-path{border-color:var(--av-ink-2)}
+.ocn.is-sel{border-color:var(--av-ink);box-shadow:0 0 0 2px var(--av-ink),0 8px 20px -8px rgba(17,24,39,.35)}
+.ocn.is-link{border-color:var(--av-gold-text);border-style:dashed}
+.org-offstage{position:fixed;left:-20000px;top:0;pointer-events:none}
+.org-print{display:none}
 
 /* ── NAV (narrow charts, larger text): one level at a time ─────────── */
 .org-path{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0 0 12px}
@@ -171,7 +175,7 @@
 .org-legend[hidden]{display:none}
 .org-crumbs button:not(.org-fold){min-height:44px;padding:0 4px;border:0;background:none;font:inherit;color:var(--av-ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .org-crumbs [aria-current]{font-weight:600;color:var(--av-ink)}
-.is-nav .org-about,.is-nav .org-tog,.is-nav .org-svg{display:none}
+.is-nav .org-about{display:none}
 .is-nav .org-li{display:none;padding:0}
 .is-nav .org-li.is-path{display:block}
 .is-nav .org-li.is-path:not(.is-focus)>.org-node{display:none}
@@ -194,15 +198,17 @@
 .org-stage{container:orgstage/inline-size}
 @container orgstage (min-width:600px){.is-nav .is-focus>.org-kids{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @supports not (container-type:inline-size){@media (min-width:640px){.is-nav .is-focus>.org-kids{grid-template-columns:repeat(2,minmax(0,1fr))}}}
-/* which drawing: the chart's own width decides (JS reads --org-mode); larger text always navigates */
-.org-chart{--org-mode:nav}
-@container orgstage (min-width:900px){.org-chart{--org-mode:tree}}
-@supports not (container-type:inline-size){@media (min-width:1100px){.org-chart{--org-mode:tree}}}
-html[class*="a11y-t"] .org-chart{--org-mode:nav!important}
+/* which view: the stage's own width decides (JS reads --org-mode); larger text always navigates */
+.org-body{--org-mode:nav}
+@container orgstage (min-width:700px){.org-body{--org-mode:chart}}
+@supports not (container-type:inline-size){@media (min-width:760px){.org-body{--org-mode:chart}}}
+html[class*="a11y-t"] .org-body{--org-mode:nav!important}
 
-/* ── Details panel: docked beside the tree, a bottom sheet on narrow charts ─ */
+/* ── Details: a drawer over the chart from the right; a bottom sheet on narrow stages ─ */
 .org-panel[open]{display:block;color:var(--av-body);background:var(--av-white);border:1px solid var(--av-line);border-radius:var(--av-r-12);padding:0}
-.is-tree .org-panel[open]:not(:modal){position:sticky;top:88px;inset-inline:auto;margin:0;width:auto;max-width:none;max-height:calc(100vh - 104px);overflow:auto}
+.is-chart .org-panel[open]:not(:modal){position:absolute;z-index:5;inset:0 0 0 auto;margin:0;width:min(380px,calc(100% - 48px));max-width:none;height:auto;max-height:none;overflow:auto;
+  border:0;border-left:1px solid var(--av-line-2);border-radius:0;box-shadow:-18px 0 40px -24px rgba(17,24,39,.35);animation:org-in .22s ease-out}
+@keyframes org-in{from{transform:translateX(28px);opacity:0}}
 .org-panel:modal{position:fixed;inset:auto 0 0 0;margin:0;width:100%;max-width:none;max-height:min(86vh,720px);overflow:auto;border-radius:16px 16px 0 0;border-bottom:0}
 .org-panel{scroll-padding-top:120px}
 .org-panel::backdrop{background:var(--av-scrim)}
@@ -216,6 +222,9 @@ html[class*="a11y-t"] .org-chart{--org-mode:nav!important}
 .avh .org-x:hover{background:var(--av-paper)}
 .org-x svg{width:20px;height:20px}
 .org-pb{padding:4px 18px 18px}
+.org-pexp{display:inline-flex;align-items:center;gap:8px;min-height:36px;margin:12px 0 0;padding:4px 14px;border:1px solid var(--av-line-btn);border-radius:var(--av-r-pill);background:var(--av-white);font-family:var(--av-sans);font-size:0.875rem;font-weight:600;color:var(--av-ink);cursor:pointer}
+.org-pexp[aria-pressed="true"]{background:var(--av-paper)}
+.avh .org-pexp:hover{border-color:var(--av-ink)}
 .org-pb h3{margin:16px 0 6px;font-family:var(--av-sans)!important;font-size:0.8125rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--av-copy-3)}
 .org-pb .org-d{margin-top:12px}
 .org-pb .org-held .org-lab,.org-pb .org-up .org-lab{display:none}
@@ -244,44 +253,37 @@ html[class*="a11y-t"] .org-chart{--org-mode:nav!important}
 .org-fine a{color:inherit}
 .org-along{padding-top:clamp(36px,5vw,56px);padding-bottom:clamp(56px,7vw,88px)}
 
-/* High contrast: dashes stay dashes; the chain keeps its weight */
-html.a11y-hc .org-li[data-org-beside]>.org-node,html.a11y-hc .org-along-list li{border-style:dashed!important}
-html.a11y-hc .org-svg .org-chain{stroke:var(--hc-fg)}
-html.a11y-hc .org-svg .org-indl{stroke:var(--hc-fg)}
-html.a11y-hc .org-svg circle{fill:var(--hc-fg)}
-html.a11y-hc .org-li.is-sel>.org-node{outline:3px solid var(--hc-fg)}
+/* High contrast: the drawing follows the high-contrast colours; dashes stay dashes */
+html.a11y-hc .is-chart .org-body{background:var(--hc-bg)!important}
+html.a11y-hc .ocn,html.a11y-hc .ocn-chip,html.a11y-hc .ocn-av--none,html.a11y-hc .ocn-av--grp{background:var(--hc-bg)!important;color:var(--hc-fg)!important;border-color:var(--hc-fg)!important;box-shadow:none!important}
+html.a11y-hc .ocn *{color:var(--hc-fg)!important}
+html.a11y-hc .ocn::before{background:var(--hc-fg)!important}
+html.a11y-hc .ocn-av{background:var(--hc-bg)!important;box-shadow:inset 0 0 0 2px var(--hc-fg)!important}
+html.a11y-hc .ocn.is-sel{outline:3px solid var(--hc-fg);outline-offset:2px}
+html.a11y-hc .org-viz.has-sel .ocn>*{opacity:1!important}
+html.a11y-hc .svg-chart-container path.link,html.a11y-hc .svg-chart-container path.connection{stroke:var(--hc-fg)!important;opacity:1}
+html.a11y-hc .org-li[data-org-beside]>.org-node,html.a11y-hc .org-along-list li,html.a11y-hc .ocn--beside{border-style:dashed!important}
 
-@media (max-width:639px){.org-actions .ppl-btn{flex:1 1 auto}.org-find{max-width:none;flex-basis:100%}}
-@media (prefers-reduced-motion:reduce){.org *,.org *::after{transition:none!important}}
-html.a11y-still .org *{transition:none!important}
+@media (max-width:639px){.org-find{max-width:none;flex-basis:100%}}
+@media (prefers-reduced-motion:reduce){.org *,.org *::after{transition:none!important;animation:none!important}}
+html.a11y-still .org *{transition:none!important;animation:none!important}
 
-/* ── Print: the tree alone, on one landscape page (script opens the groups first) ─ */
+/* ── Print: the chart alone, fitted on one landscape page (organogram.js puts a fitted copy,
+   every group open, in .org-print first); the navigator prints as the outline ─ */
 @media print{
   @page{size:A4 landscape;margin:8mm}
   html,body,.ppl,.org-sec{background:#fff!important}
-  .avh-head,.avh-foot,.read-progress,.org-along,.org-actions,.org-bar,.org-path,.org-panel,.ppl-crumbs,.avh-topo,.org-hero .ppl-intro,.org-hero .ppl-eyebrow,.av-skip,.av-cookie,[data-av-launcher],.chioma-root,.av-a11y-fab,.avcel-layer,.org-svg,.org-tog{display:none!important}
+  .avh-head,.avh-foot,.read-progress,.org-along,.org-bar,.org-legend,.org-path,.org-panel,.ppl-crumbs,.avh-topo,.org-hero .ppl-intro,.org-hero .ppl-eyebrow,.av-skip,.av-cookie,[data-av-launcher],.chioma-root,.av-a11y-fab,.avcel-layer{display:none!important}
   .org-hero{padding:0 0 4px;background:none}
   .org-hero h1{font-size:20pt;max-width:none}
   .ppl-wrap{max-width:none!important;padding:0!important}
   .org-sec{padding:0}
-  .org-legend{margin:0 0 6px;font-size:8pt}
-  .org-legend .org-key:last-child{display:none}
-  .is-tree .org-scroll{overflow:visible!important;padding:0!important}
-  .is-print .org-chart{zoom:var(--org-print-z,.8)!important}
-  .is-tree .org-chart.has-sel{--org-ln:var(--av-slate-2)}
-  .is-tree .has-sel .org-li>.org-node{background:#fff!important;border-color:var(--av-line-2)!important;box-shadow:none!important}
-  .org-body.has-panel{display:block!important}
+  .is-print .org-body{height:auto!important;border:0!important;background:none!important;overflow:visible!important}
+  .is-print .org-viz{display:none!important}
+  .is-print .org-print{display:block}
+  .org-print svg{display:block;width:100%;height:auto;max-height:170mm}
   .org-node{break-inside:avoid}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
-/* Print layout, also on screen for the moment print measures it (organogram.js adds .is-print) */
-.is-print .org-li[data-org-key^="unit-"]>.org-kids{display:none!important}
-.is-print #org-k-chief-officers{width:420px;columns:2;column-gap:10px}
-.is-print #org-k-chief-officers>.org-li{break-inside:avoid}
-.is-print #org-k-chief-officers>.org-li::before,.is-print #org-k-chief-officers>.org-li::after{display:none}
-.is-print #org-k-coo{width:auto;padding:18px 0 0}
-.is-print #org-k-directorates{width:400px;columns:2;column-gap:10px}
-.is-print #org-k-directorates>.org-li{break-inside:avoid}
-.is-print #org-k-directorates>.org-li::before,.is-print #org-k-directorates>.org-li::after{display:none}
 /* A link to a place on the chart (a profile's "where they sit") lands clear of the sticky header */
 .org [id^="org-"]{scroll-margin-top:96px}
