@@ -9,9 +9,16 @@
  * element the control names, skipping navigation, footers, asides, anything
  * aria-hidden or hidden, and the control itself; the block being read is
  * highlighted and kept in view (without smooth scrolling when the reader has
- * asked for less motion). Pause keeps the place; Stop goes back to the start.
- * A short polite announcement says what changed. It prefers a Nigerian English
- * voice, then British English, then any English one.
+ * asked for less motion). Pause keeps the place; Stop goes back to the start;
+ * Escape stops. A short polite announcement through the page's one announcer
+ * (a11y-core.js) says what changed. It prefers a Nigerian English voice, then
+ * British English, then any English one.
+ *
+ * WITH A SCREEN READER: the group is named "Read aloud with your browser's
+ * voice", so somebody whose screen reader already reads the page knows what it
+ * is and can pass it by. It never starts by itself, and it stops when the page
+ * goes away (pagehide), when the text it was reading leaves the page (the
+ * lesson player swaps lessons), and when another Listen control starts.
  */
 (function () {
   'use strict';
@@ -20,9 +27,9 @@
   if (!boxes.length || !synth || typeof window.SpeechSynthesisUtterance !== 'function') return;
 
   var ICON = {
-    play: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>',
-    pause: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg>',
-    stop: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5" fill="currentColor"/></svg>'
+    play: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.5 6.2v11.6a.8.8 0 0 0 1.2.7l9.3-5.8a.8.8 0 0 0 0-1.4L9.7 5.5a.8.8 0 0 0-1.2.7z" fill="currentColor"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="7" y="5.5" width="3.5" height="13" rx="1" fill="currentColor"/><rect x="13.5" y="5.5" width="3.5" height="13" rx="1" fill="currentColor"/></svg>',
+    stop: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor"/></svg>'
   };
   var SKIP = 'nav,footer,aside,script,style,noscript,template,button,select,textarea,form,[hidden],[aria-hidden="true"],[data-av-listen],.av-listen,.av-sr-skip,.avle-brief';
   var BLOCK = 'h1,h2,h3,h4,h5,h6,p,li,blockquote,dt,dd,figcaption,caption,td,th,pre';
@@ -36,6 +43,7 @@
   if (typeof synth.addEventListener === 'function') synth.addEventListener('voiceschanged', pickVoice);
   else synth.onvoiceschanged = pickVoice;
   var reduce = function () {
+    if (window.AvA11y) return window.AvA11y.reducedMotion();
     return document.documentElement.classList.contains('a11y-still') || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   };
 
@@ -61,19 +69,20 @@
     if (!root) return;
     var label = box.getAttribute('data-label') || 'Listen to this page';
     box.setAttribute('role', 'group');
-    box.setAttribute('aria-label', 'Read aloud');
+    box.setAttribute('aria-label', 'Read aloud with your browser’s voice');
+    box.classList.add('av-ui');
     box.innerHTML =
       '<button type="button" class="av-listen-btn" data-act="play">' + ICON.play + '<span>' + esc(label) + '</span></button>'
       + '<button type="button" class="av-listen-btn" data-act="stop" hidden>' + ICON.stop + '<span>Stop</span></button>'
-      + '<label>Speed <select data-act="rate"><option value="0.75">Slower</option><option value="1" selected>Normal</option><option value="1.25">Faster</option><option value="1.5">Fastest</option></select></label>'
-      + '<span class="av-a11y-sr" role="status" aria-live="polite"></span>';
+      + '<label class="av-listen-rate">Speed <select data-act="rate"><option value="0.75">Slower</option><option value="1" selected>Normal</option><option value="1.25">Faster</option><option value="1.5">Fastest</option></select></label>';
     box.hidden = false;
     var play = box.querySelector('[data-act="play"]'), stop = box.querySelector('[data-act="stop"]'),
-        rate = box.querySelector('[data-act="rate"]'), live = box.querySelector('[role="status"]');
+        rate = box.querySelector('[data-act="rate"]');
     try { var r = localStorage.getItem('av.listen.rate'); if (r && rate.querySelector('option[value="' + r + '"]')) rate.value = r; } catch (e) {}
 
     var list = [], i = 0, mode = 'idle', gen = 0, on = null;
-    function say(t) { live.textContent = ''; setTimeout(function () { live.textContent = t; }, 60); }
+    /* The page's one polite announcer (a11y-core.js). */
+    function say(t) { if (window.AvA11y) window.AvA11y.announce(t); }
     function mark(el) {
       if (on) on.classList.remove('av-listen-on');
       on = el;
@@ -92,6 +101,7 @@
     }
     function speak() {
       var my = ++gen;
+      if (!root.isConnected) { halt(true); return; }   // the text it was reading has left the page
       if (i >= list.length) { finish(); return; }
       var item = list[i];
       mark(item.el);

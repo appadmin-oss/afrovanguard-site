@@ -118,7 +118,23 @@ final class ConstitutionDoc
     /** Web flavour: tables scroll inside their own box on narrow screens. */
     public static function webHtml(string $html): string
     {
-        $html = str_replace('<table>', '<div class="legal-table-wrap" tabindex="0"><table class="legal-table">', $html);
+        /* Each table is named after the heading above it — the scrolling box
+           (a focusable region) and the table's own <caption> — so a screen
+           reader's table list says what each one is. An empty corner header
+           cell is a plain cell, and header cells say which way they head. */
+        $out = ''; $pos = 0;
+        while (($at = strpos($html, '<table>', $pos)) !== false) {
+            $before = substr($html, 0, $at);
+            $name = preg_match_all('~<h[2-5][^>]*>(.*?)</h[2-5]>~s', $before, $hm) ? trim(html_entity_decode(strip_tags((string) end($hm[1])), ENT_QUOTES | ENT_HTML5, 'UTF-8')) : '';
+            $name = $name !== '' ? $name : 'Table';
+            $n = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+            $out .= substr($html, $pos, $at - $pos)
+                . '<div class="legal-table-wrap" tabindex="0" role="region" aria-label="' . $n . ' (table)"><table class="legal-table"><caption class="av-sr">' . $n . '</caption>';
+            $pos = $at + strlen('<table>');
+        }
+        $html = $out . substr($html, $pos);
+        $html = str_replace('<th></th>', '<td></td>', $html);
+        $html = (string) preg_replace_callback('~<thead>.*?</thead>~s', static fn($m) => str_replace('<th>', '<th scope="col">', $m[0]), $html);
         return str_replace('</table>', '</table></div>', $html);
     }
 

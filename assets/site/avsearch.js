@@ -11,8 +11,15 @@
  * role=listbox; the options stay out of the tab order and the input keeps
  * focus, pointing at the active option with aria-activedescendant. ↑/↓ move,
  * Enter opens (with nothing chosen it submits the form: the full results
- * page), Esc closes, Tab goes round the dialog's own controls, and focus goes
- * back to whatever opened it. Result counts are announced politely.
+ * page), Esc closes. The dialog itself is the shared one (a11y-core.js,
+ * AvA11y.dialog): Tab goes round the dialog's own controls, the backdrop
+ * closes it, and focus goes back to whatever opened it. Result counts are
+ * announced politely through the page's one announcer (AvA11y.announce).
+ *
+ * "/" is a single-character shortcut, so it fires only when focus is not in a
+ * field, and never when the visitor has turned single-key shortcuts off in the
+ * Accessibility panel (html.a11y-nokeys, WCAG 2.1.4) — screen readers use
+ * single keys for their own quick navigation.
  *
  * Results come from /search.php (lib/SiteSearch.php) as you type, 150ms after
  * the last key; a newer query aborts the one in flight. Recent searches live
@@ -90,13 +97,13 @@
   function external(u) { return /^https?:\/\//i.test(u) && u.indexOf(location.origin + '/') !== 0; }
 
   /* ── The dialog ───────────────────────────────────────────────────── */
-  var dlg, form, input, list, chips, live, bar, foot, seeAll, aiBox, opener = null;
+  var dlg, form, input, list, chips, bar, foot, seeAll, aiBox;
   var state = { q: '', type: '', active: -1, items: [], loading: false, seq: 0 };
   var ctrl = null, timer = null, cache = {};
 
   function build() {
     dlg = document.createElement('dialog');
-    dlg.className = 'avs';
+    dlg.className = 'avs av-ui';
     dlg.id = 'av-search';
     dlg.setAttribute('aria-label', 'Search Afrovanguard');
     var chipHtml = TYPES.map(function (t, i) {
@@ -109,7 +116,7 @@
       + ' role="combobox" aria-expanded="false" aria-controls="avs-list" aria-autocomplete="list" aria-label="Search Afrovanguard" aria-describedby="avs-help" placeholder="Search pages, courses, projects, events…">'
       + '<input type="hidden" name="type" value="" disabled>'
       + '<button type="button" class="avs-clear" data-avs-clear aria-label="Clear the search" hidden>' + svg(ICON.clear) + '</button>'
-      + '<button type="button" class="avs-x" data-avs-close><span class="avs-x-k" aria-hidden="true">Esc</span><span class="avs-x-t">Cancel</span><span class="av-sr"> search</span></button>'
+      + '<button type="button" class="avs-x" data-avs-close><span class="avs-x-k">Esc</span><span class="avs-x-t"><span class="av-sr">, </span>Cancel</span><span class="av-sr"> search</span></button>'
       + '</form>'
       + '<div class="avs-progress" aria-hidden="true"></div>'
       + '<div class="avs-chips" role="toolbar" aria-label="Show only" aria-orientation="horizontal">' + chipHtml + '</div>'
@@ -119,11 +126,10 @@
       + '<div class="avs-list" id="avs-list" role="listbox" aria-label="Search results"></div>'
       + '</div>'
       + '<div class="avs-foot"><p class="avs-keys" id="avs-help"><span><kbd>↑</kbd><kbd>↓</kbd> to move</span><span><kbd>↵</kbd> to open</span><span><kbd>Esc</kbd> to close</span></p>'
-      + '<a class="avs-all" data-avs-all href="/search.php">Open the search page' + svg(ICON.arrow) + '</a></div>'
-      + '<p class="av-sr" role="status" aria-live="polite" data-avs-live></p>';
+      + '<a class="avs-all" data-avs-all href="/search.php">Open the search page' + svg(ICON.arrow) + '</a></div>';
     document.body.appendChild(dlg);
     form = dlg.querySelector('form'); input = dlg.querySelector('.avs-q'); list = dlg.querySelector('#avs-list');
-    chips = dlg.querySelector('.avs-chips'); live = dlg.querySelector('[data-avs-live]'); bar = dlg.querySelector('.avs-progress');
+    chips = dlg.querySelector('.avs-chips'); bar = dlg.querySelector('.avs-progress');
     seeAll = dlg.querySelector('[data-avs-all]'); aiBox = dlg.querySelector('[data-avs-ai]'); foot = dlg.querySelector('.avs-foot');
 
     input.addEventListener('input', onInput);
@@ -136,9 +142,6 @@
     });
     dlg.querySelector('[data-avs-clear]').addEventListener('click', function () { input.value = ''; onInput(); input.focus(); });
     dlg.querySelector('[data-avs-close]').addEventListener('click', close);
-    dlg.addEventListener('close', restore);
-    dlg.addEventListener('click', function (e) { if (e.target === dlg) close(); });   // the backdrop
-    dlg.addEventListener('keydown', trap);
     chips.addEventListener('click', function (e) { var b = e.target.closest('.avs-chip'); if (b) pick(b); });
     chips.addEventListener('keydown', function (e) {
       var all = [].slice.call(chips.querySelectorAll('.avs-chip')), i = all.indexOf(document.activeElement), n = -1;
@@ -155,18 +158,6 @@
       if (it.href && !it.act && (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1)) { remember(state.q); return; } // a new tab: let the link do it
       e.preventDefault(); activate(it);
     });
-  }
-
-  /* Tab and Shift+Tab stay in the dialog: the field, its clear button, the
-     filters (one stop; ←/→ inside), the page link, close. */
-  function trap(e) {
-    if (e.key !== 'Tab') return;
-    var f = [].filter.call(dlg.querySelectorAll('input:not([type=hidden]),button,a[href],[tabindex="0"]'), function (x) {
-      return !x.disabled && x.tabIndex >= 0 && x.getClientRects().length && !x.closest('[role=listbox]');
-    });
-    if (!f.length) return;
-    var i = f.indexOf(document.activeElement), n = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1) : (i === f.length - 1 ? 0 : i + 1);
-    e.preventDefault(); f[n].focus();
   }
 
   function pick(b) {
@@ -335,7 +326,8 @@
     if (q.length < 2) return;
     if (window.chioma && typeof window.chioma.open === 'function') { close(); window.chioma.open(q); return; }
     aiBox.hidden = false;
-    aiBox.innerHTML = '<p class="avs-ai-h">' + svg(ICON.ask) + 'Chioma</p><p class="avs-ai-t" aria-live="polite">Thinking…</p>';
+    aiBox.innerHTML = '<p class="avs-ai-h">' + svg(ICON.ask) + 'Chioma</p><p class="avs-ai-t">Thinking…</p>';
+    say('Asking Chioma…');
     fetch('/search.php?format=json&ai=1&q=' + encodeURIComponent(q), { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -344,10 +336,12 @@
         else if (ai && ai.limited) t.textContent = 'Chioma has answered a lot of questions just now. The results below still work, or try again in a few minutes.';
         else if (ai && ai.configured === false) t.textContent = 'Chioma is not switched on here yet. Try the results below, or contact us.';
         else t.textContent = 'Chioma could not answer that just now. Try the results below.';
+        say('Chioma says: ' + t.textContent);
       }).catch(function () { var t = aiBox.querySelector('.avs-ai-t'); if (t) t.textContent = 'Chioma could not answer that just now. Try the results below.'; });
   }
 
-  function say(t) { if (!live) return; clearTimeout(say.t); say.t = setTimeout(function () { live.textContent = t; }, t ? 450 : 0); }
+  /* The page's one polite announcer (a11y-core.js), a beat after the typing stops. */
+  function say(t) { if (window.AvA11y) window.AvA11y.announce(t, { delay: 450 }); }
 
   /* On a phone the palette is the whole screen, and it follows the VISUAL
      viewport while open: iOS keeps the layout viewport full height under the
@@ -365,9 +359,13 @@
   function open(from) {
     if (!dlg) build();
     if (dlg.open) { input.focus(); input.select(); return; }
-    if (typeof dlg.showModal !== 'function') { location.href = '/search.php'; return; }
-    opener = from || document.activeElement;
-    dlg.showModal();
+    if (typeof dlg.showModal !== 'function' || !window.AvA11y) { location.href = '/search.php'; return; }
+    window.AvA11y.dialog(dlg, {
+      opener: from || document.activeElement,
+      focus: input,
+      fallback: function () { return [].filter.call(document.querySelectorAll('[data-search-open]'), function (b) { return b.getClientRects().length; })[0] || null; },
+      onClose: restore
+    });
     fit();
     document.documentElement.classList.add('avs-open');
     onInput();
@@ -380,18 +378,15 @@
     abort(); clearTimeout(timer); loading(false);
     document.documentElement.classList.remove('avs-open');
     document.querySelectorAll('[data-search-open][aria-expanded]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
-    var o = opener; opener = null;
-    if (o && o.isConnected && o.getClientRects && !o.getClientRects().length && o.hasAttribute && o.hasAttribute('data-search-open')) {
-      o = [].filter.call(document.querySelectorAll('[data-search-open]'), function (b) { return b.getClientRects().length; })[0] || o;
-    }
-    if (o && o.focus && o.isConnected) { try { o.focus({ preventScroll: true }); } catch (e) {} }
   }
 
   /* ── The ways in ──────────────────────────────────────────────────── */
   function typing(t) {
+    if (window.AvA11y) return window.AvA11y.typing(t);
     t = t || document.activeElement;
     return !!(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)));
   }
+  function singleKeys() { return !document.documentElement.classList.contains('a11y-nokeys'); }
   /* A page with its own Ctrl+K and "/" keeps them: <html data-own-search-keys>,
      or one of the palettes the site already has (portal, Studio, admin). */
   function ownKeys() {
@@ -415,7 +410,7 @@
       var b = document.createElement('button');
       b.type = 'button'; b.className = a.className; b.setAttribute('data-search-open', '');
       b.setAttribute('aria-haspopup', 'dialog'); b.setAttribute('aria-expanded', 'false'); b.setAttribute('aria-controls', 'av-search');
-      if (!own) b.setAttribute('aria-keyshortcuts', (mac ? 'Meta+K' : 'Control+K') + ' /');
+      if (!own) b.setAttribute('aria-keyshortcuts', (mac ? 'Meta+K' : 'Control+K') + (singleKeys() ? ' /' : ''));
       if (a.getAttribute('aria-label')) b.setAttribute('aria-label', a.getAttribute('aria-label'));
       if (a.id) b.id = a.id;
       b.innerHTML = a.innerHTML;
@@ -446,7 +441,7 @@
       if (dlg && dlg.open) close(); else open(null);
       return;
     }
-    if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey && !typing(e.target) && !other && !(dlg && dlg.open)) {
+    if (e.key === '/' && singleKeys() && !e.metaKey && !e.ctrlKey && !e.altKey && !typing(e.target) && !other && !(dlg && dlg.open)) {
       e.preventDefault(); open(null);
     }
   });

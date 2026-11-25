@@ -43,7 +43,7 @@
   </aside>
   <div class="studio-scrim" id="studioScrim" hidden></div>
 
-  <section class="studio-login" id="loginView">
+  <main class="studio-login" id="loginView">
     <div class="login-card">
       <div class="login-brand"><span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span> <span class="studio-tag">Studio</span></div>
       <h1>Sign in to Studio</h1>
@@ -63,12 +63,12 @@
       <p class="login-msg" id="loginMsg" role="alert"></p>
       <p class="login-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Access is rate-limited and logged.</p>
     </div>
-  </section>
+  </main>
 
   <!-- THE SECOND FACTOR (lib/AdminMfa). Shown to somebody who holds a Studio
        role but has not finished signing in: they either set one up (once) or
        enter a code. Neither is a way past the other. -->
-  <section class="studio-login" id="mfaView" hidden>
+  <main class="studio-login" id="mfaView" hidden>
     <div class="login-card">
       <div class="login-brand"><span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span> <span class="studio-tag">Studio</span></div>
 
@@ -103,7 +103,7 @@
       <p class="login-msg" id="mfaMsg" role="alert"></p>
       <p class="login-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Wrong codes are counted and paused; every attempt is logged.</p>
     </div>
-  </section>
+  </main>
 
   <div id="studio-main" tabindex="-1" data-skip-target></div>
   <!-- DIARY LIST -->

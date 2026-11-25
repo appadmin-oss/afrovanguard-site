@@ -36,14 +36,14 @@ final class A11y
     /** Contrast choices: '' (the site's own), or high contrast light, dark, or matching the device. */
     public const CONTRAST = ['', 'hc-auto', 'hc-light', 'hc-dark'];
     /** On/off settings. */
-    public const FLAGS = ['spacing', 'font', 'links', 'focus', 'still', 'targets'];
+    public const FLAGS = ['spacing', 'font', 'links', 'focus', 'targets', 'still', 'nokeys'];
 
     /** The boot script, inline in every <head> before any stylesheet: the stored
      *  setting onto <html> before first paint. The cookie wins (the server read the
      *  same one); otherwise localStorage, which then restores the cookie. Classes
      *  the server put there are replaced, so a cached page never shows somebody
      *  else's. Same allow-list as parse(). */
-    public const BOOT = "<script>(function(d){var v=null,m=document.cookie.match(/(?:^|; )av_a11y=([a-z0-9.-]{1,80})(?:;|$)/);if(m){v=m[1]}else{try{v=localStorage.getItem('av.a11y')}catch(e){}if(v&&/^[a-z0-9.-]{1,80}$/.test(v)){document.cookie='av_a11y='+v+';path=/;max-age=31536000;samesite=lax'}}var c=d.className.replace(/(^|\\s)a11y-\\S+/g,'');String(v||'').split('.').forEach(function(t){if(/^(t125|t150|t175|t200|spacing|font|links|focus|still|targets|hc-auto|hc-light|hc-dark)$/.test(t))c+=' a11y-'+t+(t.indexOf('hc-')?'':' a11y-hc')});d.className=c.replace(/^\\s+/,'')})(document.documentElement);</script>";
+    public const BOOT = "<script>(function(d){var v=null,m=document.cookie.match(/(?:^|; )av_a11y=([a-z0-9.-]{1,80})(?:;|$)/);if(m){v=m[1]}else{try{v=localStorage.getItem('av.a11y')}catch(e){}if(v&&/^[a-z0-9.-]{1,80}$/.test(v)){document.cookie='av_a11y='+v+';path=/;max-age=31536000;samesite=lax'}}var c=d.className.replace(/(^|\\s)a11y-\\S+/g,'');String(v||'').split('.').forEach(function(t){if(/^(t125|t150|t175|t200|spacing|font|links|focus|targets|still|nokeys|hc-auto|hc-light|hc-dark)$/.test(t))c+=' a11y-'+t+(t.indexOf('hc-')?'':' a11y-hc')});d.className=c.replace(/^\\s+/,'')})(document.documentElement);</script>";
 
     private static bool $headDone = false;
     private static ?array $memo = null;
@@ -153,6 +153,7 @@ final class A11y
         self::$headDone = true;
         if (!class_exists('SiteSearch', false)) require_once __DIR__ . '/SiteSearch.php';
         return self::BOOT . "\n"
+            . '  <script src="' . htmlspecialchars(av_asset('/assets/site/a11y-core.js'), ENT_QUOTES) . '" defer></script>' . "\n"
             . '  <script src="' . htmlspecialchars(av_asset('/assets/site/bottom-ui.js'), ENT_QUOTES) . '" defer></script>' . "\n"
             . '  <script src="' . htmlspecialchars(av_asset('/assets/site/launcher-tuck.js'), ENT_QUOTES) . '" defer></script>' . "\n"
             . '  <link href="' . htmlspecialchars(av_asset('/assets/site/a11y.css'), ENT_QUOTES) . '" rel="stylesheet" />' . "\n"
@@ -165,6 +166,38 @@ final class A11y
 
     /** For the test suite: draw a fresh page. */
     public static function resetForTest(): void { self::$headDone = false; self::$memo = null; }
+
+    /**
+     * One <title> pattern for every template: "Page — Section — Afrovanguard".
+     *
+     * A screen reader speaks the title first when a page opens and when the
+     * reader switches tabs, so the page's own name comes first and the site's
+     * name last, always in the same form (WCAG 2.4.2). Titles were written in
+     * different rounds — "About — Afrovanguard | Raising…", "Grades — Techome ·
+     * Afrovanguard Academy", "Give — live appeals · Afrovanguard" — and this
+     * evens them out without touching what each page calls itself:
+     *   · a "| strapline" is dropped (the meta description keeps it);
+     *   · " · " separators become " — ";
+     *   · "Afrovanguard Academy" is the section "Academy";
+     *   · a bare "Afrovanguard" part moves to the end, once.
+     * The og:title and twitter:title keep the page's own words.
+     */
+    public static function title(string $raw): string
+    {
+        $raw = trim(html_entity_decode($raw, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        if ($raw === '') return 'Afrovanguard';
+        $raw = trim(explode(' | ', $raw, 2)[0]);
+        $parts = preg_split('/\s+(?:—|·|&mdash;)\s+/u', $raw) ?: [$raw];
+        $out = [];
+        foreach ($parts as $p) {
+            $p = trim($p);
+            if ($p === '' || strcasecmp($p, 'Afrovanguard') === 0) continue;
+            if (strcasecmp($p, 'Afrovanguard Academy') === 0) $p = 'Academy';
+            if (!in_array($p, $out, true)) $out[] = $p;
+        }
+        $out[] = 'Afrovanguard';
+        return implode(' — ', $out);
+    }
 
     /** The footer link (every footer). Opens the same dialog; without JavaScript, the settings on the statement page. */
     public static function footerLink(): string

@@ -130,7 +130,7 @@ declare(strict_types=1);
         <!-- My record: hours (by project) and attendance -->
         <div class="vh-panel" role="tabpanel" id="vp-record" aria-labelledby="vt-record" hidden>
           <h2 class="vh-sr">My record</h2>
-          <div class="avp-kpis vh-kpis" id="vhRecKpis" aria-label="Your record"></div>
+          <div class="avp-kpis vh-kpis" id="vhRecKpis" role="group" aria-label="Your record"></div>
           <div class="avp-cols">
             <div class="avp-col avp-col--main">
               <section class="avp-card" aria-labelledby="vhChartH">

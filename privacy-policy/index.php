@@ -114,6 +114,7 @@ render_nav('');
               <h3 data-cms="privacy-policy-h3-1">What the Site stores, and why</h3>
               <div class="legal-table-wrap" tabindex="0" role="region" aria-label="What the Site stores (scrolls sideways on small screens)">
               <table class="legal-table">
+                <caption class="av-sr">What the Site stores, and why</caption>
                 <thead><tr><th scope="col">Name</th><th scope="col">What it is for</th><th scope="col">How long</th></tr></thead>
                 <tbody>
                   <tr><td><code>av_consent</code></td><td>Your answer to the cookie notice.</td><td>1 year</td></tr>

@@ -103,7 +103,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si');(function(n){try{var c=n.connection||{};if(c.saveData||(n.deviceMemory&&n.deviceMemory<=2)||/(^|-)2g$/.test(c.effectiveType||''))document.documentElement.classList.add('av-lite')}catch(e){}})(navigator)</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title><?= e($title) ?></title>
+  <title><?= e(A11y::title($title)) ?></title>
   <meta name="description" content="<?= e($desc) ?>" />
   <meta name="author" content="Afrovanguard — afrovanguard.org.ng" />
   <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />

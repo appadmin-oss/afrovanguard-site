@@ -45,7 +45,7 @@ render_head([
 ]);
 render_nav('diary');
 ?>
-<main id="main-content">
+<main id="main" tabindex="-1">
   <section class="diary-hero vd-hero">
     <div class="container">
       <span class="diary-eyebrow">Your diary</span>

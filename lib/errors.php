@@ -85,7 +85,7 @@ function av_error_render(int $code, bool $static = false): void {
 <link rel="apple-touch-icon" href="/assets/site/icon-192.png" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="robots" content="noindex, follow" />
-<title><?= $code ?> · <?= $esc($title) ?> — Afrovanguard</title>
+<title><?= $esc($title) ?> (error <?= $code ?>) — Afrovanguard</title>
 <link rel="stylesheet" href="<?= av_err_asset('/assets/site/fonts.css') ?>" />
 <link rel="stylesheet" href="<?= av_err_asset('/assets/site/av-tokens.css') ?>" />
 <link rel="stylesheet" href="<?= av_err_asset('/assets/site/avh.css') ?>" />
@@ -93,6 +93,7 @@ function av_error_render(int $code, bool $static = false): void {
 <?= A11y::BOOT ?>
 
 <link rel="stylesheet" href="<?= av_err_asset('/assets/site/a11y.css') ?>" />
+<script src="<?= av_err_asset('/assets/site/a11y-core.js') ?>" defer></script>
 <script src="<?= av_err_asset('/assets/site/bottom-ui.js') ?>" defer></script>
 <script src="<?= av_err_asset('/assets/site/launcher-tuck.js') ?>" defer></script>
 <script src="<?= av_err_asset('/assets/site/a11y.js') ?>" defer></script>
@@ -131,7 +132,7 @@ function av_error_render(int $code, bool $static = false): void {
     <figure class="averr-illo" aria-hidden="true">
       <picture>
         <source type="image/webp" srcset="<?= $illoDir . $illoBase ?>.webp 1x, <?= $illoDir . $illoBase ?>@2x.webp 2x" />
-        <img src="<?= $illoDir . $illoBase ?>.jpg" alt="" loading="eager" decoding="async" onerror="this.style.display='none';this.closest('.averr-illo').classList.add('is-fallback')" />
+        <img src="<?= $illoDir . $illoBase ?>.jpg" alt="" loading="eager" decoding="async" />
       </picture>
       <div class="averr-fallback"><b><?= $code ?></b><span><?= $esc($title) ?></span></div>
     </figure>

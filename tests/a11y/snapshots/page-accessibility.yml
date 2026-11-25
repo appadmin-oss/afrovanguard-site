@@ -1,0 +1,7 @@
+- banner
+  - navigation "Main"
+- main
+  - heading "Accessibility" [level=1]
+  - navigation "On this page"
+- contentinfo
+  - navigation "Footer"

@@ -21,7 +21,7 @@ $t = $usage['totals'];
 <?php if (!$on): ?>
         <p class="qd-banner" data-tone="warn">The advisor is switched off in Rules.</p>
 <?php else: ?>
-        <div class="avp-kpis" aria-label="The last <?= (int) $usage['days'] ?> days">
+        <div class="avp-kpis" role="group" aria-label="The last <?= (int) $usage['days'] ?> days">
           <div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">Put forward</span></div><div class="avp-kpi-v av-num"><?= (int) $t['proposed'] ?></div><div class="avp-kpi-s"><?= (int) $t['approved'] ?> approved · <?= (int) $t['rejected'] ?> rejected</div></div>
           <div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">Points</span></div><div class="avp-kpi-v av-num">+<?= number_format((int) $t['points_awarded']) ?></div><div class="avp-kpi-s"><?= $t['points_deducted'] ? '−' . number_format((int) $t['points_deducted']) . ' deducted' : 'nothing deducted' ?></div></div>
           <div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">Fined</span></div><div class="avp-kpi-v av-num"><?= QuestDesk::naira((int) $t['fined']) ?></div><div class="avp-kpi-s">from the catalogue</div></div>

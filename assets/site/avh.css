@@ -161,7 +161,7 @@ html.av-si body.avh.is-member .avh-member{display:none}
 .avh-hero-link{color:var(--av-white);max-width:660px;display:flex;flex-direction:column;gap:10px}
 .avh .avh-hero-link,.avh .avh-hero-link:hover,.avh .avh-hero-link:active,.avh .avh-hero-link:focus{color:var(--av-white);text-decoration:none}
 .avh-hero-eyebrow{font-size:0.75rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--av-gold-light)}
-.avh-hero h1{font-family:var(--av-serif);font-weight:500;font-size:clamp(2rem,3.8vw,3.375rem);line-height:1.08;margin:0;text-wrap:balance}
+.avh-hero :is(h1,.avh-hero-h){font-family:var(--av-serif);font-weight:500;font-size:clamp(2rem,3.8vw,3.375rem);line-height:1.08;margin:0;text-wrap:balance}
 .avh-hero-sub{font-size:clamp(0.9375rem,1.3vw,1.0625rem);line-height:1.5;color:var(--av-on-ink-soft);max-width:540px;text-wrap:pretty}
 .avh-hero-ctrl{display:flex;gap:8px;flex-shrink:0;padding-bottom:6px}
 .avh-hero-ctrl button{width:30px;height:30px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:var(--av-white);line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
@@ -421,7 +421,7 @@ html.av-si body.avh.is-member .avh-member{display:none}
 .avh-hero{height:min(88vh,820px);min-height:520px}
 .avh-hero-img{transform:scale(1.08);transition:opacity 1.1s ease,transform 7s ease-out}
 .avh-hero-img.is-on{transform:scale(1)}
-.avh-hero h1{font-size:clamp(2.25rem,4.6vw,4.125rem);letter-spacing:-.01em}
+.avh-hero :is(h1,.avh-hero-h){font-size:clamp(2.25rem,4.6vw,4.125rem);letter-spacing:-.01em}
 .avh-hero-copy-anim{animation:avh-rise .7s cubic-bezier(.16,1,.3,1) both}
 @keyframes avh-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .avh-hero-ctrl{align-items:center}
@@ -447,7 +447,7 @@ html.av-si body.avh.is-member .avh-member{display:none}
   .avh-hero-in{flex-direction:column;align-items:stretch;justify-content:flex-end;gap:18px;padding-top:96px;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
   .avh-hero-link{max-width:none;gap:8px}
   .avh-hero-eyebrow{font-size:0.6875rem;letter-spacing:.12em}
-  .avh-hero h1{font-size:clamp(1.875rem,8.8vw,2.5rem);line-height:1.06}
+  .avh-hero :is(h1,.avh-hero-h){font-size:clamp(1.875rem,8.8vw,2.5rem);line-height:1.06}
   .avh-hero-sub{font-size:0.9375rem;max-width:none}
   .avh-hero-shade{background:linear-gradient(180deg,rgba(0,0,0,0) 28%,rgba(0,0,0,.45) 52%,rgba(0,0,0,.82) 100%)}
   .avh-hero-ctrl{padding-bottom:0;gap:10px}
@@ -463,7 +463,7 @@ html.av-si body.avh.is-member .avh-member{display:none}
     padding-left:max(clamp(20px,3vw,32px),env(safe-area-inset-left,0px));padding-right:max(clamp(20px,3vw,32px),env(safe-area-inset-right,0px))}
   .avh-hero-link{gap:6px;max-width:min(560px,62vw)}
   .avh-hero-eyebrow{font-size:0.6875rem}
-  .avh-hero h1{font-size:clamp(1.625rem,4.2vw,2.125rem)}
+  .avh-hero :is(h1,.avh-hero-h){font-size:clamp(1.625rem,4.2vw,2.125rem)}
   .avh-hero-sub{font-size:0.875rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .avh-hero-ctrl .avh-dot{width:20px}
   /* Clear of the Chioma button, which sits in the bottom-right corner. */

@@ -109,12 +109,19 @@ jobs:
       - name: Lessons — pictures described, links named, tables with headers, videos captioned
         run: php tools/academy-a11y-audit.php --strict
 
-      - name: Pages — axe (WCAG 2.2 A/AA) and 320px reflow, signed out, as a learner and as a member, with and without the display settings
+      - name: Every template family — axe (WCAG 2.2 A/AA), 320px reflow and focus not obscured, signed out, as a learner and as a member, with and without the display settings, palette and panel open
         run: |
           TOKEN="$(php tests/a11y/ci-session.php 2>/dev/null | tail -1)"
           MEMBER_TOKEN="$(php tests/a11y/ci-session.php --member 2>/dev/null | tail -1)"
           cd tests/a11y
           BASE=http://127.0.0.1:8000 TOKEN="$TOKEN" MEMBER_TOKEN="$MEMBER_TOKEN" node axe-ci.js
+
+      - name: Accessibility tree — landmarks, names and the panel and palette, as a screen reader is given them
+        run: |
+          TOKEN="$(php tests/a11y/ci-session.php 2>/dev/null | tail -1)"
+          MEMBER_TOKEN="$(php tests/a11y/ci-session.php --member 2>/dev/null | tail -1)"
+          cd tests/a11y
+          BASE=http://127.0.0.1:8000 TOKEN="$TOKEN" MEMBER_TOKEN="$MEMBER_TOKEN" node tree-ci.js
 
       - name: Search palette and Accessibility launcher — keyboard, bottom clearance, tuck on scroll, never over a control
         run: |

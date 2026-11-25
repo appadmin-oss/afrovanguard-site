@@ -96,8 +96,8 @@
 .iq-diff--medium{background:#fdf1d6;color:#a2740a}
 .iq-diff--hard{background:var(--iq-no-bg);color:var(--iq-no)}
 .iq-diff--profile{background:#ece9fb;color:#5b50b0}
-.iq-card h3{font-size:1.1875rem;font-weight:700;margin:2px 0;color:var(--iq-text)}
-.iq-card p{font-size:0.875rem;line-height:1.55;margin:0;color:var(--iq-muted);flex:1}
+.iq-card-t{display:block;font-size:1.1875rem;font-weight:700;margin:2px 0;color:var(--iq-text)}
+.iq-card-p{display:block;font-size:0.875rem;line-height:1.55;margin:0;color:var(--iq-muted);flex:1}
 .iq-card-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:0.7813rem;color:var(--iq-muted);margin-top:8px;align-items:center}
 .iq-best{color:var(--iq-gold-deep);font-weight:800}
 :root[data-theme="dark"] .iq-best{color:var(--iq-gold)}

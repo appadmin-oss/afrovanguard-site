@@ -49,6 +49,10 @@ body.avle{margin:0;background:var(--av-white);color:var(--av-ink);font-family:va
 /* Shell */
 .avle-shell{display:flex;align-items:stretch;min-height:calc(100vh - 60px)}
 .avle-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.avle-pane{flex:1;min-width:0;display:flex;flex-direction:column}
+.avle-foot{display:flex;flex-wrap:wrap;gap:4px 20px;padding:14px clamp(20px,4vw,48px);border-top:1px solid var(--av-line);font-size:.8125rem;color:var(--av-muted-2)}
+.avle-foot a{display:inline-flex;align-items:center;min-height:32px;color:inherit;text-decoration:underline;text-decoration-color:var(--av-line-2);text-underline-offset:3px}
+.avle-foot a:hover{color:var(--av-ink);text-decoration-color:currentColor}
 
 /* Contents */
 .avle-side{width:320px;max-width:85vw;flex-shrink:0;border-right:1px solid var(--av-line);background:var(--av-white);position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto}

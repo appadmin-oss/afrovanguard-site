@@ -263,7 +263,7 @@ final class SiteHome
             . '  <div class="avh-hero-in avh-pad">' . "\n"
             . '    <a class="avh-hero-link" href="' . $e($first['href']) . '" aria-live="off" data-avh-hero-link>' . "\n"
             . '      <span class="avh-hero-eyebrow" data-avh-hero-eyebrow>' . $e($first['eyebrow']) . '</span>' . "\n"
-            . '      <h1 data-avh-hero-title>' . $e($first['title']) . '</h1>' . "\n"
+            . '      <h2 class="avh-hero-h" data-avh-hero-title>' . $e($first['title']) . '</h2>' . "\n"
             . '      <span class="avh-hero-sub" data-avh-hero-sub>' . $e($first['sub']) . '</span>' . "\n"
             . '    </a>' . "\n"
             . '    <div class="avh-hero-ctrl">' . "\n"

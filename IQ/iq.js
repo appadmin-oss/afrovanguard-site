@@ -26,14 +26,24 @@
     ['iqQuizzes', 'iqPlayer', 'iqGames', 'iqLeaderboard'].forEach(function (v) { var n = el(v); if (n) n.hidden = true; });
     var map = { quizzes: 'iqQuizzes', games: 'iqGames', leaderboard: 'iqLeaderboard' };
     var target = el(map[name] || 'iqQuizzes'); if (target) target.hidden = false;
-    Array.prototype.forEach.call(document.querySelectorAll('.iq-tab'), function (t) {
-      if (t.getAttribute('data-tab')) t.classList.toggle('is-on', t.getAttribute('data-tab') === name);
+    Array.prototype.forEach.call(document.querySelectorAll('.iq-tab[data-tab]'), function (t) {
+      var on = t.getAttribute('data-tab') === (map[name] ? name : 'quizzes');
+      t.classList.toggle('is-on', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
     });
     if (name === 'leaderboard') loadGlobalBoard();
     if (name === 'games') { renderGamesGrid(); gamesHome(); }
   }
-  Array.prototype.forEach.call(document.querySelectorAll('.iq-tab[data-tab]'), function (t) {
+  /* The WAI-ARIA tabs pattern: one Tab stop, ←/→ (and Home/End) move and select. */
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.iq-tab[data-tab]'));
+  tabs.forEach(function (t, i) {
     t.addEventListener('click', function () { showView(t.getAttribute('data-tab')); });
+    t.addEventListener('keydown', function (e) {
+      var n = e.key === 'ArrowRight' ? (i + 1) % tabs.length : e.key === 'ArrowLeft' ? (i - 1 + tabs.length) % tabs.length : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : -1;
+      if (n < 0) return;
+      e.preventDefault(); showView(tabs[n].getAttribute('data-tab')); tabs[n].focus();
+    });
   });
 
   /* ---------- Quiz list ---------- */
@@ -62,8 +72,8 @@
         ? '<span class="iq-card-badge iq-diff--profile">Personality</span>'
         : '<span class="iq-card-badge iq-diff--' + esc(q.difficulty) + '">' + esc(q.difficulty_label) + '</span>';
       return '<button class="iq-card" data-slug="' + esc(q.slug) + '">' + badge +
-        '<h3>' + esc(q.title) + '</h3>' +
-        '<p>' + esc(q.description || '') + '</p>' +
+        '<span class="iq-card-t">' + esc(q.title) + '</span>' +
+        '<span class="iq-card-p">' + esc(q.description || '') + '</span>' +
         '<div class="iq-card-meta"><span>' + q.q_count + (q.type === 'profile' ? ' scenarios' : ' questions') + '</span><span>' + q.plays + ' plays</span>' + best + '</div>' +
         '<span class="iq-card-cta">Play →</span></button>';
     }).join('');
@@ -257,7 +267,7 @@
       return '<button class="iq-card iq-game-tile" data-game="' + g.id + '">' +
         '<span class="iq-game-ico" aria-hidden="true">' + g.icon + '</span>' +
         '<span class="iq-card-badge">Game · ' + esc(g.badge) + '</span>' +
-        '<h3>' + esc(g.title) + '</h3><p>' + esc(g.blurb) + '</p>' + best +
+        '<span class="iq-card-t">' + esc(g.title) + '</span><span class="iq-card-p">' + esc(g.blurb) + '</span>' + best +
         '<span class="iq-card-cta">How to play <span aria-hidden="true">→</span></span></button>';
     }).join('');
     Array.prototype.forEach.call(grid.querySelectorAll('.iq-game-tile'), function (t) {

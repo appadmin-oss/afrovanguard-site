@@ -230,7 +230,7 @@ function avac_head(array $o): void
   <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si')</script>
   <?= A11y::head() ?>  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title><?= e($title) ?></title>
+  <title><?= e(A11y::title($title)) ?></title>
   <meta name="description" content="<?= e($desc) ?>" />
 <?php if (!empty($o['keywords'])): ?>  <meta name="keywords" content="<?= e((string) $o['keywords']) ?>" />
 <?php endif; ?>

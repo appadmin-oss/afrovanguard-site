@@ -1,16 +1,21 @@
 /* assets/site/a11y.js — the Accessibility panel (lib/A11y.php, a11y.css).
  *
- * A launcher at the bottom left of every page (bottom right is Chioma's) —
- * a round button from 600px, a tab against the screen's edge on a phone —
- * the footer link and Alt+Shift+A open a compact panel: a native <dialog> in
- * the launcher's corner on a wide screen and a bottom sheet on a phone. Focus goes in and stays in (showModal makes the page behind it
- * inert), Escape closes it, and focus goes back to whatever opened it. Every
- * control is native — radios drawn as segmented controls, checkboxes with
- * role="switch" — and a change applies at once and is kept:
+ * A small launcher at the bottom left of every page (bottom right is Chioma's)
+ * — a round button from 600px, a tab against the screen's edge on a phone —
+ * the footer link and Alt+Shift+A open one compact panel: a native <dialog> in
+ * the launcher's corner on a wide screen and a bottom sheet on a phone. The
+ * dialog behaviour is the shared one (a11y-core.js, AvA11y.dialog): the page
+ * behind is inert, focus goes in and goes round, Escape or the backdrop closes
+ * it, and focus goes back to whatever opened it. Every control is native —
+ * radios drawn as segmented controls, checkboxes with role="switch" — in four
+ * labelled groups (Text size, Contrast, Reading, Moving around), and a change
+ * applies at once and is kept:
  *   · localStorage av.a11y and the av_a11y cookie (PHP reads the cookie, so the
  *     next page is drawn with the classes and nothing flashes);
  *   · for a signed-in member, their account too (portal/prefs.php), newest wins,
  *     so the settings follow them to another device.
+ * "Single-key shortcuts" (on unless the token nokeys is stored) turns off the
+ * one character-key shortcut, "/" for search (WCAG 2.1.4).
  * These are conveniences on top of the pages; the wording says so and claims
  * nothing more. Vanilla ES5-ish, no dependencies.
  */
@@ -18,18 +23,20 @@
   'use strict';
   if (window.__avA11y) return; window.__avA11y = true;
   var d = document.documentElement, KEY = 'av.a11y', AT = 'av.a11y.at', CK = 'av_a11y';
-  var TOKEN = /^(t125|t150|t175|t200|spacing|font|links|focus|still|targets|hc-auto|hc-light|hc-dark)$/;
+  var TOKEN = /^(t125|t150|t175|t200|spacing|font|links|focus|still|targets|nokeys|hc-auto|hc-light|hc-dark)$/;
+  /* [token, label, hint, 'inverse' when the switch is ON while the token is absent] */
   var FLAGS = [
-    ['spacing', 'Comfortable spacing', 'More room between lines and letters'],
+    ['spacing', 'Comfortable spacing', 'More room between lines, words and letters'],
     ['font', 'Easy-to-read font', 'Atkinson Hyperlegible, plain and clear'],
     ['links', 'Underline links', 'So links never rely on colour alone'],
     ['focus', 'Large focus outline', 'A bold ring round the keyboard focus'],
+    ['targets', 'Bigger buttons and links', 'At least 44 pixels to tap or click'],
     ['still', 'Stop moving content', 'Pauses tickers, slideshows and videos'],
-    ['targets', 'Bigger buttons and links', 'At least 44 pixels to tap or click']
+    ['nokeys', 'Single-key shortcuts', 'Press / to search. Turn off if it clashes with your screen reader', 'inverse']
   ];
   var SIZES = [100, 125, 150, 175, 200];
   /* [value, label, what a screen reader hears after it] */
-  var CONTRAST = [['', 'Off', ''], ['hc-auto', 'Auto', '(matches your device’s light or dark mode)'], ['hc-light', 'Light', ''], ['hc-dark', 'Dark', '']];
+  var CONTRAST = [['', 'Standard', ''], ['hc-light', 'Light', '(high contrast)'], ['hc-dark', 'Dark', '(high contrast)'], ['hc-auto', 'Auto', '(high contrast, matching your device’s light or dark mode)']];
 
   /* ── Reading and writing the value ─────────────────────────────────── */
   function parse(v) {
@@ -125,7 +132,7 @@
   }
 
   /* ── The panel ────────────────────────────────────────────────────── */
-  var dlg = null, opener = null, status = null, fab = null;
+  var dlg = null, fab = null, A = window.AvA11y;
   function el(tag, attrs, html) {
     var e = document.createElement(tag);
     for (var k in attrs) if (Object.prototype.hasOwnProperty.call(attrs, k)) e.setAttribute(k, attrs[k]);
@@ -134,92 +141,83 @@
   }
   var mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
   var ALT = mac ? 'Option' : 'Alt';
-  var ICON = '<svg class="av-a11y-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="4.6" r="2.1" fill="currentColor"/><path d="M4.8 8.4c2.4.8 4.8 1.2 7.2 1.2s4.8-.4 7.2-1.2M12 9.6v4.6m0 0-2.9 6.2m2.9-6.2 2.9 6.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var ICON = '<svg class="av-a11y-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="4.75" r="1.9" fill="currentColor"/><path d="M5 8.6c2.3.7 4.6 1.05 7 1.05s4.7-.35 7-1.05M12 9.65v4.4m0 0-2.6 5.7m2.6-5.7 2.6 5.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var X = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  function rows(list) {
+    return list.map(function (f) {
+      var inv = f[3] === 'inverse';
+      /* The switch is named by its label alone and described by its hint, so a
+         screen reader says "Comfortable spacing, switch, off" and then the hint. */
+      var id = 'av-a11y-' + f[0];
+      return '<li><label class="av-a11y-row"><span class="av-a11y-row-t"><span id="' + id + '-l">' + f[1] + '</span><small id="' + id + '-d">' + f[2] + '</small></span><input type="checkbox" role="switch" name="' + id + '" value="' + f[0] + '" aria-labelledby="' + id + '-l" aria-describedby="' + id + '-d"' + (inv ? ' data-inverse' : '') + '></label></li>';
+    }).join('');
+  }
   function build() {
-    dlg = el('dialog', { 'class': 'av-a11y', id: 'av-a11y', 'aria-labelledby': 'av-a11y-h', 'aria-describedby': 'av-a11y-d' });
-    var h = '<div class="av-a11y-hd"><span class="av-a11y-badge" aria-hidden="true">' + ICON + '</span>'
-      + '<div class="av-a11y-hd-t"><h2 id="av-a11y-h">Accessibility settings</h2>'
-      + '<p id="av-a11y-d">These change how this site looks for you. Your device’s own settings, screen reader and magnifier keep working.</p></div>'
-      + '<button type="button" class="av-a11y-x" data-a11y-close aria-label="Close accessibility settings"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>'
+    dlg = el('dialog', { 'class': 'av-a11y av-ui', id: 'av-a11y', 'aria-labelledby': 'av-a11y-h', 'aria-describedby': 'av-a11y-d' });
+    var h = '<div class="av-a11y-hd"><h2 id="av-a11y-h">Accessibility settings</h2>'
+      + '<button type="button" class="av-ui-x" data-a11y-close data-av-close aria-label="Close accessibility settings">' + X + '</button></div>'
+      + '<p class="av-a11y-lede" id="av-a11y-d">These change how this site looks for you. Your device’s own settings, screen reader and magnifier keep working.</p>'
       + '<div class="av-a11y-body">'
-      + '<fieldset class="av-a11y-f"><legend>Text size</legend><div class="av-a11y-seg">';
+      + '<fieldset class="av-a11y-f"><legend>Text size</legend><div class="av-seg">';
     SIZES.forEach(function (n) {
-      h += '<label><input type="radio" name="av-a11y-text" value="' + n + '"><span>' + (n === 100 ? 'A<span class="av-a11y-sr">, 100% (standard)</span>' : n + '<small>%</small>') + '</span></label>';
+      h += '<label><input type="radio" name="av-a11y-text" value="' + n + '"><span>' + n + '%' + (n === 100 ? '<span class="av-sr"> (standard)</span>' : '') + '</span></label>';
     });
-    h += '</div></fieldset><fieldset class="av-a11y-f"><legend>High contrast</legend><div class="av-a11y-seg av-a11y-seg--hc">';
+    h += '</div></fieldset><fieldset class="av-a11y-f"><legend>Contrast</legend><div class="av-seg av-seg--hc">';
     CONTRAST.forEach(function (c) {
-      h += '<label><input type="radio" name="av-a11y-hc" value="' + c[0] + '"><span><i class="av-a11y-sw av-a11y-sw--' + (c[0] || 'off') + '" aria-hidden="true"></i>' + c[1] + (c[2] ? '<span class="av-a11y-sr"> ' + c[2] + '</span>' : '') + '</span></label>';
+      h += '<label><input type="radio" name="av-a11y-hc" value="' + c[0] + '"><span><i class="av-a11y-sw av-a11y-sw--' + (c[0] || 'off') + '" aria-hidden="true"></i>' + c[1] + (c[2] ? '<span class="av-sr"> ' + c[2] + '</span>' : '') + '</span></label>';
     });
-    h += '</div></fieldset><ul class="av-a11y-list" role="list">';
-    FLAGS.forEach(function (f) {
-      h += '<li><label class="av-a11y-row"><span class="av-a11y-row-t">' + f[1] + '<small>' + f[2] + '</small></span><input type="checkbox" role="switch" name="av-a11y-' + f[0] + '" value="' + f[0] + '"></label></li>';
-    });
-    h += '</ul></div>'
+    h += '</div></fieldset>'
+      + '<fieldset class="av-a11y-f av-a11y-g"><legend>Reading</legend><ul class="av-a11y-list" role="list">' + rows(FLAGS.slice(0, 3)) + '</ul></fieldset>'
+      + '<fieldset class="av-a11y-f av-a11y-g"><legend>Moving around</legend><ul class="av-a11y-list" role="list">' + rows(FLAGS.slice(3)) + '</ul></fieldset>'
+      + '</div>'
       + '<div class="av-a11y-ft"><button type="button" class="av-a11y-reset" data-a11y-reset>Reset to standard</button>'
-      + '<a class="av-a11y-more" href="/accessibility/">Accessibility statement</a></div>'
-      + '<p class="av-a11y-note">Saved on this device' + (signedIn ? ' and in your account' : '') + '. Open from any page with <span class="av-a11y-nw"><kbd>' + ALT + '</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd></span>.</p>'
-      + '<p class="av-a11y-sr" role="status" aria-live="polite" data-a11y-status></p>';
+      + '<a class="av-a11y-more" href="/accessibility/">Accessibility help</a></div>'
+      + '<p class="av-a11y-note">Saved on this device' + (signedIn ? ' and in your account' : '') + '. Open from any page with <span class="av-a11y-nw"><kbd>' + ALT + '</kbd> <kbd>Shift</kbd> <kbd>A</kbd></span></p>';
     dlg.innerHTML = h;
     document.body.appendChild(dlg);
-    status = dlg.querySelector('[data-a11y-status]');
     dlg.addEventListener('change', onChange);
     dlg.addEventListener('click', function (e) {
       var t = e.target.closest ? e.target.closest('[data-a11y-close],[data-a11y-reset]') : null;
-      if (e.target === dlg) { close(); return; } // a click outside the panel (on the backdrop)
       if (!t) return;
       if (t.hasAttribute('data-a11y-reset')) { save(parse('0')); sync(); say('Settings reset to standard.'); return; }
       close();
     });
-    dlg.addEventListener('close', restore);
-    /* Tab and Shift+Tab go round the panel, never out to the address bar and back. */
-    dlg.addEventListener('keydown', function (e) {
-      if (e.key !== 'Tab') return;
-      var f = [].filter.call(dlg.querySelectorAll('button,a[href],input:not([type=radio]),input[type=radio]:checked,select'), function (x) { return !x.disabled && x.getClientRects().length; });
-      var named = {}; // a radio group with nothing checked is reached by its first radio
-      dlg.querySelectorAll('input[type=radio]').forEach(function (r) { if (!named[r.name]) named[r.name] = r; });
-      Object.keys(named).forEach(function (n) { if (!dlg.querySelector('input[name="' + n + '"]:checked')) f.push(named[n]); });
-      f.sort(function (a, b) { return a.compareDocumentPosition(b) & 4 ? -1 : 1; });
-      if (!f.length) return;
-      var first = f[0], last = f[f.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    });
   }
-  function say(t) { if (!status) return; status.textContent = ''; setTimeout(function () { status.textContent = t; }, 50); }
+  function say(t) { A = A || window.AvA11y; if (A) A.announce(t); }
   function sync() {
     if (!dlg) return;
     dlg.querySelectorAll('input[name="av-a11y-text"]').forEach(function (i) { i.checked = +i.value === state.text; });
     dlg.querySelectorAll('input[name="av-a11y-hc"]').forEach(function (i) { i.checked = i.value === state.contrast; });
-    FLAGS.forEach(function (f) { var i = dlg.querySelector('input[name="av-a11y-' + f[0] + '"]'); if (i) i.checked = !!state.flags[f[0]]; });
+    FLAGS.forEach(function (f) { var i = dlg.querySelector('input[name="av-a11y-' + f[0] + '"]'); if (i) i.checked = f[3] === 'inverse' ? !state.flags[f[0]] : !!state.flags[f[0]]; });
     if (fab) fab.classList.toggle('is-on', serialize(state) !== '0');
   }
   function onChange(e) {
     var i = e.target, s = parse(serialize(state));
     if (i.name === 'av-a11y-text') s.text = +i.value;
     else if (i.name === 'av-a11y-hc') s.contrast = i.value;
-    else if (i.type === 'checkbox') { if (i.checked) s.flags[i.value] = true; else delete s.flags[i.value]; }
+    else if (i.type === 'checkbox') { var on = i.hasAttribute('data-inverse') ? !i.checked : i.checked; if (on) s.flags[i.value] = true; else delete s.flags[i.value]; }
     save(s); sync();
   }
   function open(from) {
-    if (typeof HTMLDialogElement === 'undefined' || !HTMLDialogElement.prototype.showModal) { location.href = '/accessibility/#settings'; return; }
+    A = A || window.AvA11y;
+    if (A && A.modalOpen(dlg)) return; // one modal at a time: the search palette keeps the floor
+    if (!A || typeof HTMLDialogElement === 'undefined' || !HTMLDialogElement.prototype.showModal) { location.href = '/accessibility/#settings'; return; }
     if (!dlg) build();
     if (dlg.open) return;
-    opener = from || document.activeElement;
     sync();
-    dlg.showModal();
+    A.dialog(dlg, {
+      opener: from || document.activeElement,
+      focus: function () { return dlg.querySelector('input[name="av-a11y-text"]:checked') || dlg.querySelector('input'); },
+      fallback: function () { return fab; },
+      onClose: restore
+    });
     fit();
-    var first = dlg.querySelector('input[name="av-a11y-text"]:checked') || dlg.querySelector('input');
-    if (first) first.focus();
     document.querySelectorAll('[data-a11y-open][aria-expanded]').forEach(function (b) { b.setAttribute('aria-expanded', 'true'); });
   }
   function close() { if (dlg && dlg.open) dlg.close(); }
   function restore() {
     fit();
     document.querySelectorAll('[data-a11y-open][aria-expanded]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
-    var o = opener; opener = null;
-    /* Back to what opened it — or, if that one is hidden now, the launcher. */
-    if (o && o.isConnected && !o.getClientRects().length && fab) o = fab;
-    if (o && o.focus && o.isConnected) { try { o.focus({ preventScroll: true }); } catch (e) {} }
     look();
   }
 

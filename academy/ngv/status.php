@@ -64,18 +64,19 @@ header('Content-Type: text/html; charset=utf-8');
 header('X-Robots-Tag: noindex, nofollow');
 header('Referrer-Policy: no-referrer');
 ?><!doctype html>
-<html lang="en">
+<html lang="en-NG"<?= A11y::htmlClass() ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Your application · NextGen Vanguard</title>
+<title><?= e(A11y::title('Your application · NextGen Vanguard · Academy')) ?></title>
+<?= A11y::head() ?>
 <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
 <style>
 :root{--red:#e4162b;--orange:#ff6a1a;--ink:#15120e;--line:#e7e9ee;--muted:#5f6874;--bg:#f5f6f8;--card:#fff;--ok:#1d6b30;--grad:linear-gradient(100deg,#e4162b,#ff6a1a 55%,#ffb703);--r:16px}
 *{box-sizing:border-box}
 body{margin:0;font-family:'Source Sans 3',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55}
-a{color:var(--red)}
+a{color:#B5101F}
 :focus-visible{outline:3px solid var(--orange);outline-offset:2px}
 .wrap{max-width:720px;margin:0 auto;padding:0 16px}
 .hero{background:var(--grad);color:#fff;padding:28px 0}
@@ -105,14 +106,19 @@ input,select{font:inherit;font-size:1rem;padding:11px 12px;border:1px solid #cfd
 .day{margin:12px 0 2px;font-weight:700}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .ref{font-family:ui-monospace,monospace;font-weight:700;letter-spacing:.04em}
+.skip{position:absolute;left:16px;top:-100px;z-index:10;padding:10px 16px;border-radius:8px;background:#fff;color:var(--ink);font-weight:700}
+.skip:focus{top:12px}
+.foot{padding:24px 0 48px;color:var(--muted);font-size:.9rem}
+.foot a{color:inherit}
 </style>
 </head>
 <body>
+<a class="skip" href="#main">Skip to main content</a>
 <header class="hero"><div class="wrap">
   <h1>Your NextGen Vanguard application</h1>
   <?php if ($app): ?><p>Reference <span class="ref"><?= $e((string) $app['ref']) ?></span></p><?php endif; ?>
 </div></header>
-<main id="main" class="wrap">
+<main id="main" tabindex="-1" class="wrap">
 <?php if ($err !== ''): ?><div class="err" role="alert"><?= $e($err) ?></div><?php endif; ?>
 <?php if ($msg !== ''): ?><div class="msg" role="status"><?= $e($msg) ?></div><?php endif; ?>
 
@@ -211,5 +217,6 @@ input,select{font:inherit;font-size:1rem;padding:11px 12px;border:1px solid #cfd
 <?php endif; ?>
   <p class="note"><a href="/academy/ngv/">NextGen Vanguard</a><?php if (!empty($c['contact']['phone'])): ?> · Questions? <?= $e((string) $c['contact']['phone']) ?><?php endif; ?></p>
 </main>
+<footer class="foot"><div class="wrap"><a href="/academy/ngv/">NextGen Vanguard</a> · <a href="/accessibility/">Accessibility</a> · <?= A11y::footerLink() ?> · <a href="/privacy-policy/">Privacy</a></div></footer>
 </body>
 </html>

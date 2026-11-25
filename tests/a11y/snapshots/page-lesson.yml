@@ -1,0 +1,6 @@
+- banner
+- complementary "Course content"
+  - navigation "Lessons"
+- main
+  - heading "Welcome to Techome" [level=1]
+- contentinfo

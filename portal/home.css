@@ -126,7 +126,7 @@
 .hv .hv-kbd { font-family:inherit; font-size:0.75rem; border:1px solid var(--hv-line-2); border-radius:4px; padding:0 5px }
 .hv .hv-ask-msg { font-size:0.8125rem; color:var(--hv-muted); text-align:center }
 .hv .hv-ask-msg.is-bad { color:var(--hv-bad) }
-.hv .hv-quick { display:flex; gap:8px; flex-wrap:nowrap; justify-content:safe center; margin:0 -200px; padding:2px 4px; overflow-x:auto; scrollbar-width:none }
+.hv .hv-quick { display:flex; gap:8px; flex-wrap:nowrap; justify-content:safe center; margin:0 calc(-1 * clamp(16px, 3vw, 32px)); padding:2px 4px; overflow-x:auto; scrollbar-width:none }
 .hv .hv-quick::-webkit-scrollbar { display:none }
 .hv .hv-mod { display:inline-flex; align-items:center; gap:7px; min-height:38px; padding:0 13px 0 6px; border:1px solid var(--hv-line);
   border-radius:999px; background:var(--hv-card); font-size:0.8125rem; font-weight:600; color:var(--hv-text-2); flex-shrink:0; white-space:nowrap }

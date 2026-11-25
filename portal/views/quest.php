@@ -87,7 +87,7 @@ $qMoney   = $qCtx !== null && QuestMoney::ready() ? (QuestMoney::forMember($qId)
             </div>
           </section>
 
-          <div class="avp-kpis" aria-label="Your Quest at a glance">
+          <div class="avp-kpis" role="group" aria-label="Your Quest at a glance">
             <div class="avp-kpi">
               <div class="avp-kpi-top"><span class="avp-kpi-l">Quest points</span><span class="avp-chip avp-chip--sm avp-chip--gold">Evidence</span></div>
               <div class="avp-kpi-v av-num"><?= number_format((int) $qRec['points']) ?></div>

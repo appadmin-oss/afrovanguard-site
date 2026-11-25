@@ -39,7 +39,7 @@ $wRows    = array_reverse($wS['entries']);   /* newest first: the line just paid
         <p class="avp-wallet-warn" role="alert">We could not read <?= e(implode(' or ', array_map(static fn($s) => $wMissing[$s] ?? $s, $wS['problems']))) ?> just now, so this is not all of it, and the balance below may be wrong. <?php /* A fresh query each render, so the link always reloads the page rather than only moving the hash. */ ?><a href="/portal/?r=<?= time() ?>#wallet">Try again</a></p>
 <?php endif; ?>
 
-        <div class="avp-kpis" aria-label="Your money at a glance">
+        <div class="avp-kpis" role="group" aria-label="Your money at a glance">
           <div class="avp-kpi">
             <div class="avp-kpi-top"><span class="avp-kpi-l">Balance</span><?php if ($wBal > 0): ?><span class="avp-chip avp-chip--sm avp-chip--gold">To pay</span><?php elseif ($wBal < 0): ?><span class="avp-chip avp-chip--sm avp-chip--green">In credit</span><?php endif; ?></div>
             <div class="avp-kpi-v av-num"><?= e($wMoney(abs($wBal))) ?></div>

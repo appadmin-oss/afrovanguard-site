@@ -14,15 +14,20 @@
     .o h1{font-family:'Cormorant Garamond',Georgia,serif;font-size:32px;margin:0 0 10px;color:#fff}
     .o p{color:rgba(255,255,255,.6);line-height:1.6;font-size:15px;margin:0 0 24px}
     .o button{background:#f3b416;color:#111827;border:0;border-radius:9999px;padding:13px 28px;
-      font:700 14px/1 'Source Sans 3',sans-serif;cursor:pointer}
+      font:700 14px/1 'Source Sans 3',sans-serif;cursor:pointer;min-height:44px}
+    .o button:focus-visible,.skip:focus-visible{outline:3px solid #fff;outline-offset:3px}
+    .skip{position:absolute;left:16px;top:-100px;padding:10px 16px;border-radius:8px;background:#fff;color:#111827;font-weight:600}
+    .skip:focus{top:16px}
   </style>
 </head>
 <body>
-  <div class="o">
+  <a class="skip" href="#main">Skip to main content</a>
+  <main class="o" id="main" tabindex="-1">
     <img src="/assets/site/icon-192.png" alt="Afrovanguard" />
     <h1>You’re offline</h1>
     <p>We couldn’t reach Afrovanguard. Check your connection and try again — your installed app will pick right back up.</p>
-    <button onclick="location.reload()">Try again</button>
-  </div>
+    <!-- A plain form reloads the page: no script, no inline handler. -->
+    <form method="get"><button type="submit">Try again</button></form>
+  </main>
 </body>
 </html>

@@ -144,7 +144,7 @@ function render_head(array $o): void {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title><?= e($title) ?></title>
+  <title><?= e(A11y::title($title)) ?></title>
   <meta name="description" content="<?= e($desc) ?>" />
   <meta name="author" content="Afrovanguard — afrovanguard.org.ng" />
 <?php if (!empty($o['csrf'])): /* Pages whose JS writes back. A token in the markup

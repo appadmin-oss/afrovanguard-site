@@ -11,9 +11,9 @@ require_once AV_ROOT . '/partials/avh-chrome.php';
 $r = AV_ROOT;
 
 /* ── The cookie: an allow-list, and garbage is ignored ───────────────── */
-$p = A11y::parse('t150.spacing.font.hc-auto.links.focus.still.targets');
+$p = A11y::parse('t150.spacing.font.hc-auto.links.focus.still.targets.nokeys');
 ck('a11y cookie: every allowed word is read', $p['text'] === 150 && $p['contrast'] === 'hc-auto'
-   && $p['flags'] === ['spacing', 'font', 'links', 'focus', 'still', 'targets']);
+   && $p['flags'] === ['spacing', 'font', 'links', 'focus', 'targets', 'still', 'nokeys']);
 ck('a11y cookie: "0" and empty mean standard', A11y::parse('0') === ['text' => 100, 'contrast' => '', 'flags' => []] && A11y::parse('') === A11y::parse(null));
 ck('a11y cookie: unknown words are dropped, known ones kept', A11y::parse('t150.bogus.spacing.t300') === ['text' => 150, 'contrast' => '', 'flags' => ['spacing']]);
 foreach (['<script>alert(1)</script>', 't150;path=/', 't150 spacing', 'T150.SPACING', "t150\nspacing", str_repeat('spacing.', 20), 'hc-auto"onload="x', '../../etc', 't150%20spacing'] as $junk)
@@ -46,8 +46,9 @@ ob_start(); render_head(['title' => 'T', 'canonical' => 'https://x.test/', 'chro
 ck('a11y render_head: the app chrome (portal) gets them too', str_contains($appHead, '<html lang="en-NG" prefix="og: https://ogp.me/ns#" class="a11y-t150 a11y-links a11y-hc-dark a11y-hc">') && str_contains($appHead, 'a11y.js'));
 av_chrome_mode('site');
 unset($_COOKIE[A11y::COOKIE]); A11y::resetForTest();
-ck('a11y boot: its allow-list is the PHP one', str_contains(A11y::BOOT, '(t125|t150|t175|t200|spacing|font|links|focus|still|targets|hc-auto|hc-light|hc-dark)')
-   && A11y::TEXT === [100, 125, 150, 175, 200] && A11y::FLAGS === ['spacing', 'font', 'links', 'focus', 'still', 'targets']);
+ck('a11y boot: its allow-list is the PHP one', str_contains(A11y::BOOT, '(t125|t150|t175|t200|spacing|font|links|focus|targets|still|nokeys|hc-auto|hc-light|hc-dark)')
+   && A11y::TEXT === [100, 125, 150, 175, 200] && A11y::FLAGS === ['spacing', 'font', 'links', 'focus', 'targets', 'still', 'nokeys']);
+ck('a11y keys: the panel offers turning single-key shortcuts off (WCAG 2.1.4), and the search obeys it', str_contains((string) file_get_contents("$r/assets/site/a11y.js"), "['nokeys', 'Single-key shortcuts'") && str_contains((string) file_get_contents("$r/assets/site/avsearch.js"), "if (e.key === '/' && singleKeys() &&"));
 ck('a11y boot: it only writes a cookie value it has checked', str_contains(A11y::BOOT, "/^[a-z0-9.-]{1,80}$/.test(v)"));
 
 /* ── The way in on every kind of page: a round button, the footer link, the shortcut ── */
@@ -78,6 +79,7 @@ ck('a11y fab: on the portal\'s wide screen it moves past the sidebar; its phone 
 
 /* The button and the panel, in script. */
 $js = (string) file_get_contents("$r/assets/site/a11y.js");
+$core = (string) file_get_contents("$r/assets/site/a11y-core.js");
 ck('a11y fab: a real button, named, saying it opens a dialog and its shortcut', str_contains($js, "el('button', { type: 'button', 'class': 'av-a11y-fab', 'data-a11y-open': '', 'aria-label': 'Accessibility settings', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', 'aria-controls': 'av-a11y', 'aria-keyshortcuts': 'Alt+Shift+A' }"));
 ck('a11y fab: its visible label is a tooltip that Escape dismisses (WCAG 1.4.13)', str_contains($js, '<span class="av-a11y-tip" aria-hidden="true">Accessibility settings') && str_contains($js, "if (e.key === 'Escape') fab.classList.add('is-quiet');"));
 /* Bottom clearance: one measured variable (assets/site/bottom-ui.js), after africa-gates' Gee. */
@@ -127,9 +129,9 @@ foreach (['index.html', 'about.html', 'contact.html', 'donate.html', 'projects/i
 }
 ck('launcher tuck: small', filesize("$r/assets/site/launcher-tuck.js") < 6000);
 ck('a11y sheet: on a phone it follows the visual viewport', str_contains($js, "dlg.style.setProperty('--av-vv-h', Math.round(vv.height) + 'px');") && str_contains($js, "vv.addEventListener('resize', fit)"));
-ck('a11y dialog: a native <dialog> opened modal, labelled and described', str_contains($js, "el('dialog'") && str_contains($js, 'showModal()') && str_contains($js, "'aria-labelledby': 'av-a11y-h'") && str_contains($js, "'aria-describedby': 'av-a11y-d'"));
-ck('a11y dialog: native radios for size and contrast (a segmented control), checkboxes with role="switch"', str_contains($js, 'type="radio" name="av-a11y-text"') && str_contains($js, 'type="radio" name="av-a11y-hc"') && str_contains($js, '<input type="checkbox" role="switch" name="av-a11y-') && str_contains($js, 'class="av-a11y-seg"'));
-ck('a11y dialog: focus is kept inside and goes back to the opener', str_contains($js, "if (e.key !== 'Tab') return;") && str_contains($js, "dlg.addEventListener('close', restore)") && str_contains($js, 'o.focus({ preventScroll: true })'));
+ck('a11y dialog: a native <dialog> opened modal through the shared core, labelled and described', str_contains($js, "el('dialog'") && str_contains($js, 'A.dialog(dlg, {') && str_contains($core, 'dlg.showModal();') && str_contains($js, "'aria-labelledby': 'av-a11y-h'") && str_contains($js, "'aria-describedby': 'av-a11y-d'"));
+ck('a11y dialog: native radios for size and contrast (a segmented control), checkboxes with role="switch"', str_contains($js, 'type="radio" name="av-a11y-text"') && str_contains($js, 'type="radio" name="av-a11y-hc"') && str_contains($js, '<input type="checkbox" role="switch" name="\' + id + \'" value="\' + f[0] + \'" aria-labelledby="\' + id + \'-l" aria-describedby="\' + id + \'-d"') && str_contains($js, 'class="av-seg"'));
+ck('a11y dialog: focus is kept inside and goes back to the opener (a11y-core.js)', str_contains($core, "if (e.key !== 'Tab') return;") && str_contains($core, "dlg.addEventListener('close', function () {") && str_contains($core, 'el.focus({ preventScroll: true })') && str_contains($js, 'fallback: function () { return fab; }'));
 ck('a11y dialog: Alt+Shift+A opens it (e.code for a Mac\'s Option key)', str_contains($js, "e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && (e.code === 'KeyA'"));
 ck('a11y dialog: Alt+Shift+A clashes with no other shortcut on the site', (function () use ($r): bool {
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($r, FilesystemIterator::SKIP_DOTS)) as $f) {
@@ -141,8 +143,9 @@ ck('a11y dialog: Alt+Shift+A clashes with no other shortcut on the site', (funct
 })());
 ck('a11y dialog: it says what it is, plainly, and claims nothing more', str_contains($js, 'These change how this site looks for you. Your device’s own settings, screen reader and magnifier keep working.')
    && !preg_match('~complian|ADA|certif|fully accessible~i', $js . file_get_contents("$r/assets/site/a11y.css")));
-ck('a11y dialog: the shortcut is announced in the panel', str_contains($js, "<kbd>' + ALT + '</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>"));
-ck('a11y dialog: a quiet reset and the statement', str_contains($js, 'data-a11y-reset>Reset to standard</button>') && str_contains($js, 'href="/accessibility/">Accessibility statement</a>'));
+ck('a11y dialog: the shortcut is shown in the panel', str_contains($js, "<kbd>' + ALT + '</kbd> <kbd>Shift</kbd> <kbd>A</kbd>"));
+ck('a11y dialog: a quiet reset and the help page', str_contains($js, 'data-a11y-reset>Reset to standard</button>') && str_contains($js, 'href="/accessibility/">Accessibility help</a>'));
+ck('a11y dialog: four labelled groups (Text size, Contrast, Reading, Moving around)', str_contains($js, '<legend>Text size</legend>') && str_contains($js, '<legend>Contrast</legend>') && str_contains($js, '<legend>Reading</legend>') && str_contains($js, '<legend>Moving around</legend>'));
 $css = (string) file_get_contents("$r/assets/site/a11y.css");
 ck('a11y css: text sizes scale rem from <html>', str_contains($css, 'html.a11y-t200{font-size:200%!important}') && str_contains($css, 'html.a11y-t125{font-size:125%!important}'));
 ck('a11y css: comfortable spacing is the WCAG 1.4.12 values', str_contains($css, 'line-height:1.5!important;letter-spacing:.12em!important;word-spacing:.16em!important') && str_contains($css, 'margin-bottom:2em!important'));
@@ -159,7 +162,8 @@ ck('a11y css: tucked off the edge and faded (not display:none), mirrored for rig
 ck('a11y css: a phone gets a 44px tab flush with the edge, and it waits while the cookie notice asks',
    str_contains($css, '@media (max-width:599px){') && str_contains($css, '.av-a11y-fab{inset-inline-start:0;width:44px;height:44px;') && str_contains($css, 'border-radius:0 999px 999px 0') && str_contains($css, 'body:has(.av-cc:not([hidden])) .av-a11y-fab{display:none}'));
 ck('a11y css: the launcher is not drawn while its panel is open', str_contains($css, 'html:has(#av-a11y[open]) .av-a11y-fab{display:none}'));
-ck('a11y css: the button is at least 44px; focus scrolled into view stops above it (WCAG 2.4.11)', str_contains($css, '--av-fab:48px') && str_contains($css, 'html{scroll-padding-bottom:80px}'));
+ck('a11y css: the button is at least 44px; focus scrolled into view stops above it (WCAG 2.4.11)', str_contains($css, '--av-fab:44px') && str_contains($css, 'html{scroll-padding-bottom:80px}'));
+ck('a11y css: one set of tokens and one focus ring for every template', str_contains($css, '--av-ring:#2F6FDB;--av-ring-w:3px;--av-ring-offset:2px;') && str_contains($css, 'html body :focus-visible:not([tabindex="-1"]):not(.tox *){outline:var(--av-ring-w) solid var(--av-ring)!important;') && str_contains($css, '@media (prefers-reduced-motion:reduce){:root{--av-motion:0s}}'));
 ck('CI: the launcher and palette are driven by keyboard in Chromium (tests/a11y/launchers-ci.js)', is_file("$r/tests/a11y/launchers-ci.js")
    && str_contains((string) file_get_contents("$r/.github/workflows/ci.yml"), 'node launchers-ci.js')
    && str_contains((string) file_get_contents("$r/tests/a11y/launchers-ci.js"), "a button under the resting spot keeps it tucked")
@@ -169,16 +173,19 @@ ck('bottom ui: on a phone Chioma uses the same figure, and waits while the cooki
    && str_contains((string) file_get_contents("$r/assets/site/chioma.css"), 'body:has(.av-cc:not([hidden])) .chioma-root:not(.is-open) { display: none; }'));
 ck('a11y fab: on a phone Chioma\'s nudge sits above its own launcher, clear of the bottom-left button',
    str_contains((string) file_get_contents("$r/assets/site/chioma.css"), "@media (max-width: 479px) {\n  .chioma-greet { inset-inline-end: 0; bottom: 70px;"));
-ck('a11y css: the panel opens in the launcher\'s corner, and as a bottom sheet over the visual viewport on a phone', str_contains($css, 'position:fixed;inset:auto;inset-inline-start:var(--av-fab-left,max(16px,env(safe-area-inset-left)));bottom:calc(var(--av-bottom-ui,0px) + 16px + env(safe-area-inset-bottom));') && str_contains($css, '.av-a11y{inset:auto 0 var(--av-vv-b,0px) 0;') && str_contains($css, 'border-radius:18px 18px 0 0'));
-ck('a11y assets: small', filesize("$r/assets/site/a11y.js") < 26000 && filesize("$r/assets/site/a11y.css") < 32000 && filesize("$r/assets/site/bottom-ui.js") < 5000 && filesize("$r/assets/site/listen.js") < 10000);
+ck('a11y css: the panel opens in the launcher\'s corner, and as a bottom sheet over the visual viewport on a phone', str_contains($css, 'position:fixed;inset:auto;inset-inline-start:var(--av-fab-left,max(16px,env(safe-area-inset-left)));bottom:calc(var(--av-bottom-ui,0px) + 16px + env(safe-area-inset-bottom));') && str_contains($css, '.av-a11y{inset:auto 0 var(--av-vv-b,0px) 0;') && str_contains($css, 'border-radius:20px 20px 0 0'));
+ck('a11y assets: small', filesize("$r/assets/site/a11y.js") < 26000 && filesize("$r/assets/site/a11y.css") < 42000 && filesize("$r/assets/site/a11y-core.js") < 14000 && filesize("$r/assets/site/bottom-ui.js") < 5000 && filesize("$r/assets/site/listen.js") < 10000);
 
 /* No-JS settings form on the statement, and the account store. */
 ck('a11y statement: the settings form is there, with a token', str_contains($acc, 'id="settings"') && str_contains($acc, '<form class="a11y-form" method="post"') && (bool) preg_match('~name="csrf" value="[0-9]+\.[0-9a-f]+\.~', $acc));
 $st = (string) file_get_contents("$r/accessibility/index.php");
 ck('a11y statement: the form checks the token and the site', str_contains($st, "av_csrf_valid((string) (\$_POST['csrf'] ?? ''))") && str_contains($st, 'HTTP_SEC_FETCH_SITE'));
-ck('a11y statement: reviewed 24 November 2026', str_contains($st, "\$reviewed  = '24 November 2026';"));
-ck('a11y statement: the new features are listed, as conveniences', str_contains($st, '<strong>Change how this site looks for you</strong>') && str_contains($st, '<strong>Listen</strong>') && str_contains($st, 'they are a convenience, not a substitute'));
-ck('a11y statement: nothing known was taken off the list', str_contains($st, '<strong>Some older videos</strong>') && str_contains($st, '<strong>Annual reports and other PDFs</strong>') && str_contains($st, '<strong>Things we embed from other companies</strong>') && str_contains($st, '<strong>Sign-in</strong>'));
+ck('a11y statement: prepared and reviewed 25 November 2026', str_contains($st, "\$reviewed  = '25 November 2026';") && str_contains($st, "\$prepared  = '25 November 2026';"));
+ck('a11y statement: the settings are described as conveniences, not compliance', str_contains($st, 'Display settings</h2>') && str_contains($st, '<strong>Listen</strong>') && str_contains($st, 'They are a convenience, not a substitute') && str_contains($st, 'they do not make the site “compliant”'));
+ck('a11y statement: nothing known was taken off the list', str_contains($st, '<strong>Some older videos</strong>') && str_contains($st, '<strong>Annual reports and other PDFs</strong>') && str_contains($st, '<strong>Things we embed from other companies</strong>') && str_contains($st, '<strong>Staff and printing tools</strong>'));
+ck('a11y statement: the GOV.UK model — scope, compliance status, non-accessible content, how tested, enforcement, preparation', str_contains($st, 'This statement applies to') && str_contains($st, '<h3>Compliance status</h3>') && str_contains($st, '<strong>partially compliant</strong>') && str_contains($st, '<h3>Non-accessible content</h3>') && str_contains($st, '<h3>How we tested this website</h3>') && str_contains($st, '<h3>Enforcement</h3>') && str_contains($st, '<h3>Preparation of this statement</h3>'));
+ck('a11y statement: honest that real screen-reader testing by users has not been done', str_contains($st, 'We have not yet tested with real screen readers and their users') && !preg_match('~fully compliant with|meets WCAG|is compliant~i', strip_tags($st)));
+ck('a11y statement: one table of every keyboard shortcut', str_contains($st, 'id="shortcuts"') && str_contains($st, '<caption class="av-sr">Keyboard shortcuts on this site</caption>'));
 $prefs = (string) file_get_contents("$r/portal/prefs.php");
 ck('a11y account: prefs.php keeps it, allow-listed, behind the write guard', str_contains($prefs, "case 'set_a11y':") && str_contains($prefs, "av_require_write(\$uid, 'prefs', 60);") && str_contains($prefs, 'A11y::serialize(A11y::parse('));
 Database::pdo()->prepare("INSERT INTO lms_users (name,email,password_hash) VALUES ('A11y Member','a11y.panel@x.test','x')")->execute();
@@ -195,7 +202,8 @@ ck('listen: the browser\'s own speech, nothing sent anywhere', str_contains($ls,
 ck('listen: hidden unless the browser can speak; never starts by itself', str_contains(A11y::listen('#x'), ' hidden></div>') && str_contains($ls, "if (!boxes.length || !synth || typeof window.SpeechSynthesisUtterance !== 'function') return;") && !str_contains($ls, 'start();' . "\n  });"));
 ck('listen: play/pause, stop, speed; Nigerian then British English', str_contains($ls, 'data-act="play"') && str_contains($ls, 'data-act="stop"') && str_contains($ls, 'data-act="rate"') && str_contains($ls, "by(/^en-NG/i) || by(/^en-GB/i)"));
 ck('listen: skips navigation, footers and hidden text; highlights and scrolls without motion when asked', str_contains($ls, "nav,footer,aside") && str_contains($ls, '[aria-hidden="true"]') && str_contains($ls, "av-listen-on") && str_contains($ls, "behavior: reduce() ? 'auto' : 'smooth'"));
-ck('listen: a polite status', str_contains($ls, 'role="status" aria-live="polite"'));
+ck('listen: announces through the one shared polite announcer, named so a screen-reader user can pass it by', str_contains($ls, 'window.AvA11y.announce(t)') && !str_contains($ls, 'aria-live') && str_contains($ls, "'Read aloud with your browser’s voice'"));
+ck('listen: stops when the text it was reading leaves the page, and when the page goes', str_contains($ls, 'if (!root.isConnected) { halt(true); return; }') && str_contains($ls, "addEventListener('pagehide', function () { synth.cancel(); });"));
 foreach (['diary/article.php' => 'article.avd-article', 'academy/learn.php' => '.avle-main .avle-body', 'constitution/index.php' => '.const-doc', 'projects/_detail.php' => '#main', 'accessibility/index.php' => '.legal-content'] as $f => $sel)
     ck("listen: on $f", str_contains((string) file_get_contents("$r/$f"), "A11y::listen('$sel'"));
 ck('listen: the statement page renders the control', str_contains($acc, 'data-av-listen=".legal-content"') && str_contains($acc, '/assets/site/listen.js?v='));
@@ -213,7 +221,8 @@ ck('landmarks: no complementary landmark inside main on Contact or Community', !
 ck('headings: Community\'s "Behind the movement" is an h2 (no skipped level)', str_contains((string) file_get_contents("$r/lib/community_view.php"), '<h2 class="cm-event-h">Behind the movement</h2>'));
 ck('landmarks: Membership\'s card and view have different names', str_contains((string) file_get_contents("$r/portal/views/membership.php"), "'Membership details' : 'Account details'"));
 $axe = (string) file_get_contents("$r/tests/a11y/axe-ci.js");
-ck('CI: the constitution and the portal views are covered, as a member', str_contains($axe, "const MEMBER = ['/constitution/'].concat(PORTAL_VIEWS") && str_contains((string) file_get_contents("$r/.github/workflows/ci.yml"), 'ci-session.php --member'));
+ck('CI: the constitution and the portal views are covered, as a member', str_contains($axe, "const MEMBER = { 'constitution': ['/constitution/'], 'member portal': PORTAL_VIEWS.map(v => '/portal/#' + v) };") && str_contains((string) file_get_contents("$r/.github/workflows/ci.yml"), 'ci-session.php --member'));
+ck('CI: every template family, focus-not-obscured, and the accessibility-tree snapshots', str_contains($axe, "'error pages':") && str_contains($axe, "'lesson player':") && str_contains($axe, 'focus obscured:') && is_file("$r/tests/a11y/tree-ci.js") && str_contains((string) file_get_contents("$r/.github/workflows/ci.yml"), 'node tree-ci.js'));
 ck('CI: and again with high contrast, 200% text and spacing', str_contains($axe, "const SETTINGS = ['t200.spacing.hc-light', 't200.spacing.hc-dark'];"));
 
 /** Sign a user in for A11y::current() (LmsAuth memoises per request). 0 signs out. */

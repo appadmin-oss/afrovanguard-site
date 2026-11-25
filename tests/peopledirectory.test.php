@@ -189,7 +189,7 @@ ck('people page: a photo is used when there is one, laid over the initials so a 
    (bool) preg_match('~<span class="ppl-av (ppl-tint-[0-5]) ppl-av--ph" aria-hidden="true">TE<img class="\1" src="/uploads/test-patron\.jpg" alt="" data-ini="TE"~', $html));
 ck('people page: the search is hidden until script runs; the chips show without it, so no-JS shows everyone and the structure',
    str_contains($html, '<div class="ppl-tools" id="ppl-tools">') && str_contains($html, '<div class="ppl-search" data-ppl-search hidden>'));
-ck('people page: the result count is a polite live region', str_contains($html, 'id="ppl-count" role="status" aria-live="polite"'));
+ck('people page: the result count is shown, and spoken through the one shared announcer', str_contains($html, '<p class="ppl-count" id="ppl-count"></p>') && str_contains((string) file_get_contents(AV_ROOT . '/people/people.js'), 'window.AvA11y.announce(count.textContent'));
 ck('people page: the script is a stamped file, not inline', (bool) preg_match('~<script src="/people/people\.js\?v=[0-9a-f]{10}" defer></script>~', $html)
    && !str_contains($html, "getElementById('pplGrid')"));
 ck('people page: Volunteer of the Month highlight, a strip after the hero', str_contains($html, 'class="ppl-votm"') && str_contains($html, 'Volunteer of the Month')

@@ -9,7 +9,8 @@
  * "link" for something that filters, or "button" for something that jumps.
  * Filtering hides whole cards with the `hidden` attribute, and a
  * section (or directorate, or institution) left with nobody in it is hidden too.
- * The result count is a polite live region, so a screen reader hears it settle.
+ * The result count is shown, and spoken through the page's one polite
+ * announcer (a11y-core.js) a beat after the typing settles.
  *   - The search folds accents, matches name, role, office, directorate, group and
  *     place, and forgives one wrong, missing or extra letter in a word of 5+ letters.
  *   - While searching, the matched text in names and roles is wrapped in <mark>.
@@ -195,6 +196,7 @@
       count.textContent = shown === total ? 'Showing all ' + total + (total === 1 ? ' person' : ' people')
         : shown === 0 ? 'No people match'
         : 'Showing ' + shown + ' of ' + total + ' people';
+      if (window.AvA11y && announce !== false) window.AvA11y.announce(count.textContent, { delay: 600 });
     }
     syncUrl(raw);
   }

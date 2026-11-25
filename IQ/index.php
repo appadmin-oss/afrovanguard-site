@@ -48,20 +48,21 @@ render_nav('academy');
   </header>
 
   <div class="iq-tabwrap">
-    <nav class="iq-tabrow" role="tablist" aria-label="IQ sections">
-      <div class="iq-tabs">
-        <button class="iq-tab is-on" data-tab="quizzes" role="tab" aria-selected="true">Quizzes</button>
-        <button class="iq-tab" data-tab="games" role="tab" aria-selected="false">Games</button>
-        <button class="iq-tab" data-tab="leaderboard" role="tab" aria-selected="false">Leaderboard</button>
+    <div class="iq-tabrow">
+      <div class="iq-tabs" role="tablist" aria-label="IQ sections">
+        <button type="button" class="iq-tab is-on" id="iqTabQuizzes" data-tab="quizzes" role="tab" aria-selected="true" aria-controls="iqQuizzes">Quizzes</button>
+        <button type="button" class="iq-tab" id="iqTabGames" data-tab="games" role="tab" aria-selected="false" aria-controls="iqGames" tabindex="-1">Games</button>
+        <button type="button" class="iq-tab" id="iqTabBoard" data-tab="leaderboard" role="tab" aria-selected="false" aria-controls="iqLeaderboard" tabindex="-1">Leaderboard</button>
       </div>
 <?php if ($isAdmin): ?>      <a class="iq-tab iq-tab--admin" href="/IQ/admin.php">✎ Author</a>
 <?php endif; ?>
-    </nav>
+    </div>
   </div>
 
   <div class="iq-in iq-body">
     <!-- QUIZZES -->
-    <section class="iq-view" id="iqQuizzes">
+    <section class="iq-view" id="iqQuizzes" role="tabpanel" aria-labelledby="iqTabQuizzes">
+      <h2 class="av-sr">Quizzes</h2>
       <div class="iq-filter" id="iqFilter"></div>
       <div class="iq-grid" id="iqList"><p class="iq-empty">Loading quizzes…</p></div>
     </section>
@@ -70,13 +71,14 @@ render_nav('academy');
     <section class="iq-view" id="iqPlayer" hidden></section>
 
     <!-- GAMES -->
-    <section class="iq-view" id="iqGames" hidden>
+    <section class="iq-view" id="iqGames" role="tabpanel" aria-labelledby="iqTabGames" hidden>
+      <h2 class="av-sr">Games</h2>
       <div class="iq-grid" id="iqGamesGrid"><p class="iq-empty">Loading games…</p></div>
       <div id="iqGameStage" hidden></div>
     </section>
 
     <!-- LEADERBOARD -->
-    <section class="iq-view" id="iqLeaderboard" hidden>
+    <section class="iq-view" id="iqLeaderboard" role="tabpanel" aria-labelledby="iqTabBoard" hidden>
       <div class="iq-lb-head"><h2>Global leaderboard</h2><p>Total points across every quiz. Sign in so your scores count.</p></div>
       <div id="iqBoard"><p class="iq-empty">Loading…</p></div>
     </section>

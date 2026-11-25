@@ -10,7 +10,7 @@
 <meta name="description" content="Afrovanguard Donor Dashboard — see who is funding Africa's next generation of leaders.">
 <!-- Fix L-02: prevent search engine indexing of admin dashboard -->
 <meta name="robots" content="noindex, nofollow">
-<title>Donor Dashboard — Afrovanguard</title>
+<title>Donor dashboard — Afrovanguard</title>
   <link href="/assets/site/fonts.css?v=ace0a75b7d" rel="stylesheet" />
 <style>
 :root{
@@ -53,7 +53,7 @@ body{font-family:var(--font-b);background:var(--bg);color:var(--text);-webkit-fo
 .container{max-width:1100px;margin:0 auto;padding:0 clamp(16px,5vw,40px);}
 
 /* ── Section labels ──────────────────────────────────────── */
-.sec-label{font-size:10.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin-bottom:6px;}
+.sec-label{font-size:10.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#7A5806;margin-bottom:6px;}
 .sec-title{font-family:var(--font-h);font-size:clamp(22px,2.5vw,34px);color:var(--text);font-weight:700;letter-spacing:-.02em;margin-bottom:8px;line-height:1.1;}
 .sec-sub{color:var(--muted);font-size:14.5px;line-height:1.65;max-width:54ch;}
 
@@ -62,7 +62,8 @@ body{font-family:var(--font-b);background:var(--bg);color:var(--text);-webkit-fo
 .camp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:32px;}
 .camp-card{background:#fff;border:1.5px solid var(--border);border-radius:var(--radius);padding:22px 24px;transition:box-shadow .2s;}
 .camp-card:hover{box-shadow:0 6px 24px rgba(17,24,39,.08);}
-.camp-badge{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;}
+.camp-badge{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;color:var(--text);display:flex;align-items:center;gap:6px}
+.camp-badge::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c,#f3b416);flex:none}
 .camp-name{font-weight:700;font-size:16px;color:var(--text);margin-bottom:4px;}
 .camp-desc{font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:14px;}
 .camp-prog-header{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;margin-bottom:7px;flex-wrap:wrap;gap:4px;}
@@ -207,6 +208,7 @@ body{font-family:var(--font-b);background:var(--bg);color:var(--text);-webkit-fo
 /* ── Admin section ───────────────────────────────────────── */
 .admin-sec{padding:clamp(48px,6vw,72px) 0;background:var(--dark);}
 .admin-sec .sec-title{color:#fff;}
+.admin-sec .sec-label{color:var(--gold);}
 .admin-sec .sec-sub{color:rgba(255,255,255,.45);}
 .admin-gate{background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.10);border-radius:var(--radius);padding:28px 32px;max-width:480px;margin-top:24px;}
 .admin-gate label{display:block;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:6px;}
@@ -347,13 +349,13 @@ main:focus{outline:none}
     <div class="donors-header">
       <div>
         <div class="sec-label">Our Community of Givers</div>
-        <h2 class="sec-title" style="margin-bottom:4px;">Vanguard <em style="font-style:normal;color:var(--gold);">Donor Wall</em></h2>
+        <h2 class="sec-title" style="margin-bottom:4px;">Vanguard <em style="font-style:normal;color:#7A5806;">Donor Wall</em></h2>
         <p style="font-size:13.5px;color:var(--muted);max-width:52ch;line-height:1.6;">Every gift — no matter the size — earns a place on this wall. Donors are honoured by tier based on total contributions to Afrovanguard.</p>
       </div>
       <div class="donor-filter">
-        <button class="filter-btn active" data-filter="all" onclick="setFilter('all',this)">All Donors</button>
-        <button class="filter-btn" data-filter="monetary" onclick="setFilter('monetary',this)">Monetary</button>
-        <button class="filter-btn" data-filter="inkind" onclick="setFilter('inkind',this)">In-Kind</button>
+        <button type="button" class="filter-btn active" data-filter="all" aria-pressed="true">All Donors</button>
+        <button type="button" class="filter-btn" data-filter="monetary" aria-pressed="false">Monetary</button>
+        <button type="button" class="filter-btn" data-filter="inkind" aria-pressed="false">In-Kind</button>
       </div>
     </div>
 
@@ -402,7 +404,7 @@ main:focus{outline:none}
       </div>
     </div>
     <div class="load-more-wrap">
-      <button class="load-more-btn" id="loadMoreBtn" onclick="loadMore()" style="display:none;">Load More Donors</button>
+      <button type="button" class="load-more-btn" id="loadMoreBtn" style="display:none;">Load More Donors</button>
     </div>
   </div>
 </section>
@@ -465,10 +467,10 @@ function showToast(msg, type='success') {
    ════════════════════════════════════════════════════════════ */
 function buildCampCard(meta, raised, donors, pct) {
   const card=document.createElement('div'); card.className='camp-card';
-  const bdg=document.createElement('div'); bdg.className='camp-badge'; bdg.style.color=meta.color; bdg.textContent=meta.badge;
+  const bdg=document.createElement('div'); bdg.className='camp-badge'; bdg.style.setProperty('--c', meta.color); bdg.textContent=meta.badge;
   const cnm=document.createElement('div'); cnm.className='camp-name'; cnm.textContent=meta.name;
   const hdr=document.createElement('div'); hdr.className='camp-prog-header';
-  const rs=document.createElement('span'); rs.className='camp-prog-raised'; rs.style.color=meta.color; rs.textContent=fmtNGN(raised)+' raised';
+  const rs=document.createElement('span'); rs.className='camp-prog-raised';  rs.textContent=fmtNGN(raised)+' raised';
   const ps=document.createElement('span'); ps.className='camp-prog-pct'; ps.textContent=meta.goal>0 ? pct+String.fromCharCode(37)+' · Goal '+fmtNGN(meta.goal) : 'Open — no fixed goal';
   hdr.append(rs,ps);
   const trk=document.createElement('div'); trk.className='camp-track';
@@ -519,10 +521,13 @@ function loadCampaigns() {
 function setFilter(f, btn) {
   currentFilter = f;
   donorPage = 0;
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  document.querySelectorAll('.filter-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
+  btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true');
   loadDonors(true);
 }
+/* No inline handlers (CSP): the filters and "Load more" are wired here. */
+document.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.addEventListener('click', () => setFilter(b.getAttribute('data-filter'), b)));
+document.getElementById('loadMoreBtn').addEventListener('click', () => loadMore());
 
 /* ── Tier system ─────────────────────────────────── */
 const TIERS = [

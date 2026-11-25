@@ -44,10 +44,12 @@ async function axeRun(pg){await pg.addScriptTag({content:AXE});return pg.evaluat
  ck('palette: focus is in the combobox', await pg.evaluate(()=>document.activeElement.getAttribute('role')==='combobox'));
  ck('palette: empty state shows Popular', await pg.evaluate(()=>/Popular/.test(document.querySelector('#avs-list').textContent)));
  await pg.keyboard.type('mentors'); await pg.waitForResponse(r=>r.url().includes('format=json')).catch(()=>{}); await pg.waitForTimeout(700);
- const st=await pg.evaluate(()=>{const i=document.querySelector('.avs-q');return {exp:i.getAttribute('aria-expanded'),ad:i.getAttribute('aria-activedescendant'),n:document.querySelectorAll('#avs-list [role=option]').length,live:document.querySelector('[data-avs-live]').textContent,sel:document.querySelectorAll('[aria-selected=true]').length,mark:!!document.querySelector('#avs-list mark')}});
+ /* The count is spoken a beat after the typing settles (AvA11y.announce, 450ms). */
+ await pg.waitForFunction(()=>/result/.test((document.querySelector('#av-search #av-announce-polite')||{}).textContent||''), null, { timeout: 3000 }).catch(()=>{});
+ const st=await pg.evaluate(()=>{const i=document.querySelector('.avs-q');return {exp:i.getAttribute('aria-expanded'),ad:i.getAttribute('aria-activedescendant'),n:document.querySelectorAll('#avs-list [role=option]').length,live:(document.querySelector('#av-search #av-announce-polite')||{textContent:''}).textContent,sel:document.querySelectorAll('[aria-selected=true]').length,mark:!!document.querySelector('#avs-list mark')}});
  ck('palette: results as you type, expanded, first option active', st.exp==='true'&&st.ad==='avs-o0'&&st.n>1&&st.sel===1);
  ck('palette: matched words marked', st.mark);
- ck('palette: count announced politely ('+st.live+')', /result/.test(st.live));
+ ck('palette: count announced politely, by the one shared announcer inside the open dialog ('+st.live+')', /result/.test(st.live));
  await pg.keyboard.press('ArrowDown'); ck('palette: ↓ moves the active option', await pg.evaluate(()=>document.querySelector('.avs-q').getAttribute('aria-activedescendant'))==='avs-o1');
  await pg.keyboard.press('ArrowUp'); await pg.keyboard.press('ArrowUp');
  ck('palette: ↑ wraps to the last option', await pg.evaluate(()=>{const n=document.querySelectorAll('#avs-list [role=option]').length;return document.querySelector('.avs-q').getAttribute('aria-activedescendant')==='avs-o'+(n-1)}));
@@ -124,6 +126,18 @@ if (TOK) {const c=await ctx(b,390,844,{signed:true});const pg=await go(c,'/porta
  await pg.click('[data-a11y-reset]'); await pg.waitForTimeout(100);
  ck('panel: Reset returns everything to standard', await pg.evaluate(()=>!/a11y-/.test(document.documentElement.className)));
  ck('panel: it fits without scrolling on a laptop', await pg.evaluate(()=>{const d=document.querySelector('#av-a11y');return d.scrollHeight<=d.clientHeight+1}));
+ ck('panel: Reset is announced through the shared announcer inside the dialog', await pg.evaluate(()=>new Promise(r=>setTimeout(()=>r(/reset/i.test((document.querySelector('#av-a11y #av-announce-polite')||{}).textContent||'')),250))));
+ /* WCAG 2.1.4: single-key shortcuts can be turned off. */
+ await pg.click('input[name="av-a11y-nokeys"]'); await pg.waitForTimeout(100);
+ ck('panel: "Single-key shortcuts" off stores nokeys', await pg.evaluate(()=>document.documentElement.classList.contains('a11y-nokeys')&&/av_a11y=nokeys/.test(document.cookie)));
+ await pg.keyboard.press('Escape'); await pg.waitForTimeout(100); await pg.evaluate(()=>document.body.focus());
+ await pg.keyboard.press('/'); await pg.waitForTimeout(150);
+ ck('keys: with single-key shortcuts off, "/" does not open the search', await pg.evaluate(()=>!document.querySelector('#av-search[open]')));
+ await pg.keyboard.press('Control+k'); await pg.waitForTimeout(150);
+ ck('keys: Ctrl+K still does', await pg.evaluate(()=>!!document.querySelector('#av-search[open]')));
+ await pg.keyboard.press('Escape'); await pg.waitForTimeout(100);
+ await pg.keyboard.press('Alt+Shift+A'); await pg.waitForTimeout(150);
+ await pg.click('[data-a11y-reset]'); await pg.waitForTimeout(100);
  const pr=await rect(pg,'#av-a11y');
  ck('panel: the launcher steps aside while it is open', !(await rect(pg,'.av-a11y-fab')));
  ck('panel: it opens in the launcher\'s corner', pr && Math.abs(pr.l-16)<2 && Math.abs(800-16-pr.b)<2);
@@ -172,8 +186,8 @@ if (TOK) { // the portal's phone tab bar
   ck(`portal ${w}: flush with the edge on a phone`, f && f.l===0 && f.r-f.l>=44 && f.b-f.t>=44);
   await pg.close(); await c.close(); }
 }
-{ // never over a control: put a button under the resting spot
- for (const [w,h] of [[1280,800],[320,640]]) { const c=await ctx(b,w,h);const pg=await go(c,'/about.html'); await pg.waitForTimeout(300);
+{ // never over a control: put a button under the resting spot  (on /404.html: about.html's hero buttons rightly sit under the spot at 320px)
+ for (const [w,h] of [[1280,800],[320,640]]) { const c=await ctx(b,w,h);const pg=await go(c,'/404.html'); await pg.waitForTimeout(300);
   ck(`over-control ${w}: clear spot, not tucked`, await pg.evaluate(()=>!document.querySelector('.av-a11y-fab').hasAttribute('data-tuck')));
   await pg.evaluate(()=>{const x=document.createElement('button');x.id='under';x.textContent='Under';x.style.cssText='position:fixed;left:0;bottom:0;width:120px;height:120px;z-index:1';document.body.appendChild(x);dispatchEvent(new Event('resize'));});
   await pg.waitForTimeout(200);
@@ -243,7 +257,7 @@ const chBlocked=pg=>pg.evaluate(()=>{const f=document.querySelector('.chioma-fab
  ck('chioma nudge: tucking hides a showing nudge', await chTucked(pg) && await pg.evaluate(()=>!document.querySelector('#chGreet').classList.contains('show')));
  await pg.close(); await c.close(); }
 { // never over a control
- for (const [w,h] of [[1280,800],[320,640]]) { const c=await ctx(b,w,h);const pg=await go(c,'/about.html'); await pg.waitForTimeout(300);
+ for (const [w,h] of [[1280,800],[320,640]]) { const c=await ctx(b,w,h);const pg=await go(c,'/404.html'); await pg.waitForTimeout(300);
   ck(`chioma over-control ${w}: clear spot, not tucked`, !(await chTucked(pg)));
   await pg.evaluate(()=>{const x=document.createElement('button');x.id='under';x.textContent='Under';x.style.cssText='position:fixed;right:0;bottom:0;width:120px;height:120px;z-index:1';document.body.appendChild(x);dispatchEvent(new Event('resize'));});
   await pg.waitForTimeout(200);

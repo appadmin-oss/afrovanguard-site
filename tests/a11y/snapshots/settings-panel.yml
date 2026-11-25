@@ -1,0 +1,57 @@
+- dialog "Accessibility settings":
+  - heading "Accessibility settings" [level=2]
+  - button "Close accessibility settings"
+  - paragraph: These change how this site looks for you. Your device’s own settings, screen reader and magnifier keep working.
+  - group "Text size":
+    - text: Text size
+    - radio "100% (standard)" [checked]
+    - text: 100% (standard)
+    - radio "125%"
+    - text: 125%
+    - radio "150%"
+    - text: 150%
+    - radio "175%"
+    - text: 175%
+    - radio "200%"
+    - text: 200%
+  - group "Contrast":
+    - text: Contrast
+    - radio "Standard" [checked]
+    - text: Standard
+    - radio "Light (high contrast)"
+    - text: Light (high contrast)
+    - radio "Dark (high contrast)"
+    - text: Dark (high contrast)
+    - radio "Auto (high contrast, matching your device’s light or dark mode)"
+    - text: Auto (high contrast, matching your device’s light or dark mode)
+  - group "Reading":
+    - text: Reading
+    - list:
+      - listitem:
+        - text: Comfortable spacing More room between lines, words and letters
+        - switch "Comfortable spacing"
+      - listitem:
+        - text: Easy-to-read font Atkinson Hyperlegible, plain and clear
+        - switch "Easy-to-read font"
+      - listitem:
+        - text: Underline links So links never rely on colour alone
+        - switch "Underline links"
+  - group "Moving around":
+    - text: Moving around
+    - list:
+      - listitem:
+        - text: Large focus outline A bold ring round the keyboard focus
+        - switch "Large focus outline"
+      - listitem:
+        - text: Bigger buttons and links At least 44 pixels to tap or click
+        - switch "Bigger buttons and links"
+      - listitem:
+        - text: Stop moving content Pauses tickers, slideshows and videos
+        - switch "Stop moving content"
+      - listitem:
+        - text: Single-key shortcuts Press / to search. Turn off if it clashes with your screen reader
+        - switch "Single-key shortcuts" [checked]
+  - button "Reset to standard"
+  - link "Accessibility help":
+    - /url: /accessibility/
+  - paragraph: Saved on this device. Open from any page with Alt Shift A

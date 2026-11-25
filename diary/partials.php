@@ -23,7 +23,7 @@ function avd_card_counts(?array $c): void {
 function avd_sort_select(string $current): void {
   $opts = ['latest' => 'Latest', 'read' => 'Most read', 'discussed' => 'Most discussed']; ?>
   <label class="avd-sort"><span class="av-sr">Sort entries</span>
-    <select name="sort" onchange="this.form.submit()">
+    <select name="sort">
       <?php foreach ($opts as $k => $t): ?><option value="<?= $k ?>"<?= $k === $current ? ' selected' : '' ?>><?= $t ?></option><?php endforeach; ?>
     </select>
   </label>

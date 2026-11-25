@@ -165,13 +165,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 $canon = rtrim(SITE_URL, '/') . '/academy/ngv/register.php';
 header('Content-Type: text/html; charset=utf-8');
 ?><!doctype html>
-<html lang="en"<?= A11y::htmlClass() ?>>
+<html lang="en-NG"<?= A11y::htmlClass() ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <?php /* A hand-off from NGG carries their name and email in the address; it goes no further than this site. */ ?>
 <meta name="referrer" content="same-origin">
-<title>Register · NextGen Vanguard</title>
+<title><?= e(A11y::title("Register · NextGen Vanguard · Academy")) ?></title>
 <meta name="description" content="Apply to join NextGen Vanguard — Afrovanguard Academy's transformation programme. Learn future-ready skills, earn stipends and gain global certifications.">
 <link rel="canonical" href="<?= $e($canon) ?>">
   <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
@@ -247,7 +247,7 @@ textarea{min-height:110px;resize:vertical}
 </style>
   <?= A11y::head() ?></head>
 <body>
-<a class="skip" href="#form">Skip to the form</a>
+<a class="skip" href="#form">Skip to main content</a>
 <header class="top">
   <a class="brand" href="/academy/ngv/"><b>NextGen Vanguard</b> · Afrovanguard Academy</a>
   <span class="sp"></span>

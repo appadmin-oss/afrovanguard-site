@@ -56,7 +56,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/site/icon-192.png" />
   <link rel="apple-touch-icon" href="/assets/site/icon-192.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title><?= e($title) ?></title>
+  <title><?= e(A11y::title($title)) ?></title>
   <meta name="description" content="<?= e($P['d']) ?>" />
   <meta name="keywords" content="<?= e(implode(', ', array_merge([$P['name']], $P['abbr'] !== $P['name'] ? [$P['abbr']] : [], $P['tags'], ['Afrovanguard']))) ?>" />
   <meta name="author" content="Afrovanguard — afrovanguard.org.ng" />
@@ -118,7 +118,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
         <a class="avpj-btn avpj-btn--line" href="/donate.html">Fund this project</a>
       </div>
     </div>
-    <aside class="avpj-facts" aria-label="Project facts">
+    <section class="avpj-facts" aria-label="Project facts">
       <dl>
 <?php foreach ($v['facts'] as [$k, $val]): ?>        <div><dt><?= e($k) ?></dt><dd><?= e($val) ?></dd></div>
 <?php endforeach; ?>      </dl>
@@ -126,7 +126,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
         <div>Talk to the team</div>
         <a href="mailto:<?= e($P['mail']) ?>"><?= e($P['mail']) ?></a>
       </div>
-    </aside>
+    </section>
   </div>
 </section>
 

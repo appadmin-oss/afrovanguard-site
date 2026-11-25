@@ -65,7 +65,7 @@
       if (e) { e.textContent = text || ''; e.hidden = !text; }
       if (input) text ? input.setAttribute('aria-invalid', 'true') : input.removeAttribute('aria-invalid');
     };
-    const clearAll = () => { Object.keys(fields).forEach(k => setErr(k, '')); if (alertBox) { alertBox.hidden = true; alertBox.textContent = ''; } };
+    const clearAll = () => { Object.keys(fields).forEach(k => setErr(k, '')); if (alertBox) { alertBox.hidden = true; alertBox.textContent = ''; alertBox.classList.remove('av-errsum'); alertBox.setAttribute('role', 'alert'); } };
     const showAlert = text => { if (!alertBox) return; alertBox.textContent = text; alertBox.hidden = false; };
 
     purpose?.addEventListener('change', () => {
@@ -126,8 +126,11 @@
       let first = null;
       Object.keys(check).forEach(k => { const m = check[k](); setErr(k, m); if (m && !first) first = k; });
       if (first) {
-        showAlert('Please check the highlighted fields.');
-        (first === 'attachment' ? file : document.getElementById(fields[first]))?.focus();
+        /* The GOV.UK error summary (a11y-core.js): every problem, each a link
+           to its field, read out at once; the inline messages stay. */
+        const list = Object.keys(check).map(k => ({ id: k === 'attachment' ? 'avct-file' : fields[k], text: check[k]() })).filter(x => x.text);
+        if (window.AvA11y && alertBox) window.AvA11y.errorSummary(alertBox, list);
+        else { showAlert('Please check the highlighted fields.'); (first === 'attachment' ? file : document.getElementById(fields[first]))?.focus(); }
         return;
       }
       const fd = new FormData(form);

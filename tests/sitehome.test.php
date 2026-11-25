@@ -52,7 +52,7 @@ $e = $d; $e['slides'][0]['title'] = 'Nine years. One movement.';
 ck('home: a draft saves', SiteHome::saveDraft($e)['ok'] && SiteHome::hasUnpublished());
 ck('home: a draft does not touch the page', file_get_contents($tmp) === $idx);
 ck('home: the preview shows the draft', str_contains((string) SiteHome::previewHtml(SiteHome::draft()), 'Nine years. One movement.'));
-ck('home: publishing writes the page', SiteHome::publish('test@x')['ok'] && str_contains((string) file_get_contents($tmp), '<h1 data-avh-hero-title>Nine years. One movement.</h1>'));
+ck('home: publishing writes the page', SiteHome::publish('test@x')['ok'] && str_contains((string) file_get_contents($tmp), '<h2 class="avh-hero-h" data-avh-hero-title>Nine years. One movement.</h2>'));
 ck('home: the rest of the page is untouched', str_replace(SiteHome::heroHtml(SiteHome::live()), '', (string) file_get_contents($tmp)) === str_replace($block, '', $idx));
 ck('home: publishing keeps the previous version', count(SiteHome::history()) === 1 && !SiteHome::hasUnpublished());
 ck('home: an old version can be restored as the draft', SiteHome::restore(0)['ok'] && SiteHome::draft()['slides'][0]['title'] === 'Nine years of raising incorruptible leaders');

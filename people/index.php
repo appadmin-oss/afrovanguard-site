@@ -348,7 +348,7 @@ render_nav('people');
 <?php endforeach; ?>          </nav>
         </div>
         <div class="ppl-status">
-          <p class="ppl-count" id="ppl-count" role="status" aria-live="polite" aria-atomic="true"></p>
+          <p class="ppl-count" id="ppl-count"></p>
           <button type="button" class="ppl-clear" data-ppl-clear hidden>Clear<span class="av-sr"> search and filters</span></button>
           <a class="ppl-chartlink" href="/people/organogram/">See the organogram <span aria-hidden="true">→</span></a>
         </div>

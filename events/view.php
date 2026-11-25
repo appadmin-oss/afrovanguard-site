@@ -68,7 +68,7 @@ if ($private) { header('X-Robots-Tag: noindex, nofollow'); header('Cache-Control
   <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si')</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title><?= e($title) ?></title>
+  <title><?= e(A11y::title($title)) ?></title>
   <meta name="description" content="<?= e($desc) ?>" />
   <link rel="canonical" href="<?= e($canonical) ?>" />
   <meta name="theme-color" content="rgb(17,24,39)" />

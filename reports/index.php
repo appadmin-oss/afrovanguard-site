@@ -49,7 +49,7 @@ render_nav('');
       <div class="container">
         <div class="legal-content rep-wrap">
 <?php if ($head['latest'] || $head['next']): ?>
-          <div class="rep-glance" aria-label="At a glance">
+          <div class="rep-glance" role="group" aria-label="At a glance">
 <?php if ($head['latest']): ?>            <div><span>Latest</span><a href="#<?= e($rid($head['latest'])) ?>"><?= e($head['latest']['title']) ?></a></div>
 <?php endif; if ($head['next']): ?>            <div><span>Next</span><b><?= e($head['next']['title']) ?></b> <small>expected <?= e($head['next']['expected']) ?></small></div>
 <?php endif; ?>          </div>

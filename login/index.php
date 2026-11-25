@@ -77,7 +77,7 @@ $desc  = 'Sign in to your Afrovanguard account to continue learning, track your 
   <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si')</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title><?= e($title) ?></title>
+  <title><?= e(A11y::title($title)) ?></title>
   <meta name="description" content="<?= e($desc) ?>" />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="canonical" href="<?= e($canonical) ?>" />
@@ -102,14 +102,14 @@ $desc  = 'Sign in to your Afrovanguard account to continue learning, track your 
   <script src="<?= e(av_asset('/assets/site/avsi.js')) ?>" defer></script>
   <?= A11y::head() ?></head>
 <body class="avsi">
-<a class="avsi-skip" href="#avsi-card">Skip to sign in</a>
+<a class="avsi-skip" href="#avsi-card">Skip to main content</a>
 <main class="avsi-main" id="main" data-screen="Sign in">
   <aside class="avsi-aside">
     <img class="avsi-aside-img" src="<?= e($illo) ?>" alt="" decoding="async" fetchpriority="high" />
     <div class="avsi-veil" aria-hidden="true"></div>
     <a class="avsi-aside-brand" href="/"><img src="/assets/site/av-seal.png" alt="" width="44" height="44" /><span>Afrovanguard</span></a>
     <div class="avsi-aside-copy">
-      <h2>Raising one million incorruptible leaders for Africa by 2040.</h2>
+      <p class="avsi-aside-h">Raising one million incorruptible leaders for Africa by 2040.</p>
       <p>Sign in to learn, track your progress, and build the movement with us.</p>
       <ul class="avsi-points">
         <li>Free, hands-on programmes</li>

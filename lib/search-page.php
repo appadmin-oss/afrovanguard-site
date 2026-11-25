@@ -46,7 +46,7 @@ $popular = [['Academy', '/academy/', 'Free, hands-on programmes', 'Academy'], ['
             ['Donate', '/donate.html', 'Give funds, materials, skills or time', 'Page'], ['Contact us', '/contact.html', 'Reach the team', 'Page']];
 
 render_head([
-    'title'     => ($q !== '' ? $q . ' — ' : '') . 'Search Afrovanguard',
+    'title'     => ($q !== '' ? 'Results for “' . $q . '” — ' : '') . 'Search',
     'desc'      => 'Search Afrovanguard: pages, Academy courses, projects, events, the Diary and our people.',
     'canonical' => rtrim(SITE_URL, '/') . '/search.php',
     'robots'    => 'noindex, follow',

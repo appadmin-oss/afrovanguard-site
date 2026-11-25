@@ -100,7 +100,7 @@ avac_head([
 ]);
 ?>
 <body class="avle" data-course="<?= e($courseSlug) ?>">
-<a class="avle-skip" href="#main">Skip to lesson</a>
+<a class="avle-skip" href="#main">Skip to main content</a>
 <header class="avle-top">
   <div class="avle-top-l">
     <button type="button" class="avle-icon" data-avle-side-toggle aria-controls="avle-side" aria-expanded="true" aria-label="Hide contents"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
@@ -160,6 +160,7 @@ avac_head([
 </aside>
 <div class="avle-scrim" data-avle-scrim hidden></div>
 
+<div class="avle-pane">
 <main class="avle-main" id="main" tabindex="-1" data-course="<?= e($courseSlug) ?>" data-lesson="<?= e($lessonSlug) ?>">
 <?php if (!$canAccess): ?>
   <div class="avle-col">
@@ -427,6 +428,11 @@ if ($curMod && (trim((string) ($curMod['summary'] ?? '')) !== '' || LmsCoursewar
   </div>
 <?php endif; ?>
 </main>
+<?php /* The player's contentinfo: the same three ways to help as every other footer. */ ?>
+<footer class="avle-foot">
+  <a href="/accessibility/">Accessibility</a><?= A11y::footerLink() ?><a href="/privacy-policy/">Privacy</a>
+</footer>
+</div>
 
 <?php if ($coachOn): ?>
 <?php /* THE COACH. A drawer beside the lesson, not a box at the bottom of

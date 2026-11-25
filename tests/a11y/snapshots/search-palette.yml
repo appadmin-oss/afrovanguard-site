@@ -1,0 +1,26 @@
+- dialog "Search Afrovanguard":
+  - search:
+    - combobox "Search Afrovanguard" [expanded]
+    - button "Esc , Cancel search"
+  - toolbar "Show only":
+    - button "All" [pressed]
+    - button "Pages"
+    - button "Academy"
+    - button "Projects"
+    - button "Events"
+    - button "Diary"
+    - button "People"
+  - region "Results":
+    - listbox "Search results":
+      - group "Popular":
+        - text: Popular
+        - option "Academy Free, hands-on programmes"
+        - option "NextGen Vanguard Our flagship learn-and-earn programme"
+        - option "Projects Our seven projects"
+        - option "Events What is coming up"
+        - option "The Diary Field notes and stories"
+        - option "Donate Give funds, materials, skills or time"
+  - paragraph: ↑ ↓ to move ↵ to open Esc to close
+  - link "Open the search page":
+    - /url: /search.php
+  - status

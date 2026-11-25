@@ -324,7 +324,7 @@ $hvRing = static function (int $size, int $r, int $w, int $pct, string $track = 
     $hvNTitle = trim((string) strtok(trim((string) $hvNotice['body']), "\n"));
     if (preg_match('/^(.{12,}?[.!?])(?:\s|$)/u', $hvNTitle, $hvNm)) $hvNTitle = rtrim($hvNm[1], '.');
     $hvNTitle = mb_strlen($hvNTitle) > 120 ? rtrim(mb_substr($hvNTitle, 0, 118)) . '…' : $hvNTitle; ?>
-          <aside class="hv-notice" id="hvNotice" data-id="<?= (int) $hvNotice['id'] ?>" aria-label="Announcement">
+          <section class="hv-notice" id="hvNotice" data-id="<?= (int) $hvNotice['id'] ?>" aria-label="Announcement">
             <span class="hv-notice-ico" aria-hidden="true"><?= $hvSvg('megaphone', 17) ?></span>
             <span class="hv-lbl">Announcement</span>
             <?php /* One line, always: a long one scrolls (portal/home.js measures it), the whole of it is a page away. */ ?>
@@ -333,7 +333,7 @@ $hvRing = static function (int $size, int $r, int $w, int $pct, string $track = 
             </a>
             <a href="/portal/announcement.php?id=<?= (int) $hvNotice['id'] ?>" class="hv-more" style="padding:0 10px">Read<span class="hv-sr"> the announcement</span></a>
             <button type="button" class="hv-btn hv-btn--sm hv-btn--ghost hv-btn--icon" data-hv-dismiss aria-label="Dismiss announcement"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-          </aside>
+          </section>
 <?php endif; ?>
 
           <div class="hv-zone"><h2>Act now</h2></div>

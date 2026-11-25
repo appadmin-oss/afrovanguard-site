@@ -23,8 +23,9 @@ declare(strict_types=1);
 <a class="skip-link" href="#content">Skip to main content</a>
 
 <!-- ░░ LOGIN ░░ -->
-<section class="login" id="login" hidden>
-  <form class="login-card" id="loginForm">
+<main class="login" id="login" hidden>
+  <form class="login-card" id="loginForm" aria-labelledby="loginH">
+    <h1 class="sr" id="loginH">Sign in to the Academy Studio</h1>
     <div class="login-brand"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span> <span class="login-tag">Academy Studio</span></div>
     <p class="login-sub">Manage courses, curriculum, quizzes and learners.</p>
     <label class="fld"><span>Admin token</span>
@@ -34,7 +35,7 @@ declare(strict_types=1);
     <p class="login-msg" id="loginMsg" role="alert" aria-live="polite"></p>
     <a class="login-back" href="/academy/">← Back to the Academy</a>
   </form>
-</section>
+</main>
 
 <!-- ░░ APP SHELL ░░ -->
 <div class="shell" id="app" hidden>

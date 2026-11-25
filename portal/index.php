@@ -336,7 +336,9 @@ if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) doc
   </aside>
   <div class="avp-scrim" id="avpScrim" hidden></div>
 
-  <main class="avp-main" id="main-content" tabindex="-1">
+  <?php /* Landmarks: the top bar is the banner, the views are the main, the
+     foot is the contentinfo — siblings, so a screen reader lists each once. */ ?>
+  <div class="avp-main">
     <header class="avp-top avn-top">
       <button type="button" class="avp-icon-btn avp-burger avn-burger" id="avpBurger" aria-label="Open navigation" aria-controls="avpSide" aria-expanded="false">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
@@ -362,6 +364,7 @@ if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) doc
     </header>
 
     <div class="avp-page">
+    <main class="avp-content" id="main-content" tabindex="-1">
 <?php
         // Precompute view data used across views.
         $stageCode = (string) ($journey['level'] ?? 'O');
@@ -377,12 +380,13 @@ if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) doc
 
         foreach (PortalNav::views($portalCtx) as $portalView) require __DIR__ . '/views/' . $portalView . '.php';
 ?>
+    </main>
       <footer class="avp-foot">
         <span>© 2026 Afrovanguard</span>
         <span><a href="<?= e(rtrim(SITE_URL, '/')) ?>/">Main site ↗</a> · <a href="mailto:cacentre@afrovanguard.org.ng">Support</a> · <?= A11y::footerLink() ?></span>
       </footer>
     </div>
-  </main>
+  </div>
 
   <nav class="avp-tabs avn-tabs" aria-label="Primary" data-bottom-ui>
 <?php foreach ($tabs as [$id, $label]): ?>

@@ -353,6 +353,10 @@
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (typing(e)) return;
     if (root && !root.hidden) return;
+    /* WCAG 2.1.4: every one-character shortcut below (? / g+letter) is off
+       when the visitor has turned single-key shortcuts off in the
+       Accessibility settings (html.a11y-nokeys). Ctrl/⌘+K above stays. */
+    if (document.documentElement.classList.contains('a11y-nokeys')) return;
 
     if (e.key === '?') { e.preventDefault(); open('help'); return; }
     /* The sidebar's "Search or jump  /" (Home v4): one key, from anywhere that is not a field. */

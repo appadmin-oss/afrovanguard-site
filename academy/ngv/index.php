@@ -134,7 +134,7 @@ $hero = $c['hero'] ?? [];
 
   <!-- Skills strip -->
 <?php if (!empty($c['marquee'])): $sk = $c['marquee']; ?>
-  <div class="ngv-skills" aria-label="What you'll learn">
+  <div class="ngv-skills" role="group" aria-label="What you'll learn">
     <div class="ngv-skills-track">
       <span><?= implode('</span><span>', array_map('e', $sk)) ?></span>
       <span aria-hidden="true"><?= implode('</span><span>', array_map('e', $sk)) ?></span>
@@ -326,7 +326,7 @@ $hero = $c['hero'] ?? [];
       <div class="ngv-tests">
 <?php foreach ($c['testimonials'] as $tm): $nm = (string) ($tm['name'] ?? ''); $rt = (float) ($tm['rating'] ?? 0); ?>
         <figure class="ngv-test">
-<?php if ($rt > 0): $full = (int) floor($rt); ?>          <div class="ngv-test-stars" aria-label="<?= e((string) $tm['rating']) ?> out of 5"><?= str_repeat('★', max(1, min(5, $full))) ?> <span class="ngv-test-score"><?= e((string) $tm['rating']) ?></span></div>
+<?php if ($rt > 0): $full = (int) floor($rt); ?>          <div class="ngv-test-stars" role="img" aria-label="<?= e((string) $tm['rating']) ?> out of 5"><?= str_repeat('★', max(1, min(5, $full))) ?> <span class="ngv-test-score"><?= e((string) $tm['rating']) ?></span></div>
 <?php endif; ?>
           <blockquote class="ngv-test-quote"><?= e((string) ($tm['quote'] ?? '')) ?></blockquote>
           <figcaption class="ngv-test-by">

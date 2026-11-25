@@ -54,7 +54,7 @@ ck('cms: editing what was sent for review takes it back to a draft', Cms::state(
 
 /* ── publish, history, compare, put back ── */
 $p = Cms::publish('hero', 'chief', 'Anniversary hero');
-ck('cms: publishing writes the page and empties the draft', $p['ok'] && str_contains((string) file_get_contents("$tr/index.html"), 'Nine years.</h1>') && Cms::draft('hero') === null && Cms::state('hero') === 'live');
+ck('cms: publishing writes the page and empties the draft', $p['ok'] && str_contains((string) file_get_contents("$tr/index.html"), 'Nine years.</h2>') && Cms::draft('hero') === null && Cms::state('hero') === 'live');
 $v = Cms::versions('hero');
 ck('cms: the first publish keeps what was there before it', count($v) === 2 && $v[0]['action'] === 'publish' && $v[1]['action'] === 'baseline' && $v[0]['note'] === 'Anniversary hero');
 ck('cms: what is live is the last published version', Cms::liveOf('hero')['slides'][0]['title'] === 'Nine years.');
@@ -73,7 +73,7 @@ ck('cms: so is one more than a year out', !Cms::schedule('hero', date('Y-m-d H:i
 $s = Cms::schedule('hero', date('Y-m-d\TH:i', time() + 7200), 'chief');
 ck('cms: a draft is scheduled (the time is Lagos time)', $s['ok'] && Cms::state('hero') === 'scheduled' && abs(strtotime($s['scheduled_at'] . ' UTC') - (time() + 7200 - 3600)) < 120);
 ck('cms: nothing is published before its time', Cms::runDue() === [] && Cms::state('hero') === 'scheduled');
-ck('cms: at its time it publishes by itself', Cms::runDue(time() + 3 * 3600) === ['hero' => true] && Cms::state('hero') === 'live' && str_contains((string) file_get_contents("$tr/index.html"), 'Nine years.</h1>'));
+ck('cms: at its time it publishes by itself', Cms::runDue(time() + 3 * 3600) === ['hero' => true] && Cms::state('hero') === 'live' && str_contains((string) file_get_contents("$tr/index.html"), 'Nine years.</h2>'));
 ck('cms: …recorded as a scheduled publish', str_contains(Cms::versions('hero')[0]['by'], '(scheduled)'));
 Cms::save('hero', SiteHome::defaults() + ['x' => 1], 'ada'); Cms::save('hero', array_replace_recursive(SiteHome::defaults(), ['slides' => [['title' => 'Later']]]), 'ada');
 Cms::schedule('hero', date('Y-m-d\TH:i', time() + 7200), 'chief');
@@ -107,7 +107,7 @@ ck('cms: the preview shows the new footer without writing it', str_contains($pv,
 $r = Cms::publish('site', 'chief');
 $about = (string) file_get_contents("$tr/about.html"); $home = (string) file_get_contents("$tr/index.html"); $nf = (string) file_get_contents("$tr/404.html");
 ck('cms: publishing site details rewrites every page’s footer', $r['ok'] && $r['pages'] === 3 && str_contains($home, 'mailto:hello@afrovanguard.org.ng') && str_contains($about, 'mailto:hello@afrovanguard.org.ng') && str_contains($nf, 'mailto:hello@afrovanguard.org.ng'));
-ck('cms: …an emptied social link drops its icon', !str_contains($about, 'aria-label="YouTube"') && str_contains($about, 'aria-label="Instagram"'));
+ck('cms: …an emptied social link drops its icon', !str_contains($about, 'aria-label="YouTube (opens in a new tab)"') && str_contains($about, 'aria-label="Instagram (opens in a new tab)"'));
 ck('cms: …and nothing else on the page moves', str_replace(avh_chrome_html()['foot'], $foot, $home) === $idx);
 ck('cms: PHP pages read the new details as they render', SiteSettings::live()['email'] === 'hello@afrovanguard.org.ng');
 Cms::restore('site', Cms::history('site')[0]['id'], 'chief'); Cms::publish('site', 'chief');

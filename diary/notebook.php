@@ -26,7 +26,7 @@ if (!$view) {
     http_response_code(404);
     render_head(['title' => 'Notebook not found — Afrovanguard Diary', 'robots' => 'noindex, nofollow']);
     render_nav('diary');
-    echo '<main id="main-content" class="container" style="padding:80px 0;text-align:center">'
+    echo '<main id="main" tabindex="-1" class="container" style="padding:80px 0;text-align:center">'
        . '<h1 style="font-family:var(--font-heading)">This notebook isn’t available</h1>'
        . '<p style="color:var(--muted)">The link may have been revoked, or it’s incorrect. '
        . '<a href="/diary/">Browse the Diary →</a></p></main>';
@@ -50,7 +50,7 @@ $spines = ['ink' => '#10292c', 'green' => '#237b22', 'gold' => '#c9a24b',
            'clay' => '#b0453f', 'sky' => '#3d6f8e', 'plum' => '#6b4674'];
 $spine  = $spines[$nb['colour']] ?? $spines['ink'];
 ?>
-<main id="main-content" class="container" style="max-width:820px;padding:48px 0 90px">
+<main id="main" tabindex="-1" class="container" style="max-width:820px;padding:48px 0 90px">
   <p style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--gold-deep);margin:0 0 16px">
     🔗 A notebook shared privately with you
   </p>

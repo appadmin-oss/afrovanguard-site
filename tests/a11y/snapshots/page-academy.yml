@@ -1,0 +1,8 @@
+- banner
+  - navigation "Main"
+- main
+  - navigation "Breadcrumb"
+  - heading "Learn. Build. Lead Africa." [level=1]
+    - search "Find a course"
+- contentinfo
+  - navigation "Academy"

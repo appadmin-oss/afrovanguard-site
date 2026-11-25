@@ -70,7 +70,7 @@ ck('audit tool: tools/academy-a11y-audit.php exists, is CLI-only and has --stric
 /* The accessibility statement. */
 $st = (string) @file_get_contents("$r/accessibility/index.php");
 ck('statement: /accessibility/ exists and names its standard (WCAG 2.2 AA)', str_contains($st, 'WCAG') && str_contains($st, '2.2') && str_contains($st, 'level AA'));
-ck('statement: it says honestly that the site partly meets it, and lists what falls short', str_contains($st, 'partly meets') && str_contains($st, 'What we know falls short'));
+ck('statement: it says honestly that the site is partially compliant, and lists what is not accessible', str_contains($st, '<strong>partially compliant</strong>') && str_contains($st, '<h3>Non-accessible content</h3>'));
 ck('statement: a barrier can be reported with a form already filled in', str_contains($st, "rawurlencode('Accessibility barrier')") && str_contains($st, '#contact-form'));
 ck('statement: it carries the date it was last reviewed', (bool) preg_match('~\$reviewed\s*=\s*\'\d{1,2} \w+ \d{4}\'~', $st));
 foreach (['partials/avh-chrome.php', 'index.html', 'lib/partials.php', 'academy/_avac.php'] as $f)

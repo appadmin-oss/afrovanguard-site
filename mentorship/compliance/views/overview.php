@@ -12,7 +12,7 @@ $driftN = array_sum(array_map(static fn($d) => $d['off'] + $d['repriced'], $drif
             <p class="qd-sub">The Pyramid Manual, run as a desk. Nothing a mentor puts forward is real until somebody here decides it, and nothing the manual calls for — a demotion, a suspension — happens until somebody here accepts it.</p></div>
         </div>
 
-        <div class="avp-kpis" aria-label="At a glance">
+        <div class="avp-kpis" role="group" aria-label="At a glance">
           <a class="avp-kpi qd-kpi" href="?s=cases#cases" data-goto="cases">
             <div class="avp-kpi-top"><span class="avp-kpi-l">Waiting for a decision</span><span class="avp-chip avp-chip--sm avp-chip--<?= $ov['waiting'] ? 'gold' : 'green' ?>"><?= $ov['waiting'] ? 'Needs you' : 'Clear' ?></span></div>
             <div class="avp-kpi-v av-num"><?= (int) $ov['waiting'] ?></div>

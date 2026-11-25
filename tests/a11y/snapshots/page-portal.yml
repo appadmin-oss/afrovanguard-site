@@ -1,0 +1,7 @@
+- complementary "Portal navigation"
+  - navigation "Sections"
+- banner
+- main
+      - heading "(greeting)" [level=1]
+    - navigation "Quick access"
+- contentinfo

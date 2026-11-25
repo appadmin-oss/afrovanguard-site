@@ -7,6 +7,14 @@ the shared chrome, every static page with a nav, and the real pages fetched
 through `router.php` (signed out, as a member who teaches, with a Studio
 session). Run it with `php tests/run.php navaccessible`.
 
+The wider system — one shared script (`assets/site/a11y-core.js`: dialog,
+announcer, disclosure, error summary, reduced motion, single-key shortcuts),
+one set of tokens and one focus ring (`assets/site/a11y.css`), one title
+pattern (`A11y::title()`), and the per-template contract
+(`tests/templatecontract.test.php`) — is described in
+`docs/accessibility/AUDIT-2026-11-25.md`. Use the core rather than writing a
+new dialog, live region or Tab trap.
+
 ## The patterns
 
 **Skip link, first.** The first thing Tab reaches on every layout is

@@ -70,7 +70,7 @@
                   </div>
                 </form>
                 <!-- Thread drawer -->
-                <div class="tc-thread" id="tcThread" hidden aria-label="Thread">
+                <div class="tc-thread" id="tcThread" hidden role="region" aria-label="Thread">
                   <div class="tc-thread-h"><span>Thread</span><button type="button" class="pm-x" id="tcThreadClose" aria-label="Close thread">✕</button></div>
                   <div class="tc-thread-body" id="tcThreadBody"></div>
                   <form class="tc-compose tc-thread-compose" id="tcThreadForm" autocomplete="off">
