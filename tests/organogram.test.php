@@ -1,0 +1,208 @@
+<?php
+/**
+ * tests/organogram.test.php — the organogram (/people/organogram/, lib/Organogram.php).
+ *
+ *   - its structure comes from the People map (AV_TEAM_STRUCTURE) in the same order,
+ *     so the two pages cannot disagree;
+ *   - the solid lines nest as the Constitution reads (Art. VI–X, XIV, Schedule B);
+ *   - the independent lines are present and written out at both ends;
+ *   - names only for people the public People page may list;
+ *   - no NGGC node; no constitutional text, references or links while the
+ *     Constitution is members-only;
+ *   - the page is complete without script; the PDF route works.
+ *
+ * Run via tests/run.php (provides ck() and render_page()).
+ */
+declare(strict_types=1);
+
+require_once AV_ROOT . '/lib/people.php';
+require_once AV_ROOT . '/lib/Organogram.php';
+require_once AV_ROOT . '/lib/ConstitutionDoc.php';
+
+$pdo = Database::pdo();
+av_team_ensure($pdo);
+$pdo->exec('DELETE FROM team');
+$mk = static function (array $f) use ($pdo): int {
+    $f += ['role' => '', 'tier' => 'volunteer', 'body' => '', 'office' => '', 'synced' => 0, 'active' => 1, 'listed_consent_at' => '', 'email' => '', 'photo_url' => ''];
+    $cols = implode(',', array_keys($f));
+    $pdo->prepare("INSERT INTO team ($cols) VALUES (" . implode(',', array_fill(0, count($f), '?')) . ')')->execute(array_values($f));
+    return (int) $pdo->lastInsertId();
+};
+$pres   = $mk(['name' => 'Orgtest President Adaeze', 'role' => 'President and Chief Servant', 'tier' => 'management']);
+$cfo    = $mk(['name' => 'Orgtest Finance Danjuma', 'body' => 'executive', 'office' => 'cfo']);
+$pd     = $mk(['name' => 'Orgtest Director Bello', 'body' => 'techome', 'office' => 'project-director']);
+$chair  = $mk(['name' => 'Orgtest Chair Amadi', 'body' => 'council', 'office' => 'chair']);
+$consent= $mk(['name' => 'Orgtest Consented Trustee', 'body' => 'trustees', 'office' => 'trustee', 'synced' => 1, 'listed_consent_at' => '2026-11-01 10:00:00']);
+$hidden = $mk(['name' => 'Orgtest Unconsented Coo', 'body' => 'executive', 'office' => 'coo', 'synced' => 1]);
+$off    = $mk(['name' => 'Orgtest Inactive Cto', 'body' => 'executive', 'office' => 'cto', 'active' => 0]);
+$sys    = $mk(['name' => 'Super Admin', 'body' => 'board', 'office' => 'chair']);
+$nooff  = $mk(['name' => 'Orgtest Logistics Head', 'role' => 'Head of Logistics', 'tier' => 'management']);
+
+$nodes = Organogram::nodes();
+
+/* ══ One structure: the People map, in its order ══════════════════════ */
+ck('organogram: the Chief Officers box is the Executive offices of the People map, in order, without the President and COO',
+   array_keys(Organogram::offices($nodes['chief-officers'])) === array_values(array_diff(array_keys(AV_TEAM_STRUCTURE['executive']['bodies']['executive']['offices']), ['president', 'coo'])));
+ck('organogram: the Directorates box is the seven Directorates of the map, in order',
+   array_keys(Organogram::units($nodes['directorates'])) === array_keys(AV_TEAM_STRUCTURE['directorates']['bodies'])
+   && count(Organogram::units($nodes['directorates'])) === 7);
+ck('organogram: the Institutions box is the map\'s institutions (the Academy, the CACENTREs)',
+   array_keys(Organogram::units($nodes['institutions'])) === array_keys(AV_TEAM_STRUCTURE['institutions']['bodies']));
+ck('organogram: body and office titles are the People map\'s labels',
+   Organogram::label($nodes['council']) === av_team_body_label('council') && Organogram::label($nodes['board']) === av_team_body_label('board')
+   && Organogram::label($nodes['trustees']) === av_team_body_label('trustees')
+   && Organogram::label($nodes['president']) === av_team_office_label('executive', 'president')
+   && Organogram::label($nodes['coo']) === av_team_office_label('executive', 'coo'));
+ck('organogram: every body or office node points at a real body/office of the map', (static function () use ($nodes): bool {
+    foreach ($nodes as $n) {
+        if (isset($n['body']) && !isset(av_team_bodies()[$n['body']])) return false;
+        if (isset($n['office']) && av_team_office_label($n['body'], $n['office']) === '') return false;
+        if (isset($n['group']) && !isset(AV_TEAM_STRUCTURE[$n['group']])) return false;
+    }
+    return true;
+})());
+ck('organogram: five Board committees, in constitutional order', array_values(Organogram::COMMITTEES) === ['Audit, Finance and Risk Committee',
+   'Governance, Nominations and Succession Committee', 'Programmes, Impact and Safeguarding Committee', 'Technology, Research and Data Ethics Committee',
+   'Partnerships and Resource Mobilisation Committee']);
+
+/* ══ The solid lines ══════════════════════════════════════════════════ */
+$parent = array_map(static fn($n) => $n['parent'], $nodes);
+ck('organogram: General Assembly at the top', $parent['assembly'] === null && array_key_first($nodes) === 'assembly');
+ck('organogram: Council and Trustees answer to the General Assembly', $parent['council'] === 'assembly' && $parent['trustees'] === 'assembly');
+ck('organogram: Board under the Council; committees and President under the Board',
+   $parent['board'] === 'council' && $parent['committees'] === 'board' && $parent['president'] === 'board');
+ck('organogram: COO and the Chief Officers under the President (Art. X §2(1)(e)); Directorates and institutions under the COO (X §4(3))',
+   $parent['coo'] === 'president' && $parent['chief-officers'] === 'president' && $parent['directorates'] === 'coo' && $parent['institutions'] === 'coo');
+ck('organogram: Board children in order President, committees; President children COO, Chief Officers (the Chief Officers sit beside the committees)',
+   array_column($nodes['board']['children'], 'id') === ['president', 'committees'] && array_column($nodes['president']['children'], 'id') === ['coo', 'chief-officers']);
+ck('organogram: every solid line has a basis and a sentence', !array_filter(Organogram::solidLines(), static fn($l) => !$l['basis'] || trim($l['say']) === ''));
+ck('organogram: the Honorary Institutional Custodians sit beside the Trustees with no line', ($nodes['trustees']['aside'] ?? '') === 'custodians' && !isset($nodes['custodians']));
+
+/* ══ The independent lines ════════════════════════════════════════════ */
+$ids = Organogram::allIds();
+$pairs = array_map(static fn($l) => $l['from'] . '>' . ($l['to'] ?? ''), Organogram::LINES);
+ck('organogram: CFO → Audit, Finance and Risk Committee (X §5(3))', in_array('office-cfo>cmte-afr', $pairs, true));
+ck('organogram: Safeguarding Officer → Programmes, Impact and Safeguarding Committee (X §13(3))', in_array('office-safeguarding>cmte-pis', $pairs, true));
+ck('organogram: CTO → Technology, Research and Data Ethics Committee (X §6(2)(j), Schedule A)', in_array('office-cto>cmte-trd', $pairs, true));
+ck('organogram: General Counsel → the relevant governance body, no invented target (X §12(2)(f))', in_array('office-counsel>', $pairs, true));
+ck('organogram: Trustees\' fiduciary oversight of the Board (Schedule A)', in_array('trustees>board', $pairs, true));
+ck('organogram: Directorate Finance Officers → CFO (X §5(2)(c))', in_array('directorate-finance>office-cfo', $pairs, true));
+ck('organogram: every line end is a node the chart draws', !array_filter(Organogram::LINES, static fn($l) =>
+   ($l['from'] !== 'directorate-finance' && !in_array($l['from'], $ids, true)) || ($l['to'] !== null && !in_array($l['to'], $ids, true))));
+ck('organogram: every line has a basis and a sentence, and drawn lines have words at both ends', !array_filter(Organogram::LINES, static fn($l) =>
+   !$l['basis'] || trim($l['say']) === '' || ($l['draw'] && (empty($l['at_from']) || empty($l['at_to'])))));
+
+/* ══ Holders: listable people only ════════════════════════════════════ */
+$people = Organogram::people($pdo);
+$h = Organogram::holders($people);
+$names = static fn(string $k) => array_map(static fn($m) => $m['name'], $h[$k] ?? []);
+ck('organogram holders: placed by av_team_placement (role text → President)', $names('executive/president') === ['Orgtest President Adaeze']);
+ck('organogram holders: a set body/office wins', $names('executive/cfo') === ['Orgtest Finance Danjuma'] && $names('techome/project-director') === ['Orgtest Director Bello']);
+ck('organogram holders: a consented synced row is shown', $names('trustees/trustee') === ['Orgtest Consented Trustee']);
+ck('organogram holders: an unconsented synced row, an inactive row and a system account are not',
+   !isset($h['executive/coo']) && !isset($h['executive/cto']) && !isset($h['board/chair']));
+$raw = av_team_rows($pdo, false);
+ck('organogram holders: raw rows passed straight in are filtered by the listing rule too', !isset(Organogram::holders($raw)['executive/coo']) && !isset(Organogram::holders($raw)['board/chair'])
+   && isset(Organogram::holders($raw)['executive/cfo']));
+ck('organogram holders: somebody in a body but no named office holds no office on the chart',
+   !in_array('Orgtest Logistics Head', array_merge(...array_values(array_map(static fn($l) => array_column($l, 'name'), $h))), true));
+
+/* ══ The page ═════════════════════════════════════════════════════════ */
+$html = render_page(AV_ROOT . '/people/organogram/index.php');
+$text = html_entity_decode(strip_tags((string) preg_replace('~<(script|style)\b.*?</\1>~s', '', $html)), ENT_QUOTES, 'UTF-8');
+ck('organogram page: renders', str_contains($html, '<h1>How Afrovanguard is <em>organised</em></h1>') && str_contains($html, 'class="ppl org"') && !str_contains($html, 'render_page: threw'));
+ck('organogram page: one nested list, tree order in the markup', (static function () use ($html): bool {
+    $p = -1;
+    foreach (['assembly', 'council', 'board', 'president', 'coo', 'directorates', 'institutions', 'chief-officers', 'committees', 'trustees'] as $id) {
+        $q = strpos($html, 'id="org-' . $id . '"'); if ($q === false || $q < $p) return false; $p = $q;
+    }
+    return substr_count($html, 'class="org-kids"') === 5 && str_contains($html, '<ul class="org-tree">');
+})());
+ck('organogram page: every Directorate and institution is a <details> with its team, closed', substr_count($html, '<details class="org-unit">') === 9
+   && str_contains($html, 'id="org-unit-techome"') && str_contains($html, 'Volunteer Coordinator') && str_contains($html, 'Project Administrator'));
+ck('organogram page: group boxes are open <details> (keyboard-operable, no script)', substr_count($html, 'class="org-node org-group" open') === 4);
+ck('organogram page: a listable holder is named with a link to their profile and an avatar',
+   (bool) preg_match('~<a class="org-who" href="/people/' . $cfo . '-orgtest-finance-danjuma/"><span class="ppl-av org-av ppl-tint-\d" aria-hidden="true">OD</span><span class="org-who-n">Orgtest Finance Danjuma</span></a>~', $html));
+ck('organogram page: names only for listable people', str_contains($html, 'Orgtest Consented Trustee') && !str_contains($html, 'Orgtest Unconsented Coo')
+   && !str_contains($html, 'Orgtest Inactive Cto') && !str_contains($html, 'Super Admin'));
+ck('organogram page: an unfilled office shows its title only, with no "Vacant"', str_contains($html, '<span class="org-o">Deputy Chairperson</span></li>') && stripos($text, 'vacant') === false);
+ck('organogram page: every independent line is written at its ends and in the list', (static function () use ($html): bool {
+    foreach (Organogram::LINES as $l) {
+        foreach (['at_from', 'at_to', 'say'] as $k) if (!empty($l[$k]) && !str_contains($html, htmlspecialchars($l[$k], ENT_QUOTES))) return false;
+    }
+    return true;
+})());
+ck('organogram page: drawn lines carry their pair for the script', str_contains($html, 'data-org-end="from" data-org-pair="office-cfo&gt;cmte-afr"')
+   && str_contains($html, 'data-org-end="to" data-org-pair="office-cfo&gt;cmte-afr"'));
+ck('organogram page: the connector layer and its notes are hidden from assistive tech', str_contains($html, '<svg class="org-dash" aria-hidden="true" focusable="false">')
+   && str_contains($html, '<span class="org-chip-k" aria-hidden="true">'));
+ck('organogram page: the chart is a labelled, focusable region', str_contains($html, 'class="org-scroll" role="region" aria-labelledby="org-chart-h" aria-describedby="org-legend" tabindex="0"'));
+$main = (string) (preg_match('~<main\b.*?</main>~s', $html, $mm) ? $mm[0] : '');
+ck('organogram page: no NGGC node or name in the chart (the site menu is not the chart)', $main !== '' && stripos($main, 'NGGC') === false && stripos($main, 'Next Generation Genius') === false);
+ck('organogram page: no Constitution link or article references while it is members-only',
+   ConstitutionDoc::PUBLIC || (!str_contains($html, '/constitution/') && !preg_match('~\bArt\. [IVX]+ §~', $html) && !str_contains($html, 'class="org-ref"')));
+/* No run of eight words of the Constitution's text on the page (names of bodies are short). */
+$grams = static function (string $s, int $n = 8): array {
+    $w = preg_split('/[^a-z0-9’\']+/', strtolower($s), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    $w = array_values(array_filter($w, static fn($x) => strlen($x) > 1 || $x === 'a'));
+    $out = [];
+    for ($i = 0; $i + $n <= count($w); $i++) $out[implode(' ', array_slice($w, $i, $n))] = 1;
+    return $out;
+};
+$cg = $grams(ConstitutionDoc::markdown());
+$hit = array_keys(array_intersect_key($grams($text), $cg));
+ck('organogram page: quotes no eight-word run of the Constitution' . ($hit ? ' — ' . $hit[0] : ''), ConstitutionDoc::PUBLIC || !$hit);
+ck('organogram page: works without script — the Print button is the only thing script adds, hidden until then',
+   str_contains($html, '<button type="button" class="ppl-btn ppl-btn--line" data-org-print hidden>Print</button>')
+   && (bool) preg_match('~<script src="/people/organogram/organogram\.js\?v=[0-9a-f]{10}" defer></script>~', $html)
+   && str_contains($html, 'href="/people/organogram/download/">Download (PDF)</a>'));
+ck('organogram page: the profile anchors exist on the page', (static function () use ($html): bool {
+    foreach ([['body' => 'executive', 'office' => 'cfo'], ['body' => 'techome', 'office' => ''], ['body' => 'council', 'office' => 'chair'], ['body' => 'custodians', 'office' => 'custodian'],
+              ['body' => 'honorary', 'office' => 'patron'], ['body' => 'official-volunteers', 'office' => ''], ['body' => 'executive', 'office' => '']] as $p) {
+        if (!str_contains($html, 'id="org-' . Organogram::anchorFor($p) . '"')) return false;
+    }
+    return true;
+})());
+ck('organogram page: breadcrumb and canonical', str_contains($html, '<li><a href="/people/">Our people</a><span aria-hidden="true">›</span></li><li><span aria-current="page">Organogram</span>')
+   && str_contains($html, 'rel="canonical" href="' . rtrim(SITE_URL, '/') . '/people/organogram/"'));
+$css = (string) file_get_contents(AV_ROOT . '/people/organogram/organogram.css');
+ck('organogram css: a landscape print page, the chrome hidden, the tree in print', str_contains($css, '@page{size:A4 landscape') && str_contains($css, '@media print,(min-width:1240px)')
+   && str_contains($css, '.avh-head,.avh-foot'));
+ck('organogram css: larger text gets the outline, never a wide tree', substr_count($css, 'html:not([class*="a11y-t"])') > 20);
+
+/* ══ Routes, links, sitemap, search ═══════════════════════════════════ */
+$router = (string) file_get_contents(AV_ROOT . '/router.php');
+ck('organogram routes: dev router and Apache both serve the page and the PDF', str_contains($router, "'~^/people/organogram/?$~'") && str_contains($router, "'~^/people/organogram/download/?$~'")
+   && str_contains((string) file_get_contents(AV_ROOT . '/people/organogram/.htaccess'), 'RewriteRule ^download/?$ download.php')
+   && strpos($router, 'people/organogram/?$') < strpos($router, "'~^/people/([0-9]+)"));
+$dir = render_page(AV_ROOT . '/people/index.php');
+ck('organogram: the People page links to it quietly from the toolbar', str_contains($dir, '<a class="ppl-chartlink" href="/people/organogram/">See the organogram <span aria-hidden="true">→</span></a>'));
+$prof = render_page(AV_ROOT . '/people/index.php', ['id' => (string) $cfo]);
+ck('organogram: a profile\'s "where they sit" links to its place on the chart', str_contains($prof, 'href="/people/organogram/#org-office-cfo"'));
+ck('organogram: in the sitemap and in site search', str_contains((string) file_get_contents(AV_ROOT . '/sitemap.xml'), '<loc>https://afrovanguard.org.ng/people/organogram/</loc>')
+   && str_contains((string) file_get_contents(AV_ROOT . '/lib/Sitemap.php'), "['people/organogram/', '0.5', 'monthly']")
+   && str_contains((string) file_get_contents(AV_ROOT . '/lib/SiteSearch.php'), "['Organogram', '/people/organogram/'"));
+
+/* ══ The PDF ══════════════════════════════════════════════════════════ */
+$pdfHtml = Organogram::pdfHtml($h);
+ck('organogram pdf: names only listable people', str_contains($pdfHtml, 'Orgtest Finance Danjuma') && !str_contains($pdfHtml, 'Orgtest Unconsented Coo') && !str_contains($pdfHtml, 'Super Admin'));
+ck('organogram pdf: no NGGC, no Constitution text', stripos($pdfHtml, 'NGGC') === false
+   && (ConstitutionDoc::PUBLIC || !array_intersect_key($grams(html_entity_decode(strip_tags((string) preg_replace('~<style\b.*?</style>~s', '', $pdfHtml)), ENT_QUOTES, 'UTF-8')), $cg)));
+if (class_exists(\Dompdf\Dompdf::class)) {
+    $keepDir = getenv('AV_PRIVATE_DIR');
+    $tmp = sys_get_temp_dir() . '/av-org-test-' . getmypid(); @mkdir($tmp, 0700, true);
+    putenv('AV_PRIVATE_DIR=' . $tmp);
+    $pdf = (string) Organogram::pdf($people);
+    $pages = preg_match_all('~/Type\s*/Page\b(?!s)~', $pdf);
+    ck('organogram pdf: Dompdf builds one A4 landscape page', str_starts_with($pdf, '%PDF') && $pages === 1 && (bool) preg_match('~/MediaBox\s*\[\s*0\.?0*\s+0\.?0*\s+841\.8\d*\s+595\.2\d*~', $pdf));
+    ck('organogram pdf: cached — the second call is the same bytes from disk', Organogram::pdf($people) === $pdf && count(glob($tmp . '/organogram-*.pdf') ?: []) === 1);
+    array_map('unlink', glob($tmp . '/*') ?: []); @rmdir($tmp);
+    putenv($keepDir === false ? 'AV_PRIVATE_DIR' : 'AV_PRIVATE_DIR=' . $keepDir);
+}
+ck('organogram pdf: the route serves it as a download, with a fallback', (static function (): bool {
+    $s = (string) file_get_contents(AV_ROOT . '/people/organogram/download.php');
+    return str_contains($s, "header('Content-Type: application/pdf')") && str_contains($s, 'Organogram::FILENAME') && str_contains($s, 'http_response_code(503)')
+        && str_contains($s, 'Organogram::people(Database::pdo())');
+})());
+
+$pdo->exec('DELETE FROM team');

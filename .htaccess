@@ -151,6 +151,8 @@ RewriteRule ^quote/week-([0-9]{1,2})/?$ quote.php?week=$1 [L,QSA]
 
 # People profiles: /people/<id> or /people/<id>-<slug>
 RewriteRule ^people/([0-9]+)(?:-[^/]*)?/?$ people/index.php?id=$1 [L,QSA]
+# The organogram's PDF: /people/organogram/download/ (people/organogram/.htaccess does the same)
+RewriteRule ^people/organogram/download/?$ people/organogram/download.php [L,QSA]
 
 # Google sign-in endpoints
 RewriteRule ^auth/google/(start|callback|connect|disconnect)/?$ auth/google.php?action=$1 [L,QSA]

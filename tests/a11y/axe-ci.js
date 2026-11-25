@@ -34,7 +34,7 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
 const PUBLIC = [
   '/', '/about.html', '/contact.html', '/donate.html', '/projects/',
-  '/accessibility/', '/terms/', '/privacy-policy/', '/reports/', '/login', '/people/',
+  '/accessibility/', '/terms/', '/privacy-policy/', '/reports/', '/login', '/people/', '/people/organogram/',
   '/academy/', '/academy/techome/', '/academy/programmes/', '/academy/ngv/',
   '/academy/ngv/register.php', '/academy/dns/', '/academy/verify.php',
 ];

@@ -17,6 +17,7 @@ final class Sitemap
         ['about.html', '0.8', 'monthly'],
         ['how-it-works', '0.7', 'monthly'],
         ['people/', '0.6', 'monthly'],
+        ['people/organogram/', '0.5', 'monthly'],
         ['ethos/', '0.9', 'monthly'],
         ['academy/', '0.9', 'weekly'],
         ['academy/ngv/', '0.9', 'weekly'],

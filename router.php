@@ -140,6 +140,8 @@ if (preg_match('~^/portal/?$~', $uri)) { require __DIR__ . '/portal/index.php'; 
 
 // People directory + profiles (custom)
 if (preg_match('~^/people/?$~', $uri)) { require __DIR__ . '/people/index.php'; return true; }
+if (preg_match('~^/people/organogram/?$~', $uri)) { require __DIR__ . '/people/organogram/index.php'; return true; }
+if (preg_match('~^/people/organogram/download/?$~', $uri)) { require __DIR__ . '/people/organogram/download.php'; return true; }
 if (preg_match('~^/people/([0-9]+)(?:-[^/]*)?/?$~', $uri, $m)) { $_GET['id'] = $m[1]; require __DIR__ . '/people/index.php'; return true; }
 
 // Academy pretty routes

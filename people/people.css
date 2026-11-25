@@ -108,6 +108,12 @@ html.a11y-hc .ppl-chip-n{outline:1px solid currentColor}
 .ppl-count{margin:0;font-size:0.8438rem;color:var(--av-muted)}
 .ppl-status:has(.ppl-count:not(:empty)){padding:0 0 12px}
 .ppl-tools-row:has(.ppl-clear:not([hidden])) .ppl-status{padding:0 0 12px}
+/* The quiet way to the organogram, at the end of the toolbar */
+.ppl-chartlink{display:inline-flex;align-items:center;gap:4px;min-height:36px;font-size:0.875rem;font-weight:600;color:var(--av-gold-text);text-decoration:none;white-space:nowrap}
+.avh .ppl-chartlink:hover{text-decoration:underline;text-underline-offset:3px}
+/* A profile's "where they sit" opens that place on the organogram */
+.ppl-where{color:inherit;text-decoration:none;border-bottom:1px solid var(--av-gold-light)}
+.avh .ppl-where:hover{border-bottom-color:currentColor}
 .ppl-clear{display:inline-flex;align-items:center;min-height:36px;padding:4px 14px;border:1px solid var(--av-line-3);border-radius:var(--av-r-pill);background:var(--av-white);color:var(--av-ink);font-family:var(--av-sans);font-size:0.875rem;font-weight:600;cursor:pointer}
 .avh .ppl-clear:hover{border-color:var(--av-ink)}
 .ppl mark{padding:0 1px;border-radius:3px;background:var(--av-gold-soft);color:inherit;box-shadow:inset 0 -2px 0 var(--av-gold-light)}

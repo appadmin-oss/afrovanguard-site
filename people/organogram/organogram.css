@@ -1,0 +1,185 @@
+/* people/organogram/organogram.css — the organogram (/people/organogram/). Prefix org-.
+   Loaded after people.css (hero, buttons, avatars, .ppl-wrap's launcher gutter). Tokens only.
+
+   One nested list, two drawings:
+     OUTLINE (default; below 1240px, and at any width with larger text): an indented tree
+       with a guide line on the left, every node full width;
+     TREE (from 1240px at normal text size, and in print): top-down, parent centred over its
+       children, solid connectors drawn by ::before/::after on each item.
+   The connectors are borders, so high contrast repaints them in its own colour; they are
+   decoration only (the nesting carries the structure for assistive technology). */
+
+.org-hero{padding-bottom:clamp(28px,4vw,40px)}
+.org-hero h1{max-width:20ch}
+.org-actions{align-items:center}
+.org-back{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 6px;font-size:0.9375rem;font-weight:600;color:var(--av-ink);text-decoration:none}
+.avh .org-back:hover{color:var(--av-gold-text);text-decoration:underline;text-underline-offset:3px}
+
+.org-sec{padding:clamp(28px,3.5vw,40px) 0 0}
+.org-sec-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 28px;margin:0 0 18px}
+.org-sec h2{font-family:var(--av-serif);font-weight:400;font-size:clamp(1.625rem,2.4vw,2rem);line-height:1.1;margin:0;color:var(--av-ink)}
+.org-legend{display:flex;flex-wrap:wrap;gap:6px 22px;flex:1 1 420px}
+.org-key{display:inline-flex;align-items:center;gap:8px;margin:0;font-size:0.875rem;line-height:1.4;color:var(--av-copy-2)}
+.org-key--note{flex-basis:100%;color:var(--av-copy-3)}
+.org-key-s,.org-key-d{flex:none;width:28px;border-top:2px solid var(--av-slate)}
+.org-key-d{border-top:2px dashed var(--av-gold-text)}
+
+/* ── Shared node parts ─────────────────────────────────────────────── */
+.org-tree,.org-kids,.org-rows,.org-chips{list-style:none;margin:0;padding:0}
+.org-node{position:relative;background:var(--av-white);border:1px solid var(--av-line-2);border-radius:var(--av-r-10);padding:12px 14px;text-align:left}
+.org-node--body,.org-node--plain{border-top:3px solid var(--av-gold)}
+.org-node--office{border-top:3px solid var(--av-ink)}
+.org-node--top{border-color:var(--av-ink);border-top-width:3px}
+.org-t{margin:0;font-family:var(--av-sans)!important;font-size:1rem;font-weight:700;line-height:1.3;color:var(--av-ink)}
+.org-t--sm{font-size:0.9375rem}
+.org-n{margin:4px 0 0;font-size:0.875rem;line-height:1.45;color:var(--av-copy-3)}
+.org-n--sm{font-size:0.8125rem}
+.org-rows{margin-top:6px}
+.org-row{padding:7px 0;border-top:1px solid var(--av-line)}
+.org-rows--body .org-row:first-child{border-top:0}
+.org-o{display:block;font-size:0.875rem;line-height:1.35;color:var(--av-text-2)}
+.org-whos{display:flex;flex-direction:column;gap:4px;margin:4px 0 0}
+.org-who{display:inline-flex;align-items:center;gap:8px;min-height:28px;align-self:flex-start;font-size:0.9063rem;font-weight:600;line-height:1.25;color:var(--av-ink);text-decoration:none}
+.avh .org-who:hover .org-who-n{color:var(--av-gold-text);text-decoration:underline;text-underline-offset:3px}
+.ppl-av.org-av{width:28px;height:28px;font-size:0.6875rem}
+/* The independent lines: a dashed note at each end */
+.org-chips{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.org-chip{display:flex;align-items:flex-start;gap:6px;padding:3px 7px;border:1px dashed var(--av-gold-text);border-radius:6px;background:var(--av-gold-soft);font-size:0.8125rem;line-height:1.35;color:var(--av-ink-2)}
+.org-chip-k{flex:none;width:12px;margin-top:.6em;border-top:2px dashed var(--av-gold-text)}
+.org-ref{font-size:0.8125rem;color:var(--av-gold-text)}
+
+/* Group boxes and units: <details>, open by default for groups, closed for teams */
+.org-group>summary,.org-unit>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;min-height:32px}
+.org-group>summary::-webkit-details-marker,.org-unit>summary::-webkit-details-marker{display:none}
+.org-group>summary::after,.org-unit>summary::after{content:"";flex:none;margin-left:auto;width:8px;height:8px;border-right:2px solid var(--av-slate);border-bottom:2px solid var(--av-slate);transform:translateY(-2px) rotate(45deg);transition:transform .15s}
+.org-group[open]>summary::after,.org-unit[open]>summary::after{transform:translateY(2px) rotate(-135deg)}
+.org-group{border-top:3px solid var(--av-line-3)}
+.org-unit-li{border-top:1px solid var(--av-line)}
+.org-unit>summary{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;padding:8px 0;min-height:44px}
+.org-unit>summary::after{grid-column:2;grid-row:1;align-self:center;margin-left:0}
+.org-unit>summary:has(.org-u-lead)::after{grid-row:1/span 2}
+.org-u-t{grid-column:1;font-size:0.9063rem;font-weight:600;line-height:1.3;color:var(--av-ink)}
+.org-u-lead{grid-column:1;font-size:0.8125rem;line-height:1.3;color:var(--av-copy-3)}
+.avh .org-unit>summary:hover .org-u-t{text-decoration:underline;text-underline-offset:3px}
+.org-team{margin:0 0 10px;padding:4px 0 2px 12px;border-left:2px solid var(--av-gold-light)}
+.org-team .org-n:first-child{margin-top:0}
+.org-aside{margin-top:12px;padding:10px 12px;border:1px dashed var(--av-line-3);border-radius:var(--av-r-10);background:var(--av-paper)}
+
+/* ── OUTLINE (default) ─────────────────────────────────────────────── */
+.org-scroll{position:relative}
+.org-chart{position:relative}
+.org-dash{display:none}
+.org-node{max-width:640px}
+.org-kids{margin-left:14px}
+.org-kids>.org-li{position:relative;padding:12px 0 0 22px}
+.org-kids>.org-li::before{content:"";position:absolute;left:0;top:0;width:16px;height:34px;border-left:1px solid var(--av-slate-2);border-bottom:1px solid var(--av-slate-2);border-bottom-left-radius:8px}
+.org-kids>.org-li:not(:last-child)::after{content:"";position:absolute;left:0;top:0;bottom:0;border-left:1px solid var(--av-slate-2)}
+.org-aside{max-width:640px}
+
+/* ── TREE (desktop, normal text size; and print) ───────────────────── */
+@media print,(min-width:1240px){
+  html:not([class*="a11y-t"]) .org-scroll{overflow-x:auto;overflow-y:hidden;margin:0 -8px;padding:4px 8px 16px}
+  html:not([class*="a11y-t"]) .org-chart{width:max-content;min-width:100%}
+  html:not([class*="a11y-t"]) .org-tree,html:not([class*="a11y-t"]) .org-kids{display:flex;justify-content:center;align-items:flex-start}
+  html:not([class*="a11y-t"]) .org-kids{position:relative;margin:0;padding-top:22px}
+  html:not([class*="a11y-t"]) .org-li{position:relative;display:flex;flex-direction:column;align-items:center;padding:22px 4px 0}
+  html:not([class*="a11y-t"]) .org-tree>.org-li{padding-top:0}
+  /* the bus: each child draws its half of the horizontal line and its drop */
+  html:not([class*="a11y-t"]) .org-kids>.org-li::before,html:not([class*="a11y-t"]) .org-kids>.org-li::after{content:"";position:absolute;top:0;right:50%;left:auto;bottom:auto;width:50%;height:22px;border:0;border-top:1.5px solid var(--av-slate-2);border-radius:0}
+  html:not([class*="a11y-t"]) .org-kids>.org-li::after{right:auto;left:50%;border-left:1.5px solid var(--av-slate-2)}
+  html:not([class*="a11y-t"]) .org-kids>.org-li:first-child::before,html:not([class*="a11y-t"]) .org-kids>.org-li:last-child::after{border-top:0}
+  html:not([class*="a11y-t"]) .org-kids>.org-li:last-child::before{border-right:1.5px solid var(--av-slate-2);border-top-right-radius:8px}
+  html:not([class*="a11y-t"]) .org-kids>.org-li:first-child::after{border-top-left-radius:8px}
+  html:not([class*="a11y-t"]) .org-kids>.org-li:only-child::before{display:none}
+  html:not([class*="a11y-t"]) .org-kids>.org-li:only-child::after{border-top:0;border-radius:0}
+  /* the drop from a parent to its children's bus */
+  html:not([class*="a11y-t"]) .org-kids::before{content:"";position:absolute;top:0;left:50%;height:22px;border-left:1.5px solid var(--av-slate-2)}
+  html:not([class*="a11y-t"]) .org-kids>.org-li:only-child{padding-top:22px}
+  html:not([class*="a11y-t"]) .org-kids:has(>.org-li:only-child){padding-top:0}
+  html:not([class*="a11y-t"]) .org-kids:has(>.org-li:only-child)::before{display:none}
+
+  html:not([class*="a11y-t"]) .org-node{width:204px;max-width:none}
+  html:not([class*="a11y-t"]) .org-node--top{width:280px}
+  html:not([class*="a11y-t"]) .org-li--body>.org-node{width:228px}
+  html:not([class*="a11y-t"]) #org-trustees>.org-node,html:not([class*="a11y-t"]) .org-aside{width:184px;max-width:none}
+  html:not([class*="a11y-t"]) .org-li--office>.org-node{width:208px}
+  html:not([class*="a11y-t"]) .org-group{width:188px}
+  html:not([class*="a11y-t"]) #org-chief-officers>.org-group{width:204px}
+  html:not([class*="a11y-t"]) #org-institutions>.org-group{width:168px}
+  /* Body notes are for the outline and the words below; the tree stays scannable. */
+  html:not([class*="a11y-t"]) .org-node--body>.org-n,html:not([class*="a11y-t"]) .org-group-b>.org-n{display:none}
+  html:not([class*="a11y-t"]) .org-node{padding:10px 12px}
+  /* room between the Chief Officers and the committees for the dashed lines that join them */
+  html:not([class*="a11y-t"]) #org-committees{padding-left:30px}
+  html:not([class*="a11y-t"]) .org-dash{display:block;position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;color:var(--av-gold-text)}
+  html:not([class*="a11y-t"]) .org-dash path{fill:none;stroke:currentColor;stroke-width:1.5;stroke-dasharray:5 4}
+}
+
+/* ── Words below the chart ─────────────────────────────────────────── */
+.org-words h2,.org-along h2{margin-bottom:14px}
+.org-words-cols{display:grid;grid-template-columns:minmax(0,1fr);gap:8px 40px}
+@media (min-width:900px){.org-words-cols{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.org-words h3,.org-along h3{margin:12px 0 8px;font-family:var(--av-sans)!important;font-size:1rem;font-weight:700;color:var(--av-ink)}
+.org-say{list-style:none;margin:0;padding:0}
+.org-say li{position:relative;padding:8px 0 8px 28px;border-top:1px solid var(--av-line);font-size:0.9375rem;line-height:1.55;color:var(--av-copy-0)}
+.org-say li::before{content:"";position:absolute;left:0;top:1.15em;width:18px;border-top:2px solid var(--av-slate)}
+.org-say--dash li::before{border-top-style:dashed;border-top-color:var(--av-gold-text)}
+.org-along-p{margin:0 0 6px;max-width:62ch;font-size:0.9375rem;line-height:1.55;color:var(--av-copy-2)}
+.org-along-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:12px}
+.org-along-list li{padding:14px 16px;border:1px dashed var(--av-line-3);border-radius:var(--av-r-10);background:var(--av-white)}
+.org-along-list h3{margin:0 0 4px}
+.org-along-list p{margin:0;font-size:0.875rem;line-height:1.5;color:var(--av-copy-3)}
+.org-along-list a{display:inline-flex;align-items:center;gap:4px;min-height:32px;margin-top:6px;font-size:0.875rem;font-weight:600;color:var(--av-gold-text);text-decoration:none}
+.avh .org-along-list a:hover{text-decoration:underline;text-underline-offset:3px}
+.org-fine{margin:20px 0 0;font-size:0.8438rem;line-height:1.5;color:var(--av-muted)}
+.org-along{padding-bottom:clamp(56px,7vw,88px)}
+
+/* High contrast: the dashed notes keep their dash as a shape, not a colour */
+html.a11y-hc .org-chip,html.a11y-hc .org-aside,html.a11y-hc .org-along-list li{border-style:dashed!important}
+html.a11y-hc .org-dash{color:var(--hc-fg)}
+
+@media (max-width:639px){
+  .org-actions .ppl-btn{flex:1 1 auto}
+  .org-back{flex-basis:100%;padding:0}
+  .org-kids{margin-left:4px}
+  .org-kids>.org-li{padding-left:13px}
+  .org-kids>.org-li::before{width:9px}
+  .org-node{padding:10px 12px}
+}
+@media (prefers-reduced-motion:reduce){.org *{transition:none!important}}
+
+/* ── Print: the chart alone, on one landscape page ─────────────────── */
+@media print{
+  @page{size:A4 landscape;margin:8mm}
+  html,body{background:#fff!important}
+  .avh-head,.avh-foot,.read-progress,.org-words,.org-along,.org-actions,.ppl-crumbs,.avh-topo,.org-hero .ppl-intro,.av-skip,.av-cookie,[data-av-launcher],.chioma-root,.av-a11y-fab,.avcel-layer{display:none!important}
+  .org-hero{padding:0 0 4px;background:none}
+  .org-hero .ppl-eyebrow{display:none}
+  .org-hero h1{font-size:20pt;max-width:none}
+  .ppl-wrap{max-width:none!important;padding:0!important}
+  .org-sec{padding:0}
+  .org-sec-head{margin:0 0 6px}
+  .org-sec-head h2{display:none}
+  .org-key{font-size:8pt}
+  .org-scroll{overflow:visible!important;margin:0!important;padding:0!important}
+  .org-chart{zoom:var(--org-print-zoom,.52);margin:0 auto}
+  /* Height is the limit on a landscape page, width is spare: the long boxes go two columns wide. */
+  html:not([class*="a11y-t"]) #org-chief-officers>.org-group{width:640px}
+  html:not([class*="a11y-t"]) #org-committees>.org-group{width:400px}
+  html:not([class*="a11y-t"]) #org-directorates>.org-group{width:380px}
+  #org-committees .org-rows,#org-directorates .org-rows{columns:2;column-gap:14px}
+  #org-chief-officers .org-rows{columns:3;column-gap:14px}
+  .org-node--plain>.org-n{display:none}
+  html:not([class*="a11y-t"]) .org-node--top{width:220px}
+  .org-row{padding:4px 0}
+  .org-who{min-height:0}
+  .org-row,.org-unit-li{break-inside:avoid}
+  .org-node,.org-group,.org-aside{break-inside:avoid}
+  /* The dashed connectors are measured on screen; on paper the dashed notes at both ends say it. */
+  .org-dash{display:none!important}
+  .org-who{color:#111827}
+  .org-unit>summary::after,.org-group>summary::after{display:none}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+/* A link to a place on the chart (a profile's "where they sit") lands clear of the sticky header */
+.org [id^="org-"]{scroll-margin-top:96px}

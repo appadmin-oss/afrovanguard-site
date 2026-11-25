@@ -72,6 +72,7 @@ final class SiteSearch
         ['Donate', '/donate.html', 'Give funds, materials, skills or time', 'give money support pay sponsor gift', 'Get involved'],
         ['Live appeals', '/give/', 'What each appeal is for, how far along it is and what a gift pays for', 'appeal fundraising give donate', 'Get involved'],
         ['Our people', '/people/', 'The team, trustees and volunteers who run Afrovanguard', 'team staff trustees directory', 'About'],
+        ['Organogram', '/people/organogram/', 'How Afrovanguard is organised, from the General Assembly to the Directorates', 'org chart organisation organization structure hierarchy governance board council trustees executive', 'About'],
         ['Contact us', '/contact.html', 'Reach the team by email, phone or the contact form', 'email phone address reach help support', 'Contact'],
         ['Member portal', '/portal/', 'Your learning, mentorship and membership dues', 'account dashboard dues membership', 'Members'],
         ['Sign in', '/login', 'Sign in or create your Afrovanguard account', 'login log in register account create', 'Members'],

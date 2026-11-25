@@ -21,6 +21,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 require_once AV_ROOT . '/lib/people.php';
+require_once AV_ROOT . '/lib/Organogram.php';
 
 $S = rtrim(SITE_URL, '/');
 $pdo = Database::pdo();
@@ -181,7 +182,7 @@ if ($id) {
 <?php if ($m['photo'] !== ''): ?>            <img class="ppl-tint-<?= av_person_tint($m['name']) ?>" src="<?= e($m['photo']) ?>" alt="Portrait of <?= e($m['name']) ?>" data-ini="<?= e(av_person_initials($m['name'])) ?>" width="600" height="750" />
 <?php endif; ?>          </div>
           <div class="ppl-pbody">
-            <p class="ppl-eyebrow"><?= e($where) ?></p>
+            <p class="ppl-eyebrow"><a class="ppl-where" href="/people/organogram/#org-<?= e(Organogram::anchorFor($place)) ?>"><?= e($where) ?><span class="av-sr"> (see where this sits on the organogram)</span></a></p>
             <h1><?= e($m['name']) ?></h1>
             <p class="ppl-prole"><?= e($role) ?></p>
 <?php if ($isVotm): ?>            <p class="ppl-badge"><?= $star ?>Volunteer of the Month, <?= e($monthName((int) $votm['month'], (int) $votm['year'])) ?></p>
@@ -349,6 +350,7 @@ render_nav('people');
         <div class="ppl-status">
           <p class="ppl-count" id="ppl-count" role="status" aria-live="polite" aria-atomic="true"></p>
           <button type="button" class="ppl-clear" data-ppl-clear hidden>Clear<span class="av-sr"> search and filters</span></button>
+          <a class="ppl-chartlink" href="/people/organogram/">See the organogram <span aria-hidden="true">→</span></a>
         </div>
       </div>
     </div>

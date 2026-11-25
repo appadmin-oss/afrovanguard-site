@@ -260,7 +260,8 @@ ck('people page: with nobody to spotlight, the section is omitted cleanly', !str
 /* ══ The profile ═══════════════════════════════════════════════════════ */
 $prof = render_page(AV_ROOT . '/people/index.php', ['id' => (string) $patron]);
 ck('people profile: renders the person', str_contains($prof, '<h1>Test Patron Eze</h1>') && str_contains($prof, 'class="ppl ppl-profile"'));
-ck('people profile: says where they sit', str_contains($prof, '<p class="ppl-eyebrow">Honorary Patrons and advisers</p>'));
+ck('people profile: says where they sit, linked to that place on the organogram',
+   str_contains($prof, '<p class="ppl-eyebrow"><a class="ppl-where" href="/people/organogram/#org-along-honorary">Honorary Patrons and advisers<span class="av-sr"> (see where this sits on the organogram)</span></a></p>'));
 ck('people profile: the breadcrumb is a list with › separators, not " · "', str_contains($prof, '<li><a href="/people/">Our people</a><span aria-hidden="true">›</span></li><li><span aria-current="page">Test Patron Eze</span>')
    && !str_contains($prof, '<span aria-hidden="true"> · </span>'));
 ck('people profile: a link back to the directory (the script points it at the filtered view)', str_contains($prof, 'class="ppl-back" href="/people/" data-ppl-back'));
